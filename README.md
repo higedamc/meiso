@@ -158,4 +158,4 @@ TBD
 
 ## 作者
 
-godzhigella
+nostr:npub16lrdq99ng2q4hg5ufre5f8j0qpealp8544vq4ctn2wqyrf4tk6uqn8mfeq
