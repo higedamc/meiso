@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
+use nostr_sdk::nips::nip44; // NIP-44暗号化を明示的にインポート
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -31,8 +32,8 @@ impl MeisoNostrClient {
             if secret_key_hex.starts_with("nsec") { "nsec" } else { "hex" });
         
         let keys = Keys::parse(secret_key_hex)
-            .map_err(|e| anyhow::anyhow!("Failed to parse secret key ({}): {}. Please check the format (hex or nsec1...)", 
-                if secret_key_hex.starts_with("nsec") { "nsec format" } else { "hex format" }, e))?;
+            .map_err(|e| anyhow::anyhow!("秘密鍵のパースに失敗 ({}): {}. フォーマットを確認してください (hex or nsec1...)", 
+                if secret_key_hex.starts_with("nsec") { "nsec形式" } else { "hex形式" }, e))?;
 
         let client = Client::new(keys.clone());
 
@@ -75,11 +76,11 @@ impl MeisoNostrClient {
 
         // NIP-44で自己暗号化
         let public_key = self.keys.public_key();
-        let encrypted_content = nostr::nips::nip44::encrypt(
+        let encrypted_content = nip44::encrypt(
             self.keys.secret_key(),
             &public_key,
             &todo_json,
-            nostr::nips::nip44::Version::V2,
+            nip44::Version::V2,
         )?;
 
         // イベント作成（dタグを追加）
@@ -98,12 +99,12 @@ impl MeisoNostrClient {
             Ok(Ok(event_id)) => Ok(event_id.to_hex()),
             Ok(Err(e)) => {
                 // 送信エラーでもイベントIDは返す（ローカルで保存済み）
-                eprintln!("Warning: Failed to send to some relays: {}", e);
+                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
                 Ok(event.id.to_hex())
             }
             Err(_) => {
                 // タイムアウトでもイベントIDは返す
-                eprintln!("Warning: Event send timeout");
+                eprintln!("⚠️ イベント送信タイムアウト");
                 Ok(event.id.to_hex())
             }
         }
@@ -133,7 +134,7 @@ impl MeisoNostrClient {
 
         if let Some(event) = events.first() {
             // 削除イベント (Kind 5) を送信
-            let delete_event = EventBuilder::delete([event.id.clone()])
+            let delete_event = EventBuilder::delete([event.id])
                 .sign(&self.keys)
                 .await?;
 
@@ -159,7 +160,7 @@ impl MeisoNostrClient {
 
         for event in events {
             // NIP-44で復号化
-            if let Ok(decrypted) = nostr::nips::nip44::decrypt(
+            if let Ok(decrypted) = nip44::decrypt(
                 self.keys.secret_key(),
                 &self.keys.public_key(),
                 &event.content,
@@ -216,7 +217,7 @@ pub fn get_public_key_npub() -> Result<String> {
         let client_guard = NOSTR_CLIENT.lock().await;
         let client = client_guard
             .as_ref()
-            .context("Nostr client not initialized")?;
+            .context("Nostrクライアントが初期化されていません")?;
         Ok(client.public_key_npub())
     })
 }
@@ -232,7 +233,7 @@ pub fn create_todo(todo: TodoData) -> Result<String> {
         let client_guard = NOSTR_CLIENT.lock().await;
         let client = client_guard
             .as_ref()
-            .context("Nostr client not initialized")?;
+            .context("Nostrクライアントが初期化されていません")?;
 
         client.create_todo(todo).await
     })
@@ -244,7 +245,7 @@ pub fn update_todo(todo: TodoData) -> Result<String> {
         let client_guard = NOSTR_CLIENT.lock().await;
         let client = client_guard
             .as_ref()
-            .context("Nostr client not initialized")?;
+            .context("Nostrクライアントが初期化されていません")?;
 
         client.update_todo(todo).await
     })
@@ -256,7 +257,7 @@ pub fn delete_todo(todo_id: String) -> Result<()> {
         let client_guard = NOSTR_CLIENT.lock().await;
         let client = client_guard
             .as_ref()
-            .context("Nostr client not initialized")?;
+            .context("Nostrクライアントが初期化されていません")?;
 
         client.delete_todo(&todo_id).await
     })
@@ -268,7 +269,7 @@ pub fn sync_todos() -> Result<Vec<TodoData>> {
         let client_guard = NOSTR_CLIENT.lock().await;
         let client = client_guard
             .as_ref()
-            .context("Nostr client not initialized")?;
+            .context("Nostrクライアントが初期化されていません")?;
 
         client.sync_todos().await
     })

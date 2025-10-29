@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../bridge_generated.dart/frb_generated.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
 import '../models/todo.dart';
 import 'sync_status_provider.dart';
