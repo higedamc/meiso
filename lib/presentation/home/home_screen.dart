@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
+import '../../providers/calendar_provider.dart';
 import '../../providers/date_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
+import '../../widgets/expandable_calendar.dart';
 import '../../widgets/sync_status_indicator.dart';
 import '../settings/settings_screen.dart';
 
@@ -45,30 +47,37 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _jumpToToday(List<DateTime> dates) {
-    // まずSomedayモードを解除
-    setState(() {
-      _showingSomeday = false;
-    });
+  void _jumpToToday(WidgetRef ref, List<DateTime> dates) {
+    // カレンダーの表示/非表示をトグル
+    final isVisible = ref.read(calendarVisibleProvider);
+    ref.read(calendarVisibleProvider.notifier).state = !isVisible;
 
-    // 次のフレームでアニメーション実行
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final todayIndex = dates.indexWhere((date) => 
-        date.year == today.year && 
-        date.month == today.month && 
-        date.day == today.day
-      );
-      
-      if (todayIndex != -1) {
-        _pageController.animateToPage(
-          todayIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+    // カレンダーが非表示になる場合は、今日にジャンプ
+    if (isVisible) {
+      // まずSomedayモードを解除
+      setState(() {
+        _showingSomeday = false;
+      });
+
+      // 次のフレームでアニメーション実行
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final todayIndex = dates.indexWhere((date) => 
+          date.year == today.year && 
+          date.month == today.month && 
+          date.day == today.day
         );
-      }
-    });
+        
+        if (todayIndex != -1) {
+          _pageController.animateToPage(
+            todayIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
   }
 
   void _showSomeday() {
@@ -83,6 +92,32 @@ class _HomeScreenState extends State<HomeScreen> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+  }
+
+  void _onCalendarDaySelected(WidgetRef ref, List<DateTime> dates, DateTime selectedDay) {
+    // カレンダーを閉じる
+    ref.read(calendarVisibleProvider.notifier).state = false;
+
+    // Somedayモードを解除
+    setState(() {
+      _showingSomeday = false;
+    });
+
+    // 選択された日付のページにジャンプ
+    final selectedDate = DateTime(selectedDay.year, selectedDay.month, selectedDay.day);
+    final selectedIndex = dates.indexWhere((date) => 
+      date.year == selectedDate.year && 
+      date.month == selectedDate.month && 
+      date.day == selectedDate.day
+    );
+    
+    if (selectedIndex != -1) {
+      _pageController.animateToPage(
+        selectedIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void _openSettings() {
@@ -116,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Consumer(
       builder: (context, ref, child) {
         final dates = ref.watch(dateListProvider);
+        final isCalendarVisible = ref.watch(calendarVisibleProvider);
 
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
@@ -156,9 +192,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   onDateTap: _onDateTabTap,
                 ),
 
+                // カレンダー（TODAYボタンタップで展開）
+                ExpandableCalendar(
+                  isVisible: isCalendarVisible,
+                  onDaySelected: (selectedDay) => 
+                      _onCalendarDaySelected(ref, dates, selectedDay),
+                ),
+
                 // 底部ナビゲーション
                 BottomNavigation(
-                  onTodayTap: () => _jumpToToday(dates),
+                  onTodayTap: () => _jumpToToday(ref, dates),
                   onAddTap: () => _showAddTodoDialog(context, ref),
                   onSomedayTap: _showSomeday,
                   onSomedayLongPress: _openSettings,
