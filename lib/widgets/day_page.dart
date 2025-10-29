@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../app_theme.dart';
 import '../providers/todos_provider.dart';
+import '../providers/nostr_provider.dart';
 import 'add_todo_field.dart';
 import 'todo_item.dart';
 
 /// 1日分のTodoページ
-class DayPage extends StatelessWidget {
+class DayPage extends ConsumerWidget {
   const DayPage({
     required this.date,
     this.onSettingsTap,
@@ -17,13 +18,39 @@ class DayPage extends StatelessWidget {
   final DateTime? date;
   final VoidCallback? onSettingsTap;
 
+  /// Pull-to-refreshで同期を実行
+  Future<void> _onRefresh(WidgetRef ref) async {
+    // Nostr未初期化の場合はスキップ
+    if (!ref.read(nostrInitializedProvider)) {
+      return;
+    }
+
+    try {
+      final todoNotifier = ref.read(todosProvider.notifier);
+      
+      // 1. ローカルの未送信Todoをアップロード
+      await todoNotifier.uploadPendingTodos();
+      
+      // 2. Nostrから最新のTodoをダウンロード
+      final nostrService = ref.read(nostrServiceProvider);
+      final todos = await nostrService.syncTodosFromNostr();
+      await todoNotifier.mergeTodosFromNostr(todos);
+    } catch (e) {
+      debugPrint('⚠️ 同期エラー: $e');
+      // エラーは表示せずに静かに失敗させる（UX改善のため）
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       children: [
         _buildHeader(context),
         Expanded(
-          child: _buildTodoList(),
+          child: RefreshIndicator(
+            onRefresh: () => _onRefresh(ref),
+            child: _buildTodoList(ref),
+          ),
         ),
         AddTodoField(date: date),
       ],
@@ -82,30 +109,34 @@ class DayPage extends StatelessWidget {
   }
 
   /// Todoリスト部分
-  Widget _buildTodoList() {
-    return Consumer(
-      builder: (context, ref, child) {
-        final todos = ref.watch(todosForDateProvider(date));
+  Widget _buildTodoList(WidgetRef ref) {
+    final todos = ref.watch(todosForDateProvider(date));
 
-        if (todos.isEmpty) {
-          return const SizedBox.shrink();
-        }
+    // リストが空の場合は、pull-to-refreshが動くようにCustomScrollViewを使用
+    if (todos.isEmpty) {
+      return CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverFillRemaining(
+            child: Container(),
+          ),
+        ],
+      );
+    }
 
-        return ReorderableListView.builder(
-          padding: EdgeInsets.zero,
-          itemCount: todos.length,
-          onReorder: (oldIndex, newIndex) {
-            ref
-                .read(todosProvider.notifier)
-                .reorderTodo(date, oldIndex, newIndex);
-          },
-          itemBuilder: (context, index) {
-            final todo = todos[index];
-            return TodoItem(
-              key: Key(todo.id),
-              todo: todo,
-            );
-          },
+    return ReorderableListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: todos.length,
+      onReorder: (oldIndex, newIndex) {
+        ref
+            .read(todosProvider.notifier)
+            .reorderTodo(date, oldIndex, newIndex);
+      },
+      itemBuilder: (context, index) {
+        final todo = todos[index];
+        return TodoItem(
+          key: Key(todo.id),
+          todo: todo,
         );
       },
     );
