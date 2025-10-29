@@ -19,12 +19,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _obscureSecretKey = true;
   String? _errorMessage;
   String? _successMessage;
+  String? _detectedKeyFormat; // 検出されたフォーマット (nsec/hex)
 
   @override
   void initState() {
     super.initState();
     _loadSecretKey();
     _initializeRelayStates();
+    
+    // テキスト変更時にフォーマットを自動検出
+    _secretKeyController.addListener(_detectKeyFormat);
   }
 
   @override
@@ -45,6 +49,68 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _initializeRelayStates() {
     final relayNotifier = ref.read(relayStatusProvider.notifier);
     relayNotifier.initializeWithRelays(defaultRelays);
+  }
+
+  /// 秘密鍵のフォーマットを自動検出
+  void _detectKeyFormat() {
+    final key = _secretKeyController.text.trim();
+    
+    if (key.isEmpty) {
+      if (_detectedKeyFormat != null) {
+        setState(() {
+          _detectedKeyFormat = null;
+        });
+      }
+      return;
+    }
+
+    String? newFormat;
+    
+    if (key.startsWith('nsec1')) {
+      // Bech32形式 (nsec)
+      if (key.length >= 63) {
+        newFormat = 'nsec (Bech32)';
+      } else {
+        newFormat = 'nsec (不完全)';
+      }
+    } else if (RegExp(r'^[0-9a-fA-F]+$').hasMatch(key)) {
+      // Hex形式
+      if (key.length == 64) {
+        newFormat = 'hex (64文字)';
+      } else {
+        newFormat = 'hex (${key.length}/64文字)';
+      }
+    } else {
+      newFormat = '不明な形式';
+    }
+
+    if (_detectedKeyFormat != newFormat) {
+      setState(() {
+        _detectedKeyFormat = newFormat;
+      });
+    }
+  }
+
+  /// 秘密鍵のバリデーション
+  String? _validateSecretKey(String key) {
+    if (key.isEmpty) {
+      return '秘密鍵を入力してください';
+    }
+
+    if (key.startsWith('nsec1')) {
+      if (key.length < 63) {
+        return 'nsec形式は63文字以上必要です';
+      }
+      // より詳細なBech32バリデーションは省略（Rust側でチェック）
+      return null;
+    } else if (RegExp(r'^[0-9a-fA-F]+$').hasMatch(key)) {
+      if (key.length != 64) {
+        return 'hex形式は64文字である必要があります（現在${key.length}文字）';
+      }
+      return null;
+    } else {
+      return '秘密鍵はnsec形式（nsec1...）またはhex形式（64文字の16進数）である必要があります';
+    }
   }
 
   Future<void> _generateNewSecretKey() async {
@@ -79,9 +145,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _saveSecretKey() async {
     final secretKey = _secretKeyController.text.trim();
-    if (secretKey.isEmpty) {
+    
+    // バリデーション
+    final validationError = _validateSecretKey(secretKey);
+    if (validationError != null) {
       setState(() {
-        _errorMessage = '秘密鍵を入力してください';
+        _errorMessage = validationError;
       });
       return;
     }
@@ -97,7 +166,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await nostrService.saveSecretKey(secretKey);
 
       setState(() {
-        _successMessage = '秘密鍵を保存しました';
+        _successMessage = '秘密鍵を保存しました（${_detectedKeyFormat ?? 'フォーマット不明'}）';
       });
 
       // 自動的にリレーに接続
@@ -348,7 +417,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   TextField(
                     controller: _secretKeyController,
                     decoration: InputDecoration(
-                      hintText: 'nsec... または hex形式',
+                      hintText: 'nsec1... または 64文字のhex',
+                      helperText: _detectedKeyFormat != null 
+                          ? '検出: $_detectedKeyFormat'
+                          : 'nsecまたはhex形式の秘密鍵を入力',
+                      helperStyle: TextStyle(
+                        color: _detectedKeyFormat?.contains('不完全') == true || 
+                               _detectedKeyFormat?.contains('不明') == true
+                            ? Colors.orange.shade700
+                            : Colors.green.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -493,7 +572,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             '• 秘密鍵は安全に保管してください\n'
                             '• 秘密鍵を紛失するとデータを復元できません\n'
                             '• 秘密鍵を保存すると自動的にリレーに接続します\n'
-                            '• タスクの変更は自動的にリレーに同期されます',
+                            '• タスクの変更は自動的にリレーに同期されます\n\n'
+                            '対応形式:\n'
+                            '  • nsec形式: nsec1... (Bech32エンコード)\n'
+                            '  • hex形式: 64文字の16進数',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.blue.shade900,
