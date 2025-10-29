@@ -1,0 +1,19 @@
+# Flutter Rust Bridge 設定ファイル
+
+# Rustのルートディレクトリ
+rust_root: rust/
+
+# Rustのソースコード（モジュールパス）
+rust_input: crate::lib
+
+# Dartの生成先
+dart_output: lib/bridge_generated.dart
+
+# C言語ヘッダーの生成先（Android/iOS用）
+c_output: rust/bridge_generated.h
+
+# 追加設定
+dart_format_line_length: 120
+llvm_path:
+  - /opt/homebrew/opt/llvm
+

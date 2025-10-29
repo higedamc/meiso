@@ -1,0 +1,11 @@
+/Users/apple/work/meiso/rust/target/debug/deps/async_wsocket-38a30bfd70b20fad.d: /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/lib.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/mod.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/error.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/socks.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/stream.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/prelude.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/../README.md
+
+/Users/apple/work/meiso/rust/target/debug/deps/libasync_wsocket-38a30bfd70b20fad.rmeta: /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/lib.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/mod.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/error.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/socks.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/stream.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/prelude.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/../README.md
+
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/lib.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/mod.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/error.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/socks.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/native/stream.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/prelude.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-wsocket-0.10.1/src/../README.md:

@@ -1,0 +1,11 @@
+/Users/apple/work/meiso/rust/target/debug/deps/tokio_socks-8970dc03dc5b4ed0.d: /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/lib.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/error.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/io/mod.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/io/tokio.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/mod.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/socks4.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/socks5.rs
+
+/Users/apple/work/meiso/rust/target/debug/deps/libtokio_socks-8970dc03dc5b4ed0.rmeta: /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/lib.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/error.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/io/mod.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/io/tokio.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/mod.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/socks4.rs /Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/socks5.rs
+
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/lib.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/error.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/io/mod.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/io/tokio.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/mod.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/socks4.rs:
+/Users/apple/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-socks-0.5.2/src/tcp/socks5.rs:
