@@ -21,6 +21,11 @@ FlutterとRustを活用し、Android向けに開発されています。
 
 ### Phase 2で実装予定
 
+- ⏳ **オンボーディング画面**
+  - 初回起動時のウェルカムフロー
+  - Nostrアカウントセットアップ（Amber連携 / 新規作成 / インポート）
+  - デフォルトリレー設定
+  - 機能紹介とチュートリアル
 - ⏳ Rust側のNostr統合
 - ⏳ NIP-44による暗号化
 - ⏳ Kind 30078（Application-specific data）でのデータ保存

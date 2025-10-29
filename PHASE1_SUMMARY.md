@@ -250,7 +250,258 @@ wss://nostr.wine
    - ローカル変更をキューイング
    - オンライン復帰時に送信
 
-#### Step 5: 追加機能
+#### Step 5: オンボーディング画面実装
+
+##### 5.1 初回起動時のフロー
+```dart
+// lib/presentation/onboarding/onboarding_screen.dart
+class OnboardingScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return PageView(
+      children: [
+        _buildWelcomePage(),
+        _buildFeaturePage(),
+        _buildNostrSetupPage(),
+        _buildRelaySetupPage(),
+      ],
+    );
+  }
+}
+```
+
+##### 5.2 画面構成
+
+**1. ウェルカムページ**
+- アプリのロゴとキャッチコピー
+- 「Nostrベースのシンプルなタスク管理」
+- 「分散型で、どこからでもアクセス可能」
+
+**2. 機能紹介ページ**
+- 3列レイアウト（Today / Tomorrow / Someday）の説明
+- タスク管理の基本操作
+- マルチデバイス同期の利点
+- スワイプアニメーション付きのビジュアル
+
+**3. Nostrアカウントセットアップページ**
+```dart
+Widget _buildNostrSetupPage() {
+  return Column(
+    children: [
+      Text('Nostrアカウントを設定'),
+      SizedBox(height: 20),
+      
+      // 選択肢1: Amber連携（推奨）
+      ElevatedButton.icon(
+        icon: Icon(Icons.security),
+        label: Text('Amberで署名 (推奨)'),
+        onPressed: () => _setupWithAmber(),
+      ),
+      
+      Text('既存のNostrアカウントをAmberアプリで管理'),
+      
+      SizedBox(height: 30),
+      
+      // 選択肢2: アプリ内生成
+      OutlinedButton.icon(
+        icon: Icon(Icons.add_circle_outline),
+        label: Text('新しいアカウントを作成'),
+        onPressed: () => _createNewAccount(),
+      ),
+      
+      Text('アプリ内で新規作成（秘密鍵をローカル保存）'),
+      
+      SizedBox(height: 20),
+      
+      // 選択肢3: 秘密鍵インポート
+      TextButton(
+        child: Text('秘密鍵をインポート'),
+        onPressed: () => _importPrivateKey(),
+      ),
+    ],
+  );
+}
+```
+
+**4. リレー設定ページ**
+```dart
+Widget _buildRelaySetupPage() {
+  return Column(
+    children: [
+      Text('リレーの設定'),
+      Text('データを保存するNostrリレーを選択してください'),
+      
+      // デフォルトリレー表示
+      _buildDefaultRelaysList(),
+      
+      // カスタムリレー追加オプション
+      TextButton(
+        child: Text('+ カスタムリレーを追加'),
+        onPressed: () => _showAddRelayDialog(),
+      ),
+      
+      SizedBox(height: 40),
+      
+      // 完了ボタン
+      ElevatedButton(
+        child: Text('始める'),
+        onPressed: () => _completeOnboarding(),
+      ),
+    ],
+  );
+}
+```
+
+##### 5.3 オンボーディング状態管理
+```dart
+// lib/providers/onboarding_provider.dart
+final hasCompletedOnboardingProvider = StateProvider<bool>((ref) {
+  // SharedPreferencesから読み込み
+  return false;
+});
+
+final onboardingStepProvider = StateProvider<int>((ref) => 0);
+```
+
+##### 5.4 main.dartでの初回起動判定
+```dart
+// lib/main.dart
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, child) {
+        final hasCompleted = ref.watch(hasCompletedOnboardingProvider);
+        
+        return MaterialApp(
+          home: hasCompleted ? HomeScreen() : OnboardingScreen(),
+          theme: AppTheme.lightTheme,
+        );
+      },
+    );
+  }
+}
+```
+
+##### 5.5 実装の詳細
+
+**Amber連携フロー**
+```dart
+Future<void> _setupWithAmber() async {
+  // 1. Amberのインストール確認
+  final isInstalled = await _checkAmberInstalled();
+  if (!isInstalled) {
+    _showInstallAmberDialog();
+    return;
+  }
+  
+  // 2. 公開鍵の取得をリクエスト
+  final pubkey = await _requestPublicKeyFromAmber();
+  
+  // 3. ローカルに公開鍵を保存
+  await _savePublicKey(pubkey);
+  
+  // 4. オンボーディング完了
+  _completeOnboarding();
+}
+```
+
+**アプリ内アカウント生成フロー**
+```rust
+// rust/src/api.rs
+pub async fn generate_new_account() -> Result<AccountInfo> {
+    let keys = Keys::generate();
+    
+    AccountInfo {
+        public_key: keys.public_key().to_string(),
+        secret_key: keys.secret_key().to_string(),
+    }
+}
+```
+
+```dart
+Future<void> _createNewAccount() async {
+  // 1. Rust側で鍵生成
+  final account = await api.generateNewAccount();
+  
+  // 2. 秘密鍵の安全な保存を確認
+  final confirmed = await _showSecurityWarningDialog();
+  if (!confirmed) return;
+  
+  // 3. FlutterSecureStorageに秘密鍵保存
+  await _secureStorage.write(
+    key: 'nostr_secret_key',
+    value: account.secretKey,
+  );
+  
+  // 4. 公開鍵をSharedPreferencesに保存
+  await _prefs.setString('nostr_public_key', account.publicKey);
+  
+  // 5. バックアップ推奨ダイアログ
+  _showBackupDialog(account.secretKey);
+  
+  // 6. オンボーディング完了
+  _completeOnboarding();
+}
+```
+
+**デフォルトリレー設定**
+```dart
+final defaultRelays = [
+  RelayConfig(url: 'wss://relay.damus.io', enabled: true),
+  RelayConfig(url: 'wss://nos.lol', enabled: true),
+  RelayConfig(url: 'wss://relay.nostr.band', enabled: true),
+  RelayConfig(url: 'wss://nostr.wine', enabled: false),
+];
+```
+
+##### 5.6 オンボーディングスキップ機能
+```dart
+// 開発時やテスト時のために
+TextButton(
+  child: Text('スキップ（後で設定）'),
+  onPressed: () {
+    // テストアカウントで一時的に動作
+    _setupTemporaryAccount();
+    _completeOnboarding();
+  },
+)
+```
+
+##### 5.7 UI/UXの考慮点
+
+- **シンプルさ優先**: 最小限の手順で開始できる
+- **Amber推奨**: セキュリティの観点からAmber連携を推奨
+- **スキップ可能**: すぐに試したいユーザーのため
+- **ビジュアル**: イラストやアニメーションで分かりやすく
+- **進捗表示**: ページインジケーターで現在位置を明示
+
+##### 5.8 Phase 3でのCitrine統合
+Phase 3では、オンボーディングにCitrine推奨ページを追加：
+```dart
+Widget _buildCitrineRecommendationPage() {
+  return Column(
+    children: [
+      Text('Citrineでさらに快適に'),
+      Text('ローカルリレーで高速・オフライン対応'),
+      
+      ElevatedButton(
+        child: Text('Citrineをインストール'),
+        onPressed: () => _openPlayStore('com.greenart7c3.citrine'),
+      ),
+      
+      TextButton(
+        child: Text('後でインストール'),
+        onPressed: () => _completeOnboarding(),
+      ),
+    ],
+  );
+}
+```
+
+---
+
+#### Step 6: 追加機能
 
 1. **カレンダービュー**
    - `table_calendar` パッケージ導入
