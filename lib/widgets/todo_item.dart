@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../app_theme.dart';
 import '../models/todo.dart';
 import '../providers/todos_provider.dart';
+import '../providers/nostr_provider.dart';
 
 /// 個別のTodoアイテムウィジェット
 class TodoItem extends StatelessWidget {
@@ -157,7 +158,7 @@ class TodoItem extends StatelessWidget {
     );
   }
 
-  void _showJsonDialog(BuildContext context) {
+  void _showJsonDialog(BuildContext context, WidgetRef ref) {
     final jsonData = {
       'id': todo.id,
       'title': todo.title,
@@ -203,6 +204,7 @@ class TodoItem extends StatelessWidget {
         ),
         actions: [
           if (todo.eventId != null)
+            // 同期済み
             TextButton.icon(
               onPressed: () {
                 Navigator.pop(context);
@@ -215,6 +217,63 @@ class TodoItem extends StatelessWidget {
               },
               icon: const Icon(Icons.cloud_done, size: 16),
               label: const Text('リレー送信済み'),
+            )
+          else
+            // 未同期 - 手動送信ボタン
+            TextButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                
+                // Nostr接続チェック
+                final nostrService = ref.read(nostrServiceProvider);
+                final isInitialized = ref.read(nostrInitializedProvider);
+                
+                if (!isInitialized) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Nostrが初期化されていません。設定画面で接続してください。'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                  return;
+                }
+                
+                // リレーに送信
+                try {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('リレーに送信中...'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                  
+                  final eventId = await nostrService.createTodoOnNostr(todo);
+                  
+                  // eventIdを設定して更新
+                  final updatedTodo = todo.copyWith(eventId: eventId);
+                  await ref.read(todosProvider.notifier).updateTodo(updatedTodo);
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ リレーに送信しました'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ 送信エラー: $e'),
+                      duration: const Duration(seconds: 3),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.cloud_upload, size: 16),
+              label: const Text('リレーに送信する'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange.shade700,
+              ),
             ),
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -263,7 +322,7 @@ class TodoItem extends StatelessWidget {
             ),
             child: InkWell(
               onTap: () => _showEditDialog(context, ref),
-              onLongPress: () => _showJsonDialog(context),
+              onLongPress: () => _showJsonDialog(context, ref),
               child: Row(
                 children: [
                   // チェックボックス
@@ -285,17 +344,6 @@ class TodoItem extends StatelessWidget {
                           : AppTheme.todoTitle,
                     ),
                   ),
-                  
-                  // Nostr送信済みインジケーター
-                  if (todo.eventId != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Icon(
-                        Icons.cloud_done,
-                        size: 16,
-                        color: Colors.green.shade400,
-                      ),
-                    ),
                   
                   const SizedBox(width: 8),
                 ],

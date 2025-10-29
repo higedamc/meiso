@@ -599,7 +599,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildRelayStatusIcon(RelayConnectionState state) {
     switch (state) {
       case RelayConnectionState.connected:
-        return Icon(Icons.check_circle, color: Colors.green.shade600, size: 20);
+        // 接続中は同期マークを表示（Todoアイテムと同じアイコン）
+        return Icon(Icons.cloud_done, color: Colors.green.shade400, size: 20);
       case RelayConnectionState.connecting:
         return SizedBox(
           width: 20,
