@@ -25,7 +25,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     _loadSecretKey();
-    _initializeRelayStates();
+    
+    // ウィジェットツリーのビルドが完了してからProviderを変更
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeRelayStates();
+    });
     
     // テキスト変更時にフォーマットを自動検出
     _secretKeyController.addListener(_detectKeyFormat);
