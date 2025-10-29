@@ -226,14 +226,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
 
     try {
+      final todoNotifier = ref.read(todosProvider.notifier);
+      
+      // 1. ローカルの未送信Todoをアップロード
+      await todoNotifier.uploadPendingTodos();
+      
+      // 2. Nostrから最新のTodoをダウンロード
       final nostrService = ref.read(nostrServiceProvider);
       final todos = await nostrService.syncTodosFromNostr();
-
-      final todoNotifier = ref.read(todosProvider.notifier);
       await todoNotifier.mergeTodosFromNostr(todos);
 
       setState(() {
-        _successMessage = '${todos.length}件のTodoを同期しました';
+        _successMessage = '${todos.length}件のTodoをダウンロードし、未送信Todoをアップロードしました';
       });
     } catch (e) {
       setState(() {

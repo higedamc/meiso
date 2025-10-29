@@ -138,7 +138,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // Nostr側に送信（バックグラウンド実行）
       _syncToNostr(() async {
         final nostrService = _ref.read(nostrServiceProvider);
-        await nostrService.createTodoOnNostr(newTodo);
+        final eventId = await nostrService.createTodoOnNostr(newTodo);
+        
+        // eventIdをTodoに設定して状態を更新
+        _updateTodoEventId(newTodo.id, date, eventId);
       });
     });
   }
@@ -156,6 +159,51 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           ...todos,
           todo.date: list,
         });
+      }
+    });
+  }
+
+  /// ローカルのeventIdがないTodoをNostrに送信
+  Future<void> uploadPendingTodos() async {
+    if (!_ref.read(nostrInitializedProvider)) {
+      print('⚠️ Nostr未初期化のためアップロードをスキップ');
+      return;
+    }
+
+    await state.whenData((todos) async {
+      final nostrService = _ref.read(nostrServiceProvider);
+      int uploadCount = 0;
+
+      for (final dateGroup in todos.entries) {
+        final date = dateGroup.key;
+        final list = List<Todo>.from(dateGroup.value);
+
+        for (int i = 0; i < list.length; i++) {
+          final todo = list[i];
+          
+          // eventIdがないTodoを送信
+          if (todo.eventId == null) {
+            try {
+              final eventId = await nostrService.createTodoOnNostr(todo);
+              list[i] = todo.copyWith(eventId: eventId);
+              uploadCount++;
+              print('✅ Todoをアップロード: ${todo.title}');
+            } catch (e) {
+              print('⚠️ Todoアップロード失敗 (${todo.title}): $e');
+            }
+          }
+        }
+
+        // 更新された日付グループを反映
+        todos[date] = list;
+      }
+
+      if (uploadCount > 0) {
+        state = AsyncValue.data(Map.from(todos));
+        await _saveAllTodosToLocal();
+        print('✅ ${uploadCount}件のTodoをアップロードしました');
+      } else {
+        print('ℹ️ アップロードが必要なTodoはありません');
       }
     });
   }
@@ -227,7 +275,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // Nostr側に送信（バックグラウンド実行）
         _syncToNostr(() async {
           final nostrService = _ref.read(nostrServiceProvider);
-          await nostrService.updateTodoOnNostr(list[index]);
+          final eventId = await nostrService.updateTodoOnNostr(list[index]);
+          
+          // eventIdをTodoに設定して状態を更新
+          _updateTodoEventId(todo.id, todo.date, eventId);
         });
       }
     });
@@ -258,7 +309,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // Nostr側に送信（バックグラウンド実行）
         _syncToNostr(() async {
           final nostrService = _ref.read(nostrServiceProvider);
-          await nostrService.updateTodoOnNostr(list[index]);
+          final eventId = await nostrService.updateTodoOnNostr(list[index]);
+          
+          // eventIdをTodoに設定して状態を更新
+          _updateTodoEventId(id, date, eventId);
         });
       }
     });
@@ -288,7 +342,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // Nostr側に送信（バックグラウンド実行）
         _syncToNostr(() async {
           final nostrService = _ref.read(nostrServiceProvider);
-          await nostrService.updateTodoOnNostr(list[index]);
+          final eventId = await nostrService.updateTodoOnNostr(list[index]);
+          
+          // eventIdをTodoに設定して状態を更新
+          _updateTodoEventId(id, date, eventId);
         });
       }
     });
@@ -352,7 +409,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       _syncToNostr(() async {
         final nostrService = _ref.read(nostrServiceProvider);
         for (final todo in list) {
-          await nostrService.updateTodoOnNostr(todo);
+          final eventId = await nostrService.updateTodoOnNostr(todo);
+          _updateTodoEventId(todo.id, date, eventId);
         }
       });
     });
@@ -389,7 +447,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // Nostr側に送信（バックグラウンド実行）
       _syncToNostr(() async {
         final nostrService = _ref.read(nostrServiceProvider);
-        await nostrService.updateTodoOnNostr(movedTodo);
+        final eventId = await nostrService.updateTodoOnNostr(movedTodo);
+        _updateTodoEventId(movedTodo.id, toDate, eventId);
       });
     });
   }
@@ -458,6 +517,26 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         await localStorageService.saveTodos(allTodos);
       } catch (e) {
         print('⚠️ ローカル保存エラー: $e');
+      }
+    });
+  }
+
+  /// TodoにeventIdを設定して状態を更新
+  void _updateTodoEventId(String todoId, DateTime? date, String eventId) {
+    state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == todoId);
+
+      if (index != -1) {
+        list[index] = list[index].copyWith(eventId: eventId);
+        
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+
+        // ローカルストレージに保存
+        await _saveAllTodosToLocal();
       }
     });
   }
