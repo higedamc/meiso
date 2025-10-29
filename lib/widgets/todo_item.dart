@@ -290,8 +290,19 @@ class TodoItem extends StatelessWidget {
       builder: (context, ref, child) {
         return Dismissible(
           key: Key(todo.id),
-          direction: DismissDirection.endToStart,
+          direction: DismissDirection.horizontal,
+          // 右スワイプ時の背景（明日に移動）
           background: Container(
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 16),
+            color: Colors.blue.shade100,
+            child: Icon(
+              Icons.arrow_forward,
+              color: Colors.blue.shade700,
+            ),
+          ),
+          // 左スワイプ時の背景（削除）
+          secondaryBackground: Container(
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: 16),
             color: Colors.red.shade100,
@@ -300,15 +311,49 @@ class TodoItem extends StatelessWidget {
               color: Colors.red.shade700,
             ),
           ),
-          onDismissed: (_) {
-            ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('「${todo.title}」を削除しました'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+          confirmDismiss: (direction) async {
+            if (direction == DismissDirection.startToEnd) {
+              // 右スワイプ → 明日に移動
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              final tomorrow = today.add(const Duration(days: 1));
+              
+              // 現在の日付から明日の日付を計算
+              final targetDate = todo.date == null 
+                  ? tomorrow 
+                  : todo.date!.add(const Duration(days: 1));
+              
+              await ref.read(todosProvider.notifier).moveTodo(
+                todo.id,
+                todo.date,
+                targetDate,
+              );
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('「${todo.title}」を翌日に移動しました'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+              
+              return true;
+            } else {
+              // 左スワイプ → 削除
+              return true;
+            }
+          },
+          onDismissed: (direction) {
+            if (direction == DismissDirection.endToStart) {
+              // 左スワイプの場合のみ削除
+              ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('「${todo.title}」を削除しました'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
           },
           child: Container(
             decoration: BoxDecoration(
