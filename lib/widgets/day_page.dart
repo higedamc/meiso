@@ -5,6 +5,7 @@ import '../app_theme.dart';
 import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
 import 'todo_item.dart';
+import 'sync_status_indicator.dart';
 
 /// 1日分のTodoページ
 class DayPage extends ConsumerWidget {
@@ -55,40 +56,51 @@ class DayPage extends ConsumerWidget {
     );
   }
 
-  /// ヘッダー部分（日付表示と設定アイコン）
+  /// ヘッダー部分（日付表示、同期ステータス、設定アイコン）
   Widget _buildHeader(BuildContext context) {
+    // ステータスバーの高さを取得
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    
     return Container(
       color: AppTheme.cardColor,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 12,
+        top: statusBarHeight + 12,
+        bottom: 16,
+      ),
       child: Row(
         children: [
           // 日付（左寄せ）
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (date != null) ...[
-                  Text(
-                    DateFormat('EEEE, MMMM d', 'en_US').format(date!).toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ] else ...[
-                  const Text(
-                    'SOMEDAY',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ],
+          if (date != null)
+            Text(
+              DateFormat('EEEE, MMMM d', 'en_US').format(date!).toUpperCase(),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+                letterSpacing: 0.5,
+              ),
+            )
+          else
+            const Text(
+              'SOMEDAY',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+                letterSpacing: 0.5,
+              ),
+            ),
+          
+          // 中央の余白に同期ステータスインジケーターを配置
+          const Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: SyncStatusIndicator(),
+              ),
             ),
           ),
           
@@ -100,6 +112,8 @@ class DayPage extends ConsumerWidget {
               color: AppTheme.textPrimary,
               onPressed: onSettingsTap,
               tooltip: '設定',
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
             ),
         ],
       ),

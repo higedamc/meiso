@@ -8,7 +8,6 @@ import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
 import '../../widgets/expandable_calendar.dart';
-import '../../widgets/sync_status_indicator.dart';
 import '../settings/settings_screen.dart';
 
 /// Meisoのメイン画面
@@ -155,13 +154,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
-          appBar: AppBar(
-            backgroundColor: AppTheme.backgroundColor,
-            elevation: 0,
-            toolbarHeight: 48,
-            title: const SyncStatusIndicator(),
-          ),
           body: SafeArea(
+            top: false, // 画面全体を活用
             child: Column(
               children: [
                 // Todoページ部分
