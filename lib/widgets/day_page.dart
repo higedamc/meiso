@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../app_theme.dart';
 import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
-import 'add_todo_field.dart';
 import 'todo_item.dart';
 
 /// 1日分のTodoページ
@@ -52,7 +51,6 @@ class DayPage extends ConsumerWidget {
             child: _buildTodoList(ref),
           ),
         ),
-        AddTodoField(date: date),
       ],
     );
   }

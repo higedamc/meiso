@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
 import '../../providers/date_provider.dart';
-import '../../providers/nostr_provider.dart';
+import '../../providers/todos_provider.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
@@ -93,6 +93,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showAddTodoDialog(BuildContext context, WidgetRef ref) {
+    // 現在表示中の日付を取得
+    final dates = ref.read(dateListProvider);
+    final currentDate = _showingSomeday ? null : dates[_currentPageIndex];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: _AddTodoBottomSheet(date: currentDate),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer(
@@ -141,15 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // 底部ナビゲーション
                 BottomNavigation(
                   onTodayTap: () => _jumpToToday(dates),
-                  onAddTap: () {
-                    // TODO: Phase2でクイック追加ダイアログを実装
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('クイック追加は後で実装します'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
+                  onAddTap: () => _showAddTodoDialog(context, ref),
                   onSomedayTap: _showSomeday,
                   onSomedayLongPress: _openSettings,
                 ),
@@ -159,5 +169,114 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+}
+
+/// Todo追加用のボトムシート
+class _AddTodoBottomSheet extends StatefulWidget {
+  const _AddTodoBottomSheet({required this.date});
+
+  final DateTime? date;
+
+  @override
+  State<_AddTodoBottomSheet> createState() => _AddTodoBottomSheetState();
+}
+
+class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // 表示されたらすぐにフォーカス
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, child) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppTheme.cardColor,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(16),
+            ),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 入力フィールド
+              TextField(
+                controller: _controller,
+                focusNode: _focusNode,
+                decoration: InputDecoration(
+                  hintText: 'タスクを入力',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppTheme.dividerColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: Colors.deepPurple.shade700,
+                      width: 2,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+                style: AppTheme.todoTitle,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _saveTodo(ref),
+              ),
+              const SizedBox(height: 16),
+              // SAVEボタン
+              ElevatedButton(
+                onPressed: () => _saveTodo(ref),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'SAVE',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _saveTodo(WidgetRef ref) {
+    final text = _controller.text.trim();
+    if (text.isNotEmpty) {
+      ref.read(todosProvider.notifier).addTodo(text, widget.date);
+      Navigator.of(context).pop();
+    }
   }
 }
