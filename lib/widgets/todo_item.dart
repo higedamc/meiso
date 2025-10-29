@@ -345,12 +345,23 @@ class TodoItem extends StatelessWidget {
           onDismissed: (direction) {
             if (direction == DismissDirection.endToStart) {
               // 左スワイプの場合のみ削除
+              // 削除前にTodoを保持（元に戻す用）
+              final deletedTodo = todo;
+              
               ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('「${todo.title}」を削除しました'),
-                  duration: const Duration(seconds: 2),
+                  duration: const Duration(seconds: 3),
+                  action: SnackBarAction(
+                    label: '元に戻す',
+                    textColor: Colors.blue.shade300,
+                    onPressed: () {
+                      // 削除をキャンセルしてTodoを復元
+                      ref.read(todosProvider.notifier).addTodoWithData(deletedTodo);
+                    },
+                  ),
                 ),
               );
             }
