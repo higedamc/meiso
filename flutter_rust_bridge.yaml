@@ -4,7 +4,7 @@
 rust_root: rust/
 
 # Rustのソースコード（モジュールパス）
-rust_input: crate::lib
+rust_input: crate::api
 
 # Dartの生成先
 dart_output: lib/bridge_generated.dart

@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -59,7 +60,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -291292710;
+  int get rustContentHash => 1211874124;
 
   static const kDefaultExternalLibraryLoaderConfig = ExternalLibraryLoaderConfig(
     stem: 'rust',
@@ -68,7 +69,41 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   );
 }
 
-abstract class RustLibApi extends BaseApi {}
+abstract class RustLibApi extends BaseApi {
+  Future<String> crateApiMeisoNostrClientCreateTodo({required MeisoNostrClient that, required TodoData todo});
+
+  Future<void> crateApiMeisoNostrClientDeleteTodo({required MeisoNostrClient that, required String todoId});
+
+  Future<MeisoNostrClient> crateApiMeisoNostrClientNew({required String secretKeyHex, required List<String> relays});
+
+  Future<String> crateApiMeisoNostrClientPublicKeyHex({required MeisoNostrClient that});
+
+  Future<String> crateApiMeisoNostrClientPublicKeyNpub({required MeisoNostrClient that});
+
+  Future<List<TodoData>> crateApiMeisoNostrClientSyncTodos({required MeisoNostrClient that});
+
+  Future<String> crateApiMeisoNostrClientUpdateTodo({required MeisoNostrClient that, required TodoData todo});
+
+  Future<String> crateApiCreateTodo({required TodoData todo});
+
+  Future<void> crateApiDeleteTodo({required String todoId});
+
+  Future<String> crateApiGenerateSecretKey();
+
+  Future<String> crateApiGetPublicKeyNpub();
+
+  Future<String> crateApiInitNostrClient({required String secretKeyHex, required List<String> relays});
+
+  Future<List<TodoData>> crateApiSyncTodos();
+
+  Future<String> crateApiUpdateTodo({required TodoData todo});
+
+  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_MeisoNostrClient;
+
+  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_MeisoNostrClient;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MeisoNostrClientPtr;
+}
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RustLibApiImpl({
@@ -78,10 +113,461 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required super.portManager,
   });
 
+  @override
+  Future<String> crateApiMeisoNostrClientCreateTodo({required MeisoNostrClient that, required TodoData todo}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_todo_data(todo, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiMeisoNostrClientCreateTodoConstMeta,
+        argValues: [that, todo],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientCreateTodoConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_create_todo", argNames: ["that", "todo"]);
+
+  @override
+  Future<void> crateApiMeisoNostrClientDeleteTodo({required MeisoNostrClient that, required String todoId}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+            that,
+            serializer,
+          );
+          sse_encode_String(todoId, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiMeisoNostrClientDeleteTodoConstMeta,
+        argValues: [that, todoId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientDeleteTodoConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_delete_todo", argNames: ["that", "todoId"]);
+
+  @override
+  Future<MeisoNostrClient> crateApiMeisoNostrClientNew({required String secretKeyHex, required List<String> relays}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(secretKeyHex, serializer);
+          sse_encode_list_String(relays, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3, port: port_);
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiMeisoNostrClientNewConstMeta,
+        argValues: [secretKeyHex, relays],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientNewConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_new", argNames: ["secretKeyHex", "relays"]);
+
+  @override
+  Future<String> crateApiMeisoNostrClientPublicKeyHex({required MeisoNostrClient that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+            that,
+            serializer,
+          );
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
+        constMeta: kCrateApiMeisoNostrClientPublicKeyHexConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientPublicKeyHexConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_public_key_hex", argNames: ["that"]);
+
+  @override
+  Future<String> crateApiMeisoNostrClientPublicKeyNpub({required MeisoNostrClient that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+            that,
+            serializer,
+          );
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
+        constMeta: kCrateApiMeisoNostrClientPublicKeyNpubConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientPublicKeyNpubConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_public_key_npub", argNames: ["that"]);
+
+  @override
+  Future<List<TodoData>> crateApiMeisoNostrClientSyncTodos({required MeisoNostrClient that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+            that,
+            serializer,
+          );
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiMeisoNostrClientSyncTodosConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientSyncTodosConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_sync_todos", argNames: ["that"]);
+
+  @override
+  Future<String> crateApiMeisoNostrClientUpdateTodo({required MeisoNostrClient that, required TodoData todo}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_todo_data(todo, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiMeisoNostrClientUpdateTodoConstMeta,
+        argValues: [that, todo],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientUpdateTodoConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_update_todo", argNames: ["that", "todo"]);
+
+  @override
+  Future<String> crateApiCreateTodo({required TodoData todo}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_todo_data(todo, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiCreateTodoConstMeta,
+        argValues: [todo],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCreateTodoConstMeta => const TaskConstMeta(debugName: "create_todo", argNames: ["todo"]);
+
+  @override
+  Future<void> crateApiDeleteTodo({required String todoId}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(todoId, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiDeleteTodoConstMeta,
+        argValues: [todoId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeleteTodoConstMeta => const TaskConstMeta(debugName: "delete_todo", argNames: ["todoId"]);
+
+  @override
+  Future<String> crateApiGenerateSecretKey() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
+        constMeta: kCrateApiGenerateSecretKeyConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGenerateSecretKeyConstMeta =>
+      const TaskConstMeta(debugName: "generate_secret_key", argNames: []);
+
+  @override
+  Future<String> crateApiGetPublicKeyNpub() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiGetPublicKeyNpubConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGetPublicKeyNpubConstMeta =>
+      const TaskConstMeta(debugName: "get_public_key_npub", argNames: []);
+
+  @override
+  Future<String> crateApiInitNostrClient({required String secretKeyHex, required List<String> relays}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(secretKeyHex, serializer);
+          sse_encode_list_String(relays, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiInitNostrClientConstMeta,
+        argValues: [secretKeyHex, relays],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiInitNostrClientConstMeta =>
+      const TaskConstMeta(debugName: "init_nostr_client", argNames: ["secretKeyHex", "relays"]);
+
+  @override
+  Future<List<TodoData>> crateApiSyncTodos() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiSyncTodosConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSyncTodosConstMeta => const TaskConstMeta(debugName: "sync_todos", argNames: []);
+
+  @override
+  Future<String> crateApiUpdateTodo({required TodoData todo}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_todo_data(todo, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiUpdateTodoConstMeta,
+        argValues: [todo],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUpdateTodoConstMeta => const TaskConstMeta(debugName: "update_todo", argNames: ["todo"]);
+
+  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_MeisoNostrClient => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient;
+
+  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_MeisoNostrClient => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient;
+
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
+  AnyhowException dco_decode_AnyhowException(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AnyhowException(raw as String);
+  }
+
+  @protected
+  MeisoNostrClient dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MeisoNostrClientImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  MeisoNostrClient dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MeisoNostrClientImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  MeisoNostrClient dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MeisoNostrClientImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  String dco_decode_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as String;
+  }
+
+  @protected
+  bool dco_decode_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
+  }
+
+  @protected
+  TodoData dco_decode_box_autoadd_todo_data(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_todo_data(raw);
+  }
+
+  @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  List<String> dco_decode_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as Uint8List;
+  }
+
+  @protected
+  List<TodoData> dco_decode_list_todo_data(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_todo_data).toList();
+  }
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  TodoData dco_decode_todo_data(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8) throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return TodoData(
+      id: dco_decode_String(arr[0]),
+      title: dco_decode_String(arr[1]),
+      completed: dco_decode_bool(arr[2]),
+      date: dco_decode_opt_String(arr[3]),
+      order: dco_decode_i_32(arr[4]),
+      createdAt: dco_decode_String(arr[5]),
+      updatedAt: dco_decode_String(arr[6]),
+      eventId: dco_decode_opt_String(arr[7]),
+    );
+  }
+
+  @protected
+  int dco_decode_u_8(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  void dco_decode_unit(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return;
+  }
+
+  @protected
+  BigInt dco_decode_usize(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
+  }
+
+  @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
+    var inner = sse_decode_String(deserializer);
+    return AnyhowException(inner);
+  }
+
+  @protected
+  MeisoNostrClient sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return MeisoNostrClientImpl.frbInternalSseDecode(sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
+  }
+
+  @protected
+  MeisoNostrClient sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return MeisoNostrClientImpl.frbInternalSseDecode(sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
+  }
+
+  @protected
+  MeisoNostrClient sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return MeisoNostrClientImpl.frbInternalSseDecode(sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
+  }
+
+  @protected
+  String sse_decode_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_list_prim_u_8_strict(deserializer);
+    return utf8.decoder.convert(inner);
   }
 
   @protected
@@ -91,9 +577,136 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
+  TodoData sse_decode_box_autoadd_todo_data(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
+    return (sse_decode_todo_data(deserializer));
+  }
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <String>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<TodoData> sse_decode_list_todo_data(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TodoData>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_todo_data(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  TodoData sse_decode_todo_data(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_completed = sse_decode_bool(deserializer);
+    var var_date = sse_decode_opt_String(deserializer);
+    var var_order = sse_decode_i_32(deserializer);
+    var var_createdAt = sse_decode_String(deserializer);
+    var var_updatedAt = sse_decode_String(deserializer);
+    var var_eventId = sse_decode_opt_String(deserializer);
+    return TodoData(
+      id: var_id,
+      title: var_title,
+      completed: var_completed,
+      date: var_date,
+      order: var_order,
+      createdAt: var_createdAt,
+      updatedAt: var_updatedAt,
+      eventId: var_eventId,
+    );
+  }
+
+  @protected
+  int sse_decode_u_8(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint8();
+  }
+
+  @protected
+  void sse_decode_unit(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  BigInt sse_decode_usize(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
+  }
+
+  @protected
+  void sse_encode_AnyhowException(AnyhowException self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.message, serializer);
+  }
+
+  @protected
+  void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    MeisoNostrClient self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize((self as MeisoNostrClientImpl).frbInternalSseEncode(move: true), serializer);
+  }
+
+  @protected
+  void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    MeisoNostrClient self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize((self as MeisoNostrClientImpl).frbInternalSseEncode(move: false), serializer);
+  }
+
+  @protected
+  void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+    MeisoNostrClient self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize((self as MeisoNostrClientImpl).frbInternalSseEncode(move: null), serializer);
+  }
+
+  @protected
+  void sse_encode_String(String self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
   }
 
   @protected
@@ -101,4 +714,118 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
   }
+
+  @protected
+  void sse_encode_box_autoadd_todo_data(TodoData self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_todo_data(self, serializer);
+  }
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_prim_u_8_strict(Uint8List self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putUint8List(self);
+  }
+
+  @protected
+  void sse_encode_list_todo_data(List<TodoData> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_todo_data(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_todo_data(TodoData self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_bool(self.completed, serializer);
+    sse_encode_opt_String(self.date, serializer);
+    sse_encode_i_32(self.order, serializer);
+    sse_encode_String(self.createdAt, serializer);
+    sse_encode_String(self.updatedAt, serializer);
+    sse_encode_opt_String(self.eventId, serializer);
+  }
+
+  @protected
+  void sse_encode_u_8(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint8(self);
+  }
+
+  @protected
+  void sse_encode_unit(void self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  void sse_encode_usize(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
+  }
+}
+
+@sealed
+class MeisoNostrClientImpl extends RustOpaque implements MeisoNostrClient {
+  // Not to be used by end users
+  MeisoNostrClientImpl.frbInternalDcoDecode(List<dynamic> wire) : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  MeisoNostrClientImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount: RustLib.instance.api.rust_arc_increment_strong_count_MeisoNostrClient,
+    rustArcDecrementStrongCount: RustLib.instance.api.rust_arc_decrement_strong_count_MeisoNostrClient,
+    rustArcDecrementStrongCountPtr: RustLib.instance.api.rust_arc_decrement_strong_count_MeisoNostrClientPtr,
+  );
+
+  /// TodoをNostrイベントとして作成
+  Future<String> createTodo({required TodoData todo}) =>
+      RustLib.instance.api.crateApiMeisoNostrClientCreateTodo(that: this, todo: todo);
+
+  /// Todoを削除（削除イベント送信）
+  Future<void> deleteTodo({required String todoId}) =>
+      RustLib.instance.api.crateApiMeisoNostrClientDeleteTodo(that: this, todoId: todoId);
+
+  /// 公開鍵を取得（hex形式）
+  Future<String> publicKeyHex() => RustLib.instance.api.crateApiMeisoNostrClientPublicKeyHex(that: this);
+
+  /// 公開鍵を取得（npub形式）
+  Future<String> publicKeyNpub() => RustLib.instance.api.crateApiMeisoNostrClientPublicKeyNpub(that: this);
+
+  /// 全てのTodoを同期（リレーから取得）
+  Future<List<TodoData>> syncTodos() => RustLib.instance.api.crateApiMeisoNostrClientSyncTodos(that: this);
+
+  /// Todoを更新（既存イベントを置き換え）
+  Future<String> updateTodo({required TodoData todo}) =>
+      RustLib.instance.api.crateApiMeisoNostrClientUpdateTodo(that: this, todo: todo);
 }

@@ -5,6 +5,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Cargokit設定
+apply(from = "../../cargokit/gradle/plugin.gradle")
+
+// Cargokitの拡張プロパティを設定（相対パスで指定）
+extensions.configure<Any>("cargokit") {
+    this.javaClass.getMethod("setManifestDir", String::class.java).invoke(this, "../../rust")
+    this.javaClass.getMethod("setLibname", String::class.java).invoke(this, "rust")
+}
+
 android {
     namespace = "jp.godzhigella.meiso"
     compileSdk = flutter.compileSdkVersion
@@ -28,6 +37,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // NDK設定 (arm64-v8a のみビルド - 最新のAndroidデバイス用)
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     buildTypes {
@@ -42,3 +56,7 @@ android {
 flutter {
     source = "../.."
 }
+
+// Cargokit設定
+// プラグインは上でapply済み
+// cargokitは自動的に設定を読み取ります

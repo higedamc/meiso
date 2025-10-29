@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../bridge_generated.dart';
+import '../bridge_generated.dart/frb_generated.dart';
+import '../bridge_generated.dart/api.dart' as rust_api;
 import '../models/todo.dart';
+import 'sync_status_provider.dart';
 
 /// デフォルトのNostrリレーリスト
 const List<String> defaultRelays = [
@@ -14,11 +16,29 @@ const List<String> defaultRelays = [
 /// Nostrクライアントの初期化状態を管理するProvider
 final nostrInitializedProvider = StateProvider<bool>((ref) => false);
 
-/// 公開鍵を管理するProvider
-final nostrPublicKeyProvider = StateProvider<String?>((ref) => null);
+/// 公開鍵を管理するProvider（hex形式）
+final publicKeyProvider = StateProvider<String?>((ref) => null);
 
-/// NostrクライアントのProviderを作成
+/// 公開鍵（npub形式）を取得するProvider
+final publicKeyNpubProvider = FutureProvider<String?>((ref) async {
+  final isInitialized = ref.watch(nostrInitializedProvider);
+  if (!isInitialized) return null;
+  
+  try {
+    return await rust_api.getPublicKeyNpub();
+  } catch (e) {
+    return null;
+  }
+});
+
+/// NostrServiceを提供するProvider
+final nostrServiceProvider = Provider((ref) => NostrService(ref));
+
 class NostrService {
+  NostrService(this._ref);
+
+  final Ref _ref;
+
   /// 秘密鍵をローカルに保存（実際にはセキュアストレージ推奨）
   Future<void> saveSecretKey(String secretKey) async {
     final prefs = await SharedPreferences.getInstance();
@@ -38,8 +58,8 @@ class NostrService {
   }
 
   /// 新しい秘密鍵を生成
-  String generateNewSecretKey() {
-    return generateSecretKey();
+  Future<String> generateNewSecretKey() async {
+    return await rust_api.generateSecretKey();
   }
 
   /// Nostrクライアントを初期化
@@ -50,14 +70,24 @@ class NostrService {
     }
 
     final relayList = relays ?? defaultRelays;
-    final publicKey = initNostrClient(secretKeyHex: key, relays: relayList);
+    final publicKey = await rust_api.initNostrClient(
+      secretKeyHex: key,
+      relays: relayList,
+    );
+
+    // Providerの状態を更新
+    _ref.read(publicKeyProvider.notifier).state = publicKey;
+    _ref.read(nostrInitializedProvider.notifier).state = true;
+    
+    // 同期ステータスを初期化済みに設定
+    _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
     return publicKey;
   }
 
   /// TodoをNostrに作成
-  Future<String> createTodo(Todo todo) async {
-    final todoData = TodoData(
+  Future<String> createTodoOnNostr(Todo todo) async {
+    final todoData = rust_api.TodoData(
       id: todo.id,
       title: todo.title,
       completed: todo.completed,
@@ -68,12 +98,12 @@ class NostrService {
       eventId: todo.eventId,
     );
 
-    return createTodo(todo: todoData);
+    return await rust_api.createTodo(todo: todoData);
   }
 
   /// TodoをNostrで更新
-  Future<String> updateTodo(Todo todo) async {
-    final todoData = TodoData(
+  Future<String> updateTodoOnNostr(Todo todo) async {
+    final todoData = rust_api.TodoData(
       id: todo.id,
       title: todo.title,
       completed: todo.completed,
@@ -84,17 +114,17 @@ class NostrService {
       eventId: todo.eventId,
     );
 
-    return updateTodo(todo: todoData);
+    return await rust_api.updateTodo(todo: todoData);
   }
 
   /// TodoをNostrから削除
-  Future<void> deleteTodo(String todoId) async {
-    return deleteTodo(todoId: todoId);
+  Future<void> deleteTodoOnNostr(String todoId) async {
+    return await rust_api.deleteTodo(todoId: todoId);
   }
 
   /// NostrからTodoを同期
-  Future<List<Todo>> syncTodos() async {
-    final todoDataList = syncTodos();
+  Future<List<Todo>> syncTodosFromNostr() async {
+    final todoDataList = await rust_api.syncTodos();
 
     return todoDataList.map((todoData) {
       return Todo(
@@ -110,9 +140,3 @@ class NostrService {
     }).toList();
   }
 }
-
-/// NostrServiceのProvider
-final nostrServiceProvider = Provider<NostrService>((ref) {
-  return NostrService();
-});
-

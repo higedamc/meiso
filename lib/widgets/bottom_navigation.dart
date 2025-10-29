@@ -6,12 +6,14 @@ class BottomNavigation extends StatelessWidget {
     required this.onTodayTap,
     required this.onAddTap,
     required this.onSomedayTap,
+    this.onSomedayLongPress,
     super.key,
   });
 
   final VoidCallback onTodayTap;
   final VoidCallback onAddTap;
   final VoidCallback onSomedayTap;
+  final VoidCallback? onSomedayLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +82,7 @@ class BottomNavigation extends StatelessWidget {
           Expanded(
             child: InkWell(
               onTap: onSomedayTap,
+              onLongPress: onSomedayLongPress,
               child: Container(
                 alignment: Alignment.center,
                 child: const Text(

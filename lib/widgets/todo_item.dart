@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../app_theme.dart';
 import '../models/todo.dart';
 import '../providers/todos_provider.dart';
@@ -12,6 +15,215 @@ class TodoItem extends StatelessWidget {
   });
 
   final Todo todo;
+
+  void _showEditDialog(BuildContext context, WidgetRef ref) {
+    final controller = TextEditingController(text: todo.title);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.grey.shade900,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 日付表示（グレーアウト）
+              Text(
+                todo.date != null 
+                    ? DateFormat('EEEE, MMMM d', 'en_US').format(todo.date!).toUpperCase()
+                    : 'SOMEDAY',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // タイトル編集フィールド
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                ),
+                decoration: InputDecoration(
+                  border: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.grey.shade700),
+                  ),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.grey.shade700),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.grey.shade500),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+                maxLines: null,
+                onSubmitted: (value) {
+                  if (value.trim().isNotEmpty) {
+                    ref.read(todosProvider.notifier).updateTodoTitle(
+                      todo.id,
+                      todo.date,
+                      value,
+                    );
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // ボタン行
+              Row(
+                children: [
+                  // MOVE TO ボタン
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      // TODO: Phase2で日付移動ダイアログを実装
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('日付移動は後で実装します'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        Text(
+                          'MOVE TO',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const Spacer(),
+                  
+                  // X (閉じる) ボタン
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, size: 20),
+                    color: Colors.grey.shade600,
+                  ),
+                  
+                  const SizedBox(width: 8),
+                  
+                  // SAVE ボタン
+                  ElevatedButton(
+                    onPressed: () {
+                      if (controller.text.trim().isNotEmpty) {
+                        ref.read(todosProvider.notifier).updateTodoTitle(
+                          todo.id,
+                          todo.date,
+                          controller.text,
+                        );
+                        Navigator.pop(context);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text(
+                      'SAVE',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showJsonDialog(BuildContext context) {
+    final jsonData = {
+      'id': todo.id,
+      'title': todo.title,
+      'completed': todo.completed,
+      'date': todo.date?.toIso8601String(),
+      'order': todo.order,
+      'createdAt': todo.createdAt.toIso8601String(),
+      'updatedAt': todo.updatedAt.toIso8601String(),
+      'eventId': todo.eventId,
+    };
+
+    final jsonString = const JsonEncoder.withIndent('  ').convert(jsonData);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.code, size: 20),
+            const SizedBox(width: 8),
+            const Text('Todo JSON'),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.copy, size: 20),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: jsonString));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('JSONをコピーしました')),
+                );
+              },
+              tooltip: 'コピー',
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            jsonString,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+            ),
+          ),
+        ),
+        actions: [
+          if (todo.eventId != null)
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Event ID: ${todo.eventId}'),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.cloud_done, size: 16),
+              label: const Text('リレー送信済み'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,30 +261,45 @@ class TodoItem extends StatelessWidget {
                 ),
               ),
             ),
-            child: Row(
-              children: [
-                // チェックボックス
-                Checkbox(
-                  value: todo.completed,
-                  onChanged: (_) {
-                    ref
-                        .read(todosProvider.notifier)
-                        .toggleTodo(todo.id, todo.date);
-                  },
-                ),
-                
-                // タイトル
-                Expanded(
-                  child: Text(
-                    todo.title,
-                    style: todo.completed
-                        ? AppTheme.todoTitleCompleted
-                        : AppTheme.todoTitle,
+            child: InkWell(
+              onTap: () => _showEditDialog(context, ref),
+              onLongPress: () => _showJsonDialog(context),
+              child: Row(
+                children: [
+                  // チェックボックス
+                  Checkbox(
+                    value: todo.completed,
+                    onChanged: (_) {
+                      ref
+                          .read(todosProvider.notifier)
+                          .toggleTodo(todo.id, todo.date);
+                    },
                   ),
-                ),
-                
-                const SizedBox(width: 8),
-              ],
+                  
+                  // タイトル
+                  Expanded(
+                    child: Text(
+                      todo.title,
+                      style: todo.completed
+                          ? AppTheme.todoTitleCompleted
+                          : AppTheme.todoTitle,
+                    ),
+                  ),
+                  
+                  // Nostr送信済みインジケーター
+                  if (todo.eventId != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        Icons.cloud_done,
+                        size: 16,
+                        color: Colors.green.shade400,
+                      ),
+                    ),
+                  
+                  const SizedBox(width: 8),
+                ],
+              ),
             ),
           ),
         );

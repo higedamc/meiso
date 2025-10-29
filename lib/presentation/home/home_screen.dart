@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
 import '../../providers/date_provider.dart';
+import '../../providers/nostr_provider.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
+import '../../widgets/sync_status_indicator.dart';
+import '../settings/settings_screen.dart';
 
 /// Meisoのメイン画面
 /// 1日分を全画面表示し、スワイプで日付移動
@@ -43,24 +46,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _jumpToToday(List<DateTime> dates) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final todayIndex = dates.indexWhere((date) => 
-      date.year == today.year && 
-      date.month == today.month && 
-      date.day == today.day
-    );
-    
-    if (todayIndex != -1) {
-      _pageController.animateToPage(
-        todayIndex,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+    // まずSomedayモードを解除
+    setState(() {
+      _showingSomeday = false;
+    });
+
+    // 次のフレームでアニメーション実行
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final todayIndex = dates.indexWhere((date) => 
+        date.year == today.year && 
+        date.month == today.month && 
+        date.day == today.day
       );
-      setState(() {
-        _showingSomeday = false;
-      });
-    }
+      
+      if (todayIndex != -1) {
+        _pageController.animateToPage(
+          todayIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   void _showSomeday() {
@@ -77,6 +85,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const SettingsScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer(
@@ -85,19 +101,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
+          appBar: AppBar(
+            backgroundColor: AppTheme.backgroundColor,
+            elevation: 0,
+            toolbarHeight: 48,
+            title: const SyncStatusIndicator(),
+          ),
           body: SafeArea(
             child: Column(
               children: [
                 // Todoページ部分
                 Expanded(
                   child: _showingSomeday
-                      ? const DayPage(date: null) // Somedayページ
+                      ? DayPage(
+                          date: null, // Somedayページ
+                          onSettingsTap: _openSettings,
+                        )
                       : PageView.builder(
                           controller: _pageController,
                           onPageChanged: _onPageChanged,
                           itemCount: dates.length,
                           itemBuilder: (context, index) {
-                            return DayPage(date: dates[index]);
+                            return DayPage(
+                              date: dates[index],
+                              onSettingsTap: _openSettings,
+                            );
                           },
                         ),
                 ),
@@ -123,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   },
                   onSomedayTap: _showSomeday,
+                  onSomedayLongPress: _openSettings,
                 ),
               ],
             ),

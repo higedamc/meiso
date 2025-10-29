@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/todo.dart';
+import '../services/local_storage_service.dart';
+import 'nostr_provider.dart';
+import 'sync_status_provider.dart';
 
 /// 日付ごとにグループ化されたTodoリストを管理するProvider
 /// 
@@ -9,68 +12,99 @@ import '../models/todo.dart';
 /// - DateTime: 特定の日付
 final todosProvider =
     StateNotifierProvider<TodosNotifier, AsyncValue<Map<DateTime?, List<Todo>>>>(
-  (ref) => TodosNotifier(),
+  (ref) => TodosNotifier(ref),
 );
 
 class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>> {
-  TodosNotifier() : super(const AsyncValue.loading()) {
+  TodosNotifier(this._ref) : super(const AsyncValue.loading()) {
     _initialize();
   }
 
+  final Ref _ref;
   final _uuid = const Uuid();
 
   Future<void> _initialize() async {
-    // TODO: Phase2でRust側から同期する
-    // 現在はダミーデータで初期化
-    await Future.delayed(const Duration(milliseconds: 500));
-    
+    try {
+      // ローカルストレージから読み込み
+      final localTodos = await localStorageService.loadTodos();
+      
+      if (localTodos.isEmpty) {
+        // 初回起動時のみダミーデータを作成
+        await _createInitialDummyData();
+      } else {
+        // ローカルデータをグループ化して状態に設定
+        final Map<DateTime?, List<Todo>> grouped = {};
+        for (final todo in localTodos) {
+          grouped[todo.date] ??= [];
+          grouped[todo.date]!.add(todo);
+        }
+        
+        // 各日付のリストをorder順にソート
+        for (final key in grouped.keys) {
+          grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
+        }
+        
+        state = AsyncValue.data(grouped);
+      }
+    } catch (e, stackTrace) {
+      print('⚠️ Todo初期化エラー: $e');
+      state = AsyncValue.error(e, stackTrace);
+    }
+  }
+
+  /// 初回起動時のダミーデータを作成
+  Future<void> _createInitialDummyData() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final tomorrow = today.add(const Duration(days: 1));
     
+    final initialTodos = [
+      Todo(
+        id: _uuid.v4(),
+        title: 'Nostr統合を完了する',
+        completed: false,
+        date: today,
+        order: 0,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      Todo(
+        id: _uuid.v4(),
+        title: 'UI/UXを改善する',
+        completed: false,
+        date: today,
+        order: 1,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      Todo(
+        id: _uuid.v4(),
+        title: 'Amber統合をテストする',
+        completed: false,
+        date: tomorrow,
+        order: 0,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      Todo(
+        id: _uuid.v4(),
+        title: 'リカーリングタスクを実装する',
+        completed: false,
+        date: null,
+        order: 0,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ];
+    
+    // ローカルストレージに保存
+    await localStorageService.saveTodos(initialTodos);
+    
+    // 状態に反映
     state = AsyncValue.data({
-      today: [
-        Todo(
-          id: _uuid.v4(),
-          title: 'Nostr統合を完了する',
-          completed: false,
-          date: today,
-          order: 0,
-          createdAt: now,
-          updatedAt: now,
-        ),
-        Todo(
-          id: _uuid.v4(),
-          title: 'UI/UXを改善する',
-          completed: false,
-          date: today,
-          order: 1,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      ],
-      tomorrow: [
-        Todo(
-          id: _uuid.v4(),
-          title: 'Amber統合をテストする',
-          completed: false,
-          date: tomorrow,
-          order: 0,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      ],
-      null: [
-        Todo(
-          id: _uuid.v4(),
-          title: 'リカーリングタスクを実装する',
-          completed: false,
-          date: null,
-          order: 0,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      ],
+      today: [initialTodos[0], initialTodos[1]],
+      tomorrow: [initialTodos[2]],
+      null: [initialTodos[3]],
     });
   }
 
@@ -78,7 +112,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   Future<void> addTodo(String title, DateTime? date) async {
     if (title.trim().isEmpty) return;
 
-    state.whenData((todos) {
+    state.whenData((todos) async {
       final now = DateTime.now();
       final newTodo = Todo(
         id: _uuid.v4(),
@@ -98,14 +132,85 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: list,
       });
 
-      // TODO: Phase2でRust側に送信
-      // rustBridge.createTodo(newTodo);
+      // ローカルストレージに保存
+      await _saveAllTodosToLocal();
+
+      // Nostr側に送信（バックグラウンド実行）
+      _syncToNostr(() async {
+        final nostrService = _ref.read(nostrServiceProvider);
+        await nostrService.createTodoOnNostr(newTodo);
+      });
+    });
+  }
+
+  /// Nostrから取得したTodoを追加（既存データを保持）
+  Future<void> addTodoWithData(Todo todo) async {
+    state.whenData((todos) {
+      final list = List<Todo>.from(todos[todo.date] ?? []);
+      
+      // 同じIDが存在しないことを確認
+      if (!list.any((t) => t.id == todo.id)) {
+        list.add(todo);
+        
+        state = AsyncValue.data({
+          ...todos,
+          todo.date: list,
+        });
+      }
+    });
+  }
+
+  /// NostrからのTodoをローカルとマージ（スマートマージ）
+  /// updatedAtが新しい方を優先
+  Future<void> mergeTodosFromNostr(List<Todo> nostrTodos) async {
+    state.whenData((localTodos) async {
+      final Map<String, Todo> mergedMap = {};
+      
+      // ローカルのTodoをマップに追加
+      for (final dateGroup in localTodos.values) {
+        for (final todo in dateGroup) {
+          mergedMap[todo.id] = todo;
+        }
+      }
+      
+      // NostrのTodoをマージ（新しい方を優先）
+      for (final nostrTodo in nostrTodos) {
+        final localTodo = mergedMap[nostrTodo.id];
+        
+        if (localTodo == null) {
+          // ローカルに存在しない → 追加
+          mergedMap[nostrTodo.id] = nostrTodo;
+        } else {
+          // 両方に存在 → 新しい方を採用
+          if (nostrTodo.updatedAt.isAfter(localTodo.updatedAt)) {
+            mergedMap[nostrTodo.id] = nostrTodo;
+          }
+          // localの方が新しい場合はそのまま
+        }
+      }
+      
+      // 日付ごとにグループ化
+      final Map<DateTime?, List<Todo>> grouped = {};
+      for (final todo in mergedMap.values) {
+        grouped[todo.date] ??= [];
+        grouped[todo.date]!.add(todo);
+      }
+      
+      // 各日付のリストをorder順にソート
+      for (final key in grouped.keys) {
+        grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
+      }
+      
+      state = AsyncValue.data(grouped);
+      
+      // ローカルストレージに保存
+      await _saveAllTodosToLocal();
     });
   }
 
   /// Todoを更新
   Future<void> updateTodo(Todo todo) async {
-    state.whenData((todos) {
+    state.whenData((todos) async {
       final list = List<Todo>.from(todos[todo.date] ?? []);
       final index = list.indexWhere((t) => t.id == todo.id);
 
@@ -116,15 +221,52 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           todo.date: list,
         });
 
-        // TODO: Phase2でRust側に送信
-        // rustBridge.updateTodo(todo);
+        // ローカルストレージに保存
+        await _saveAllTodosToLocal();
+
+        // Nostr側に送信（バックグラウンド実行）
+        _syncToNostr(() async {
+          final nostrService = _ref.read(nostrServiceProvider);
+          await nostrService.updateTodoOnNostr(list[index]);
+        });
+      }
+    });
+  }
+
+  /// Todoのタイトルを更新
+  Future<void> updateTodoTitle(String id, DateTime? date, String newTitle) async {
+    if (newTitle.trim().isEmpty) return;
+
+    state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == id);
+
+      if (index != -1) {
+        list[index] = list[index].copyWith(
+          title: newTitle.trim(),
+          updatedAt: DateTime.now(),
+        );
+        
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+
+        // ローカルストレージに保存
+        await _saveAllTodosToLocal();
+
+        // Nostr側に送信（バックグラウンド実行）
+        _syncToNostr(() async {
+          final nostrService = _ref.read(nostrServiceProvider);
+          await nostrService.updateTodoOnNostr(list[index]);
+        });
       }
     });
   }
 
   /// Todoの完了状態をトグル
   Future<void> toggleTodo(String id, DateTime? date) async {
-    state.whenData((todos) {
+    state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
       final index = list.indexWhere((t) => t.id == id);
 
@@ -140,15 +282,21 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           date: list,
         });
 
-        // TODO: Phase2でRust側に送信
-        // rustBridge.updateTodo(list[index]);
+        // ローカルストレージに保存
+        await _saveAllTodosToLocal();
+
+        // Nostr側に送信（バックグラウンド実行）
+        _syncToNostr(() async {
+          final nostrService = _ref.read(nostrServiceProvider);
+          await nostrService.updateTodoOnNostr(list[index]);
+        });
       }
     });
   }
 
   /// Todoを削除
   Future<void> deleteTodo(String id, DateTime? date) async {
-    state.whenData((todos) {
+    state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
       list.removeWhere((t) => t.id == id);
 
@@ -157,8 +305,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: list,
       });
 
-      // TODO: Phase2でRust側に送信
-      // rustBridge.deleteTodo(id);
+      // ローカルストレージに保存
+      await _saveAllTodosToLocal();
+
+      // Nostr側に送信（バックグラウンド実行）
+      _syncToNostr(() async {
+        final nostrService = _ref.read(nostrServiceProvider);
+        await nostrService.deleteTodoOnNostr(id);
+      });
     });
   }
 
@@ -168,7 +322,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     int oldIndex,
     int newIndex,
   ) async {
-    state.whenData((todos) {
+    state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
 
       if (oldIndex < newIndex) {
@@ -191,8 +345,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: list,
       });
 
-      // TODO: Phase2でRust側に同期
-      // rustBridge.updateTodoOrders(list);
+      // ローカルストレージに保存
+      await _saveAllTodosToLocal();
+
+      // Nostr側に送信（バックグラウンド実行）
+      _syncToNostr(() async {
+        final nostrService = _ref.read(nostrServiceProvider);
+        for (final todo in list) {
+          await nostrService.updateTodoOnNostr(todo);
+        }
+      });
     });
   }
 
@@ -200,7 +362,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   Future<void> moveTodo(String id, DateTime? fromDate, DateTime? toDate) async {
     if (fromDate == toDate) return;
 
-    state.whenData((todos) {
+    state.whenData((todos) async {
       final fromList = List<Todo>.from(todos[fromDate] ?? []);
       final toList = List<Todo>.from(todos[toDate] ?? []);
 
@@ -221,8 +383,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         toDate: toList,
       });
 
-      // TODO: Phase2でRust側に送信
-      // rustBridge.updateTodo(movedTodo);
+      // ローカルストレージに保存
+      await _saveAllTodosToLocal();
+
+      // Nostr側に送信（バックグラウンド実行）
+      _syncToNostr(() async {
+        final nostrService = _ref.read(nostrServiceProvider);
+        await nostrService.updateTodoOnNostr(movedTodo);
+      });
     });
   }
 
@@ -232,13 +400,89 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     if (list == null || list.isEmpty) return 0;
     return list.map((t) => t.order).reduce((a, b) => a > b ? a : b) + 1;
   }
+
+  /// Nostrへの同期処理（リトライ機能付き）
+  Future<void> _syncToNostr(Future<void> Function() syncFunction) async {
+    if (!_ref.read(nostrInitializedProvider)) {
+      // Nostr未初期化の場合はスキップ
+      return;
+    }
+
+    // 同期開始
+    _ref.read(syncStatusProvider.notifier).startSync();
+
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
+
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        await syncFunction();
+        
+        // 成功
+        _ref.read(syncStatusProvider.notifier).syncSuccess();
+        print('✅ Nostr同期成功');
+        return;
+        
+      } catch (e) {
+        final isLastAttempt = attempt == maxRetries;
+        
+        if (isLastAttempt) {
+          // 最終試行でも失敗
+          _ref.read(syncStatusProvider.notifier).syncError(
+            e.toString(),
+            shouldRetry: false,
+          );
+          print('❌ Nostr同期失敗（最終試行）: $e');
+        } else {
+          // リトライする
+          print('⚠️ Nostr同期エラー（${attempt + 1}/${maxRetries + 1}回目）: $e');
+          print('🔄 ${retryDelay.inSeconds}秒後にリトライします...');
+          
+          await Future.delayed(retryDelay);
+        }
+      }
+    }
+  }
+
+  /// すべてのTodoをローカルストレージに保存
+  Future<void> _saveAllTodosToLocal() async {
+    await state.whenData((todos) async {
+      final allTodos = <Todo>[];
+      
+      // すべてのTodoをフラットなリストに変換
+      for (final dateGroup in todos.values) {
+        allTodos.addAll(dateGroup);
+      }
+      
+      try {
+        await localStorageService.saveTodos(allTodos);
+      } catch (e) {
+        print('⚠️ ローカル保存エラー: $e');
+      }
+    });
+  }
 }
 
 /// 特定の日付のTodoリストを取得するProvider
+/// 未完了タスクを上、完了済みタスクを下に表示
 final todosForDateProvider = Provider.family<List<Todo>, DateTime?>((ref, date) {
   final todosAsync = ref.watch(todosProvider);
   return todosAsync.when(
-    data: (todos) => todos[date] ?? [],
+    data: (todos) {
+      final list = todos[date] ?? [];
+      
+      // 未完了タスクと完了済みタスクに分ける
+      final incomplete = list.where((t) => !t.completed).toList();
+      final completed = list.where((t) => t.completed).toList();
+      
+      // 未完了タスクをorder順にソート
+      incomplete.sort((a, b) => a.order.compareTo(b.order));
+      // 完了済みタスクもorder順にソート（完了した順番を保持）
+      completed.sort((a, b) => a.order.compareTo(b.order));
+      
+      // 未完了 + 完了済みの順で結合
+      return [...incomplete, ...completed];
+    },
     loading: () => [],
     error: (_, __) => [],
   );

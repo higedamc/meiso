@@ -10,10 +10,12 @@ import 'todo_item.dart';
 class DayPage extends StatelessWidget {
   const DayPage({
     required this.date,
+    this.onSettingsTap,
     super.key,
   });
 
   final DateTime? date;
+  final VoidCallback? onSettingsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,7 @@ class DayPage extends StatelessWidget {
   Widget _buildHeader(BuildContext context) {
     return Container(
       color: AppTheme.cardColor,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
           // 日付（左寄せ）
@@ -44,7 +46,7 @@ class DayPage extends StatelessWidget {
                   Text(
                     DateFormat('EEEE, MMMM d', 'en_US').format(date!).toUpperCase(),
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textPrimary,
                       letterSpacing: 0.5,
@@ -54,7 +56,7 @@ class DayPage extends StatelessWidget {
                   const Text(
                     'SOMEDAY',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textPrimary,
                       letterSpacing: 0.5,
@@ -66,19 +68,14 @@ class DayPage extends StatelessWidget {
           ),
           
           // 設定アイコン（右端）
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            iconSize: 24,
-            color: AppTheme.textPrimary,
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('設定画面は後で実装します'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-          ),
+          if (onSettingsTap != null)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              iconSize: 24,
+              color: AppTheme.textPrimary,
+              onPressed: onSettingsTap,
+              tooltip: '設定',
+            ),
         ],
       ),
     );
