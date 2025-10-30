@@ -277,7 +277,7 @@ class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
                     vertical: 12,
                   ),
                 ),
-                style: AppTheme.todoTitle,
+                style: AppTheme.todoTitle(context),
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _saveTodo(ref),
               ),

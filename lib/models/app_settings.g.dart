@@ -12,6 +12,11 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
       weekStartDay: (json['weekStartDay'] as num?)?.toInt() ?? 1,
       calendarView: json['calendarView'] as String? ?? 'week',
       notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
+      relays:
+          (json['relays'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
 
@@ -21,5 +26,6 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'weekStartDay': instance.weekStartDay,
       'calendarView': instance.calendarView,
       'notificationsEnabled': instance.notificationsEnabled,
+      'relays': instance.relays,
       'updatedAt': instance.updatedAt.toIso8601String(),
     };

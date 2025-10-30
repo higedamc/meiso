@@ -9,6 +9,12 @@ class AppTheme {
   static const Color darkPurple = Color(0xFF5B21B6);    // 濃い紫
   static const Color accentPurple = Color(0xFFA78BFA);  // アクセント用
   
+  // エイリアス（後方互換性のため）
+  static const Color primaryColor = primaryPurple;
+  static const Color accentColor = accentPurple;
+  static const Color textPrimary = lightTextPrimary;
+  static const Color textSecondary = lightTextSecondary;
+  
   // ライトモードカラー
   static const Color lightBackground = Color(0xFFFFFFFF);
   static const Color lightSurface = Color(0xFFF9FAFB);
@@ -132,7 +138,7 @@ class AppTheme {
         ),
       ),
       
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: lightCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -281,7 +287,7 @@ class AppTheme {
         ),
       ),
       
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: darkCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),

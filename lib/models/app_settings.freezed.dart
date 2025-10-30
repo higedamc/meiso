@@ -33,6 +33,9 @@ mixin _$AppSettings {
   /// 通知設定
   bool get notificationsEnabled => throw _privateConstructorUsedError;
 
+  /// リレーリスト（NIP-65 kind 10002から同期）
+  List<String> get relays => throw _privateConstructorUsedError;
+
   /// 最終更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -58,6 +61,7 @@ abstract class $AppSettingsCopyWith<$Res> {
     int weekStartDay,
     String calendarView,
     bool notificationsEnabled,
+    List<String> relays,
     DateTime updatedAt,
   });
 }
@@ -81,6 +85,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? weekStartDay = null,
     Object? calendarView = null,
     Object? notificationsEnabled = null,
+    Object? relays = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -101,6 +106,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
                 ? _value.notificationsEnabled
                 : notificationsEnabled // ignore: cast_nullable_to_non_nullable
                       as bool,
+            relays: null == relays
+                ? _value.relays
+                : relays // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
             updatedAt: null == updatedAt
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -125,6 +134,7 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     int weekStartDay,
     String calendarView,
     bool notificationsEnabled,
+    List<String> relays,
     DateTime updatedAt,
   });
 }
@@ -147,6 +157,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? weekStartDay = null,
     Object? calendarView = null,
     Object? notificationsEnabled = null,
+    Object? relays = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -167,6 +178,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             ? _value.notificationsEnabled
             : notificationsEnabled // ignore: cast_nullable_to_non_nullable
                   as bool,
+        relays: null == relays
+            ? _value._relays
+            : relays // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
         updatedAt: null == updatedAt
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -184,8 +199,9 @@ class _$AppSettingsImpl implements _AppSettings {
     this.weekStartDay = 1,
     this.calendarView = 'week',
     this.notificationsEnabled = true,
+    final List<String> relays = const [],
     required this.updatedAt,
-  });
+  }) : _relays = relays;
 
   factory _$AppSettingsImpl.fromJson(Map<String, dynamic> json) =>
       _$$AppSettingsImplFromJson(json);
@@ -210,13 +226,25 @@ class _$AppSettingsImpl implements _AppSettings {
   @JsonKey()
   final bool notificationsEnabled;
 
+  /// リレーリスト（NIP-65 kind 10002から同期）
+  final List<String> _relays;
+
+  /// リレーリスト（NIP-65 kind 10002から同期）
+  @override
+  @JsonKey()
+  List<String> get relays {
+    if (_relays is EqualUnmodifiableListView) return _relays;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_relays);
+  }
+
   /// 最終更新日時
   @override
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, updatedAt: $updatedAt)';
   }
 
   @override
@@ -232,6 +260,7 @@ class _$AppSettingsImpl implements _AppSettings {
                 other.calendarView == calendarView) &&
             (identical(other.notificationsEnabled, notificationsEnabled) ||
                 other.notificationsEnabled == notificationsEnabled) &&
+            const DeepCollectionEquality().equals(other._relays, _relays) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt));
   }
@@ -244,6 +273,7 @@ class _$AppSettingsImpl implements _AppSettings {
     weekStartDay,
     calendarView,
     notificationsEnabled,
+    const DeepCollectionEquality().hash(_relays),
     updatedAt,
   );
 
@@ -267,6 +297,7 @@ abstract class _AppSettings implements AppSettings {
     final int weekStartDay,
     final String calendarView,
     final bool notificationsEnabled,
+    final List<String> relays,
     required final DateTime updatedAt,
   }) = _$AppSettingsImpl;
 
@@ -288,6 +319,10 @@ abstract class _AppSettings implements AppSettings {
   /// 通知設定
   @override
   bool get notificationsEnabled;
+
+  /// リレーリスト（NIP-65 kind 10002から同期）
+  @override
+  List<String> get relays;
 
   /// 最終更新日時
   @override

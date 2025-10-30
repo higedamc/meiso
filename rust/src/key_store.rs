@@ -2,7 +2,6 @@ use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
-use argon2::Argon2;
 use anyhow::{Context, Result};
 use rand::RngCore;
 
@@ -56,12 +55,12 @@ impl SecureKeyStore {
         // 3. ランダムなnonceを生成（12バイト）
         let mut nonce_bytes = [0u8; 12];
         OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = Nonce::from(nonce_bytes);
         
         // 4. AES-256-GCMで暗号化
         let cipher = Aes256Gcm::new(&key.into());
         let ciphertext = cipher
-            .encrypt(nonce, secret_key.as_bytes())
+            .encrypt(&nonce, secret_key.as_bytes())
             .map_err(|e| anyhow::anyhow!("Failed to encrypt secret key with AES-256-GCM: {:?}", e))?;
         
         // 5. ファイルに保存: salt + nonce + ciphertext
@@ -101,10 +100,10 @@ impl SecureKeyStore {
         
         // 4. 復号化
         let cipher = Aes256Gcm::new(&key.into());
-        let nonce = Nonce::from_slice(nonce_bytes);
+        let nonce = Nonce::from(*<&[u8; 12]>::try_from(nonce_bytes).context("Invalid nonce length")?);
         
         let plaintext = cipher
-            .decrypt(nonce, ciphertext)
+            .decrypt(&nonce, ciphertext)
             .map_err(|_| anyhow::anyhow!("Failed to decrypt secret key (wrong password?)"))?;
         
         let secret_key = String::from_utf8(plaintext)

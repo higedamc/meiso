@@ -502,11 +502,10 @@ impl MeisoNostrClient {
             
             // "r" タグからリレーURLを抽出
             for tag in event.tags.iter() {
-                if let Some(tag_kind) = tag.kind().as_standardized() {
-                    if matches!(tag_kind, TagStandard::Relay) {
-                        if let Some(relay_url) = tag.content() {
-                            relays.push(relay_url.to_string());
-                        }
+                // TagKind::Relayをチェックし、contentからURLを取得
+                if tag.kind() == TagKind::Relay {
+                    if let Some(relay_url) = tag.content() {
+                        relays.push(relay_url.to_string());
                     }
                 }
             }
@@ -518,8 +517,6 @@ impl MeisoNostrClient {
         println!("⚠️ No relay list found");
         Ok(Vec::new())
     }
-=======
->>>>>>> 2025-10-31-gage-vMvzc
 }
 
 // ========================================
@@ -1276,8 +1273,6 @@ pub fn sync_relay_list() -> Result<Vec<String>> {
 }
 
 // ========================================
-=======
->>>>>>> 2025-10-31-gage-vMvzc
 // マイグレーション関連API
 // ========================================
 
