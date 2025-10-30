@@ -834,7 +834,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   // Amberモード情報
                   if (isAmberMode)
                     Card(
-                      color: Colors.blue.shade50,
+                      color: AppTheme.primaryPurple.withOpacity(0.1),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -842,13 +842,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.security, color: Colors.blue.shade700),
+                                Icon(Icons.security, color: AppTheme.primaryPurple),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Amberモード',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade900,
+                                    color: AppTheme.darkPurple,
                                   ),
                                 ),
                               ],
@@ -870,7 +870,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               '3. 「NIP-44 Decrypt」を常に許可に設定',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.blue.shade900,
+                                color: AppTheme.darkPurple,
                               ),
                             ),
                           ],
@@ -885,7 +885,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                   // 注意事項
                   Card(
-                    color: Colors.blue.shade50,
+                    color: AppTheme.primaryPurple.withOpacity(0.1),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
@@ -893,13 +893,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.info, color: Colors.blue.shade700),
+                              Icon(Icons.info, color: AppTheme.primaryPurple),
                               const SizedBox(width: 8),
                               Text(
                                 '重要',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade900,
+                                  color: AppTheme.darkPurple,
                                 ),
                               ),
                             ],
@@ -916,7 +916,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             '  • hex形式: 64文字の16進数',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.blue.shade900,
+                              color: AppTheme.darkPurple,
                             ),
                           ),
                         ],
@@ -941,7 +941,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryPurple),
           ),
         );
       case RelayConnectionState.error:

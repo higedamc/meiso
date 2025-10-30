@@ -9,6 +9,7 @@ import 'presentation/onboarding/login_screen.dart';
 import 'presentation/settings/settings_screen.dart';
 import 'bridge_generated.dart/frb_generated.dart';
 import 'services/local_storage_service.dart';
+import 'providers/app_settings_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,11 +107,38 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Meiso',
-      theme: AppTheme.lightTheme,
-      debugShowCheckedModeBanner: false,
-      routerConfig: _router,
+    // アプリ設定を監視してダークモード切り替え
+    final appSettingsAsync = ref.watch(appSettingsProvider);
+    
+    return appSettingsAsync.when(
+      data: (settings) {
+        return MaterialApp.router(
+          title: 'Meiso',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
+          debugShowCheckedModeBanner: false,
+          routerConfig: _router,
+        );
+      },
+      loading: () {
+        // ローディング中はライトテーマで表示
+        return MaterialApp.router(
+          title: 'Meiso',
+          theme: AppTheme.lightTheme,
+          debugShowCheckedModeBanner: false,
+          routerConfig: _router,
+        );
+      },
+      error: (error, stack) {
+        // エラー時もライトテーマで表示
+        return MaterialApp.router(
+          title: 'Meiso',
+          theme: AppTheme.lightTheme,
+          debugShowCheckedModeBanner: false,
+          routerConfig: _router,
+        );
+      },
     );
   }
 }

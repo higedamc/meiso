@@ -20,7 +20,7 @@ class TodoColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppTheme.backgroundColor,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
           _buildHeader(context),
@@ -37,20 +37,20 @@ class TodoColumn extends StatelessWidget {
   /// ヘッダー部分
   Widget _buildHeader(BuildContext context) {
     return Container(
-      color: AppTheme.cardColor,
+      color: Theme.of(context).cardTheme.color,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: AppTheme.columnTitle,
+            style: AppTheme.columnTitle(context),
           ),
           if (date != null) ...[
             const SizedBox(height: 4),
             Text(
               DateFormat('M/d (E)', 'ja_JP').format(date!),
-              style: AppTheme.dateHeader,
+              style: AppTheme.dateHeader(context),
             ),
           ],
         ],
@@ -65,11 +65,14 @@ class TodoColumn extends StatelessWidget {
         final todos = ref.watch(todosForDateProvider(date));
 
         if (todos.isEmpty) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           return Center(
             child: Text(
               'タスクがありません',
               style: TextStyle(
-                color: AppTheme.textDisabled,
+                color: isDark 
+                    ? AppTheme.darkTextDisabled
+                    : AppTheme.lightTextDisabled,
                 fontSize: 14,
               ),
             ),
