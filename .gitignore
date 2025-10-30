@@ -58,3 +58,6 @@ rust/target/.rustc_info.json
 
 # External reference projects (not part of main app)
 Amber/
+
+# Temporary backup files
+.tmp_backup/
