@@ -80,6 +80,56 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     if (_ref.read(nostrInitializedProvider)) {
       try {
         print('🔄 Starting background Nostr sync...');
+        
+        // マイグレーション完了チェック（一度だけ実行）
+        final migrationCompleted = await localStorageService.isMigrationCompleted();
+        print('📋 Migration status check: completed=$migrationCompleted');
+        
+        if (!migrationCompleted) {
+          print('🔍 Checking data status...');
+          
+          // まずKind 30001（新形式）をチェック
+          _ref.read(syncStatusProvider.notifier).updateMessage('データ読み込み中...');
+          print('🔍 Step 1: Checking Kind 30001 existence...');
+          final hasNewData = await checkKind30001Exists();
+          print('🔍 Step 1 result: hasNewData=$hasNewData');
+          
+          if (hasNewData) {
+            // Kind 30001にデータがある = マイグレーション済み
+            print('✅ Found Kind 30001 data. Migration already completed on another device.');
+            print('📥 Loading data from Kind 30001...');
+            print('⏭️  SKIPPING migration - Kind 30001 found!');
+            
+            // Kind 30001から同期（この後のsyncFromNostr()で実行される）
+            await localStorageService.setMigrationCompleted();
+            print('✅ Migration flag set to completed');
+          } else {
+            // Kind 30001がない → Kind 30078をチェック
+            print('🔍 No Kind 30001 found. Checking for old Kind 30078 events...');
+            print('🔍 Step 2: Checking Kind 30078 existence...');
+            final needsMigration = await checkMigrationNeeded();
+            print('🔍 Step 2 result: needsMigration=$needsMigration');
+            
+            if (needsMigration) {
+              print('📦 Found old Kind 30078 TODO events. Starting migration...');
+              print('⚠️  MIGRATION WILL START - THIS WILL TRIGGER AMBER DECRYPTION');
+              _ref.read(syncStatusProvider.notifier).updateMessage('データ移行中...');
+              
+              // マイグレーション実行（Kind 30078 → Kind 30001）
+              await migrateFromKind30078ToKind30001();
+              print('✅ Migration completed successfully');
+            } else {
+              print('✅ No old events found. Marking migration as completed.');
+              // 旧イベントがない場合はマイグレーション完了として記録
+              await localStorageService.setMigrationCompleted();
+              print('✅ Migration flag set to completed (no data)');
+            }
+          }
+        } else {
+          print('✅ Migration already completed (cached)');
+        }
+        
+        _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
         await syncFromNostr();
         print('✅ Background sync completed');
       } catch (e) {
@@ -151,6 +201,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   Future<void> addTodo(String title, DateTime? date) async {
     if (title.trim().isEmpty) return;
 
+    print('🆕 addTodo called: "$title" for date: $date');
+
     state.whenData((todos) async {
       final now = DateTime.now();
       final newTodo = Todo(
@@ -172,9 +224,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       });
 
       // ローカルストレージに保存
+      print('💾 Saving to local storage...');
       await _saveAllTodosToLocal();
+      print('✅ Local save complete');
+
+      // Nostrが初期化されているかチェック
+      final isNostrInitialized = _ref.read(nostrInitializedProvider);
+      print('🔍 Nostr initialized: $isNostrInitialized');
 
       // Nostr側に全TODOリストを送信（バックグラウンド実行）
+      print('📤 Starting Nostr sync...');
       _syncToNostr(() async {
         await _syncAllTodosToNostr();
       });
@@ -480,7 +539,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 全TODOリストをNostrに同期（新実装 - Kind 30001）
   /// すべてのTodo操作後に呼び出される
   Future<void> _syncAllTodosToNostr() async {
-    if (!_ref.read(nostrInitializedProvider)) {
+    print('🔄 _syncAllTodosToNostr called');
+    
+    final isInitialized = _ref.read(nostrInitializedProvider);
+    print('🔍 Nostr initialized in _syncAllTodosToNostr: $isInitialized');
+    
+    if (!isInitialized) {
       print('⚠️ Nostr未初期化のため同期をスキップ');
       return;
     }
@@ -492,8 +556,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         allTodos.addAll(dateGroup);
       }
 
+      print('📦 Total todos to sync: ${allTodos.length}');
+
       final isAmberMode = _ref.read(isAmberModeProvider);
       final nostrService = _ref.read(nostrServiceProvider);
+      
+      print('🔐 Amber mode: $isAmberMode');
 
       try {
         if (isAmberMode) {
@@ -575,11 +643,19 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         } else {
           // 通常モード: 秘密鍵で署名（Rust側でNIP-44暗号化）
           print('🔄 通常モードで全TODOリストを同期します');
-          final eventId = await nostrService.createTodoListOnNostr(allTodos);
-          print('✅ TODOリスト送信完了: $eventId (${allTodos.length}件)');
+          print('🔄 Calling nostrService.createTodoListOnNostr with ${allTodos.length} todos...');
+          
+          try {
+            final eventId = await nostrService.createTodoListOnNostr(allTodos);
+            print('✅✅✅ TODOリスト送信完了: $eventId (${allTodos.length}件)');
+          } catch (e) {
+            print('❌❌❌ createTodoListOnNostr failed: $e');
+            rethrow;
+          }
         }
-      } catch (e) {
+      } catch (e, stackTrace) {
         print('❌ TODOリスト同期失敗: $e');
+        print('スタックトレース: $stackTrace');
         rethrow;
       }
     });
@@ -589,8 +665,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// Nostrへの同期処理（リトライ機能付き）
   /// Amberモード時はAmber署名フローを使用
   Future<void> _syncToNostr(Future<void> Function() syncFunction) async {
-    if (!_ref.read(nostrInitializedProvider)) {
+    print('📡 _syncToNostr called');
+    
+    final isInitialized = _ref.read(nostrInitializedProvider);
+    print('🔍 Nostr initialized in _syncToNostr: $isInitialized');
+    
+    if (!isInitialized) {
       // Nostr未初期化の場合はスキップ
+      print('⚠️ Nostr未初期化のため_syncToNostrをスキップ');
       return;
     }
 
@@ -692,7 +774,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         
         if (encryptedEvent == null) {
           print('⚠️ Todoリストイベントが見つかりません（Kind 30001）');
-          _updateStateWithSyncedTodos([]);
+          print('ℹ️ ローカルデータを保持します');
+          // イベントが見つからない場合はローカルデータを保持（上書きしない）
           _ref.read(syncStatusProvider.notifier).syncSuccess();
           return;
         }
@@ -761,6 +844,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         print('🔄 通常モードで同期します（Kind 30001）');
         final syncedTodos = await nostrService.syncTodoListFromNostr();
         print('📥 ${syncedTodos.length}件のTodoを取得しました');
+        
+        // イベントが見つからない場合（空リスト）はローカルデータを保持
+        if (syncedTodos.isEmpty) {
+          state.whenData((localTodos) {
+            final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
+            if (localTodoCount > 0) {
+              print('ℹ️ リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
+              return; // ローカルデータを保持
+            }
+          });
+        }
+        
         _updateStateWithSyncedTodos(syncedTodos);
       }
       
@@ -806,10 +901,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 1. 既存のKind 30078イベントを取得
   /// 2. Kind 30001形式で再送信
   /// 3. 古いKind 30078イベントを削除（Kind 5）
+  /// 
+  /// ⚠️ 注意: dタグが`todo-`で始まるイベントは自動的に除外されます（Rust側でフィルタリング済み）
   Future<void> migrateFromKind30078ToKind30001() async {
     print('🔄 Starting migration from Kind 30078 to Kind 30001...');
     
     _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.checking;
+    _ref.read(syncStatusProvider.notifier).updateMessage('データ移行準備中...');
     
     try {
       final nostrService = _ref.read(nostrServiceProvider);
@@ -817,6 +915,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // 1. 既存のKind 30078イベントを取得
       print('📥 Fetching existing Kind 30078 events...');
+      _ref.read(syncStatusProvider.notifier).updateMessage('旧データ取得中...');
       
       List<Todo> oldTodos;
       if (isAmberMode) {
@@ -880,6 +979,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // 2. Kind 30001形式で再送信
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.inProgress;
       print('📤 Migrating todos to Kind 30001 format...');
+      _ref.read(syncStatusProvider.notifier).updateMessage('新形式に変換中...');
       
       // 一時的に状態を更新（UIに反映）
       final Map<DateTime?, List<Todo>> grouped = {};
@@ -903,6 +1003,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       if (oldEventIds.isNotEmpty) {
         print('🗑️ Deleting ${oldEventIds.length} old Kind 30078 events...');
+        _ref.read(syncStatusProvider.notifier).updateMessage('旧データ削除中...');
         try {
           await nostrService.deleteEvents(
             oldEventIds,
@@ -916,10 +1017,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
+      _ref.read(syncStatusProvider.notifier).updateMessage('データ移行完了');
       print('🎉 Migration completed successfully!');
       
       // マイグレーション完了フラグをローカルに保存
       await localStorageService.setMigrationCompleted();
+      
+      // メッセージをクリア
+      await Future.delayed(const Duration(seconds: 1));
+      _ref.read(syncStatusProvider.notifier).clearMessage();
       
     } catch (e, stackTrace) {
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.failed;
@@ -929,7 +1035,59 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
   
+  /// Kind 30001（新形式）にデータが存在するかチェック
+  /// 
+  /// Kind 30001にデータがある = マイグレーション済み（別デバイスで実行済みなど）
+  /// 
+  /// ⚠️ このメソッドは復号化せずにイベントの存在のみをチェックします
+  Future<bool> checkKind30001Exists() async {
+    print('🔍 checkKind30001Exists() called');
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      final isAmberMode = _ref.read(isAmberModeProvider);
+      print('🔍 Mode: ${isAmberMode ? "Amber" : "Normal"}');
+      
+      if (isAmberMode) {
+        // Amberモード: 暗号化されたTodoリストイベントを取得
+        // ⚠️ 復号化はしない！イベントの存在だけチェック
+        print('🔍 Fetching encrypted Kind 30001 event (NO DECRYPTION)...');
+        final encryptedEvent = await nostrService.fetchEncryptedTodoList();
+        
+        if (encryptedEvent != null) {
+          print('✅ Found Kind 30001 event (Amber mode) - Event ID: ${encryptedEvent.eventId}');
+          print('✅ This means migration is already done. NO NEED TO DECRYPT OLD EVENTS!');
+          return true;
+        } else {
+          print('ℹ️ No Kind 30001 event found (Amber mode)');
+        }
+      } else {
+        // 通常モード: Rust側で復号化済みのTodoリストを取得
+        print('🔍 Fetching Kind 30001 todos (normal mode)...');
+        final todos = await nostrService.syncTodoListFromNostr();
+        
+        if (todos.isNotEmpty) {
+          print('✅ Found Kind 30001 with ${todos.length} todos (normal mode)');
+          return true;
+        } else {
+          print('ℹ️ No Kind 30001 todos found (normal mode)');
+        }
+      }
+      
+      print('ℹ️ No Kind 30001 found - will check Kind 30078');
+      return false;
+    } catch (e, stackTrace) {
+      print('⚠️ Failed to check Kind 30001: $e');
+      print('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      return false;
+    }
+  }
+
   /// マイグレーションが必要かチェック
+  /// 
+  /// Kind 30078のTODOイベント（旧形式）が存在する場合にtrueを返す
+  /// 
+  /// ⚠️ 注意: 以下のイベントは自動的に除外されます（Rust側でフィルタリング済み）
+  /// - dタグが`todo-`で始まるイベント（設定イベントなど）
   Future<bool> checkMigrationNeeded() async {
     // ローカルストレージでマイグレーション完了済みかチェック
     final completed = await localStorageService.isMigrationCompleted();
@@ -939,18 +1097,32 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       return false;
     }
     
-    // Kind 30078イベントが存在するかチェック
+    // Kind 30078のTODOイベント（d="todo-*"）が存在するかチェック
     try {
       final nostrService = _ref.read(nostrServiceProvider);
       final isAmberMode = _ref.read(isAmberModeProvider);
       
       if (isAmberMode) {
+        // Amberモード: 暗号化されたイベントを取得
         final encryptedTodos = await nostrService.fetchEncryptedTodos();
-        return encryptedTodos.isNotEmpty;
+        
+        // Kind 30078のTODOイベント（d="todo-*"）が存在する場合のみマイグレーション必要
+        if (encryptedTodos.isNotEmpty) {
+          print('📦 Found ${encryptedTodos.length} old Kind 30078 TODO events (Amber mode)');
+          return true;
+        }
       } else {
+        // 通常モード: 秘密鍵で復号化
         final oldTodos = await nostrService.syncTodosFromNostr();
-        return oldTodos.isNotEmpty;
+        
+        if (oldTodos.isNotEmpty) {
+          print('📦 Found ${oldTodos.length} old Kind 30078 TODO events (normal mode)');
+          return true;
+        }
       }
+      
+      print('✅ No old Kind 30078 TODO events found');
+      return false;
     } catch (e) {
       print('⚠️ Failed to check migration: $e');
       return false;

@@ -1,5 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/todo.dart';
+import '../models/app_settings.dart';
 
 /// ローカルストレージサービス（Hive使用）
 /// Todoをローカルに永続化し、オフラインファーストを実現
@@ -8,6 +9,7 @@ class LocalStorageService {
   static const String _settingsBoxName = 'settings';
   static const String _onboardingCompletedKey = 'onboarding_completed';
   static const String _useAmberKey = 'use_amber';
+  static const String _appSettingsKey = 'app_settings';
   
   Box<Map>? _todosBox;
   Box? _settingsBox;
@@ -75,13 +77,28 @@ class LocalStorageService {
     await _todosBox!.delete(id);
   }
 
-  /// すべてのデータをクリア
+  /// すべてのTodoデータをクリア
   Future<void> clearAll() async {
     if (_todosBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
 
     await _todosBox!.clear();
+  }
+  
+  /// アプリ内の全データを完全に削除（ログアウト用）
+  Future<void> clearAllData() async {
+    if (_todosBox == null || _settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    
+    // Todoデータをクリア
+    await _todosBox!.clear();
+    print('✅ Todoデータを削除しました');
+    
+    // 設定データをクリア（オンボーディング完了フラグ含む）
+    await _settingsBox!.clear();
+    print('✅ 設定データを削除しました');
   }
 
   /// ボックスを閉じる
@@ -163,6 +180,36 @@ class LocalStorageService {
     }
     await _settingsBox!.delete(_migrationCompletedKey);
     print('🔄 Migration completed flag reset');
+  }
+  
+  // === アプリ設定関連 ===
+  
+  /// アプリ設定を保存
+  Future<void> saveAppSettings(AppSettings settings) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_appSettingsKey, settings.toJson());
+  }
+  
+  /// アプリ設定を読み込み
+  Future<AppSettings?> loadAppSettings() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    
+    final settingsMap = _settingsBox!.get(_appSettingsKey);
+    if (settingsMap == null) {
+      return null;
+    }
+    
+    try {
+      final jsonMap = Map<String, dynamic>.from(settingsMap as Map);
+      return AppSettings.fromJson(jsonMap);
+    } catch (e) {
+      print('⚠️ アプリ設定復元エラー: $e');
+      return null;
+    }
   }
 }
 
