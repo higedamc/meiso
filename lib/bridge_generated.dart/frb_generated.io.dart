@@ -49,10 +49,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TodoData dco_decode_box_autoadd_todo_data(dynamic raw);
 
   @protected
+  EncryptedTodoEvent dco_decode_encrypted_todo_event(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  KeyPair dco_decode_key_pair(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<EncryptedTodoEvent> dco_decode_list_encrypted_todo_event(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -103,10 +115,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TodoData sse_decode_box_autoadd_todo_data(SseDeserializer deserializer);
 
   @protected
+  EncryptedTodoEvent sse_decode_encrypted_todo_event(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  KeyPair sse_decode_key_pair(SseDeserializer deserializer);
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<EncryptedTodoEvent> sse_decode_list_encrypted_todo_event(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -160,10 +184,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_todo_data(TodoData self, SseSerializer serializer);
 
   @protected
+  void sse_encode_encrypted_todo_event(EncryptedTodoEvent self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_key_pair(KeyPair self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_encrypted_todo_event(List<EncryptedTodoEvent> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(Uint8List self, SseSerializer serializer);

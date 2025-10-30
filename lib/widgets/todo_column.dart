@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../app_theme.dart';
-import '../models/todo.dart';
 import '../providers/todos_provider.dart';
 import 'add_todo_field.dart';
 import 'todo_item.dart';

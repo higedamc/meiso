@@ -1,0 +1,411 @@
+import 'dart:io' show Platform;
+import 'dart:async';
+import 'package:flutter/services.dart';
+
+/// Amber連携サービス
+/// NostrアカウントへのアクセスをAmberアプリ経由で行う
+class AmberService {
+  // Amberのパッケージ名（将来の実装で使用予定）
+  // static const String _amberPackage = 'com.greenart7c3.nostrsigner';
+  static const MethodChannel _channel = MethodChannel('jp.godzhigella.meiso/amber');
+  static const EventChannel _eventChannel = EventChannel('jp.godzhigella.meiso/amber_events');
+  
+  // Amberからの応答を受け取るためのStreamController
+  final _amberResponseController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get amberResponseStream => _amberResponseController.stream;
+  
+  StreamSubscription? _eventSubscription;
+  
+  /// EventChannelのリスニングを開始
+  void startListening() {
+    if (_eventSubscription != null) {
+      print('⚠️ EventChannel already listening');
+      return;
+    }
+    
+    print('👂 Starting EventChannel listening...');
+    _eventSubscription = _eventChannel.receiveBroadcastStream().listen(
+      (dynamic event) {
+        print('📨 Received event from Amber: $event');
+        if (event is Map) {
+          final Map<String, dynamic> eventMap = Map<String, dynamic>.from(event);
+          _amberResponseController.add(eventMap);
+        }
+      },
+      onError: (dynamic error) {
+        print('❌ EventChannel error: $error');
+        _amberResponseController.addError(error);
+      },
+      onDone: () {
+        print('✅ EventChannel closed');
+      },
+    );
+  }
+  
+  /// EventChannelのリスニングを停止
+  void stopListening() {
+    print('🛑 Stopping EventChannel listening...');
+    _eventSubscription?.cancel();
+    _eventSubscription = null;
+  }
+  
+  /// リソースをクリーンアップ
+  void dispose() {
+    stopListening();
+    _amberResponseController.close();
+  }
+
+  /// Amberがインストールされているか確認
+  Future<bool> isAmberInstalled() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+
+    // TODO: Amberのインストール状態を確認する実装
+    // 現在はインストールされていると仮定
+    return true;
+  }
+
+  /// Amberから公開鍵を取得
+  Future<String?> getPublicKey() async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    try {
+      print('🔑 Requesting public key from Amber...');
+      final String? publicKey = await _channel.invokeMethod('getPublicKeyFromAmber');
+      
+      if (publicKey != null && publicKey.isNotEmpty) {
+        print('✅ Received public key from Amber: ${publicKey.substring(0, 10)}...');
+        return publicKey;
+      }
+      
+      print('⚠️ No public key received from Amber');
+      return null;
+    } on PlatformException catch (e) {
+      print('❌ Failed to get public key from Amber: ${e.code} - ${e.message}');
+      if (e.code == 'AMBER_USER_REJECTED') {
+        throw Exception('ユーザーがAmberでの認証をキャンセルしました');
+      }
+      rethrow;
+    } catch (e) {
+      print('❌ Unexpected error getting public key from Amber: $e');
+      rethrow;
+    }
+  }
+
+  /// Amberでメッセージに署名
+  Future<String?> signEvent(String eventJson) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    try {
+      print('✍️ Requesting event signature from Amber...');
+      final String? signedEvent = await _channel.invokeMethod(
+        'signEventWithAmber',
+        {'event': eventJson},
+      );
+      
+      if (signedEvent != null && signedEvent.isNotEmpty) {
+        print('✅ Received signed event from Amber');
+        return signedEvent;
+      }
+      
+      print('⚠️ No signed event received from Amber');
+      return null;
+    } on PlatformException catch (e) {
+      print('❌ Failed to sign event with Amber: ${e.code} - ${e.message}');
+      if (e.code == 'AMBER_USER_REJECTED') {
+        throw Exception('ユーザーがAmberでの署名をキャンセルしました');
+      }
+      rethrow;
+    } catch (e) {
+      print('❌ Unexpected error signing event with Amber: $e');
+      rethrow;
+    }
+  }
+
+  /// Amberアプリを開く（android_intent_plusは不要になったが、互換性のため残す）
+  Future<void> openAmber() async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    try {
+      // Android Intent Plusを使ってAmberを開く
+      await _channel.invokeMethod('launchAmber');
+    } catch (e) {
+      print('❌ Failed to open Amber: $e');
+      rethrow;
+    }
+  }
+
+  /// Google PlayでAmberのページを開く
+  Future<void> openAmberInStore() async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    try {
+      await _channel.invokeMethod('openAmberInStore');
+    } catch (e) {
+      print('❌ Failed to open Amber in store: $e');
+      // フォールバックとして直接URLを開く
+      rethrow;
+    }
+  }
+
+  /// Amberでイベントに署名（統合フロー）
+  /// 未署名イベントJSONを送信し、署名済みイベントJSONを受信
+  Future<String> signEventWithTimeout(
+    String unsignedEventJson, {
+    Duration timeout = const Duration(minutes: 2),
+  }) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    print('🔐 Signing event with Amber (timeout: ${timeout.inSeconds}s)...');
+
+    // EventChannelのリスニングを開始（まだの場合）
+    startListening();
+
+    // 署名済みイベントを待つCompleter
+    final completer = Completer<String>();
+    StreamSubscription? subscription;
+
+    // タイムアウト処理
+    final timeoutTimer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        subscription?.cancel();
+        completer.completeError(
+          TimeoutException('Amber signature timeout after ${timeout.inSeconds}s'),
+        );
+      }
+    });
+
+    // Amberからの応答を待つ
+    subscription = amberResponseStream.listen(
+      (response) {
+        print('📩 Received Amber response: $response');
+
+        // エラーチェック
+        if (response['error'] != null) {
+          if (!completer.isCompleted) {
+            timeoutTimer.cancel();
+            subscription?.cancel();
+            completer.completeError(Exception('Amber error: ${response['error']}'));
+          }
+          return;
+        }
+
+        // 署名済みイベントを取得
+        if (response['result'] != null) {
+          final signedEvent = response['result'] as String;
+          if (!completer.isCompleted) {
+            timeoutTimer.cancel();
+            subscription?.cancel();
+            completer.complete(signedEvent);
+          }
+        }
+      },
+      onError: (error) {
+        if (!completer.isCompleted) {
+          timeoutTimer.cancel();
+          subscription?.cancel();
+          completer.completeError(error);
+        }
+      },
+    );
+
+    try {
+      // Amberに署名リクエストを送信
+      final signedEvent = await signEvent(unsignedEventJson);
+
+      // MethodChannelから直接結果が返ってきた場合
+      if (signedEvent != null && signedEvent.isNotEmpty) {
+        timeoutTimer.cancel();
+        subscription.cancel();
+        if (!completer.isCompleted) {
+          completer.complete(signedEvent);
+        }
+      }
+
+      // Completerの結果を待つ
+      return await completer.future;
+    } catch (e) {
+      timeoutTimer.cancel();
+      subscription.cancel();
+      rethrow;
+    }
+  }
+
+  /// AmberでNIP-44暗号化
+  /// 平文と公開鍵を送信し、暗号化されたペイロードを受信
+  Future<String> encryptNip44(
+    String plaintext,
+    String pubkey, {
+    Duration timeout = const Duration(minutes: 2),
+  }) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    print('🔐 Encrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...');
+
+    // EventChannelのリスニングを開始（まだの場合）
+    startListening();
+
+    final completer = Completer<String>();
+    StreamSubscription? subscription;
+
+    // タイムアウト処理
+    final timeoutTimer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        subscription?.cancel();
+        completer.completeError(
+          TimeoutException('Amber encryption timeout after ${timeout.inSeconds}s'),
+        );
+      }
+    });
+
+    // Amberからの応答を待つ
+    subscription = amberResponseStream.listen(
+      (response) {
+        print('📩 Received Amber encryption response: $response');
+
+        if (response['error'] != null) {
+          if (!completer.isCompleted) {
+            timeoutTimer.cancel();
+            subscription?.cancel();
+            completer.completeError(Exception('Amber error: ${response['error']}'));
+          }
+          return;
+        }
+
+        if (response['result'] != null) {
+          final encrypted = response['result'] as String;
+          if (!completer.isCompleted) {
+            timeoutTimer.cancel();
+            subscription?.cancel();
+            completer.complete(encrypted);
+          }
+        }
+      },
+      onError: (error) {
+        if (!completer.isCompleted) {
+          timeoutTimer.cancel();
+          subscription?.cancel();
+          completer.completeError(error);
+        }
+      },
+    );
+
+    try {
+      final result = await _channel.invokeMethod(
+        'encryptNip44WithAmber',
+        {'plaintext': plaintext, 'pubkey': pubkey},
+      );
+
+      if (result != null && result is String && result.isNotEmpty) {
+        timeoutTimer.cancel();
+        subscription.cancel();
+        if (!completer.isCompleted) {
+          completer.complete(result);
+        }
+      }
+
+      return await completer.future;
+    } catch (e) {
+      timeoutTimer.cancel();
+      subscription.cancel();
+      rethrow;
+    }
+  }
+
+  /// AmberでNIP-44復号化
+  /// 暗号文と公開鍵を送信し、復号化された平文を受信
+  Future<String> decryptNip44(
+    String ciphertext,
+    String pubkey, {
+    Duration timeout = const Duration(minutes: 2),
+  }) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    print('🔓 Decrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...');
+
+    // EventChannelのリスニングを開始（まだの場合）
+    startListening();
+
+    final completer = Completer<String>();
+    StreamSubscription? subscription;
+
+    // タイムアウト処理
+    final timeoutTimer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        subscription?.cancel();
+        completer.completeError(
+          TimeoutException('Amber decryption timeout after ${timeout.inSeconds}s'),
+        );
+      }
+    });
+
+    // Amberからの応答を待つ
+    subscription = amberResponseStream.listen(
+      (response) {
+        print('📩 Received Amber decryption response: $response');
+
+        if (response['error'] != null) {
+          if (!completer.isCompleted) {
+            timeoutTimer.cancel();
+            subscription?.cancel();
+            completer.completeError(Exception('Amber error: ${response['error']}'));
+          }
+          return;
+        }
+
+        if (response['result'] != null) {
+          final decrypted = response['result'] as String;
+          if (!completer.isCompleted) {
+            timeoutTimer.cancel();
+            subscription?.cancel();
+            completer.complete(decrypted);
+          }
+        }
+      },
+      onError: (error) {
+        if (!completer.isCompleted) {
+          timeoutTimer.cancel();
+          subscription?.cancel();
+          completer.completeError(error);
+        }
+      },
+    );
+
+    try {
+      final result = await _channel.invokeMethod(
+        'decryptNip44WithAmber',
+        {'ciphertext': ciphertext, 'pubkey': pubkey},
+      );
+
+      if (result != null && result is String && result.isNotEmpty) {
+        timeoutTimer.cancel();
+        subscription.cancel();
+        if (!completer.isCompleted) {
+          completer.complete(result);
+        }
+      }
+
+      return await completer.future;
+    } catch (e) {
+      timeoutTimer.cancel();
+      subscription.cancel();
+      rethrow;
+    }
+  }
+}
+

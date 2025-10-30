@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../providers/relay_status_provider.dart';
+import '../../services/local_storage_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -24,7 +25,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSecretKey();
+    // 暗号化された秘密鍵は自動読み込みしない（パスワードが必要）
     
     // ウィジェットツリーのビルドが完了してからProviderを変更
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -37,17 +38,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
+    // セキュリティ: メモリから秘密鍵をクリア
+    _secretKeyController.text = '';
     _secretKeyController.dispose();
     _newRelayController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadSecretKey() async {
-    final nostrService = ref.read(nostrServiceProvider);
-    final secretKey = await nostrService.getSecretKey();
-    if (secretKey != null) {
-      _secretKeyController.text = secretKey;
-    }
+  /// パスワード入力ダイアログを表示
+  Future<String?> _showPasswordDialog(String title, String message) async {
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(message, style: const TextStyle(fontSize: 14)),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: passwordController,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'パスワード',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'パスワードを入力してください';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.of(context).pop(passwordController.text);
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _initializeRelayStates() {
@@ -118,6 +166,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _generateNewSecretKey() async {
+    // パスワード入力
+    final password = await _showPasswordDialog(
+      'パスワードを設定',
+      '新しい秘密鍵を暗号化するためのパスワードを設定してください。\n（8文字以上推奨）',
+    );
+    
+    if (password == null || password.isEmpty) return;
+    
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -128,10 +184,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final nostrService = ref.read(nostrServiceProvider);
       final newKey = await nostrService.generateNewSecretKey();
       _secretKeyController.text = newKey;
-      await nostrService.saveSecretKey(newKey);
+      
+      // Rust APIで暗号化して保存
+      await nostrService.saveSecretKey(newKey, password);
 
       setState(() {
-        _successMessage = '新しい秘密鍵を生成しました';
+        _successMessage = '新しい秘密鍵を生成して暗号化保存しました';
       });
       
       // 自動的にリレーに接続
@@ -159,6 +217,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
 
+    // パスワード入力
+    final password = await _showPasswordDialog(
+      'パスワードを設定',
+      '秘密鍵を暗号化するためのパスワードを設定してください。\n（8文字以上推奨）',
+    );
+    
+    if (password == null || password.isEmpty) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -167,10 +233,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     try {
       final nostrService = ref.read(nostrServiceProvider);
-      await nostrService.saveSecretKey(secretKey);
+      
+      // Rust APIで暗号化して保存
+      await nostrService.saveSecretKey(secretKey, password);
 
       setState(() {
-        _successMessage = '秘密鍵を保存しました（${_detectedKeyFormat ?? 'フォーマット不明'}）';
+        _successMessage = '秘密鍵を暗号化保存しました（${_detectedKeyFormat ?? 'フォーマット不明'}）';
       });
 
       // 自動的にリレーに接続
@@ -211,6 +279,71 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } catch (e) {
       setState(() {
         _errorMessage = 'リレー接続エラー: $e';
+      });
+    }
+  }
+
+  /// リレーに接続（Amberモード対応）
+  Future<void> _connectToRelays() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    try {
+      final nostrService = ref.read(nostrServiceProvider);
+      final publicKey = ref.read(nostrPublicKeyProvider);
+      final secretKey = _secretKeyController.text.trim();
+      final relayList = ref.read(relayStatusProvider).keys.toList();
+
+      // Amberモード（公開鍵のみ）の場合
+      if (publicKey != null && publicKey.isNotEmpty && secretKey.isEmpty) {
+        print('🔗 Connecting to relays in Amber mode...');
+        
+        if (relayList.isEmpty) {
+          // デフォルトリレーを使用
+          await nostrService.initializeNostrWithPubkey(publicKeyHex: publicKey);
+        } else {
+          await nostrService.initializeNostrWithPubkey(
+            publicKeyHex: publicKey,
+            relays: relayList,
+          );
+        }
+        
+        setState(() {
+          _successMessage = 'リレーに接続しました（Amberモード）';
+        });
+      } 
+      // 秘密鍵モードの場合
+      else if (secretKey.isNotEmpty) {
+        print('🔗 Connecting to relays with secret key...');
+        
+        if (relayList.isEmpty) {
+          await nostrService.initializeNostr(secretKey: secretKey);
+        } else {
+          await nostrService.initializeNostr(
+            secretKey: secretKey,
+            relays: relayList,
+          );
+        }
+        
+        setState(() {
+          _successMessage = 'リレーに接続しました';
+        });
+      } else {
+        setState(() {
+          _errorMessage = '秘密鍵または公開鍵（Amber）が必要です';
+        });
+      }
+    } catch (e) {
+      print('❌ Failed to connect to relays: $e');
+      setState(() {
+        _errorMessage = 'リレー接続エラー: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
       });
     }
   }
@@ -292,12 +425,82 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  /// ログアウト処理
+  Future<void> _logout() async {
+    // 確認ダイアログを表示
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ログアウト'),
+        content: const Text(
+          'ログアウトしますか？\n\n'
+          '注意: 暗号化された秘密鍵とパスワードを記録していないと、'
+          '再ログインできなくなります。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('ログアウト'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    try {
+      final nostrService = ref.read(nostrServiceProvider);
+      
+      // Rust側の暗号化された鍵を削除
+      await nostrService.deleteSecretKey();
+      
+      // Providerをリセット
+      ref.read(nostrInitializedProvider.notifier).state = false;
+      ref.read(publicKeyProvider.notifier).state = null;
+      
+      // Amber使用フラグをクリア
+      await localStorageService.clearNostrCredentials();
+      
+      // 入力フィールドをクリア
+      _secretKeyController.clear();
+      
+      setState(() {
+        _successMessage = 'ログアウトしました';
+      });
+      
+      print('✅ Logout successful');
+    } catch (e) {
+      print('❌ Logout failed: $e');
+      setState(() {
+        _errorMessage = 'ログアウト失敗: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final publicKeyHex = ref.watch(publicKeyProvider);
     final publicKeyNpubAsync = ref.watch(publicKeyNpubProvider);
     final relayStatuses = ref.watch(relayStatusProvider);
+    final isAmberMode = ref.watch(isAmberModeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -330,7 +533,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           const SizedBox(height: 8),
                           Text(
                             isNostrInitialized
-                                ? 'Nostr接続中'
+                                ? (isAmberMode ? 'Nostr接続中 (Amber)' : 'Nostr接続中')
                                 : 'Nostr未接続',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
@@ -451,6 +654,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     obscureText: _obscureSecretKey,
                     maxLines: 1,
+                    // パスワードマネージャ対応（KeePass等からの入力を可能に）
+                    autofillHints: const [AutofillHints.password],
+                    keyboardType: TextInputType.visiblePassword,
+                    enableSuggestions: false,
+                    autocorrect: false,
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -471,6 +679,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  // リレーに接続ボタン（Amber対応）
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _connectToRelays,
+                      icon: const Icon(Icons.link),
+                      label: const Text('リレーに接続'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 24),
 
@@ -552,7 +773,71 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       padding: const EdgeInsets.all(16),
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  // ログアウトボタン
+                  if (isNostrInitialized)
+                    OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _logout,
+                      icon: const Icon(Icons.logout, color: Colors.red),
+                      label: const Text(
+                        'ログアウト',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.all(16),
+                        side: const BorderSide(color: Colors.red),
+                      ),
+                    ),
                   const SizedBox(height: 24),
+
+                  // Amberモード情報
+                  if (isAmberMode)
+                    Card(
+                      color: Colors.blue.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.security, color: Colors.blue.shade700),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Amberモード',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue.shade900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '✅ Amberモードで接続中\n\n'
+                              '🔒 セキュリティ機能:\n'
+                              '• Todoの作成・編集時にAmberで署名\n'
+                              '• NIP-44暗号化でコンテンツを保護\n'
+                              '• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n'
+                              '⚡ 復号化の最適化:\n'
+                              'Todoの同期時に復号化の承認が必要です。\n'
+                              '毎回承認するのを避けるために、Amberアプリで\n'
+                              '「Meisoアプリを常に許可」を設定することを推奨します。\n\n'
+                              '📝 設定方法:\n'
+                              '1. Amberアプリを開く\n'
+                              '2. アプリ一覧から「Meiso」を選択\n'
+                              '3. 「NIP-44 Decrypt」を常に許可に設定',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue.shade900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (isAmberMode) const SizedBox(height: 16),
 
                   // 注意事項
                   Card(
@@ -577,8 +862,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '• 秘密鍵は安全に保管してください\n'
-                            '• 秘密鍵を紛失するとデータを復元できません\n'
+                            '• 秘密鍵はパスワードで暗号化されて保存されます\n'
+                            '• パスワードと秘密鍵は安全に保管してください\n'
+                            '• パスワードを忘れると秘密鍵を復元できません\n'
                             '• 秘密鍵を保存すると自動的にリレーに接続します\n'
                             '• タスクの変更は自動的にリレーに同期されます\n\n'
                             '対応形式:\n'

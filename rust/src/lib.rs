@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub mod api;
+pub mod key_store;
 
 /// アプリ全体で使用するNostrクライアント
 pub static NOSTR_CLIENT: once_cell::sync::Lazy<Arc<Mutex<Option<api::MeisoNostrClient>>>> =

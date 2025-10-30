@@ -6,7 +6,7 @@
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`
 
 /// Nostrクライアントを初期化（hex公開鍵を返す）
 Future<String> initNostrClient({required String secretKeyHex, required List<String> relays}) =>
@@ -15,8 +15,10 @@ Future<String> initNostrClient({required String secretKeyHex, required List<Stri
 /// 公開鍵をnpub形式で取得
 Future<String> getPublicKeyNpub() => RustLib.instance.api.crateApiGetPublicKeyNpub();
 
-/// 新しい秘密鍵を生成
+/// 新しい秘密鍵を生成（hex形式）
 Future<String> generateSecretKey() => RustLib.instance.api.crateApiGenerateSecretKey();
+
+Future<KeyPair> generateKeypair() => RustLib.instance.api.crateApiGenerateKeypair();
 
 /// Todoを作成
 Future<String> createTodo({required TodoData todo}) => RustLib.instance.api.crateApiCreateTodo(todo: todo);
@@ -29,6 +31,79 @@ Future<void> deleteTodo({required String todoId}) => RustLib.instance.api.crateA
 
 /// 全Todoを同期
 Future<List<TodoData>> syncTodos() => RustLib.instance.api.crateApiSyncTodos();
+
+/// 秘密鍵を暗号化して保存（パスワードベース）
+Future<void> saveEncryptedSecretKey({
+  required String storagePath,
+  required String secretKey,
+  required String password,
+}) => RustLib.instance.api.crateApiSaveEncryptedSecretKey(
+  storagePath: storagePath,
+  secretKey: secretKey,
+  password: password,
+);
+
+/// 暗号化された秘密鍵を読み込み
+Future<String> loadEncryptedSecretKey({required String storagePath, required String password}) =>
+    RustLib.instance.api.crateApiLoadEncryptedSecretKey(storagePath: storagePath, password: password);
+
+/// 公開鍵を保存（Amber使用時）
+Future<void> savePublicKey({required String storagePath, required String publicKey}) =>
+    RustLib.instance.api.crateApiSavePublicKey(storagePath: storagePath, publicKey: publicKey);
+
+/// 公開鍵を読み込み
+Future<String?> loadPublicKey({required String storagePath}) =>
+    RustLib.instance.api.crateApiLoadPublicKey(storagePath: storagePath);
+
+/// 保存された鍵を削除
+Future<void> deleteStoredKeys({required String storagePath}) =>
+    RustLib.instance.api.crateApiDeleteStoredKeys(storagePath: storagePath);
+
+/// 暗号化された秘密鍵が存在するか確認
+Future<bool> hasEncryptedKey({required String storagePath}) =>
+    RustLib.instance.api.crateApiHasEncryptedKey(storagePath: storagePath);
+
+/// 公開鍵が存在するか確認
+Future<bool> hasPublicKey({required String storagePath}) =>
+    RustLib.instance.api.crateApiHasPublicKey(storagePath: storagePath);
+
+/// Amberから受け取った署名済みイベントを検証
+Future<bool> verifyAmberSignature({required String eventJson}) =>
+    RustLib.instance.api.crateApiVerifyAmberSignature(eventJson: eventJson);
+
+/// 公開鍵のみでNostrクライアントを初期化（Amber使用時）
+/// 署名が必要な操作はAmber経由で行う
+Future<String> initNostrClientWithPubkey({required String publicKeyHex, required List<String> relays}) =>
+    RustLib.instance.api.crateApiInitNostrClientWithPubkey(publicKeyHex: publicKeyHex, relays: relays);
+
+/// 未署名Todoイベントを作成（Amber署名用）
+/// Amberに送信するイベントJSON文字列を返す
+Future<String> createUnsignedTodoEvent({required TodoData todo, required String publicKeyHex}) =>
+    RustLib.instance.api.crateApiCreateUnsignedTodoEvent(todo: todo, publicKeyHex: publicKeyHex);
+
+/// 署名済みイベントをリレーに送信
+Future<String> sendSignedEvent({required String eventJson}) =>
+    RustLib.instance.api.crateApiSendSignedEvent(eventJson: eventJson);
+
+/// 暗号化済みcontentで未署名Todoイベントを作成（Amber暗号化済み用）
+Future<String> createUnsignedEncryptedTodoEvent({
+  required String todoId,
+  required String encryptedContent,
+  required String publicKeyHex,
+}) => RustLib.instance.api.crateApiCreateUnsignedEncryptedTodoEvent(
+  todoId: todoId,
+  encryptedContent: encryptedContent,
+  publicKeyHex: publicKeyHex,
+);
+
+Future<List<EncryptedTodoEvent>> fetchEncryptedTodosForPubkey({required String publicKeyHex}) =>
+    RustLib.instance.api.crateApiFetchEncryptedTodosForPubkey(publicKeyHex: publicKeyHex);
+
+/// npub形式の公開鍵をhex形式に変換
+Future<String> npubToHex({required String npub}) => RustLib.instance.api.crateApiNpubToHex(npub: npub);
+
+/// hex形式の公開鍵をnpub形式に変換
+Future<String> hexToNpub({required String hex}) => RustLib.instance.api.crateApiHexToNpub(hex: hex);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MeisoNostrClient>>
 abstract class MeisoNostrClient implements RustOpaqueInterface {
@@ -54,6 +129,63 @@ abstract class MeisoNostrClient implements RustOpaqueInterface {
 
   /// Todoを更新（既存イベントを置き換え）
   Future<String> updateTodo({required TodoData todo});
+}
+
+/// 公開鍵だけで暗号化されたTodoイベントを取得（Amber復号化用）
+/// 復号化はAmber側で行うため、暗号化されたままのイベントを返す
+class EncryptedTodoEvent {
+  final String eventId;
+  final String encryptedContent;
+  final PlatformInt64 createdAt;
+  final String dTag;
+
+  const EncryptedTodoEvent({
+    required this.eventId,
+    required this.encryptedContent,
+    required this.createdAt,
+    required this.dTag,
+  });
+
+  @override
+  int get hashCode => eventId.hashCode ^ encryptedContent.hashCode ^ createdAt.hashCode ^ dTag.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EncryptedTodoEvent &&
+          runtimeType == other.runtimeType &&
+          eventId == other.eventId &&
+          encryptedContent == other.encryptedContent &&
+          createdAt == other.createdAt &&
+          dTag == other.dTag;
+}
+
+/// 鍵ペアを生成（nsec/npub形式で返す）
+class KeyPair {
+  final String privateKeyNsec;
+  final String publicKeyNpub;
+  final String privateKeyHex;
+  final String publicKeyHex;
+
+  const KeyPair({
+    required this.privateKeyNsec,
+    required this.publicKeyNpub,
+    required this.privateKeyHex,
+    required this.publicKeyHex,
+  });
+
+  @override
+  int get hashCode => privateKeyNsec.hashCode ^ publicKeyNpub.hashCode ^ privateKeyHex.hashCode ^ publicKeyHex.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is KeyPair &&
+          runtimeType == other.runtimeType &&
+          privateKeyNsec == other.privateKeyNsec &&
+          publicKeyNpub == other.publicKeyNpub &&
+          privateKeyHex == other.privateKeyHex &&
+          publicKeyHex == other.publicKeyHex;
 }
 
 /// Todoデータ構造（Flutter側と同期）
