@@ -159,12 +159,25 @@ class NostrService {
   Future<String> initializeNostr({
     required String secretKey,
     List<String>? relays,
+    String? proxyUrl,
   }) async {
     final relayList = relays ?? defaultRelays;
-    final publicKey = await rust_api.initNostrClient(
-      secretKeyHex: secretKey,
-      relays: relayList,
-    );
+    
+    // プロキシURLが指定されている場合はプロキシ経由で接続
+    final String publicKey;
+    if (proxyUrl != null && proxyUrl.isNotEmpty) {
+      print('🔐 Connecting via proxy: $proxyUrl');
+      publicKey = await rust_api.initNostrClientWithProxy(
+        secretKeyHex: secretKey,
+        relays: relayList,
+        proxyUrl: proxyUrl,
+      );
+    } else {
+      publicKey = await rust_api.initNostrClient(
+        secretKeyHex: secretKey,
+        relays: relayList,
+      );
+    }
 
     // Providerの状態を更新
     _ref.read(publicKeyProvider.notifier).state = publicKey;
@@ -176,7 +189,7 @@ class NostrService {
     // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
-    print('✅ Nostr client initialized with secret key');
+    print('✅ Nostr client initialized with secret key${proxyUrl != null ? " (via proxy)" : ""}');
     return publicKey;
   }
 
@@ -184,12 +197,25 @@ class NostrService {
   Future<String> initializeNostrWithPubkey({
     required String publicKeyHex,
     List<String>? relays,
+    String? proxyUrl,
   }) async {
     final relayList = relays ?? defaultRelays;
-    final publicKey = await rust_api.initNostrClientWithPubkey(
-      publicKeyHex: publicKeyHex,
-      relays: relayList,
-    );
+    
+    // プロキシURLが指定されている場合はプロキシ経由で接続
+    final String publicKey;
+    if (proxyUrl != null && proxyUrl.isNotEmpty) {
+      print('🔐 Connecting via proxy (Amber mode): $proxyUrl');
+      publicKey = await rust_api.initNostrClientWithPubkeyAndProxy(
+        publicKeyHex: publicKeyHex,
+        relays: relayList,
+        proxyUrl: proxyUrl,
+      );
+    } else {
+      publicKey = await rust_api.initNostrClientWithPubkey(
+        publicKeyHex: publicKeyHex,
+        relays: relayList,
+      );
+    }
 
     // Providerの状態を更新
     _ref.read(publicKeyProvider.notifier).state = publicKey;
@@ -201,7 +227,7 @@ class NostrService {
     // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
-    print('✅ Nostr client initialized in Amber mode');
+    print('✅ Nostr client initialized in Amber mode${proxyUrl != null ? " (via proxy)" : ""}');
     return publicKey;
   }
 

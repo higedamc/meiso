@@ -17,6 +17,8 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      torEnabled: json['torEnabled'] as bool? ?? false,
+      proxyUrl: json['proxyUrl'] as String? ?? 'socks5://127.0.0.1:9050',
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
 
@@ -27,5 +29,7 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'calendarView': instance.calendarView,
       'notificationsEnabled': instance.notificationsEnabled,
       'relays': instance.relays,
+      'torEnabled': instance.torEnabled,
+      'proxyUrl': instance.proxyUrl,
       'updatedAt': instance.updatedAt.toIso8601String(),
     };

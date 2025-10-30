@@ -109,6 +109,20 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
     });
   }
 
+  /// Tor設定を切り替え
+  Future<void> toggleTor() async {
+    state.whenData((settings) async {
+      await updateSettings(settings.copyWith(torEnabled: !settings.torEnabled));
+    });
+  }
+
+  /// プロキシURLを変更
+  Future<void> setProxyUrl(String url) async {
+    state.whenData((settings) async {
+      await updateSettings(settings.copyWith(proxyUrl: url));
+    });
+  }
+
   /// Nostrに設定を同期
   Future<void> _syncToNostr(AppSettings settings) async {
     if (!_ref.read(nostrInitializedProvider)) {
@@ -130,6 +144,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'calendar_view': settings.calendarView,
           'notifications_enabled': settings.notificationsEnabled,
           'relays': settings.relays,
+          'tor_enabled': settings.torEnabled,
+          'proxy_url': settings.proxyUrl,
           'updated_at': settings.updatedAt.toIso8601String(),
         });
         
@@ -187,6 +203,39 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         final eventId = await nostrService.sendSignedEvent(signedEvent);
         print('✅ 設定同期完了: $eventId');
         
+        // 7. リレーリストを別途同期（NIP-65 Kind 10002 - 暗号化不要）
+        if (settings.relays.isNotEmpty) {
+          try {
+            print('🔄 リレーリストを同期中（Kind 10002）...');
+            
+            // 未署名イベント作成
+            final unsignedRelayEvent = await bridge.createUnsignedRelayListEvent(
+              relays: settings.relays,
+              publicKeyHex: publicKey,
+            );
+            
+            // Amberで署名
+            String signedRelayEvent;
+            try {
+              signedRelayEvent = await amberService.signEventWithContentProvider(
+                event: unsignedRelayEvent,
+                npub: npub,
+              );
+              print('✅ リレーリスト署名完了（バックグラウンド）');
+            } on PlatformException catch (e) {
+              print('⚠️ ContentProvider署名失敗 (${e.code}), UI経由で再試行');
+              signedRelayEvent = await amberService.signEventWithTimeout(unsignedRelayEvent);
+              print('✅ リレーリスト署名完了（UI経由）');
+            }
+            
+            // リレーに送信
+            final relayEventId = await nostrService.sendSignedEvent(signedRelayEvent);
+            print('✅ リレーリスト同期完了: $relayEventId');
+          } catch (e) {
+            print('⚠️ リレーリスト同期失敗: $e');
+          }
+        }
+        
       } else {
         // 通常モード: 秘密鍵で署名
         print('🔄 通常モードで設定を同期します');
@@ -197,6 +246,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           calendarView: settings.calendarView,
           notificationsEnabled: settings.notificationsEnabled,
           relays: settings.relays,
+          torEnabled: settings.torEnabled,
+          proxyUrl: settings.proxyUrl,
           updatedAt: settings.updatedAt.toIso8601String(),
         );
         
@@ -296,6 +347,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           calendarView: settingsMap['calendar_view'] as String,
           notificationsEnabled: settingsMap['notifications_enabled'] as bool,
           relays: syncedRelays,
+          torEnabled: settingsMap['tor_enabled'] as bool? ?? false,
+          proxyUrl: settingsMap['proxy_url'] as String? ?? 'socks5://127.0.0.1:9050',
           updatedAt: DateTime.parse(settingsMap['updated_at'] as String),
         );
         
@@ -331,6 +384,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           calendarView: bridgeSettings.calendarView,
           notificationsEnabled: bridgeSettings.notificationsEnabled,
           relays: syncedRelays,
+          torEnabled: bridgeSettings.torEnabled,
+          proxyUrl: bridgeSettings.proxyUrl,
           updatedAt: DateTime.parse(bridgeSettings.updatedAt),
         );
         

@@ -279,18 +279,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final nostrService = ref.read(nostrServiceProvider);
       final relayList = ref.read(relayStatusProvider).keys.toList();
       
+      // アプリ設定からTor/プロキシ設定を取得
+      final appSettingsAsync = ref.read(appSettingsProvider);
+      final proxyUrl = appSettingsAsync.maybeWhen(
+        data: (settings) => settings.torEnabled ? settings.proxyUrl : null,
+        orElse: () => null,
+      );
+      
       if (relayList.isEmpty) {
         // デフォルトリレーを使用
-        await nostrService.initializeNostr(secretKey: secretKey);
+        await nostrService.initializeNostr(
+          secretKey: secretKey,
+          proxyUrl: proxyUrl,
+        );
       } else {
         await nostrService.initializeNostr(
           secretKey: secretKey,
           relays: relayList,
+          proxyUrl: proxyUrl,
         );
       }
 
       setState(() {
-        _successMessage = 'リレーに接続しました';
+        _successMessage = 'リレーに接続しました${proxyUrl != null ? " (Tor経由)" : ""}';
       });
     } catch (e) {
       setState(() {
@@ -312,40 +323,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final publicKey = ref.read(nostrPublicKeyProvider);
       final secretKey = _secretKeyController.text.trim();
       final relayList = ref.read(relayStatusProvider).keys.toList();
+      
+      // アプリ設定からTor/プロキシ設定を取得
+      final appSettingsAsync = ref.read(appSettingsProvider);
+      final proxyUrl = appSettingsAsync.maybeWhen(
+        data: (settings) => settings.torEnabled ? settings.proxyUrl : null,
+        orElse: () => null,
+      );
 
       // Amberモード（公開鍵のみ）の場合
       if (publicKey != null && publicKey.isNotEmpty && secretKey.isEmpty) {
-        print('🔗 Connecting to relays in Amber mode...');
+        print('🔗 Connecting to relays in Amber mode${proxyUrl != null ? " via proxy" : ""}...');
         
         if (relayList.isEmpty) {
           // デフォルトリレーを使用
-          await nostrService.initializeNostrWithPubkey(publicKeyHex: publicKey);
+          await nostrService.initializeNostrWithPubkey(
+            publicKeyHex: publicKey,
+            proxyUrl: proxyUrl,
+          );
         } else {
           await nostrService.initializeNostrWithPubkey(
             publicKeyHex: publicKey,
             relays: relayList,
+            proxyUrl: proxyUrl,
           );
         }
         
         setState(() {
-          _successMessage = 'リレーに接続しました（Amberモード）';
+          _successMessage = 'リレーに接続しました（Amberモード${proxyUrl != null ? " / Tor経由" : ""}）';
         });
       } 
       // 秘密鍵モードの場合
       else if (secretKey.isNotEmpty) {
-        print('🔗 Connecting to relays with secret key...');
+        print('🔗 Connecting to relays with secret key${proxyUrl != null ? " via proxy" : ""}...');
         
         if (relayList.isEmpty) {
-          await nostrService.initializeNostr(secretKey: secretKey);
+          await nostrService.initializeNostr(
+            secretKey: secretKey,
+            proxyUrl: proxyUrl,
+          );
         } else {
           await nostrService.initializeNostr(
             secretKey: secretKey,
             relays: relayList,
+            proxyUrl: proxyUrl,
           );
         }
         
         setState(() {
-          _successMessage = 'リレーに接続しました';
+          _successMessage = 'リレーに接続しました${proxyUrl != null ? " (Tor経由)" : ""}';
         });
       } else {
         setState(() {
@@ -403,7 +429,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  void _addRelay() {
+  Future<void> _addRelay() async {
     final url = _newRelayController.text.trim();
     if (url.isEmpty) return;
 
@@ -414,33 +440,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
 
-    ref.read(relayStatusProvider.notifier).addRelay(url);
-    _newRelayController.clear();
-    
-    // AppSettingsにも反映
-    final updatedRelays = ref.read(relayStatusProvider).keys.toList();
-    ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
-    
     setState(() {
-      _successMessage = 'リレーを追加しました';
+      _isLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
     });
 
-    // 接続済みの場合は新しいリレーにも接続
-    if (ref.read(nostrInitializedProvider)) {
-      _autoConnect();
+    try {
+      ref.read(relayStatusProvider.notifier).addRelay(url);
+      _newRelayController.clear();
+      
+      // AppSettingsにも反映（Nostrに同期される）
+      final updatedRelays = ref.read(relayStatusProvider).keys.toList();
+      await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+      
+      setState(() {
+        _successMessage = 'リレーを追加して同期しました';
+      });
+
+      // 接続済みの場合は新しいリレーにも接続
+      if (ref.read(nostrInitializedProvider)) {
+        await _autoConnect();
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'リレー追加エラー: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
-  void _removeRelay(String url) {
-    ref.read(relayStatusProvider.notifier).removeRelay(url);
-    
-    // AppSettingsにも反映
-    final updatedRelays = ref.read(relayStatusProvider).keys.toList();
-    ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
-    
+  Future<void> _removeRelay(String url) async {
     setState(() {
-      _successMessage = 'リレーを削除しました';
+      _isLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
     });
+
+    try {
+      ref.read(relayStatusProvider.notifier).removeRelay(url);
+      
+      // AppSettingsにも反映（Nostrに同期される）
+      final updatedRelays = ref.read(relayStatusProvider).keys.toList();
+      await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+      
+      setState(() {
+        _successMessage = 'リレーを削除して同期しました';
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'リレー削除エラー: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _copyToClipboard(String text, String label) {
@@ -1047,6 +1105,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     secondary: Icon(
                       settings.notificationsEnabled ? Icons.notifications_active : Icons.notifications_off,
                       color: Colors.purple.shade700,
+                    ),
+                  ),
+                  
+                  const Divider(),
+                  
+                  // Tor設定（Orbot経由）
+                  SwitchListTile(
+                    title: const Text('Tor経由で接続 (Orbot)'),
+                    subtitle: Text(
+                      settings.torEnabled 
+                        ? 'Orbotプロキシ経由で接続中 (${settings.proxyUrl})'
+                        : 'Orbot未使用（直接接続）',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    value: settings.torEnabled,
+                    onChanged: (value) async {
+                      await ref.read(appSettingsProvider.notifier).toggleTor();
+                      
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              value
+                                ? 'Torを有効にしました。次回接続時から適用されます。\nOrbotアプリを起動してください。'
+                                : 'Torを無効にしました。次回接続時から適用されます。',
+                            ),
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      }
+                    },
+                    secondary: Icon(
+                      settings.torEnabled ? Icons.shield : Icons.shield_outlined,
+                      color: settings.torEnabled ? Colors.green.shade700 : Colors.purple.shade700,
                     ),
                   ),
                   

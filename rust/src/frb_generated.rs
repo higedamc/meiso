@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -805278058;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1391286324;
 
 // Section: executor
 
@@ -315,6 +315,49 @@ fn wire__crate__api__MeisoNostrClient_new_impl(
                         let output_ok =
                             crate::api::MeisoNostrClient::new(&api_secret_key_hex, api_relays)
                                 .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__MeisoNostrClient_new_with_proxy_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MeisoNostrClient_new_with_proxy",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_secret_key_hex = <String>::sse_decode(&mut deserializer);
+            let api_relays = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_proxy_url = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::MeisoNostrClient::new_with_proxy(
+                            &api_secret_key_hex,
+                            api_relays,
+                            api_proxy_url,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -957,6 +1000,45 @@ fn wire__crate__api__create_unsigned_encrypted_todo_list_event_impl(
         },
     )
 }
+fn wire__crate__api__create_unsigned_relay_list_event_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "create_unsigned_relay_list_event",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_relays = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_public_key_hex = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::create_unsigned_relay_list_event(
+                            api_relays,
+                            api_public_key_hex,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__create_unsigned_todo_event_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1449,6 +1531,47 @@ fn wire__crate__api__init_nostr_client_impl(
         },
     )
 }
+fn wire__crate__api__init_nostr_client_with_proxy_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "init_nostr_client_with_proxy",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_secret_key_hex = <String>::sse_decode(&mut deserializer);
+            let api_relays = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_proxy_url = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::init_nostr_client_with_proxy(
+                            api_secret_key_hex,
+                            api_relays,
+                            api_proxy_url,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__init_nostr_client_with_pubkey_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1480,6 +1603,47 @@ fn wire__crate__api__init_nostr_client_with_pubkey_impl(
                         let output_ok = crate::api::init_nostr_client_with_pubkey(
                             api_public_key_hex,
                             api_relays,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__init_nostr_client_with_pubkey_and_proxy_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "init_nostr_client_with_pubkey_and_proxy",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_public_key_hex = <String>::sse_decode(&mut deserializer);
+            let api_relays = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_proxy_url = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::init_nostr_client_with_pubkey_and_proxy(
+                            api_public_key_hex,
+                            api_relays,
+                            api_proxy_url,
                         )?;
                         Ok(output_ok)
                     })(),
@@ -2037,6 +2201,8 @@ impl SseDecode for crate::api::AppSettings {
         let mut var_calendarView = <String>::sse_decode(deserializer);
         let mut var_notificationsEnabled = <bool>::sse_decode(deserializer);
         let mut var_relays = <Vec<String>>::sse_decode(deserializer);
+        let mut var_torEnabled = <bool>::sse_decode(deserializer);
+        let mut var_proxyUrl = <String>::sse_decode(deserializer);
         let mut var_updatedAt = <String>::sse_decode(deserializer);
         return crate::api::AppSettings {
             dark_mode: var_darkMode,
@@ -2044,6 +2210,8 @@ impl SseDecode for crate::api::AppSettings {
             calendar_view: var_calendarView,
             notifications_enabled: var_notificationsEnabled,
             relays: var_relays,
+            tor_enabled: var_torEnabled,
+            proxy_url: var_proxyUrl,
             updated_at: var_updatedAt,
         };
     }
@@ -2293,112 +2461,133 @@ fn pde_ffi_dispatcher_primary_impl(
         ),
         4 => wire__crate__api__MeisoNostrClient_delete_todo_impl(port, ptr, rust_vec_len, data_len),
         5 => wire__crate__api__MeisoNostrClient_new_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__MeisoNostrClient_public_key_hex_impl(
+        6 => wire__crate__api__MeisoNostrClient_new_with_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        7 => wire__crate__api__MeisoNostrClient_public_key_npub_impl(
+        7 => wire__crate__api__MeisoNostrClient_public_key_hex_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        8 => wire__crate__api__MeisoNostrClient_save_relay_list_impl(
+        8 => wire__crate__api__MeisoNostrClient_public_key_npub_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        9 => wire__crate__api__MeisoNostrClient_sync_app_settings_impl(
+        9 => wire__crate__api__MeisoNostrClient_save_relay_list_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        10 => wire__crate__api__MeisoNostrClient_sync_relay_list_impl(
+        10 => wire__crate__api__MeisoNostrClient_sync_app_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        11 => wire__crate__api__MeisoNostrClient_sync_todo_list_impl(
+        11 => wire__crate__api__MeisoNostrClient_sync_relay_list_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__MeisoNostrClient_sync_todos_impl(port, ptr, rust_vec_len, data_len),
-        13 => {
+        12 => wire__crate__api__MeisoNostrClient_sync_todo_list_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        13 => wire__crate__api__MeisoNostrClient_sync_todos_impl(port, ptr, rust_vec_len, data_len),
+        14 => {
             wire__crate__api__MeisoNostrClient_update_todo_impl(port, ptr, rust_vec_len, data_len)
         }
-        14 => wire__crate__api__create_todo_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__create_todo_list_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__create_unsigned_encrypted_app_settings_event_impl(
+        15 => wire__crate__api__create_todo_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__create_todo_list_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__create_unsigned_encrypted_app_settings_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__create_unsigned_encrypted_todo_event_impl(
+        18 => wire__crate__api__create_unsigned_encrypted_todo_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        18 => wire__crate__api__create_unsigned_encrypted_todo_list_event_impl(
+        19 => wire__crate__api__create_unsigned_encrypted_todo_list_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        19 => wire__crate__api__create_unsigned_todo_event_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__delete_events_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__delete_stored_keys_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__delete_todo_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_impl(
+        20 => wire__crate__api__create_unsigned_relay_list_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_impl(
+        21 => wire__crate__api__create_unsigned_todo_event_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__delete_events_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__delete_stored_keys_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__delete_todo_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__fetch_encrypted_todos_for_pubkey_impl(
+        26 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__generate_keypair_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__generate_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__get_public_key_npub_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__has_encrypted_key_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__has_public_key_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__hex_to_npub_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__init_nostr_client_impl(port, ptr, rust_vec_len, data_len),
-        33 => {
+        27 => wire__crate__api__fetch_encrypted_todos_for_pubkey_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        28 => wire__crate__api__generate_keypair_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__generate_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__get_public_key_npub_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__has_encrypted_key_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__has_public_key_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__hex_to_npub_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__init_nostr_client_impl(port, ptr, rust_vec_len, data_len),
+        35 => {
+            wire__crate__api__init_nostr_client_with_proxy_impl(port, ptr, rust_vec_len, data_len)
+        }
+        36 => {
             wire__crate__api__init_nostr_client_with_pubkey_impl(port, ptr, rust_vec_len, data_len)
         }
-        34 => wire__crate__api__load_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__load_public_key_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__npub_to_hex_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__save_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__save_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__save_public_key_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__save_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__send_signed_event_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__sync_todos_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__update_todo_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__init_nostr_client_with_pubkey_and_proxy_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        38 => wire__crate__api__load_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__load_public_key_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__npub_to_hex_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__save_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__save_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__save_public_key_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__save_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__send_signed_event_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__sync_todos_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__update_todo_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2441,6 +2630,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::AppSettings {
             self.calendar_view.into_into_dart().into_dart(),
             self.notifications_enabled.into_into_dart().into_dart(),
             self.relays.into_into_dart().into_dart(),
+            self.tor_enabled.into_into_dart().into_dart(),
+            self.proxy_url.into_into_dart().into_dart(),
             self.updated_at.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -2600,6 +2791,8 @@ impl SseEncode for crate::api::AppSettings {
         <String>::sse_encode(self.calendar_view, serializer);
         <bool>::sse_encode(self.notifications_enabled, serializer);
         <Vec<String>>::sse_encode(self.relays, serializer);
+        <bool>::sse_encode(self.tor_enabled, serializer);
+        <String>::sse_encode(self.proxy_url, serializer);
         <String>::sse_encode(self.updated_at, serializer);
     }
 }

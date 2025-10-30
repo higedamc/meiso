@@ -22,6 +22,12 @@ class AppSettings with _$AppSettings {
     /// リレーリスト（NIP-65 kind 10002から同期）
     @Default([]) List<String> relays,
     
+    /// Tor有効/無効（Orbot経由での接続）
+    @Default(false) bool torEnabled,
+    
+    /// プロキシURL（通常は socks5://127.0.0.1:9050）
+    @Default('socks5://127.0.0.1:9050') String proxyUrl,
+    
     /// 最終更新日時
     required DateTime updatedAt,
   }) = _AppSettings;
@@ -37,6 +43,8 @@ class AppSettings with _$AppSettings {
       calendarView: 'week',
       notificationsEnabled: true,
       relays: [], // デフォルトは空（初回起動時にdefaultRelaysが適用される）
+      torEnabled: false, // デフォルトはTor無効
+      proxyUrl: 'socks5://127.0.0.1:9050', // Orbotのデフォルトプロキシ
       updatedAt: DateTime.now(),
     );
   }

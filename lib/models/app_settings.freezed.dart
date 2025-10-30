@@ -36,6 +36,12 @@ mixin _$AppSettings {
   /// リレーリスト（NIP-65 kind 10002から同期）
   List<String> get relays => throw _privateConstructorUsedError;
 
+  /// Tor有効/無効（Orbot経由での接続）
+  bool get torEnabled => throw _privateConstructorUsedError;
+
+  /// プロキシURL（通常は socks5://127.0.0.1:9050）
+  String get proxyUrl => throw _privateConstructorUsedError;
+
   /// 最終更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -62,6 +68,8 @@ abstract class $AppSettingsCopyWith<$Res> {
     String calendarView,
     bool notificationsEnabled,
     List<String> relays,
+    bool torEnabled,
+    String proxyUrl,
     DateTime updatedAt,
   });
 }
@@ -86,6 +94,8 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? calendarView = null,
     Object? notificationsEnabled = null,
     Object? relays = null,
+    Object? torEnabled = null,
+    Object? proxyUrl = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -110,6 +120,14 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
                 ? _value.relays
                 : relays // ignore: cast_nullable_to_non_nullable
                       as List<String>,
+            torEnabled: null == torEnabled
+                ? _value.torEnabled
+                : torEnabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            proxyUrl: null == proxyUrl
+                ? _value.proxyUrl
+                : proxyUrl // ignore: cast_nullable_to_non_nullable
+                      as String,
             updatedAt: null == updatedAt
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -135,6 +153,8 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     String calendarView,
     bool notificationsEnabled,
     List<String> relays,
+    bool torEnabled,
+    String proxyUrl,
     DateTime updatedAt,
   });
 }
@@ -158,6 +178,8 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? calendarView = null,
     Object? notificationsEnabled = null,
     Object? relays = null,
+    Object? torEnabled = null,
+    Object? proxyUrl = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -182,6 +204,14 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             ? _value._relays
             : relays // ignore: cast_nullable_to_non_nullable
                   as List<String>,
+        torEnabled: null == torEnabled
+            ? _value.torEnabled
+            : torEnabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        proxyUrl: null == proxyUrl
+            ? _value.proxyUrl
+            : proxyUrl // ignore: cast_nullable_to_non_nullable
+                  as String,
         updatedAt: null == updatedAt
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -200,6 +230,8 @@ class _$AppSettingsImpl implements _AppSettings {
     this.calendarView = 'week',
     this.notificationsEnabled = true,
     final List<String> relays = const [],
+    this.torEnabled = false,
+    this.proxyUrl = 'socks5://127.0.0.1:9050',
     required this.updatedAt,
   }) : _relays = relays;
 
@@ -238,13 +270,23 @@ class _$AppSettingsImpl implements _AppSettings {
     return EqualUnmodifiableListView(_relays);
   }
 
+  /// Tor有効/無効（Orbot経由での接続）
+  @override
+  @JsonKey()
+  final bool torEnabled;
+
+  /// プロキシURL（通常は socks5://127.0.0.1:9050）
+  @override
+  @JsonKey()
+  final String proxyUrl;
+
   /// 最終更新日時
   @override
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torEnabled: $torEnabled, proxyUrl: $proxyUrl, updatedAt: $updatedAt)';
   }
 
   @override
@@ -261,6 +303,10 @@ class _$AppSettingsImpl implements _AppSettings {
             (identical(other.notificationsEnabled, notificationsEnabled) ||
                 other.notificationsEnabled == notificationsEnabled) &&
             const DeepCollectionEquality().equals(other._relays, _relays) &&
+            (identical(other.torEnabled, torEnabled) ||
+                other.torEnabled == torEnabled) &&
+            (identical(other.proxyUrl, proxyUrl) ||
+                other.proxyUrl == proxyUrl) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt));
   }
@@ -274,6 +320,8 @@ class _$AppSettingsImpl implements _AppSettings {
     calendarView,
     notificationsEnabled,
     const DeepCollectionEquality().hash(_relays),
+    torEnabled,
+    proxyUrl,
     updatedAt,
   );
 
@@ -298,6 +346,8 @@ abstract class _AppSettings implements AppSettings {
     final String calendarView,
     final bool notificationsEnabled,
     final List<String> relays,
+    final bool torEnabled,
+    final String proxyUrl,
     required final DateTime updatedAt,
   }) = _$AppSettingsImpl;
 
@@ -323,6 +373,14 @@ abstract class _AppSettings implements AppSettings {
   /// リレーリスト（NIP-65 kind 10002から同期）
   @override
   List<String> get relays;
+
+  /// Tor有効/無効（Orbot経由での接続）
+  @override
+  bool get torEnabled;
+
+  /// プロキシURL（通常は socks5://127.0.0.1:9050）
+  @override
+  String get proxyUrl;
 
   /// 最終更新日時
   @override
