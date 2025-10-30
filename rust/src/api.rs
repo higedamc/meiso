@@ -32,8 +32,19 @@ pub struct AppSettings {
     pub notifications_enabled: bool,
     /// リレーリスト（NIP-65 kind 10002から同期）
     pub relays: Vec<String>,
+    /// Tor有効/無効（Orbot経由での接続）
+    #[serde(default)]
+    pub tor_enabled: bool,
+    /// プロキシURL（通常は socks5://127.0.0.1:9050）
+    #[serde(default = "default_proxy_url")]
+    pub proxy_url: String,
     /// 最終更新日時
     pub updated_at: String,
+}
+
+/// デフォルトのプロキシURL
+fn default_proxy_url() -> String {
+    "socks5://127.0.0.1:9050".to_string()
 }
 
 /// Nostrクライアントのラッパー
@@ -45,12 +56,35 @@ pub struct MeisoNostrClient {
 impl MeisoNostrClient {
     /// 新しいクライアントを作成（秘密鍵から）
     pub async fn new(secret_key_hex: &str, relays: Vec<String>) -> Result<Self> {
+        Self::new_with_proxy(secret_key_hex, relays, None).await
+    }
+
+    /// 新しいクライアントを作成（秘密鍵 + プロキシオプション）
+    pub async fn new_with_proxy(
+        secret_key_hex: &str, 
+        relays: Vec<String>,
+        proxy_url: Option<String>,
+    ) -> Result<Self> {
         println!("Parsing secret key (format: {})", 
             if secret_key_hex.starts_with("nsec") { "nsec" } else { "hex" });
         
         let keys = Keys::parse(secret_key_hex)
             .map_err(|e| anyhow::anyhow!("秘密鍵のパースに失敗 ({}): {}. フォーマットを確認してください (hex or nsec1...)", 
                 if secret_key_hex.starts_with("nsec") { "nsec形式" } else { "hex形式" }, e))?;
+
+        // プロキシ設定（環境変数経由）
+        if let Some(ref proxy) = proxy_url {
+            println!("🔐 Tor/Proxy経由で接続します: {}", proxy);
+            
+            // SOCKS5プロキシを環境変数に設定
+            // nostr-sdkは内部でこれらの環境変数を使用する可能性がある
+            std::env::set_var("all_proxy", proxy);
+            std::env::set_var("ALL_PROXY", proxy);
+            std::env::set_var("socks_proxy", proxy);
+            std::env::set_var("SOCKS_PROXY", proxy);
+            
+            println!("✅ プロキシ環境変数を設定: {}", proxy);
+        }
 
         let client = Client::new(keys.clone());
 
@@ -67,14 +101,17 @@ impl MeisoNostrClient {
         }
 
         // リレーに接続（タイムアウト付きで待機）
-        println!("Connecting to relays...");
+        let timeout_sec = if proxy_url.is_some() { 15 } else { 5 }; // Tor経由は時間がかかる
+        println!("Connecting to relays{}...", 
+            if proxy_url.is_some() { " (via proxy)" } else { "" });
+        
         match tokio::time::timeout(
-            std::time::Duration::from_secs(5), 
+            std::time::Duration::from_secs(timeout_sec), 
             client.connect()
         ).await {
             Ok(_) => println!("✅ Connected to relays"),
             Err(_) => {
-                eprintln!("⚠️ Relay connection timeout (5s) - continuing offline mode");
+                eprintln!("⚠️ Relay connection timeout ({}s) - continuing offline mode", timeout_sec);
                 // タイムアウトしても続行（オフライン対応）
             }
         }
@@ -531,12 +568,25 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
 
 /// Nostrクライアントを初期化（hex公開鍵を返す）
 pub fn init_nostr_client(secret_key_hex: String, relays: Vec<String>) -> Result<String> {
-    println!("🔧 Initializing Nostr client...");
+    init_nostr_client_with_proxy(secret_key_hex, relays, None)
+}
+
+/// Nostrクライアントを初期化（プロキシオプション付き）
+pub fn init_nostr_client_with_proxy(
+    secret_key_hex: String, 
+    relays: Vec<String>,
+    proxy_url: Option<String>,
+) -> Result<String> {
+    println!("🔧 Initializing Nostr client{}...", 
+        if proxy_url.is_some() { " with proxy" } else { "" });
     println!("Secret key (first 10 chars): {}...", &secret_key_hex[..10.min(secret_key_hex.len())]);
     println!("Relays: {:?}", relays);
+    if let Some(ref proxy) = proxy_url {
+        println!("Proxy: {}", proxy);
+    }
 
     TOKIO_RUNTIME.block_on(async {
-        match MeisoNostrClient::new(&secret_key_hex, relays).await {
+        match MeisoNostrClient::new_with_proxy(&secret_key_hex, relays, proxy_url).await {
             Ok(client) => {
                 let public_key = client.public_key_hex();
                 println!("✅ Nostr client initialized. Public key: {}", &public_key[..16]);
@@ -784,16 +834,41 @@ pub fn init_nostr_client_with_pubkey(
     public_key_hex: String,
     relays: Vec<String>,
 ) -> Result<String> {
-    println!("🔧 Initializing Nostr client with public key only (Amber mode)...");
+    init_nostr_client_with_pubkey_and_proxy(public_key_hex, relays, None)
+}
+
+/// Amberモードで初期化（プロキシオプション付き）
+pub fn init_nostr_client_with_pubkey_and_proxy(
+    public_key_hex: String,
+    relays: Vec<String>,
+    proxy_url: Option<String>,
+) -> Result<String> {
+    println!("🔧 Initializing Nostr client with public key only (Amber mode){}...",
+        if proxy_url.is_some() { " with proxy" } else { "" });
     println!("Public key: {}...", &public_key_hex[..16.min(public_key_hex.len())]);
     println!("Relays: {:?}", relays);
+    if let Some(ref proxy) = proxy_url {
+        println!("Proxy: {}", proxy);
+    }
     
     TOKIO_RUNTIME.block_on(async {
         // Amber使用時はダミーの秘密鍵でクライアントを作成
         // 実際の署名操作はAmber経由で行うため、この秘密鍵は使用されない
         let dummy_keys = Keys::generate();
         
-        // クライアント作成
+        // プロキシ設定（環境変数経由）
+        if let Some(ref proxy) = proxy_url {
+            println!("🔐 Tor/Proxy経由で接続します (Amber mode): {}", proxy);
+            
+            // SOCKS5プロキシを環境変数に設定
+            std::env::set_var("all_proxy", proxy);
+            std::env::set_var("ALL_PROXY", proxy);
+            std::env::set_var("socks_proxy", proxy);
+            std::env::set_var("SOCKS_PROXY", proxy);
+            
+            println!("✅ プロキシ環境変数を設定 (Amber mode): {}", proxy);
+        }
+        
         let client = Client::new(dummy_keys.clone());
         
         // リレー追加
@@ -808,14 +883,17 @@ pub fn init_nostr_client_with_pubkey(
         }
         
         // リレーに接続（タイムアウト付き）
-        println!("🔌 Connecting to relays in Amber mode...");
+        let timeout_sec = if proxy_url.is_some() { 20 } else { 10 }; // Tor経由は時間がかかる
+        println!("🔌 Connecting to relays in Amber mode{}...",
+            if proxy_url.is_some() { " (via proxy)" } else { "" });
+        
         match tokio::time::timeout(
-            std::time::Duration::from_secs(10), 
+            std::time::Duration::from_secs(timeout_sec), 
             client.connect()
         ).await {
             Ok(_) => println!("✅ Connected to relays (Amber mode)"),
             Err(_) => {
-                eprintln!("⚠️ Relay connection timeout (10s) in Amber mode - continuing anyway");
+                eprintln!("⚠️ Relay connection timeout ({}s) in Amber mode - continuing anyway", timeout_sec);
             }
         }
         
@@ -1192,6 +1270,46 @@ pub fn create_unsigned_encrypted_app_settings_event(
     let event_json = serde_json::to_string(&unsigned_event)?;
     
     println!("📝 Created unsigned encrypted app settings event (Kind 30078) for Amber signing");
+    Ok(event_json)
+}
+
+/// 未署名リレーリストイベントを作成（Amber署名用 - NIP-65 Kind 10002）
+pub fn create_unsigned_relay_list_event(
+    relays: Vec<String>,
+    public_key_hex: String,
+) -> Result<String> {
+    use serde_json::json;
+    
+    // 公開鍵をパース
+    let public_key = PublicKey::from_hex(&public_key_hex)
+        .context("Failed to parse public key")?;
+    
+    // 現在のタイムスタンプ
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    // NIP-65: リレーをタグとして追加
+    let mut tags = Vec::new();
+    for relay_url in &relays {
+        // "r" タグで各リレーを追加（read/writeの指定も可能だが、今回は両方）
+        tags.push(vec!["r".to_string(), relay_url.clone()]);
+    }
+    
+    // 未署名イベントJSON（Amber用）
+    // contentは空文字列（NIP-65では不要）
+    let unsigned_event = json!({
+        "pubkey": public_key.to_hex(),
+        "created_at": created_at,
+        "kind": 10002,
+        "tags": tags,
+        "content": "",
+    });
+    
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    
+    println!("📝 Created unsigned relay list event (Kind 10002) for Amber signing");
     Ok(event_json)
 }
 
