@@ -19,6 +19,21 @@ pub struct TodoData {
     pub event_id: Option<String>,
 }
 
+/// アプリ設定データ構造（NIP-78 Application-specific data - Kind 30078）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppSettings {
+    /// ダークモード設定
+    pub dark_mode: bool,
+    /// 週の開始曜日 (0=日曜, 1=月曜, ...)
+    pub week_start_day: i32,
+    /// カレンダー表示形式 ("week" | "month")
+    pub calendar_view: String,
+    /// 通知設定
+    pub notifications_enabled: bool,
+    /// 最終更新日時
+    pub updated_at: String,
+}
+
 /// Nostrクライアントのラッパー
 pub struct MeisoNostrClient {
     pub(crate) keys: Keys,
@@ -307,6 +322,96 @@ impl MeisoNostrClient {
         }
 
         Ok(todos)
+    }
+
+    // ========================================
+    // アプリ設定管理（NIP-78 Application-specific data）
+    // ========================================
+
+    /// アプリ設定をNostrイベントとして作成（Kind 30078 - NIP-78）
+    pub async fn create_app_settings(&self, settings: AppSettings) -> Result<String> {
+        let settings_json = serde_json::to_string(&settings)?;
+
+        // NIP-44で自己暗号化
+        let public_key = self.keys.public_key();
+        let encrypted_content = nip44::encrypt(
+            self.keys.secret_key(),
+            &public_key,
+            &settings_json,
+            nip44::Version::V2,
+        )?;
+
+        // イベント作成（Kind 30078 - Application-specific data）
+        let d_tag = Tag::custom(
+            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+            vec!["meiso-settings".to_string()],
+        );
+
+        let event = EventBuilder::new(Kind::Custom(30078), encrypted_content)
+            .tags(vec![d_tag])
+            .sign(&self.keys)
+            .await?;
+
+        // リレーに送信するイベントをJSONとしてログ出力
+        match serde_json::to_string_pretty(&event.as_json()) {
+            Ok(event_json) => {
+                println!("📤 Nostr app settings event (Kind 30078) to relay:");
+                println!("{}", event_json);
+            }
+            Err(e) => {
+                eprintln!("⚠️ Failed to serialize event to JSON: {}", e);
+            }
+        }
+
+        // リレーに送信（タイムアウト付き）
+        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(event.clone())).await {
+            Ok(Ok(event_id)) => {
+                println!("✅ App settings event sent successfully: {}", event_id.to_hex());
+                Ok(event_id.to_hex())
+            }
+            Ok(Err(e)) => {
+                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
+                Ok(event.id.to_hex())
+            }
+            Err(_) => {
+                eprintln!("⚠️ イベント送信タイムアウト");
+                Ok(event.id.to_hex())
+            }
+        }
+    }
+
+    /// アプリ設定をNostrから同期（Kind 30078）
+    pub async fn sync_app_settings(&self) -> Result<Option<AppSettings>> {
+        let filter = Filter::new()
+            .kind(Kind::Custom(30078))
+            .author(self.keys.public_key())
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::D),
+                vec!["meiso-settings".to_string()],
+            );
+
+        let events = self
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
+        if let Some(event) = events.first() {
+            // NIP-44で復号化
+            if let Ok(decrypted) = nip44::decrypt(
+                self.keys.secret_key(),
+                &self.keys.public_key(),
+                &event.content,
+            ) {
+                if let Ok(settings) = serde_json::from_str::<AppSettings>(&decrypted) {
+                    println!("✅ App settings synced from Nostr");
+                    return Ok(Some(settings));
+                }
+            }
+        }
+
+        println!("⚠️ No app settings found");
+        Ok(None)
     }
 }
 
@@ -913,6 +1018,120 @@ pub fn hex_to_npub(hex: String) -> Result<String> {
         .context("Failed to parse hex format public key")?;
     
     Ok(public_key.to_bech32()?)
+}
+
+// ========================================
+// アプリ設定管理API（NIP-78）
+// ========================================
+
+/// アプリ設定を保存（Kind 30078 - Application-specific data）
+pub fn save_app_settings(settings: AppSettings) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+
+        client.create_app_settings(settings).await
+    })
+}
+
+/// アプリ設定を同期（Kind 30078）
+pub fn sync_app_settings() -> Result<Option<AppSettings>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+
+        client.sync_app_settings().await
+    })
+}
+
+/// 暗号化済みcontentで未署名アプリ設定イベントを作成（Amber暗号化済み用）
+pub fn create_unsigned_encrypted_app_settings_event(
+    encrypted_content: String,
+    public_key_hex: String,
+) -> Result<String> {
+    use serde_json::json;
+    
+    // 公開鍵をパース
+    let public_key = PublicKey::from_hex(&public_key_hex)
+        .context("Failed to parse public key")?;
+    
+    // 現在のタイムスタンプ
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    // Kind 30078のタグ（アプリ設定用）
+    let tags = vec![
+        vec!["d".to_string(), "meiso-settings".to_string()],
+    ];
+    
+    // 未署名イベントJSON（Amber用）
+    let unsigned_event = json!({
+        "pubkey": public_key.to_hex(),
+        "created_at": created_at,
+        "kind": 30078,
+        "tags": tags,
+        "content": encrypted_content,
+    });
+    
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    
+    println!("📝 Created unsigned encrypted app settings event (Kind 30078) for Amber signing");
+    Ok(event_json)
+}
+
+/// 暗号化されたアプリ設定イベントを取得（Amber復号化用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedAppSettingsEvent {
+    pub event_id: String,
+    pub encrypted_content: String,
+    pub created_at: i64,
+}
+
+pub fn fetch_encrypted_app_settings_for_pubkey(
+    public_key_hex: String,
+) -> Result<Option<EncryptedAppSettingsEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        let filter = Filter::new()
+            .kind(Kind::Custom(30078))
+            .author(public_key)
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::D),
+                vec!["meiso-settings".to_string()],
+            );
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        // 最新のイベント（Replaceable eventなので1つだけのはず）
+        if let Some(event) = events.first() {
+            println!("📥 Fetched encrypted app settings event");
+            Ok(Some(EncryptedAppSettingsEvent {
+                event_id: event.id.to_hex(),
+                encrypted_content: event.content.clone(),
+                created_at: event.created_at.as_u64() as i64,
+            }))
+        } else {
+            println!("⚠️ No encrypted app settings event found");
+            Ok(None)
+        }
+    })
 }
 
 // ========================================

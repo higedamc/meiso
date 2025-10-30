@@ -31,12 +31,13 @@ class _AddTodoFieldState extends State<AddTodoField> {
   Widget build(BuildContext context) {
     return Consumer(
       builder: (context, ref, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Container(
           decoration: BoxDecoration(
-            color: AppTheme.cardColor,
+            color: Theme.of(context).cardTheme.color,
             border: Border(
               top: BorderSide(
-                color: AppTheme.dividerColor,
+                color: Theme.of(context).dividerColor,
                 width: 1,
               ),
             ),
@@ -46,7 +47,9 @@ class _AddTodoFieldState extends State<AddTodoField> {
             children: [
               Icon(
                 Icons.add,
-                color: AppTheme.textDisabled,
+                color: isDark 
+                    ? AppTheme.darkTextDisabled
+                    : AppTheme.lightTextDisabled,
                 size: 24,
               ),
               const SizedBox(width: 8),
@@ -54,12 +57,12 @@ class _AddTodoFieldState extends State<AddTodoField> {
                 child: TextField(
                   controller: _controller,
                   focusNode: _focusNode,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'タスクを追加',
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
                   ),
-                  style: AppTheme.todoTitle,
+                  style: AppTheme.todoTitle(context),
                   onSubmitted: (value) {
                     if (value.trim().isNotEmpty) {
                       ref

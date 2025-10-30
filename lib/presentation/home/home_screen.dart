@@ -228,7 +228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final isCalendarVisible = ref.watch(calendarVisibleProvider);
 
         return Scaffold(
-          backgroundColor: AppTheme.backgroundColor,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: SafeArea(
             top: false, // 画面全体を活用
             child: Column(
@@ -320,7 +320,7 @@ class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
       builder: (context, ref, child) {
         return Container(
           decoration: BoxDecoration(
-            color: AppTheme.cardColor,
+            color: Theme.of(context).cardTheme.color,
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(16),
             ),
@@ -338,12 +338,12 @@ class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
                   hintText: 'タスクを入力',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppTheme.dividerColor),
+                    borderSide: BorderSide(color: Theme.of(context).dividerColor),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                      color: Colors.deepPurple.shade700,
+                    borderSide: const BorderSide(
+                      color: AppTheme.primaryPurple,
                       width: 2,
                     ),
                   ),

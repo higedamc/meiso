@@ -19,27 +19,29 @@ class TodoItem extends StatelessWidget {
 
   void _showEditDialog(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController(text: todo.title);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
     
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
-        backgroundColor: Colors.grey.shade900,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 日付表示（グレーアウト）
+              // 日付表示
               Text(
                 todo.date != null 
                     ? DateFormat('EEEE, MMMM d', 'en_US').format(todo.date!).toUpperCase()
                     : 'SOMEDAY',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 14,
+                style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
+                  color: isDark 
+                      ? AppTheme.darkTextSecondary
+                      : AppTheme.lightTextSecondary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -48,19 +50,27 @@ class TodoItem extends StatelessWidget {
               TextField(
                 controller: controller,
                 autofocus: true,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
+                style: theme.textTheme.bodyLarge,
                 decoration: InputDecoration(
                   border: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.grey.shade700),
+                    borderSide: BorderSide(
+                      color: isDark 
+                          ? AppTheme.darkDivider
+                          : AppTheme.lightDivider,
+                    ),
                   ),
                   enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.grey.shade700),
+                    borderSide: BorderSide(
+                      color: isDark 
+                          ? AppTheme.darkDivider
+                          : AppTheme.lightDivider,
+                    ),
                   ),
                   focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.grey.shade500),
+                    borderSide: BorderSide(
+                      color: AppTheme.primaryPurple,
+                      width: 2,
+                    ),
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 ),
@@ -98,8 +108,7 @@ class TodoItem extends StatelessWidget {
                       children: [
                         Text(
                           'MOVE TO',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
+                          style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -107,7 +116,7 @@ class TodoItem extends StatelessWidget {
                         Icon(
                           Icons.arrow_forward,
                           size: 16,
-                          color: Colors.grey.shade600,
+                          color: theme.textTheme.bodyMedium?.color,
                         ),
                       ],
                     ),
@@ -119,12 +128,12 @@ class TodoItem extends StatelessWidget {
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close, size: 20),
-                    color: Colors.grey.shade600,
+                    color: theme.textTheme.bodyMedium?.color,
                   ),
                   
                   const SizedBox(width: 8),
                   
-                  // SAVE ボタン
+                  // SAVE ボタン（テーマカラーの紫を使用）
                   ElevatedButton(
                     onPressed: () {
                       if (controller.text.trim().isNotEmpty) {
@@ -136,14 +145,6 @@ class TodoItem extends StatelessWidget {
                         Navigator.pop(context);
                       }
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade600,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
                     child: const Text(
                       'SAVE',
                       style: TextStyle(fontWeight: FontWeight.w600),
@@ -368,10 +369,10 @@ class TodoItem extends StatelessWidget {
           },
           child: Container(
             decoration: BoxDecoration(
-              color: AppTheme.cardColor,
+              color: Theme.of(context).cardTheme.color,
               border: Border(
                 bottom: BorderSide(
-                  color: AppTheme.dividerColor,
+                  color: Theme.of(context).dividerColor,
                   width: 1,
                 ),
               ),
@@ -397,7 +398,7 @@ class TodoItem extends StatelessWidget {
                       todo.title,
                       style: todo.completed
                           ? AppTheme.todoTitleCompleted
-                          : AppTheme.todoTitle,
+                          : AppTheme.todoTitle(context),
                     ),
                   ),
                   
