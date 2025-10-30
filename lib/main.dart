@@ -7,7 +7,10 @@ import 'presentation/home/home_screen.dart';
 import 'presentation/onboarding/onboarding_screen.dart';
 import 'presentation/onboarding/login_screen.dart';
 import 'presentation/settings/settings_screen.dart';
-import 'bridge_generated.dart/frb_generated.dart';
+import 'presentation/settings/secret_key_management_screen.dart';
+import 'presentation/settings/relay_management_screen.dart';
+import 'presentation/settings/app_settings_detail_screen.dart';
+import 'bridge_generated.dart/frb_generated.dart' as frb;
 import 'services/local_storage_service.dart';
 import 'providers/app_settings_provider.dart';
 
@@ -27,7 +30,7 @@ void main() async {
   
   // Rustブリッジの初期化（エラーハンドリング付き）
   try {
-    await RustLib.init();
+    await frb.RustLib.init();
     print('✅ Rust初期化成功');
   } catch (e, stackTrace) {
     print('❌ Rust初期化エラー: $e');
@@ -100,6 +103,18 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
         GoRoute(
           path: '/settings',
           builder: (context, state) => const SettingsScreen(),
+        ),
+        GoRoute(
+          path: '/settings/secret-key',
+          builder: (context, state) => const SecretKeyManagementScreen(),
+        ),
+        GoRoute(
+          path: '/settings/relays',
+          builder: (context, state) => const RelayManagementScreen(),
+        ),
+        GoRoute(
+          path: '/settings/app',
+          builder: (context, state) => const AppSettingsDetailScreen(),
         ),
       ],
     );
