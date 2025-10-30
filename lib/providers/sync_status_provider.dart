@@ -33,6 +33,9 @@ class SyncStatus with _$SyncStatus {
     /// エラーメッセージ（エラー時のみ）
     String? errorMessage,
     
+    /// 同期中のメッセージ（「データ読み込み中...」「データ移行中...」など）
+    String? message,
+    
     /// 同期待ちのアイテム数
     @Default(0) int pendingItems,
     
@@ -111,6 +114,16 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
   /// リトライカウントをリセット
   void resetRetryCount() {
     state = state.copyWith(retryCount: 0);
+  }
+
+  /// 同期中のメッセージを更新
+  void updateMessage(String message) {
+    state = state.copyWith(message: message);
+  }
+
+  /// メッセージをクリア
+  void clearMessage() {
+    state = state.copyWith(message: null);
   }
 }
 
