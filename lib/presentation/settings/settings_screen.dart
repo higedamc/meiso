@@ -102,7 +102,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _initializeRelayStates() {
     final relayNotifier = ref.read(relayStatusProvider.notifier);
-    relayNotifier.initializeWithRelays(defaultRelays);
+    
+    // AppSettingsからリレーリストを取得（保存されている場合）
+    final appSettings = ref.read(appSettingsProvider);
+    appSettings.whenData((settings) {
+      if (settings.relays.isNotEmpty) {
+        // 保存されたリレーリストを使用
+        relayNotifier.initializeWithRelays(settings.relays);
+        print('✅ 保存されたリレーリストを読み込み: ${settings.relays.length}件');
+      } else {
+        // デフォルトリレーを使用
+        relayNotifier.initializeWithRelays(defaultRelays);
+        print('✅ デフォルトリレーを使用');
+      }
+    });
   }
 
   /// 秘密鍵のフォーマットを自動検出
@@ -403,6 +416,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ref.read(relayStatusProvider.notifier).addRelay(url);
     _newRelayController.clear();
     
+    // AppSettingsにも反映
+    final updatedRelays = ref.read(relayStatusProvider).keys.toList();
+    ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+    
     setState(() {
       _successMessage = 'リレーを追加しました';
     });
@@ -415,6 +432,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _removeRelay(String url) {
     ref.read(relayStatusProvider.notifier).removeRelay(url);
+    
+    // AppSettingsにも反映
+    final updatedRelays = ref.read(relayStatusProvider).keys.toList();
+    ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+    
     setState(() {
       _successMessage = 'リレーを削除しました';
     });

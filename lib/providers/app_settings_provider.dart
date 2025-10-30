@@ -102,6 +102,13 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
     });
   }
 
+  /// リレーリストを更新
+  Future<void> updateRelays(List<String> relays) async {
+    state.whenData((settings) async {
+      await updateSettings(settings.copyWith(relays: relays));
+    });
+  }
+
   /// Nostrに設定を同期
   Future<void> _syncToNostr(AppSettings settings) async {
     if (!_ref.read(nostrInitializedProvider)) {
@@ -122,6 +129,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'week_start_day': settings.weekStartDay,
           'calendar_view': settings.calendarView,
           'notifications_enabled': settings.notificationsEnabled,
+          'relays': settings.relays,
           'updated_at': settings.updatedAt.toIso8601String(),
         });
         
@@ -188,11 +196,22 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           weekStartDay: settings.weekStartDay,
           calendarView: settings.calendarView,
           notificationsEnabled: settings.notificationsEnabled,
+          relays: settings.relays,
           updatedAt: settings.updatedAt.toIso8601String(),
         );
         
         final eventId = await bridge.saveAppSettings(settings: bridgeSettings);
         print('✅ 設定同期完了: $eventId');
+        
+        // リレーリストを別途同期（NIP-65 Kind 10002）
+        if (settings.relays.isNotEmpty) {
+          try {
+            final relayEventId = await bridge.saveRelayList(relays: settings.relays);
+            print('✅ リレーリスト同期完了: $relayEventId');
+          } catch (e) {
+            print('⚠️ リレーリスト同期失敗: $e');
+          }
+        }
       }
     } catch (e, stackTrace) {
       print('❌ 設定同期失敗: $e');
@@ -253,11 +272,30 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         }
         
         final settingsMap = jsonDecode(decryptedJson) as Map<String, dynamic>;
+        
+        // リレーリストは別途同期（NIP-65 Kind 10002は暗号化されない）
+        List<String> syncedRelays = [];
+        if (settingsMap.containsKey('relays')) {
+          syncedRelays = List<String>.from(settingsMap['relays'] as List);
+        }
+        
+        // Kind 10002からリレーリストを同期（利用可能な場合）
+        try {
+          final kind10002Relays = await bridge.syncRelayList();
+          if (kind10002Relays.isNotEmpty) {
+            syncedRelays = kind10002Relays;
+            print('✅ Kind 10002からリレーリスト同期: ${syncedRelays.length}件');
+          }
+        } catch (e) {
+          print('⚠️ Kind 10002同期失敗、設定内のリレーを使用: $e');
+        }
+        
         final syncedSettings = AppSettings(
           darkMode: settingsMap['dark_mode'] as bool,
           weekStartDay: settingsMap['week_start_day'] as int,
           calendarView: settingsMap['calendar_view'] as String,
           notificationsEnabled: settingsMap['notifications_enabled'] as bool,
+          relays: syncedRelays,
           updatedAt: DateTime.parse(settingsMap['updated_at'] as String),
         );
         
@@ -276,11 +314,23 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           return;
         }
         
+        // リレーリストを別途同期（NIP-65 Kind 10002）
+        List<String> syncedRelays = [];
+        try {
+          syncedRelays = await bridge.syncRelayList();
+          print('✅ リレーリスト同期完了: ${syncedRelays.length}件');
+        } catch (e) {
+          print('⚠️ リレーリスト同期失敗: $e');
+          // 既存のリレーリストを維持
+          syncedRelays = bridgeSettings.relays;
+        }
+        
         final syncedSettings = AppSettings(
           darkMode: bridgeSettings.darkMode,
           weekStartDay: bridgeSettings.weekStartDay,
           calendarView: bridgeSettings.calendarView,
           notificationsEnabled: bridgeSettings.notificationsEnabled,
+          relays: syncedRelays,
           updatedAt: DateTime.parse(bridgeSettings.updatedAt),
         );
         

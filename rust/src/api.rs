@@ -30,6 +30,8 @@ pub struct AppSettings {
     pub calendar_view: String,
     /// 通知設定
     pub notifications_enabled: bool,
+    /// リレーリスト（NIP-65 kind 10002から同期）
+    pub relays: Vec<String>,
     /// 最終更新日時
     pub updated_at: String,
 }
@@ -431,6 +433,90 @@ impl MeisoNostrClient {
 
         println!("⚠️ No app settings found");
         Ok(None)
+    }
+
+    /// リレーリストをNostrに保存（NIP-65 Kind 10002 - Relay List Metadata）
+    pub async fn save_relay_list(&self, relays: Vec<String>) -> Result<String> {
+        println!("💾 Saving relay list to Nostr (Kind 10002)...");
+        
+        // NIP-65: リレーをタグとして追加
+        let mut tags = Vec::new();
+        for relay_url in &relays {
+            // "r" タグで各リレーを追加（read/writeの指定も可能だが、今回は両方）
+            tags.push(Tag::custom(
+                TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::R)),
+                vec![relay_url.clone()],
+            ));
+        }
+        
+        // Kind 10002イベント作成（contentは空）
+        let event = EventBuilder::new(Kind::RelayList, String::new())
+            .tags(tags)
+            .sign(&self.keys)
+            .await?;
+        
+        // リレーに送信するイベントをJSONとしてログ出力
+        match serde_json::to_string_pretty(&event.as_json()) {
+            Ok(event_json) => {
+                println!("📤 Nostr relay list event (Kind 10002) to relay:");
+                println!("{}", event_json);
+            }
+            Err(e) => {
+                eprintln!("⚠️ Failed to serialize event to JSON: {}", e);
+            }
+        }
+        
+        // リレーに送信（タイムアウト付き）
+        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(event.clone())).await {
+            Ok(Ok(event_id)) => {
+                println!("✅ Relay list event sent successfully: {}", event_id.to_hex());
+                Ok(event_id.to_hex())
+            }
+            Ok(Err(e)) => {
+                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
+                Ok(event.id.to_hex())
+            }
+            Err(_) => {
+                eprintln!("⚠️ イベント送信タイムアウト");
+                Ok(event.id.to_hex())
+            }
+        }
+    }
+
+    /// リレーリストをNostrから同期（NIP-65 Kind 10002）
+    pub async fn sync_relay_list(&self) -> Result<Vec<String>> {
+        println!("🔄 Syncing relay list from Nostr (Kind 10002)...");
+        
+        let filter = Filter::new()
+            .kind(Kind::RelayList)
+            .author(self.keys.public_key());
+
+        let events = self
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
+        if let Some(event) = events.first() {
+            let mut relays = Vec::new();
+            
+            // "r" タグからリレーURLを抽出
+            for tag in event.tags.iter() {
+                if let Some(tag_kind) = tag.kind().as_standardized() {
+                    if matches!(tag_kind, TagStandard::Relay) {
+                        if let Some(relay_url) = tag.content() {
+                            relays.push(relay_url.to_string());
+                        }
+                    }
+                }
+            }
+            
+            println!("✅ Relay list synced: {} relays", relays.len());
+            return Ok(relays);
+        }
+
+        println!("⚠️ No relay list found");
+        Ok(Vec::new())
     }
 }
 
@@ -1156,6 +1242,34 @@ pub fn fetch_encrypted_app_settings_for_pubkey(
             println!("⚠️ No encrypted app settings event found");
             Ok(None)
         }
+    })
+}
+
+// ========================================
+// リレーリスト管理API（NIP-65 Kind 10002）
+// ========================================
+
+/// リレーリストをNostrに保存（Kind 10002 - Relay List Metadata）
+pub fn save_relay_list(relays: Vec<String>) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+
+        client.save_relay_list(relays).await
+    })
+}
+
+/// リレーリストをNostrから同期（Kind 10002）
+pub fn sync_relay_list() -> Result<Vec<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+
+        client.sync_relay_list().await
     })
 }
 

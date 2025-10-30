@@ -19,6 +19,9 @@ class AppSettings with _$AppSettings {
     /// 通知設定
     @Default(true) bool notificationsEnabled,
     
+    /// リレーリスト（NIP-65 kind 10002から同期）
+    @Default([]) List<String> relays,
+    
     /// 最終更新日時
     required DateTime updatedAt,
   }) = _AppSettings;
@@ -33,6 +36,7 @@ class AppSettings with _$AppSettings {
       weekStartDay: 1, // 月曜日始まり
       calendarView: 'week',
       notificationsEnabled: true,
+      relays: [], // デフォルトは空（初回起動時にdefaultRelaysが適用される）
       updatedAt: DateTime.now(),
     );
   }

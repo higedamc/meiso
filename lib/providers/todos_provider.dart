@@ -1085,9 +1085,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// マイグレーションが必要かチェック
   /// 
   /// Kind 30078のTODOイベント（旧形式）が存在する場合にtrueを返す
-  /// 
-  /// ⚠️ 注意: 以下のイベントは自動的に除外されます（Rust側でフィルタリング済み）
-  /// - dタグが`todo-`で始まるイベント（設定イベントなど）
+  /// ※ Kind 30078の設定イベント（d="meiso-settings"）は除外
   Future<bool> checkMigrationNeeded() async {
     // ローカルストレージでマイグレーション完了済みかチェック
     final completed = await localStorageService.isMigrationCompleted();
