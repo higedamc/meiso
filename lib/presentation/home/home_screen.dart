@@ -102,8 +102,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _showingSomeday = false;
     });
 
-    // 選択された日付のページにジャンプ
+    // 選択された日付を正規化
     final selectedDate = DateTime(selectedDay.year, selectedDay.month, selectedDay.day);
+    
+    // 選択された日付が現在の日付リストに存在するか確認
     final selectedIndex = dates.indexWhere((date) => 
       date.year == selectedDate.year && 
       date.month == selectedDate.month && 
@@ -111,11 +113,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
     
     if (selectedIndex != -1) {
+      // 日付リストに存在する場合は、そのページにジャンプ
       _pageController.animateToPage(
         selectedIndex,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+    } else {
+      // 日付リストに存在しない場合は、その日付を中心とした新しい日付リストを生成
+      ref.read(centerDateProvider.notifier).state = selectedDate;
+      
+      // 次のフレームで中心ページにジャンプ
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(7); // 中心ページ（index 7）にジャンプ
+        }
+      });
     }
   }
 
