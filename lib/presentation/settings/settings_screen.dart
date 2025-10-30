@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../providers/relay_status_provider.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../services/local_storage_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -100,7 +103,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _initializeRelayStates() {
     final relayNotifier = ref.read(relayStatusProvider.notifier);
-    relayNotifier.initializeWithRelays(defaultRelays);
+    
+    // AppSettingsからリレーリストを取得（保存されている場合）
+    final appSettings = ref.read(appSettingsProvider);
+    appSettings.whenData((settings) {
+      if (settings.relays.isNotEmpty) {
+        // 保存されたリレーリストを使用
+        relayNotifier.initializeWithRelays(settings.relays);
+        print('✅ 保存されたリレーリストを読み込み: ${settings.relays.length}件');
+      } else {
+        // デフォルトリレーを使用
+        relayNotifier.initializeWithRelays(defaultRelays);
+        print('✅ デフォルトリレーを使用');
+      }
+    });
   }
 
   /// 秘密鍵のフォーマットを自動検出
@@ -401,6 +417,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ref.read(relayStatusProvider.notifier).addRelay(url);
     _newRelayController.clear();
     
+    // AppSettingsにも反映
+    final updatedRelays = ref.read(relayStatusProvider).keys.toList();
+    ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+    
     setState(() {
       _successMessage = 'リレーを追加しました';
     });
@@ -413,6 +433,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _removeRelay(String url) {
     ref.read(relayStatusProvider.notifier).removeRelay(url);
+    
+    // AppSettingsにも反映
+    final updatedRelays = ref.read(relayStatusProvider).keys.toList();
+    ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+    
     setState(() {
       _successMessage = 'リレーを削除しました';
     });
@@ -425,7 +450,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  /// ログアウト処理
+  /// ログアウト処理（全データ削除）
   Future<void> _logout() async {
     // 確認ダイアログを表示
     final confirmed = await showDialog<bool>(
@@ -434,7 +459,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         title: const Text('ログアウト'),
         content: const Text(
           'ログアウトしますか？\n\n'
-          '注意: 暗号化された秘密鍵とパスワードを記録していないと、'
+          '⚠️ 警告:\n'
+          '• アプリ内の全データが削除されます\n'
+          '• 全てのTodoが削除されます\n'
+          '• 暗号化された秘密鍵が削除されます\n'
+          '• 設定情報が削除されます\n\n'
+          '秘密鍵とパスワードを記録していないと、'
           '再ログインできなくなります。',
         ),
         actions: [
@@ -447,7 +477,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
             ),
-            child: const Text('ログアウト'),
+            child: const Text('全て削除してログアウト'),
           ),
         ],
       ),
@@ -462,33 +492,44 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
 
     try {
+      print('🗑️ Starting complete data deletion...');
+      
       final nostrService = ref.read(nostrServiceProvider);
       
-      // Rust側の暗号化された鍵を削除
+      // 1. Rust側の暗号化された鍵を削除
       await nostrService.deleteSecretKey();
+      print('✅ Secret key deleted');
       
-      // Providerをリセット
+      // 2. アプリ内の全データを削除（Todo + 設定）
+      await localStorageService.clearAllData();
+      print('✅ All local data deleted');
+      
+      // 3. すべてのProviderをリセット
+      ref.invalidate(todosProvider);
       ref.read(nostrInitializedProvider.notifier).state = false;
       ref.read(publicKeyProvider.notifier).state = null;
+      ref.invalidate(relayStatusProvider);
+      print('✅ All providers reset');
       
-      // Amber使用フラグをクリア
-      await localStorageService.clearNostrCredentials();
-      
-      // 入力フィールドをクリア
+      // 4. 入力フィールドをクリア
       _secretKeyController.clear();
       
-      setState(() {
-        _successMessage = 'ログアウトしました';
-      });
+      print('✅ Logout and data deletion completed');
       
-      print('✅ Logout successful');
+      // 5. オンボーディング画面に遷移（mounted チェック）
+      if (!mounted) return;
+      
+      // GoRouterでオンボーディング画面に遷移
+      // redirectロジックが自動で働く
+      context.go('/onboarding');
+      
     } catch (e) {
       print('❌ Logout failed: $e');
+      
+      if (!mounted) return;
+      
       setState(() {
         _errorMessage = 'ログアウト失敗: $e';
-      });
-    } finally {
-      setState(() {
         _isLoading = false;
       });
     }
@@ -794,7 +835,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   // Amberモード情報
                   if (isAmberMode)
                     Card(
-                      color: Colors.blue.shade50,
+                      color: AppTheme.primaryPurple.withOpacity(0.1),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -802,13 +843,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.security, color: Colors.blue.shade700),
+                                Icon(Icons.security, color: AppTheme.primaryPurple),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Amberモード',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade900,
+                                    color: AppTheme.darkPurple,
                                   ),
                                 ),
                               ],
@@ -830,7 +871,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               '3. 「NIP-44 Decrypt」を常に許可に設定',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.blue.shade900,
+                                color: AppTheme.darkPurple,
                               ),
                             ),
                           ],
@@ -839,9 +880,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   if (isAmberMode) const SizedBox(height: 16),
 
+                  // アプリ設定セクション（NIP-78 - Kind 30078でNostrに保存）
+                  _buildAppSettingsSection(),
+                  const SizedBox(height: 24),
+
                   // 注意事項
                   Card(
-                    color: Colors.blue.shade50,
+                    color: AppTheme.primaryPurple.withOpacity(0.1),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
@@ -849,13 +894,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.info, color: Colors.blue.shade700),
+                              Icon(Icons.info, color: AppTheme.primaryPurple),
                               const SizedBox(width: 8),
                               Text(
                                 '重要',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade900,
+                                  color: AppTheme.darkPurple,
                                 ),
                               ),
                             ],
@@ -872,7 +917,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             '  • hex形式: 64文字の16進数',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.blue.shade900,
+                              color: AppTheme.darkPurple,
                             ),
                           ),
                         ],
@@ -897,13 +942,211 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryPurple),
           ),
         );
       case RelayConnectionState.error:
         return Icon(Icons.error, color: Colors.red.shade600, size: 20);
       case RelayConnectionState.disconnected:
         return Icon(Icons.circle_outlined, color: Colors.grey.shade400, size: 20);
+    }
+  }
+
+  /// アプリ設定セクション（NIP-78 - Kind 30078でNostrに保存）
+  Widget _buildAppSettingsSection() {
+    final appSettingsAsync = ref.watch(appSettingsProvider);
+    final isNostrInitialized = ref.watch(nostrInitializedProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.settings_applications, color: Colors.purple.shade700),
+                const SizedBox(width: 8),
+                const Text(
+                  'アプリ設定',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                if (isNostrInitialized)
+                  Icon(
+                    Icons.cloud,
+                    size: 16,
+                    color: Colors.purple.shade300,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isNostrInitialized
+                  ? 'Nostrリレーに自動同期（NIP-78 Kind 30078）'
+                  : 'ローカル保存のみ（Nostr未接続）',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const Divider(height: 24),
+            
+            appSettingsAsync.when(
+              data: (settings) => Column(
+                children: [
+                  // ダークモード設定
+                  SwitchListTile(
+                    title: const Text('ダークモード'),
+                    subtitle: const Text('アプリのテーマを変更'),
+                    value: settings.darkMode,
+                    onChanged: (value) async {
+                      await ref.read(appSettingsProvider.notifier).toggleDarkMode();
+                    },
+                    secondary: Icon(
+                      settings.darkMode ? Icons.dark_mode : Icons.light_mode,
+                      color: Colors.purple.shade700,
+                    ),
+                  ),
+                  
+                  const Divider(),
+                  
+                  // 週の開始曜日
+                  ListTile(
+                    leading: Icon(Icons.calendar_today, color: Colors.purple.shade700),
+                    title: const Text('週の開始曜日'),
+                    subtitle: Text(_getWeekDayName(settings.weekStartDay)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => _showWeekStartDayDialog(settings.weekStartDay),
+                  ),
+                  
+                  const Divider(),
+                  
+                  // カレンダー表示形式
+                  ListTile(
+                    leading: Icon(Icons.view_week, color: Colors.purple.shade700),
+                    title: const Text('カレンダー表示'),
+                    subtitle: Text(settings.calendarView == 'week' ? '週表示' : '月表示'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => _showCalendarViewDialog(settings.calendarView),
+                  ),
+                  
+                  const Divider(),
+                  
+                  // 通知設定
+                  SwitchListTile(
+                    title: const Text('通知'),
+                    subtitle: const Text('リマインダー通知を有効化'),
+                    value: settings.notificationsEnabled,
+                    onChanged: (value) async {
+                      await ref.read(appSettingsProvider.notifier).toggleNotifications();
+                    },
+                    secondary: Icon(
+                      settings.notificationsEnabled ? Icons.notifications_active : Icons.notifications_off,
+                      color: Colors.purple.shade700,
+                    ),
+                  ),
+                  
+                  if (isNostrInitialized) ...[
+                    const Divider(),
+                    
+                    // 同期ボタン
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await ref.read(appSettingsProvider.notifier).syncFromNostr();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('設定を同期しました')),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.sync),
+                        label: const Text('Nostrから同期'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade100,
+                          foregroundColor: Colors.purple.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Text('エラー: $error'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 曜日名を取得
+  String _getWeekDayName(int day) {
+    const days = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+    return days[day % 7];
+  }
+
+  /// 週の開始曜日選択ダイアログ
+  Future<void> _showWeekStartDayDialog(int currentDay) async {
+    final selected = await showDialog<int>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('週の開始曜日を選択'),
+        children: List.generate(7, (index) {
+          return SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, index),
+            child: Text(
+              _getWeekDayName(index),
+              style: TextStyle(
+                fontWeight: index == currentDay ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+
+    if (selected != null) {
+      await ref.read(appSettingsProvider.notifier).setWeekStartDay(selected);
+    }
+  }
+
+  /// カレンダー表示形式選択ダイアログ
+  Future<void> _showCalendarViewDialog(String currentView) async {
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('カレンダー表示を選択'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'week'),
+            child: Text(
+              '週表示',
+              style: TextStyle(
+                fontWeight: currentView == 'week' ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'month'),
+            child: Text(
+              '月表示',
+              style: TextStyle(
+                fontWeight: currentView == 'month' ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (selected != null) {
+      await ref.read(appSettingsProvider.notifier).setCalendarView(selected);
     }
   }
 }

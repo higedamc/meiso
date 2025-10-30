@@ -19,6 +19,23 @@ pub struct TodoData {
     pub event_id: Option<String>,
 }
 
+/// アプリ設定データ構造（NIP-78 Application-specific data - Kind 30078）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppSettings {
+    /// ダークモード設定
+    pub dark_mode: bool,
+    /// 週の開始曜日 (0=日曜, 1=月曜, ...)
+    pub week_start_day: i32,
+    /// カレンダー表示形式 ("week" | "month")
+    pub calendar_view: String,
+    /// 通知設定
+    pub notifications_enabled: bool,
+    /// リレーリスト（NIP-65 kind 10002から同期）
+    pub relays: Vec<String>,
+    /// 最終更新日時
+    pub updated_at: String,
+}
+
 /// Nostrクライアントのラッパー
 pub struct MeisoNostrClient {
     pub(crate) keys: Keys,
@@ -280,6 +297,9 @@ impl MeisoNostrClient {
     }
 
     /// 全てのTodoを同期（リレーから取得）- 旧実装（Kind 30078）
+    /// 
+    /// ⚠️ 注意: `d`タグが`todo-`で始まるイベントは除外されます
+    /// これは設定イベント（`meiso-settings`など）を除外するためです
     pub async fn sync_todos(&self) -> Result<Vec<TodoData>> {
         let filter = Filter::new()
             .kind(Kind::Custom(30078))
@@ -293,6 +313,22 @@ impl MeisoNostrClient {
         let mut todos = Vec::new();
 
         for event in events {
+            // dタグをチェック：`todo-`で始まる場合はスキップ
+            let should_skip = event.tags.iter().any(|tag| {
+                let tag_kind = tag.kind();
+                if tag_kind.to_string() == "d" {
+                    if let Some(value) = tag.content() {
+                        return value.starts_with("todo-");
+                    }
+                }
+                false
+            });
+
+            if should_skip {
+                println!("⏭️  Skipping Kind 30078 event with d tag starting with 'todo-': {}", event.id.to_hex());
+                continue;
+            }
+
             // NIP-44で復号化
             if let Ok(decrypted) = nip44::decrypt(
                 self.keys.secret_key(),
@@ -307,6 +343,179 @@ impl MeisoNostrClient {
         }
 
         Ok(todos)
+    }
+
+    // ========================================
+    // アプリ設定管理（NIP-78 Application-specific data）
+    // ========================================
+
+    /// アプリ設定をNostrイベントとして作成（Kind 30078 - NIP-78）
+    pub async fn create_app_settings(&self, settings: AppSettings) -> Result<String> {
+        let settings_json = serde_json::to_string(&settings)?;
+
+        // NIP-44で自己暗号化
+        let public_key = self.keys.public_key();
+        let encrypted_content = nip44::encrypt(
+            self.keys.secret_key(),
+            &public_key,
+            &settings_json,
+            nip44::Version::V2,
+        )?;
+
+        // イベント作成（Kind 30078 - Application-specific data）
+        let d_tag = Tag::custom(
+            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+            vec!["meiso-settings".to_string()],
+        );
+
+        let event = EventBuilder::new(Kind::Custom(30078), encrypted_content)
+            .tags(vec![d_tag])
+            .sign(&self.keys)
+            .await?;
+
+        // リレーに送信するイベントをJSONとしてログ出力
+        match serde_json::to_string_pretty(&event.as_json()) {
+            Ok(event_json) => {
+                println!("📤 Nostr app settings event (Kind 30078) to relay:");
+                println!("{}", event_json);
+            }
+            Err(e) => {
+                eprintln!("⚠️ Failed to serialize event to JSON: {}", e);
+            }
+        }
+
+        // リレーに送信（タイムアウト付き）
+        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(event.clone())).await {
+            Ok(Ok(event_id)) => {
+                println!("✅ App settings event sent successfully: {}", event_id.to_hex());
+                Ok(event_id.to_hex())
+            }
+            Ok(Err(e)) => {
+                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
+                Ok(event.id.to_hex())
+            }
+            Err(_) => {
+                eprintln!("⚠️ イベント送信タイムアウト");
+                Ok(event.id.to_hex())
+            }
+        }
+    }
+
+    /// アプリ設定をNostrから同期（Kind 30078）
+    pub async fn sync_app_settings(&self) -> Result<Option<AppSettings>> {
+        let filter = Filter::new()
+            .kind(Kind::Custom(30078))
+            .author(self.keys.public_key())
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::D),
+                vec!["meiso-settings".to_string()],
+            );
+
+        let events = self
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
+        if let Some(event) = events.first() {
+            // NIP-44で復号化
+            if let Ok(decrypted) = nip44::decrypt(
+                self.keys.secret_key(),
+                &self.keys.public_key(),
+                &event.content,
+            ) {
+                if let Ok(settings) = serde_json::from_str::<AppSettings>(&decrypted) {
+                    println!("✅ App settings synced from Nostr");
+                    return Ok(Some(settings));
+                }
+            }
+        }
+
+        println!("⚠️ No app settings found");
+        Ok(None)
+    }
+
+    /// リレーリストをNostrに保存（NIP-65 Kind 10002 - Relay List Metadata）
+    pub async fn save_relay_list(&self, relays: Vec<String>) -> Result<String> {
+        println!("💾 Saving relay list to Nostr (Kind 10002)...");
+        
+        // NIP-65: リレーをタグとして追加
+        let mut tags = Vec::new();
+        for relay_url in &relays {
+            // "r" タグで各リレーを追加（read/writeの指定も可能だが、今回は両方）
+            tags.push(Tag::custom(
+                TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::R)),
+                vec![relay_url.clone()],
+            ));
+        }
+        
+        // Kind 10002イベント作成（contentは空）
+        let event = EventBuilder::new(Kind::RelayList, String::new())
+            .tags(tags)
+            .sign(&self.keys)
+            .await?;
+        
+        // リレーに送信するイベントをJSONとしてログ出力
+        match serde_json::to_string_pretty(&event.as_json()) {
+            Ok(event_json) => {
+                println!("📤 Nostr relay list event (Kind 10002) to relay:");
+                println!("{}", event_json);
+            }
+            Err(e) => {
+                eprintln!("⚠️ Failed to serialize event to JSON: {}", e);
+            }
+        }
+        
+        // リレーに送信（タイムアウト付き）
+        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(event.clone())).await {
+            Ok(Ok(event_id)) => {
+                println!("✅ Relay list event sent successfully: {}", event_id.to_hex());
+                Ok(event_id.to_hex())
+            }
+            Ok(Err(e)) => {
+                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
+                Ok(event.id.to_hex())
+            }
+            Err(_) => {
+                eprintln!("⚠️ イベント送信タイムアウト");
+                Ok(event.id.to_hex())
+            }
+        }
+    }
+
+    /// リレーリストをNostrから同期（NIP-65 Kind 10002）
+    pub async fn sync_relay_list(&self) -> Result<Vec<String>> {
+        println!("🔄 Syncing relay list from Nostr (Kind 10002)...");
+        
+        let filter = Filter::new()
+            .kind(Kind::RelayList)
+            .author(self.keys.public_key());
+
+        let events = self
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
+        if let Some(event) = events.first() {
+            let mut relays = Vec::new();
+            
+            // "r" タグからリレーURLを抽出
+            for tag in event.tags.iter() {
+                // TagKind::Relayをチェックし、contentからURLを取得
+                if tag.kind() == TagKind::Relay {
+                    if let Some(relay_url) = tag.content() {
+                        relays.push(relay_url.to_string());
+                    }
+                }
+            }
+            
+            println!("✅ Relay list synced: {} relays", relays.len());
+            return Ok(relays);
+        }
+
+        println!("⚠️ No relay list found");
+        Ok(Vec::new())
     }
 }
 
@@ -872,6 +1081,12 @@ pub fn fetch_encrypted_todos_for_pubkey(
                 .unwrap_or("")
                 .to_string();
             
+            // `todo-`で始まるdタグのイベントはスキップ
+            if d_tag.starts_with("todo-") {
+                println!("⏭️  Skipping Kind 30078 event with d tag starting with 'todo-': {}", event.id.to_hex());
+                continue;
+            }
+            
             encrypted_todos.push(EncryptedTodoEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
@@ -880,7 +1095,7 @@ pub fn fetch_encrypted_todos_for_pubkey(
             });
         }
         
-        println!("📥 Fetched {} encrypted todo events", encrypted_todos.len());
+        println!("📥 Fetched {} encrypted todo events (after filtering)", encrypted_todos.len());
         Ok(encrypted_todos)
     })
 }
@@ -913,6 +1128,148 @@ pub fn hex_to_npub(hex: String) -> Result<String> {
         .context("Failed to parse hex format public key")?;
     
     Ok(public_key.to_bech32()?)
+}
+
+// ========================================
+// アプリ設定管理API（NIP-78）
+// ========================================
+
+/// アプリ設定を保存（Kind 30078 - Application-specific data）
+pub fn save_app_settings(settings: AppSettings) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+
+        client.create_app_settings(settings).await
+    })
+}
+
+/// アプリ設定を同期（Kind 30078）
+pub fn sync_app_settings() -> Result<Option<AppSettings>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+
+        client.sync_app_settings().await
+    })
+}
+
+/// 暗号化済みcontentで未署名アプリ設定イベントを作成（Amber暗号化済み用）
+pub fn create_unsigned_encrypted_app_settings_event(
+    encrypted_content: String,
+    public_key_hex: String,
+) -> Result<String> {
+    use serde_json::json;
+    
+    // 公開鍵をパース
+    let public_key = PublicKey::from_hex(&public_key_hex)
+        .context("Failed to parse public key")?;
+    
+    // 現在のタイムスタンプ
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    // Kind 30078のタグ（アプリ設定用）
+    let tags = vec![
+        vec!["d".to_string(), "meiso-settings".to_string()],
+    ];
+    
+    // 未署名イベントJSON（Amber用）
+    let unsigned_event = json!({
+        "pubkey": public_key.to_hex(),
+        "created_at": created_at,
+        "kind": 30078,
+        "tags": tags,
+        "content": encrypted_content,
+    });
+    
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    
+    println!("📝 Created unsigned encrypted app settings event (Kind 30078) for Amber signing");
+    Ok(event_json)
+}
+
+/// 暗号化されたアプリ設定イベントを取得（Amber復号化用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedAppSettingsEvent {
+    pub event_id: String,
+    pub encrypted_content: String,
+    pub created_at: i64,
+}
+
+pub fn fetch_encrypted_app_settings_for_pubkey(
+    public_key_hex: String,
+) -> Result<Option<EncryptedAppSettingsEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        let filter = Filter::new()
+            .kind(Kind::Custom(30078))
+            .author(public_key)
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::D),
+                vec!["meiso-settings".to_string()],
+            );
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        // 最新のイベント（Replaceable eventなので1つだけのはず）
+        if let Some(event) = events.first() {
+            println!("📥 Fetched encrypted app settings event");
+            Ok(Some(EncryptedAppSettingsEvent {
+                event_id: event.id.to_hex(),
+                encrypted_content: event.content.clone(),
+                created_at: event.created_at.as_u64() as i64,
+            }))
+        } else {
+            println!("⚠️ No encrypted app settings event found");
+            Ok(None)
+        }
+    })
+}
+
+// ========================================
+// リレーリスト管理API（NIP-65 Kind 10002）
+// ========================================
+
+/// リレーリストをNostrに保存（Kind 10002 - Relay List Metadata）
+pub fn save_relay_list(relays: Vec<String>) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+
+        client.save_relay_list(relays).await
+    })
+}
+
+/// リレーリストをNostrから同期（Kind 10002）
+pub fn sync_relay_list() -> Result<Vec<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client_guard = NOSTR_CLIENT.lock().await;
+        let client = client_guard
+            .as_ref()
+            .context("Nostrクライアントが初期化されていません")?;
+
+        client.sync_relay_list().await
+    })
 }
 
 // ========================================

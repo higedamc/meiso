@@ -25,6 +25,9 @@ mixin _$SyncStatus {
   /// エラーメッセージ（エラー時のみ）
   String? get errorMessage => throw _privateConstructorUsedError;
 
+  /// 同期中のメッセージ（「データ読み込み中...」「データ移行中...」など）
+  String? get message => throw _privateConstructorUsedError;
+
   /// 同期待ちのアイテム数
   int get pendingItems => throw _privateConstructorUsedError;
 
@@ -49,6 +52,7 @@ abstract class $SyncStatusCopyWith<$Res> {
     SyncState state,
     DateTime? lastSyncTime,
     String? errorMessage,
+    String? message,
     int pendingItems,
     int retryCount,
   });
@@ -72,6 +76,7 @@ class _$SyncStatusCopyWithImpl<$Res, $Val extends SyncStatus>
     Object? state = null,
     Object? lastSyncTime = freezed,
     Object? errorMessage = freezed,
+    Object? message = freezed,
     Object? pendingItems = null,
     Object? retryCount = null,
   }) {
@@ -88,6 +93,10 @@ class _$SyncStatusCopyWithImpl<$Res, $Val extends SyncStatus>
             errorMessage: freezed == errorMessage
                 ? _value.errorMessage
                 : errorMessage // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            message: freezed == message
+                ? _value.message
+                : message // ignore: cast_nullable_to_non_nullable
                       as String?,
             pendingItems: null == pendingItems
                 ? _value.pendingItems
@@ -116,6 +125,7 @@ abstract class _$$SyncStatusImplCopyWith<$Res>
     SyncState state,
     DateTime? lastSyncTime,
     String? errorMessage,
+    String? message,
     int pendingItems,
     int retryCount,
   });
@@ -138,6 +148,7 @@ class __$$SyncStatusImplCopyWithImpl<$Res>
     Object? state = null,
     Object? lastSyncTime = freezed,
     Object? errorMessage = freezed,
+    Object? message = freezed,
     Object? pendingItems = null,
     Object? retryCount = null,
   }) {
@@ -154,6 +165,10 @@ class __$$SyncStatusImplCopyWithImpl<$Res>
         errorMessage: freezed == errorMessage
             ? _value.errorMessage
             : errorMessage // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        message: freezed == message
+            ? _value.message
+            : message // ignore: cast_nullable_to_non_nullable
                   as String?,
         pendingItems: null == pendingItems
             ? _value.pendingItems
@@ -175,6 +190,7 @@ class _$SyncStatusImpl implements _SyncStatus {
     this.state = SyncState.notInitialized,
     this.lastSyncTime,
     this.errorMessage,
+    this.message,
     this.pendingItems = 0,
     this.retryCount = 0,
   });
@@ -191,6 +207,10 @@ class _$SyncStatusImpl implements _SyncStatus {
   @override
   final String? errorMessage;
 
+  /// 同期中のメッセージ（「データ読み込み中...」「データ移行中...」など）
+  @override
+  final String? message;
+
   /// 同期待ちのアイテム数
   @override
   @JsonKey()
@@ -203,7 +223,7 @@ class _$SyncStatusImpl implements _SyncStatus {
 
   @override
   String toString() {
-    return 'SyncStatus(state: $state, lastSyncTime: $lastSyncTime, errorMessage: $errorMessage, pendingItems: $pendingItems, retryCount: $retryCount)';
+    return 'SyncStatus(state: $state, lastSyncTime: $lastSyncTime, errorMessage: $errorMessage, message: $message, pendingItems: $pendingItems, retryCount: $retryCount)';
   }
 
   @override
@@ -216,6 +236,7 @@ class _$SyncStatusImpl implements _SyncStatus {
                 other.lastSyncTime == lastSyncTime) &&
             (identical(other.errorMessage, errorMessage) ||
                 other.errorMessage == errorMessage) &&
+            (identical(other.message, message) || other.message == message) &&
             (identical(other.pendingItems, pendingItems) ||
                 other.pendingItems == pendingItems) &&
             (identical(other.retryCount, retryCount) ||
@@ -228,6 +249,7 @@ class _$SyncStatusImpl implements _SyncStatus {
     state,
     lastSyncTime,
     errorMessage,
+    message,
     pendingItems,
     retryCount,
   );
@@ -246,6 +268,7 @@ abstract class _SyncStatus implements SyncStatus {
     final SyncState state,
     final DateTime? lastSyncTime,
     final String? errorMessage,
+    final String? message,
     final int pendingItems,
     final int retryCount,
   }) = _$SyncStatusImpl;
@@ -260,6 +283,10 @@ abstract class _SyncStatus implements SyncStatus {
   /// エラーメッセージ（エラー時のみ）
   @override
   String? get errorMessage;
+
+  /// 同期中のメッセージ（「データ読み込み中...」「データ移行中...」など）
+  @override
+  String? get message;
 
   /// 同期待ちのアイテム数
   @override

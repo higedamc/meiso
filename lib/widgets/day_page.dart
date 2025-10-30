@@ -60,9 +60,11 @@ class DayPage extends ConsumerWidget {
   Widget _buildHeader(BuildContext context) {
     // ステータスバーの高さを取得
     final statusBarHeight = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
     
     return Container(
-      color: AppTheme.cardColor,
+      color: Theme.of(context).cardTheme.color,
       padding: EdgeInsets.only(
         left: 20,
         right: 12,
@@ -75,20 +77,20 @@ class DayPage extends ConsumerWidget {
           if (date != null)
             Text(
               DateFormat('EEEE, MMMM d', 'en_US').format(date!).toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
+                color: textColor,
                 letterSpacing: 0.5,
               ),
             )
           else
-            const Text(
+            Text(
               'SOMEDAY',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
+                color: textColor,
                 letterSpacing: 0.5,
               ),
             ),
@@ -109,7 +111,7 @@ class DayPage extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.settings_outlined),
               iconSize: 24,
-              color: AppTheme.textPrimary,
+              color: textColor,
               onPressed: onSettingsTap,
               tooltip: '設定',
               padding: const EdgeInsets.all(8),

@@ -141,6 +141,11 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
 
   /// ステータステキスト
   String _getStatusText(SyncStatus status) {
+    // カスタムメッセージがあればそれを優先
+    if (status.message != null && status.message!.isNotEmpty) {
+      return status.message!;
+    }
+    
     switch (status.state) {
       case SyncState.syncing:
         if (status.pendingItems > 0) {

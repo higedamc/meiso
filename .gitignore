@@ -27,11 +27,17 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /build/
 /coverage/
+
+# Flutter Rust Bridge generated files
+lib/bridge_generated.dart/
+rust/bridge_generated.h
+rust/bridge_generated.rs
 
 # Symbolication related
 app.*.symbols
@@ -43,8 +49,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/local.properties
 
 # Rust related
 rust/target/
 rust/Cargo.lock
 rust/target/.rustc_info.json
+
+# External reference projects (not part of main app)
+Amber/

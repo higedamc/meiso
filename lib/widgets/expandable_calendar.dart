@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import '../app_theme.dart';
 
 /// 展開可能なカレンダーウィジェット
 class ExpandableCalendar extends StatelessWidget {
@@ -21,13 +22,13 @@ class ExpandableCalendar extends StatelessWidget {
         heightFactor: isVisible ? 1.0 : 0.0,
         alignment: Alignment.bottomCenter,
         child: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.deepPurple.shade700,
-                Colors.deepPurple.shade900,
+                AppTheme.darkPurple,
+                AppTheme.darkPurple,
               ],
             ),
           ),
@@ -77,17 +78,17 @@ class ExpandableCalendar extends StatelessWidget {
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
-              todayTextStyle: TextStyle(
-                color: Colors.deepPurple.shade700,
+              todayTextStyle: const TextStyle(
+                color: AppTheme.darkPurple,
                 fontWeight: FontWeight.w700,
               ),
               // 選択された日
-              selectedDecoration: BoxDecoration(
+              selectedDecoration: const BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
-              selectedTextStyle: TextStyle(
-                color: Colors.deepPurple.shade700,
+              selectedTextStyle: const TextStyle(
+                color: AppTheme.darkPurple,
                 fontWeight: FontWeight.w700,
               ),
               // 通常の日

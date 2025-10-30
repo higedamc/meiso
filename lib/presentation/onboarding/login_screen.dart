@@ -590,9 +590,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: AppTheme.primaryPurple.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
+                    border: Border.all(color: AppTheme.primaryPurple.withOpacity(0.3)),
                   ),
                   child: SelectableText(
                     keypair.publicKeyNpub,
