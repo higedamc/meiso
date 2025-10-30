@@ -134,6 +134,36 @@ class LocalStorageService {
     }
     await _settingsBox!.delete(_useAmberKey);
   }
+  
+  // === マイグレーション関連 ===
+  
+  static const String _migrationCompletedKey = 'migration_kind30001_completed';
+  
+  /// マイグレーション（Kind 30078 → 30001）が完了しているかチェック
+  Future<bool> isMigrationCompleted() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    return _settingsBox!.get(_migrationCompletedKey, defaultValue: false) as bool;
+  }
+  
+  /// マイグレーション完了フラグをセット
+  Future<void> setMigrationCompleted() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_migrationCompletedKey, true);
+    print('✅ Migration completed flag set');
+  }
+  
+  /// マイグレーション完了フラグをリセット（デバッグ用）
+  Future<void> resetMigrationCompleted() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_migrationCompletedKey);
+    print('🔄 Migration completed flag reset');
+  }
 }
 
 /// LocalStorageServiceのシングルトンインスタンス

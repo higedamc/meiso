@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/todo.dart';
@@ -173,37 +174,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // ローカルストレージに保存
       await _saveAllTodosToLocal();
 
-      // Nostr側に送信（バックグラウンド実行）
+      // Nostr側に全TODOリストを送信（バックグラウンド実行）
       _syncToNostr(() async {
-        final isAmberMode = _ref.read(isAmberModeProvider);
-        final nostrService = _ref.read(nostrServiceProvider);
-        
-        if (isAmberMode) {
-          // Amberモード: 未署名イベント → Amber署名 → リレー送信
-          print('🔐 Creating Todo with Amber signature...');
-          
-          // 1. 未署名イベントを作成
-          final unsignedEvent = await nostrService.createUnsignedTodoEvent(newTodo);
-          print('📝 Unsigned event created');
-          
-          // 2. Amberで署名
-          final amberService = _ref.read(amberServiceProvider);
-          final signedEvent = await amberService.signEventWithTimeout(unsignedEvent);
-          print('✍️ Event signed by Amber');
-          
-          // 3. 署名済みイベントをリレーに送信
-          final eventId = await nostrService.sendSignedEvent(signedEvent);
-          print('📤 Signed event sent to relays: $eventId');
-          
-          // eventIdをTodoに設定して状態を更新
-          _updateTodoEventId(newTodo.id, date, eventId);
-        } else {
-          // 通常モード: 秘密鍵で署名
-          final eventId = await nostrService.createTodoOnNostr(newTodo);
-          
-          // eventIdをTodoに設定して状態を更新
-          _updateTodoEventId(newTodo.id, date, eventId);
-        }
+        await _syncAllTodosToNostr();
       });
     });
   }
@@ -232,7 +205,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       return;
     }
 
-    await state.whenData((todos) async {
+    state.whenData((todos) async {
       final nostrService = _ref.read(nostrServiceProvider);
       int uploadCount = 0;
 
@@ -334,10 +307,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // ローカルストレージに保存
         await _saveAllTodosToLocal();
 
-        // Nostr側に送信（バックグラウンド実行）
+        // Nostr側に全TODOリストを送信（バックグラウンド実行）
         _syncToNostr(() async {
-          final eventId = await _syncTodoWithMode(list[index]);
-          _updateTodoEventId(todo.id, todo.date, eventId);
+          await _syncAllTodosToNostr();
         });
       }
     });
@@ -365,10 +337,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // ローカルストレージに保存
         await _saveAllTodosToLocal();
 
-        // Nostr側に送信（バックグラウンド実行）
+        // Nostr側に全TODOリストを送信（バックグラウンド実行）
         _syncToNostr(() async {
-          final eventId = await _syncTodoWithMode(list[index]);
-          _updateTodoEventId(id, date, eventId);
+          await _syncAllTodosToNostr();
         });
       }
     });
@@ -395,10 +366,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // ローカルストレージに保存
         await _saveAllTodosToLocal();
 
-        // Nostr側に送信（バックグラウンド実行）
+        // Nostr側に全TODOリストを送信（バックグラウンド実行）
         _syncToNostr(() async {
-          final eventId = await _syncTodoWithMode(list[index]);
-          _updateTodoEventId(id, date, eventId);
+          await _syncAllTodosToNostr();
         });
       }
     });
@@ -418,10 +388,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // ローカルストレージに保存
       await _saveAllTodosToLocal();
 
-      // Nostr側に送信（バックグラウンド実行）
+      // Nostr側に全TODOリストを送信（バックグラウンド実行）
+      // 削除後の全TODOリストを送信（Replaceable eventなので古いイベントは自動的に置き換わる）
       _syncToNostr(() async {
-        final nostrService = _ref.read(nostrServiceProvider);
-        await nostrService.deleteTodoOnNostr(id);
+        await _syncAllTodosToNostr();
       });
     });
   }
@@ -458,12 +428,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // ローカルストレージに保存
       await _saveAllTodosToLocal();
 
-      // Nostr側に送信（バックグラウンド実行）
+      // Nostr側に全TODOリストを送信（バックグラウンド実行）
       _syncToNostr(() async {
-        for (final todo in list) {
-          final eventId = await _syncTodoWithMode(todo);
-          _updateTodoEventId(todo.id, date, eventId);
-        }
+        await _syncAllTodosToNostr();
       });
     });
   }
@@ -496,10 +463,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // ローカルストレージに保存
       await _saveAllTodosToLocal();
 
-      // Nostr側に送信（バックグラウンド実行）
+      // Nostr側に全TODOリストを送信（バックグラウンド実行）
       _syncToNostr(() async {
-        final eventId = await _syncTodoWithMode(movedTodo);
-        _updateTodoEventId(movedTodo.id, toDate, eventId);
+        await _syncAllTodosToNostr();
       });
     });
   }
@@ -511,65 +477,114 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     return list.map((t) => t.order).reduce((a, b) => a > b ? a : b) + 1;
   }
 
-  /// Todo同期の共通処理（Amberモード対応・暗号化対応）
-  Future<String> _syncTodoWithMode(Todo todo) async {
-    final isAmberMode = _ref.read(isAmberModeProvider);
-    final nostrService = _ref.read(nostrServiceProvider);
-    
-    if (isAmberMode) {
-      // Amberモード（NIP-44暗号化対応）:
-      // TodoJSON → Amber暗号化 → 未署名暗号化イベント → Amber署名 → リレー送信
-      print('🔐 Amber暗号化モードでTodoを同期します');
-      
-      // 1. TodoをJSONに変換
-      final todoJson = jsonEncode({
-        'id': todo.id,
-        'title': todo.title,
-        'completed': todo.completed,
-        'date': todo.date?.toIso8601String(),
-        'order': todo.order,
-        'createdAt': todo.createdAt.toIso8601String(),
-        'updatedAt': todo.updatedAt.toIso8601String(),
-        'eventId': todo.eventId,
-      });
-      
-      print('📝 Todo JSON (${todoJson.length} bytes): ${todoJson.substring(0, 50.clamp(0, todoJson.length))}...');
-      
-      // 2. 公開鍵を取得（自分自身の公開鍵で暗号化）
-      final publicKey = _ref.read(publicKeyProvider);
-      if (publicKey == null) {
-        throw Exception('公開鍵が設定されていません');
-      }
-      
-      // 3. AmberでNIP-44暗号化
-      final amberService = _ref.read(amberServiceProvider);
-      print('🔐 Amberで暗号化中...');
-      final encryptedContent = await amberService.encryptNip44(todoJson, publicKey);
-      print('✅ 暗号化完了 (${encryptedContent.length} bytes)');
-      
-      // 4. 暗号化済みcontentで未署名イベントを作成
-      final unsignedEvent = await nostrService.createUnsignedEncryptedTodoEvent(
-        todoId: todo.id,
-        encryptedContent: encryptedContent,
-      );
-      print('📄 未署名イベント作成完了');
-      
-      // 5. Amberで署名
-      print('✍️ Amberで署名中...');
-      final signedEvent = await amberService.signEventWithTimeout(unsignedEvent);
-      print('✅ 署名完了');
-      
-      // 6. リレーに送信
-      print('📤 リレーに送信中...');
-      final eventId = await nostrService.sendSignedEvent(signedEvent);
-      print('✅ 送信完了: $eventId');
-      
-      return eventId;
-    } else {
-      // 通常モード: 秘密鍵で署名（Rust側でNIP-44暗号化）
-      return await nostrService.updateTodoOnNostr(todo);
+  /// 全TODOリストをNostrに同期（新実装 - Kind 30001）
+  /// すべてのTodo操作後に呼び出される
+  Future<void> _syncAllTodosToNostr() async {
+    if (!_ref.read(nostrInitializedProvider)) {
+      print('⚠️ Nostr未初期化のため同期をスキップ');
+      return;
     }
+
+    state.whenData((todos) async {
+      // 全TODOをフラット化
+      final allTodos = <Todo>[];
+      for (final dateGroup in todos.values) {
+        allTodos.addAll(dateGroup);
+      }
+
+      final isAmberMode = _ref.read(isAmberModeProvider);
+      final nostrService = _ref.read(nostrServiceProvider);
+
+      try {
+        if (isAmberMode) {
+          // Amberモード: 全TODOリスト → JSON → Amber暗号化 → 未署名イベント → Amber署名 → リレー送信
+          print('🔐 Amberモードで全TODOリストを同期します（バックグラウンド処理）');
+          
+          // 1. 全TODOをJSONに変換
+          final todosJson = jsonEncode(allTodos.map((todo) => {
+            'id': todo.id,
+            'title': todo.title,
+            'completed': todo.completed,
+            'date': todo.date?.toIso8601String(),
+            'order': todo.order,
+            'created_at': todo.createdAt.toIso8601String(),
+            'updated_at': todo.updatedAt.toIso8601String(),
+            'event_id': todo.eventId,
+          }).toList());
+          
+          print('📝 TODOリスト JSON (${todosJson.length} bytes, ${allTodos.length}件)');
+          
+          // 2. 公開鍵取得
+          final publicKey = _ref.read(publicKeyProvider);
+          final npub = _ref.read(nostrPublicKeyProvider);
+          if (publicKey == null || npub == null) {
+            throw Exception('公開鍵が設定されていません');
+          }
+          
+          // 3. AmberでNIP-44暗号化
+          final amberService = _ref.read(amberServiceProvider);
+          print('🔐 Amberで暗号化中（バックグラウンド）...');
+          
+          String encryptedContent;
+          try {
+            // まずContentProvider経由で試す（バックグラウンド処理）
+            encryptedContent = await amberService.encryptNip44WithContentProvider(
+              plaintext: todosJson,
+              pubkey: publicKey,
+              npub: npub,
+            );
+            print('✅ 暗号化完了（バックグラウンド、UIなし） (${encryptedContent.length} bytes)');
+          } on PlatformException catch (e) {
+            // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+            print('⚠️ ContentProvider暗号化失敗 (${e.code}), UI経由で再試行します...');
+            encryptedContent = await amberService.encryptNip44(todosJson, publicKey);
+            print('✅ 暗号化完了（UI経由） (${encryptedContent.length} bytes)');
+          }
+          
+          // 4. 暗号化済みcontentで未署名イベントを作成（Kind 30001）
+          final unsignedEvent = await nostrService.createUnsignedEncryptedTodoListEvent(
+            encryptedContent: encryptedContent,
+          );
+          print('📄 未署名イベント作成完了（Kind 30001）');
+          
+          // 5. Amberで署名
+          print('✍️ Amberで署名中（バックグラウンド）...');
+          
+          String signedEvent;
+          try {
+            // まずContentProvider経由で試す（バックグラウンド）
+            signedEvent = await amberService.signEventWithContentProvider(
+              event: unsignedEvent,
+              npub: npub,
+            );
+            print('✅ 署名完了（バックグラウンド、UIなし）');
+          } on PlatformException catch (e) {
+            // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+            print('⚠️ ContentProvider署名失敗 (${e.code}), UI経由で再試行します...');
+            signedEvent = await amberService.signEventWithTimeout(unsignedEvent);
+            print('✅ 署名完了（UI経由）');
+          }
+          
+          // 6. リレーに送信
+          print('📤 リレーに送信中...');
+          print('🔍 署名済みイベント (最初200文字): ${signedEvent.substring(0, 200.clamp(0, signedEvent.length))}...');
+          final eventId = await nostrService.sendSignedEvent(signedEvent);
+          print('✅ 送信完了: $eventId');
+          print('🎯 Kind 30001イベントID: $eventId');
+          
+        } else {
+          // 通常モード: 秘密鍵で署名（Rust側でNIP-44暗号化）
+          print('🔄 通常モードで全TODOリストを同期します');
+          final eventId = await nostrService.createTodoListOnNostr(allTodos);
+          print('✅ TODOリスト送信完了: $eventId (${allTodos.length}件)');
+        }
+      } catch (e) {
+        print('❌ TODOリスト同期失敗: $e');
+        rethrow;
+      }
+    });
   }
+
 
   /// Nostrへの同期処理（リトライ機能付き）
   /// Amberモード時はAmber署名フローを使用
@@ -639,7 +654,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   /// すべてのTodoをローカルストレージに保存
   Future<void> _saveAllTodosToLocal() async {
-    await state.whenData((todos) async {
+    state.whenData((todos) async {
       final allTodos = <Todo>[];
       
       // すべてのTodoをフラットなリストに変換
@@ -655,27 +670,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     });
   }
 
-  /// TodoにeventIdを設定して状態を更新
-  void _updateTodoEventId(String todoId, DateTime? date, String eventId) {
-    state.whenData((todos) async {
-      final list = List<Todo>.from(todos[date] ?? []);
-      final index = list.indexWhere((t) => t.id == todoId);
 
-      if (index != -1) {
-        list[index] = list[index].copyWith(eventId: eventId);
-        
-        state = AsyncValue.data({
-          ...todos,
-          date: list,
-        });
-
-        // ローカルストレージに保存
-        await _saveAllTodosToLocal();
-      }
-    });
-  }
-
-  /// Nostrからすべてのtodoを同期（Amber暗号化対応）
+  /// Nostrからすべてのtodoを同期（Kind 30001 - Todoリスト全体を取得）
   Future<void> syncFromNostr() async {
     if (!_ref.read(nostrInitializedProvider)) {
       print('⚠️ Nostr未初期化のため同期をスキップ');
@@ -689,83 +685,81 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     try {
       if (isAmberMode) {
-        // Amberモード: 暗号化されたイベントを取得 → Amberで復号化
-        print('🔐 Amberモードで同期します（復号化あり）');
+        // Amberモード: 暗号化されたTodoリストイベント（Kind 30001）を取得 → Amberで復号化
+        print('🔐 Amberモードで同期します（Kind 30001、復号化あり、バックグラウンド処理）');
         
-        final encryptedEvents = await nostrService.fetchEncryptedTodos();
-        print('📥 ${encryptedEvents.length}件の暗号化されたイベントを取得');
+        final encryptedEvent = await nostrService.fetchEncryptedTodoList();
         
-        if (encryptedEvents.isEmpty) {
-          print('⚠️ 暗号化されたイベントが0件です。リレーに接続されているか確認してください。');
+        if (encryptedEvent == null) {
+          print('⚠️ Todoリストイベントが見つかりません（Kind 30001）');
+          _updateStateWithSyncedTodos([]);
+          _ref.read(syncStatusProvider.notifier).syncSuccess();
+          return;
         }
         
-        final List<Todo> syncedTodos = [];
+        print('📥 Todoリストイベントを取得 (Event ID: ${encryptedEvent.eventId})');
+        
         final amberService = _ref.read(amberServiceProvider);
         final publicKey = _ref.read(publicKeyProvider);
+        final npub = _ref.read(nostrPublicKeyProvider);
         
-        if (publicKey == null) {
+        if (publicKey == null || npub == null) {
           throw Exception('公開鍵が設定されていません');
         }
         
         print('🔑 公開鍵: ${publicKey.substring(0, 16)}...');
+        print('🔓 Todoリストを復号化中...');
         
-        // 各イベントを復号化
-        int successCount = 0;
-        int failureCount = 0;
-        
-        for (int i = 0; i < encryptedEvents.length; i++) {
-          final event = encryptedEvents[i];
-          try {
-            print('🔓 [${i + 1}/${encryptedEvents.length}] イベント ${event.eventId.substring(0, 8)}... を復号化中...');
-            print('   暗号化content (最初50文字): ${event.encryptedContent.substring(0, 50.clamp(0, event.encryptedContent.length))}...');
-            
-            // Amberで復号化
-            final decryptedJson = await amberService.decryptNip44(
-              event.encryptedContent,
-              publicKey,
-            );
-            
-            print('   復号化結果 (最初100文字): ${decryptedJson.substring(0, 100.clamp(0, decryptedJson.length))}...');
-            
-            // JSONをパース
-            final todoMap = jsonDecode(decryptedJson) as Map<String, dynamic>;
-            
-            final todo = Todo(
-              id: todoMap['id'] as String,
-              title: todoMap['title'] as String,
-              completed: todoMap['completed'] as bool,
-              date: todoMap['date'] != null 
-                  ? DateTime.parse(todoMap['date'] as String) 
-                  : null,
-              order: todoMap['order'] as int,
-              // JSONのキーはスネークケース（created_at, updated_at）
-              createdAt: DateTime.parse(todoMap['created_at'] as String),
-              updatedAt: DateTime.parse(todoMap['updated_at'] as String),
-              // event_idはJSONにある場合とない場合がある
-              eventId: todoMap['event_id'] as String? ?? event.eventId,
-            );
-            
-            syncedTodos.add(todo);
-            successCount++;
-            print('   ✅ 復号化成功: ${todo.title}');
-          } catch (e, stackTrace) {
-            failureCount++;
-            print('   ⚠️ イベント ${event.eventId.substring(0, 8)}... の復号化に失敗:');
-            print('   エラー: $e');
-            print('   スタックトレース: ${stackTrace.toString().split('\n').take(3).join('\n')}');
-            // 失敗したイベントはスキップして続行
-          }
+        // Amberで復号化
+        String decryptedJson;
+        try {
+          // まずContentProvider経由で試す（バックグラウンド処理）
+          decryptedJson = await amberService.decryptNip44WithContentProvider(
+            ciphertext: encryptedEvent.encryptedContent,
+            pubkey: publicKey,
+            npub: npub,
+          );
+          print('✅ 復号化完了（バックグラウンド、UIなし）');
+        } on PlatformException catch (e) {
+          // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+          print('⚠️ ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...');
+          decryptedJson = await amberService.decryptNip44(
+            encryptedEvent.encryptedContent,
+            publicKey,
+          );
+          print('✅ 復号化完了（UI経由）');
         }
         
-        print('✅ 復号化完了: 成功 $successCount件 / 失敗 $failureCount件 / 合計 ${encryptedEvents.length}件');
+        print('復号化結果 (最初100文字): ${decryptedJson.substring(0, 100.clamp(0, decryptedJson.length))}...');
+        
+        // JSONをパース（Todoリスト配列）
+        final todoList = jsonDecode(decryptedJson) as List<dynamic>;
+        
+        final syncedTodos = todoList.map((todoMap) {
+          final map = todoMap as Map<String, dynamic>;
+          return Todo(
+            id: map['id'] as String,
+            title: map['title'] as String,
+            completed: map['completed'] as bool,
+            date: map['date'] != null 
+                ? DateTime.parse(map['date'] as String) 
+                : null,
+            order: map['order'] as int,
+            createdAt: DateTime.parse(map['created_at'] as String),
+            updatedAt: DateTime.parse(map['updated_at'] as String),
+            eventId: map['event_id'] as String? ?? encryptedEvent.eventId,
+          );
+        }).toList();
+        
+        print('✅ 復号化完了: ${syncedTodos.length}件のTodo');
         
         // 状態を更新
         _updateStateWithSyncedTodos(syncedTodos);
         
       } else {
-        // 通常モード: Rust側で復号化済みのTodoを取得
-        print('🔄 通常モードで同期します');
-        final syncedTodos = await nostrService.syncTodosFromNostr();
+        // 通常モード: Rust側で復号化済みのTodoリストを取得（Kind 30001）
+        print('🔄 通常モードで同期します（Kind 30001）');
+        final syncedTodos = await nostrService.syncTodoListFromNostr();
         print('📥 ${syncedTodos.length}件のTodoを取得しました');
         _updateStateWithSyncedTodos(syncedTodos);
       }
@@ -802,6 +796,166 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // ローカルストレージに保存
     _saveAllTodosToLocal();
   }
+
+  // ========================================
+  // マイグレーション関連
+  // ========================================
+
+  /// Kind 30078 → Kind 30001 へのマイグレーション
+  /// 
+  /// 1. 既存のKind 30078イベントを取得
+  /// 2. Kind 30001形式で再送信
+  /// 3. 古いKind 30078イベントを削除（Kind 5）
+  Future<void> migrateFromKind30078ToKind30001() async {
+    print('🔄 Starting migration from Kind 30078 to Kind 30001...');
+    
+    _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.checking;
+    
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      final isAmberMode = _ref.read(isAmberModeProvider);
+      
+      // 1. 既存のKind 30078イベントを取得
+      print('📥 Fetching existing Kind 30078 events...');
+      
+      List<Todo> oldTodos;
+      if (isAmberMode) {
+        // Amberモード: 暗号化されたKind 30078イベントを取得
+        final encryptedTodos = await nostrService.fetchEncryptedTodos();
+        
+        if (encryptedTodos.isEmpty) {
+          print('✅ No Kind 30078 events found. Migration not needed.');
+          _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.notNeeded;
+          return;
+        }
+        
+        print('📥 Found ${encryptedTodos.length} encrypted Kind 30078 events');
+        
+        // Amberで復号化
+        oldTodos = [];
+        final amberService = _ref.read(amberServiceProvider);
+        final publicKey = _ref.read(publicKeyProvider);
+        
+        if (publicKey == null) {
+          throw Exception('公開鍵が設定されていません');
+        }
+        
+        for (final encryptedTodo in encryptedTodos) {
+          try {
+            final decryptedJson = await amberService.decryptNip44(
+              encryptedTodo.encryptedContent,
+              publicKey,
+            );
+            final todoMap = jsonDecode(decryptedJson) as Map<String, dynamic>;
+            oldTodos.add(Todo(
+              id: todoMap['id'] as String,
+              title: todoMap['title'] as String,
+              completed: todoMap['completed'] as bool,
+              date: todoMap['date'] != null 
+                  ? DateTime.parse(todoMap['date'] as String)
+                  : null,
+              order: todoMap['order'] as int,
+              createdAt: DateTime.parse(todoMap['created_at'] as String),
+              updatedAt: DateTime.parse(todoMap['updated_at'] as String),
+              eventId: encryptedTodo.eventId,
+            ));
+          } catch (e) {
+            print('⚠️ Failed to decrypt/parse event ${encryptedTodo.eventId}: $e');
+          }
+        }
+      } else {
+        // 通常モード: 秘密鍵で復号化
+        oldTodos = await nostrService.syncTodosFromNostr();
+        
+        if (oldTodos.isEmpty) {
+          print('✅ No Kind 30078 events found. Migration not needed.');
+          _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.notNeeded;
+          return;
+        }
+      }
+      
+      print('📦 Found ${oldTodos.length} todos in Kind 30078 format');
+      _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.needed;
+      
+      // 2. Kind 30001形式で再送信
+      _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.inProgress;
+      print('📤 Migrating todos to Kind 30001 format...');
+      
+      // 一時的に状態を更新（UIに反映）
+      final Map<DateTime?, List<Todo>> grouped = {};
+      for (final todo in oldTodos) {
+        grouped[todo.date] ??= [];
+        grouped[todo.date]!.add(todo);
+      }
+      state = AsyncValue.data(grouped);
+      
+      // Kind 30001形式で送信
+      await _syncAllTodosToNostr();
+      
+      print('✅ Migration to Kind 30001 completed');
+      
+      // 3. 古いKind 30078イベントを削除
+      final oldEventIds = oldTodos
+          .map((t) => t.eventId)
+          .where((id) => id != null)
+          .cast<String>()
+          .toList();
+      
+      if (oldEventIds.isNotEmpty) {
+        print('🗑️ Deleting ${oldEventIds.length} old Kind 30078 events...');
+        try {
+          await nostrService.deleteEvents(
+            oldEventIds,
+            reason: 'Migrated to Kind 30001 (NIP-51 Bookmark List)',
+          );
+          print('✅ Old events deleted successfully');
+        } catch (e) {
+          print('⚠️ Failed to delete old events: $e');
+          // 削除失敗してもマイグレーションは成功とみなす
+        }
+      }
+      
+      _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
+      print('🎉 Migration completed successfully!');
+      
+      // マイグレーション完了フラグをローカルに保存
+      await localStorageService.setMigrationCompleted();
+      
+    } catch (e, stackTrace) {
+      _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.failed;
+      print('❌ Migration failed: $e');
+      print('スタックトレース: ${stackTrace.toString().split('\n').take(5).join('\n')}');
+      rethrow;
+    }
+  }
+  
+  /// マイグレーションが必要かチェック
+  Future<bool> checkMigrationNeeded() async {
+    // ローカルストレージでマイグレーション完了済みかチェック
+    final completed = await localStorageService.isMigrationCompleted();
+    if (completed) {
+      print('✅ Migration already completed (cached)');
+      _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
+      return false;
+    }
+    
+    // Kind 30078イベントが存在するかチェック
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      final isAmberMode = _ref.read(isAmberModeProvider);
+      
+      if (isAmberMode) {
+        final encryptedTodos = await nostrService.fetchEncryptedTodos();
+        return encryptedTodos.isNotEmpty;
+      } else {
+        final oldTodos = await nostrService.syncTodosFromNostr();
+        return oldTodos.isNotEmpty;
+      }
+    } catch (e) {
+      print('⚠️ Failed to check migration: $e');
+      return false;
+    }
+  }
 }
 
 /// 特定の日付のTodoリストを取得するProvider
@@ -828,4 +982,23 @@ final todosForDateProvider = Provider.family<List<Todo>, DateTime?>((ref, date) 
     error: (_, __) => [],
   );
 });
+
+// ========================================
+// マイグレーション Provider
+// ========================================
+
+/// マイグレーション状態を管理するProvider
+final migrationStatusProvider = StateProvider<MigrationStatus>((ref) {
+  return MigrationStatus.notStarted;
+});
+
+enum MigrationStatus {
+  notStarted,     // 未実行
+  checking,       // チェック中
+  needed,         // マイグレーションが必要
+  inProgress,     // 実行中
+  completed,      // 完了
+  failed,         // 失敗
+  notNeeded,      // マイグレーション不要（既にKind 30001のみ）
+}
 

@@ -60,7 +60,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 398490655;
+  int get rustContentHash => -407393685;
 
   static const kDefaultExternalLibraryLoaderConfig = ExternalLibraryLoaderConfig(
     stem: 'rust',
@@ -72,6 +72,11 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 abstract class RustLibApi extends BaseApi {
   Future<String> crateApiMeisoNostrClientCreateTodo({required MeisoNostrClient that, required TodoData todo});
 
+  Future<String> crateApiMeisoNostrClientCreateTodoList({
+    required MeisoNostrClient that,
+    required List<TodoData> todos,
+  });
+
   Future<void> crateApiMeisoNostrClientDeleteTodo({required MeisoNostrClient that, required String todoId});
 
   Future<MeisoNostrClient> crateApiMeisoNostrClientNew({required String secretKeyHex, required List<String> relays});
@@ -80,11 +85,15 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiMeisoNostrClientPublicKeyNpub({required MeisoNostrClient that});
 
+  Future<List<TodoData>> crateApiMeisoNostrClientSyncTodoList({required MeisoNostrClient that});
+
   Future<List<TodoData>> crateApiMeisoNostrClientSyncTodos({required MeisoNostrClient that});
 
   Future<String> crateApiMeisoNostrClientUpdateTodo({required MeisoNostrClient that, required TodoData todo});
 
   Future<String> crateApiCreateTodo({required TodoData todo});
+
+  Future<String> crateApiCreateTodoList({required List<TodoData> todos});
 
   Future<String> crateApiCreateUnsignedEncryptedTodoEvent({
     required String todoId,
@@ -92,11 +101,20 @@ abstract class RustLibApi extends BaseApi {
     required String publicKeyHex,
   });
 
+  Future<String> crateApiCreateUnsignedEncryptedTodoListEvent({
+    required String encryptedContent,
+    required String publicKeyHex,
+  });
+
   Future<String> crateApiCreateUnsignedTodoEvent({required TodoData todo, required String publicKeyHex});
+
+  Future<String> crateApiDeleteEvents({required List<String> eventIds, String? reason});
 
   Future<void> crateApiDeleteStoredKeys({required String storagePath});
 
   Future<void> crateApiDeleteTodo({required String todoId});
+
+  Future<EncryptedTodoListEvent?> crateApiFetchEncryptedTodoListForPubkey({required String publicKeyHex});
 
   Future<List<EncryptedTodoEvent>> crateApiFetchEncryptedTodosForPubkey({required String publicKeyHex});
 
@@ -131,6 +149,8 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiSavePublicKey({required String storagePath, required String publicKey});
 
   Future<String> crateApiSendSignedEvent({required String eventJson});
+
+  Future<List<TodoData>> crateApiSyncTodoList();
 
   Future<List<TodoData>> crateApiSyncTodos();
 
@@ -178,6 +198,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "MeisoNostrClient_create_todo", argNames: ["that", "todo"]);
 
   @override
+  Future<String> crateApiMeisoNostrClientCreateTodoList({
+    required MeisoNostrClient that,
+    required List<TodoData> todos,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+            that,
+            serializer,
+          );
+          sse_encode_list_todo_data(todos, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiMeisoNostrClientCreateTodoListConstMeta,
+        argValues: [that, todos],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientCreateTodoListConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_create_todo_list", argNames: ["that", "todos"]);
+
+  @override
   Future<void> crateApiMeisoNostrClientDeleteTodo({required MeisoNostrClient that, required String todoId}) {
     return handler.executeNormal(
       NormalTask(
@@ -188,7 +235,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_String(todoId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientDeleteTodoConstMeta,
@@ -209,7 +256,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(secretKeyHex, serializer);
           sse_encode_list_String(relays, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4, port: port_);
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -236,7 +283,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
         constMeta: kCrateApiMeisoNostrClientPublicKeyHexConstMeta,
@@ -259,7 +306,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
         constMeta: kCrateApiMeisoNostrClientPublicKeyNpubConstMeta,
@@ -273,6 +320,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "MeisoNostrClient_public_key_npub", argNames: ["that"]);
 
   @override
+  Future<List<TodoData>> crateApiMeisoNostrClientSyncTodoList({required MeisoNostrClient that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient(
+            that,
+            serializer,
+          );
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiMeisoNostrClientSyncTodoListConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMeisoNostrClientSyncTodoListConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_sync_todo_list", argNames: ["that"]);
+
+  @override
   Future<List<TodoData>> crateApiMeisoNostrClientSyncTodos({required MeisoNostrClient that}) {
     return handler.executeNormal(
       NormalTask(
@@ -282,7 +352,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientSyncTodosConstMeta,
@@ -306,7 +376,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_box_autoadd_todo_data(todo, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientUpdateTodoConstMeta,
@@ -326,7 +396,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_todo_data(todo, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateTodoConstMeta,
@@ -337,6 +407,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiCreateTodoConstMeta => const TaskConstMeta(debugName: "create_todo", argNames: ["todo"]);
+
+  @override
+  Future<String> crateApiCreateTodoList({required List<TodoData> todos}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_todo_data(todos, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiCreateTodoListConstMeta,
+        argValues: [todos],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCreateTodoListConstMeta =>
+      const TaskConstMeta(debugName: "create_todo_list", argNames: ["todos"]);
 
   @override
   Future<String> crateApiCreateUnsignedEncryptedTodoEvent({
@@ -351,7 +441,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(todoId, serializer);
           sse_encode_String(encryptedContent, serializer);
           sse_encode_String(publicKeyHex, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedEncryptedTodoEventConstMeta,
@@ -367,6 +457,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<String> crateApiCreateUnsignedEncryptedTodoListEvent({
+    required String encryptedContent,
+    required String publicKeyHex,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(encryptedContent, serializer);
+          sse_encode_String(publicKeyHex, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiCreateUnsignedEncryptedTodoListEventConstMeta,
+        argValues: [encryptedContent, publicKeyHex],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCreateUnsignedEncryptedTodoListEventConstMeta => const TaskConstMeta(
+    debugName: "create_unsigned_encrypted_todo_list_event",
+    argNames: ["encryptedContent", "publicKeyHex"],
+  );
+
+  @override
   Future<String> crateApiCreateUnsignedTodoEvent({required TodoData todo, required String publicKeyHex}) {
     return handler.executeNormal(
       NormalTask(
@@ -374,7 +490,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_todo_data(todo, serializer);
           sse_encode_String(publicKeyHex, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedTodoEventConstMeta,
@@ -388,13 +504,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "create_unsigned_todo_event", argNames: ["todo", "publicKeyHex"]);
 
   @override
+  Future<String> crateApiDeleteEvents({required List<String> eventIds, String? reason}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_String(eventIds, serializer);
+          sse_encode_opt_String(reason, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiDeleteEventsConstMeta,
+        argValues: [eventIds, reason],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeleteEventsConstMeta =>
+      const TaskConstMeta(debugName: "delete_events", argNames: ["eventIds", "reason"]);
+
+  @override
   Future<void> crateApiDeleteStoredKeys({required String storagePath}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(storagePath, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiDeleteStoredKeysConstMeta,
@@ -414,7 +551,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(todoId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiDeleteTodoConstMeta,
@@ -427,13 +564,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiDeleteTodoConstMeta => const TaskConstMeta(debugName: "delete_todo", argNames: ["todoId"]);
 
   @override
+  Future<EncryptedTodoListEvent?> crateApiFetchEncryptedTodoListForPubkey({required String publicKeyHex}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(publicKeyHex, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18, port: port_);
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_encrypted_todo_list_event,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiFetchEncryptedTodoListForPubkeyConstMeta,
+        argValues: [publicKeyHex],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiFetchEncryptedTodoListForPubkeyConstMeta =>
+      const TaskConstMeta(debugName: "fetch_encrypted_todo_list_for_pubkey", argNames: ["publicKeyHex"]);
+
+  @override
   Future<List<EncryptedTodoEvent>> crateApiFetchEncryptedTodosForPubkey({required String publicKeyHex}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(publicKeyHex, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19, port: port_);
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_encrypted_todo_event,
@@ -455,7 +615,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_key_pair, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiGenerateKeypairConstMeta,
@@ -474,7 +634,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
         constMeta: kCrateApiGenerateSecretKeyConstMeta,
@@ -493,7 +653,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiGetPublicKeyNpubConstMeta,
@@ -513,7 +673,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(storagePath, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: null),
         constMeta: kCrateApiHasEncryptedKeyConstMeta,
@@ -533,7 +693,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(storagePath, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: null),
         constMeta: kCrateApiHasPublicKeyConstMeta,
@@ -553,7 +713,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(hex, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiHexToNpubConstMeta,
@@ -573,7 +733,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(secretKeyHex, serializer);
           sse_encode_list_String(relays, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientConstMeta,
@@ -594,7 +754,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(publicKeyHex, serializer);
           sse_encode_list_String(relays, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientWithPubkeyConstMeta,
@@ -615,7 +775,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(storagePath, serializer);
           sse_encode_String(password, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiLoadEncryptedSecretKeyConstMeta,
@@ -635,7 +795,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(storagePath, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_opt_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiLoadPublicKeyConstMeta,
@@ -655,7 +815,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(npub, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiNpubToHexConstMeta,
@@ -680,7 +840,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(storagePath, serializer);
           sse_encode_String(secretKey, serializer);
           sse_encode_String(password, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSaveEncryptedSecretKeyConstMeta,
@@ -701,7 +861,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(storagePath, serializer);
           sse_encode_String(publicKey, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSavePublicKeyConstMeta,
@@ -721,7 +881,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(eventJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSendSignedEventConstMeta,
@@ -735,12 +895,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "send_signed_event", argNames: ["eventJson"]);
 
   @override
+  Future<List<TodoData>> crateApiSyncTodoList() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiSyncTodoListConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSyncTodoListConstMeta => const TaskConstMeta(debugName: "sync_todo_list", argNames: []);
+
+  @override
   Future<List<TodoData>> crateApiSyncTodos() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncTodosConstMeta,
@@ -759,7 +937,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_todo_data(todo, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiUpdateTodoConstMeta,
@@ -778,7 +956,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(eventJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiVerifyAmberSignatureConstMeta,
@@ -840,6 +1018,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EncryptedTodoListEvent dco_decode_box_autoadd_encrypted_todo_list_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_encrypted_todo_list_event(raw);
+  }
+
+  @protected
   TodoData dco_decode_box_autoadd_todo_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_todo_data(raw);
@@ -855,6 +1039,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       encryptedContent: dco_decode_String(arr[1]),
       createdAt: dco_decode_i_64(arr[2]),
       dTag: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  EncryptedTodoListEvent dco_decode_encrypted_todo_list_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3) throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return EncryptedTodoListEvent(
+      eventId: dco_decode_String(arr[0]),
+      encryptedContent: dco_decode_String(arr[1]),
+      createdAt: dco_decode_i_64(arr[2]),
     );
   }
 
@@ -911,6 +1107,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  EncryptedTodoListEvent? dco_decode_opt_box_autoadd_encrypted_todo_list_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_encrypted_todo_list_event(raw);
   }
 
   @protected
@@ -993,6 +1195,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EncryptedTodoListEvent sse_decode_box_autoadd_encrypted_todo_list_event(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_encrypted_todo_list_event(deserializer));
+  }
+
+  @protected
   TodoData sse_decode_box_autoadd_todo_data(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_todo_data(deserializer));
@@ -1010,6 +1218,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       encryptedContent: var_encryptedContent,
       createdAt: var_createdAt,
       dTag: var_dTag,
+    );
+  }
+
+  @protected
+  EncryptedTodoListEvent sse_decode_encrypted_todo_list_event(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_eventId = sse_decode_String(deserializer);
+    var var_encryptedContent = sse_decode_String(deserializer);
+    var var_createdAt = sse_decode_i_64(deserializer);
+    return EncryptedTodoListEvent(
+      eventId: var_eventId,
+      encryptedContent: var_encryptedContent,
+      createdAt: var_createdAt,
     );
   }
 
@@ -1089,6 +1310,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  EncryptedTodoListEvent? sse_decode_opt_box_autoadd_encrypted_todo_list_event(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_encrypted_todo_list_event(deserializer));
     } else {
       return null;
     }
@@ -1180,6 +1412,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_encrypted_todo_list_event(EncryptedTodoListEvent self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_encrypted_todo_list_event(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_todo_data(TodoData self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_todo_data(self, serializer);
@@ -1192,6 +1430,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.encryptedContent, serializer);
     sse_encode_i_64(self.createdAt, serializer);
     sse_encode_String(self.dTag, serializer);
+  }
+
+  @protected
+  void sse_encode_encrypted_todo_list_event(EncryptedTodoListEvent self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.eventId, serializer);
+    sse_encode_String(self.encryptedContent, serializer);
+    sse_encode_i_64(self.createdAt, serializer);
   }
 
   @protected
@@ -1260,6 +1506,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_encrypted_todo_list_event(EncryptedTodoListEvent? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_encrypted_todo_list_event(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_todo_data(TodoData self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
@@ -1305,9 +1561,14 @@ class MeisoNostrClientImpl extends RustOpaque implements MeisoNostrClient {
     rustArcDecrementStrongCountPtr: RustLib.instance.api.rust_arc_decrement_strong_count_MeisoNostrClientPtr,
   );
 
-  /// TodoをNostrイベントとして作成
+  /// TodoをNostrイベントとして作成（旧実装 - 後方互換性のため残す）
   Future<String> createTodo({required TodoData todo}) =>
       RustLib.instance.api.crateApiMeisoNostrClientCreateTodo(that: this, todo: todo);
+
+  /// TodoリストをNostrイベントとして作成（Kind 30001 - NIP-51 Bookmark List）
+  /// 全TODOを1つのイベントとして管理
+  Future<String> createTodoList({required List<TodoData> todos}) =>
+      RustLib.instance.api.crateApiMeisoNostrClientCreateTodoList(that: this, todos: todos);
 
   /// Todoを削除（削除イベント送信）
   Future<void> deleteTodo({required String todoId}) =>
@@ -1319,7 +1580,10 @@ class MeisoNostrClientImpl extends RustOpaque implements MeisoNostrClient {
   /// 公開鍵を取得（npub形式）
   Future<String> publicKeyNpub() => RustLib.instance.api.crateApiMeisoNostrClientPublicKeyNpub(that: this);
 
-  /// 全てのTodoを同期（リレーから取得）
+  /// TodoリストをNostrから同期（Kind 30001）
+  Future<List<TodoData>> syncTodoList() => RustLib.instance.api.crateApiMeisoNostrClientSyncTodoList(that: this);
+
+  /// 全てのTodoを同期（リレーから取得）- 旧実装（Kind 30078）
   Future<List<TodoData>> syncTodos() => RustLib.instance.api.crateApiMeisoNostrClientSyncTodos(that: this);
 
   /// Todoを更新（既存イベントを置き換え）

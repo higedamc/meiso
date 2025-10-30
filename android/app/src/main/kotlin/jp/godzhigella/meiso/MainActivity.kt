@@ -247,6 +247,156 @@ class MainActivity : FlutterActivity() {
                         result.error("LAUNCH_ERROR", "Failed to open Play Store: ${e.message}", null)
                     }
                 }
+                "signEventWithAmberContentProvider" -> {
+                    // ContentProvider経由でAmberにイベント署名を依頼（バックグラウンド処理）
+                    val eventJson = call.argument<String>("event")
+                    val npub = call.argument<String>("npub")
+                    
+                    if (eventJson == null || npub == null) {
+                        result.error("INVALID_ARGUMENT", "event and npub parameters are required", null)
+                        return@setMethodCallHandler
+                    }
+                    
+                    try {
+                        val uri = android.net.Uri.parse("content://com.greenart7c3.nostrsigner.SIGN_EVENT")
+                        val cursor = contentResolver.query(
+                            uri,
+                            arrayOf(eventJson, "", npub),  // projection: [event, pubkey, npub]
+                            null,  // selection
+                            null,  // selectionArgs
+                            null   // sortOrder
+                        )
+                        
+                        if (cursor != null && cursor.moveToFirst()) {
+                            val rejectedIndex = cursor.getColumnIndex("rejected")
+                            if (rejectedIndex >= 0) {
+                                val rejected = cursor.getString(rejectedIndex)
+                                cursor.close()
+                                result.error("AMBER_REJECTED", "Permission not granted. User needs to approve in Amber.", null)
+                                return@setMethodCallHandler
+                            }
+                            
+                            val signatureIndex = cursor.getColumnIndex("signature")
+                            val eventIndex = cursor.getColumnIndex("event")
+                            
+                            val signature = if (signatureIndex >= 0) cursor.getString(signatureIndex) else null
+                            val signedEvent = if (eventIndex >= 0) cursor.getString(eventIndex) else null
+                            
+                            cursor.close()
+                            
+                            if (signedEvent != null) {
+                                android.util.Log.d("MainActivity", "✅ Event signed via ContentProvider (background)")
+                                result.success(signedEvent)
+                            } else if (signature != null) {
+                                android.util.Log.d("MainActivity", "✅ Signature obtained via ContentProvider (background)")
+                                result.success(signature)
+                            } else {
+                                result.error("AMBER_ERROR", "No valid response from Amber", null)
+                            }
+                        } else {
+                            result.error("AMBER_ERROR", "No response from Amber ContentProvider", null)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "Failed to sign event via ContentProvider", e)
+                        result.error("AMBER_ERROR", "Failed to sign event: ${e.message}", null)
+                    }
+                }
+                "encryptNip44WithAmberContentProvider" -> {
+                    // ContentProvider経由でAmberにNIP-44暗号化を依頼（バックグラウンド処理）
+                    val plaintext = call.argument<String>("plaintext")
+                    val pubkey = call.argument<String>("pubkey")
+                    val npub = call.argument<String>("npub")
+                    
+                    if (plaintext == null || pubkey == null || npub == null) {
+                        result.error("INVALID_ARGUMENT", "plaintext, pubkey, and npub parameters are required", null)
+                        return@setMethodCallHandler
+                    }
+                    
+                    try {
+                        val uri = android.net.Uri.parse("content://com.greenart7c3.nostrsigner.NIP44_ENCRYPT")
+                        val cursor = contentResolver.query(
+                            uri,
+                            arrayOf(plaintext, pubkey, npub),  // projection: [content, pubkey, npub]
+                            null,
+                            null,
+                            null
+                        )
+                        
+                        if (cursor != null && cursor.moveToFirst()) {
+                            val rejectedIndex = cursor.getColumnIndex("rejected")
+                            if (rejectedIndex >= 0) {
+                                cursor.close()
+                                result.error("AMBER_REJECTED", "Permission not granted. User needs to approve in Amber.", null)
+                                return@setMethodCallHandler
+                            }
+                            
+                            val resultIndex = cursor.getColumnIndex("result")
+                            val encryptedContent = if (resultIndex >= 0) cursor.getString(resultIndex) else null
+                            
+                            cursor.close()
+                            
+                            if (encryptedContent != null) {
+                                android.util.Log.d("MainActivity", "✅ Content encrypted via ContentProvider (background)")
+                                result.success(encryptedContent)
+                            } else {
+                                result.error("AMBER_ERROR", "No valid response from Amber", null)
+                            }
+                        } else {
+                            result.error("AMBER_ERROR", "No response from Amber ContentProvider", null)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "Failed to encrypt via ContentProvider", e)
+                        result.error("AMBER_ERROR", "Failed to encrypt: ${e.message}", null)
+                    }
+                }
+                "decryptNip44WithAmberContentProvider" -> {
+                    // ContentProvider経由でAmberにNIP-44復号化を依頼（バックグラウンド処理）
+                    val ciphertext = call.argument<String>("ciphertext")
+                    val pubkey = call.argument<String>("pubkey")
+                    val npub = call.argument<String>("npub")
+                    
+                    if (ciphertext == null || pubkey == null || npub == null) {
+                        result.error("INVALID_ARGUMENT", "ciphertext, pubkey, and npub parameters are required", null)
+                        return@setMethodCallHandler
+                    }
+                    
+                    try {
+                        val uri = android.net.Uri.parse("content://com.greenart7c3.nostrsigner.NIP44_DECRYPT")
+                        val cursor = contentResolver.query(
+                            uri,
+                            arrayOf(ciphertext, pubkey, npub),  // projection: [content, pubkey, npub]
+                            null,
+                            null,
+                            null
+                        )
+                        
+                        if (cursor != null && cursor.moveToFirst()) {
+                            val rejectedIndex = cursor.getColumnIndex("rejected")
+                            if (rejectedIndex >= 0) {
+                                cursor.close()
+                                result.error("AMBER_REJECTED", "Permission not granted. User needs to approve in Amber.", null)
+                                return@setMethodCallHandler
+                            }
+                            
+                            val resultIndex = cursor.getColumnIndex("result")
+                            val decryptedContent = if (resultIndex >= 0) cursor.getString(resultIndex) else null
+                            
+                            cursor.close()
+                            
+                            if (decryptedContent != null) {
+                                android.util.Log.d("MainActivity", "✅ Content decrypted via ContentProvider (background)")
+                                result.success(decryptedContent)
+                            } else {
+                                result.error("AMBER_ERROR", "No valid response from Amber", null)
+                            }
+                        } else {
+                            result.error("AMBER_ERROR", "No response from Amber ContentProvider", null)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "Failed to decrypt via ContentProvider", e)
+                        result.error("AMBER_ERROR", "Failed to decrypt: ${e.message}", null)
+                    }
+                }
                 else -> {
                     result.notImplemented()
                 }

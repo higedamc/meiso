@@ -407,5 +407,112 @@ class AmberService {
       rethrow;
     }
   }
+
+  // ==================== ContentProvider経由のバックグラウンド処理 ====================
+  // これらのメソッドはAmberのパーミッションが「常に許可」に設定されている場合、
+  // UIを一切表示せずにバックグラウンドで処理を行います。
+  
+  /// ContentProvider経由でAmberにイベント署名を依頼（バックグラウンド処理）
+  /// 
+  /// パーミッションが未承認の場合は`PlatformException`（code: 'AMBER_REJECTED'）をスロー
+  Future<String> signEventWithContentProvider({
+    required String event,
+    required String npub,
+  }) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    try {
+      print('✍️ Signing event via ContentProvider (background)...');
+      final String signedEvent = await _channel.invokeMethod(
+        'signEventWithAmberContentProvider',
+        {
+          'event': event,
+          'npub': npub,
+        },
+      );
+      
+      print('✅ Event signed via ContentProvider (no UI shown)');
+      return signedEvent;
+    } on PlatformException catch (e) {
+      if (e.code == 'AMBER_REJECTED') {
+        print('⚠️ Permission not granted - need to show UI for approval');
+        rethrow;
+      }
+      print('❌ Failed to sign event via ContentProvider: ${e.code} - ${e.message}');
+      rethrow;
+    }
+  }
+
+  /// ContentProvider経由でAmberにNIP-44暗号化を依頼（バックグラウンド処理）
+  /// 
+  /// パーミッションが未承認の場合は`PlatformException`（code: 'AMBER_REJECTED'）をスロー
+  Future<String> encryptNip44WithContentProvider({
+    required String plaintext,
+    required String pubkey,
+    required String npub,
+  }) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    try {
+      print('🔐 Encrypting via ContentProvider (background)...');
+      final String encrypted = await _channel.invokeMethod(
+        'encryptNip44WithAmberContentProvider',
+        {
+          'plaintext': plaintext,
+          'pubkey': pubkey,
+          'npub': npub,
+        },
+      );
+      
+      print('✅ Content encrypted via ContentProvider (no UI shown)');
+      return encrypted;
+    } on PlatformException catch (e) {
+      if (e.code == 'AMBER_REJECTED') {
+        print('⚠️ Permission not granted - need to show UI for approval');
+        rethrow;
+      }
+      print('❌ Failed to encrypt via ContentProvider: ${e.code} - ${e.message}');
+      rethrow;
+    }
+  }
+
+  /// ContentProvider経由でAmberにNIP-44復号化を依頼（バックグラウンド処理）
+  /// 
+  /// パーミッションが未承認の場合は`PlatformException`（code: 'AMBER_REJECTED'）をスロー
+  Future<String> decryptNip44WithContentProvider({
+    required String ciphertext,
+    required String pubkey,
+    required String npub,
+  }) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Amber is only available on Android');
+    }
+
+    try {
+      print('🔓 Decrypting via ContentProvider (background)...');
+      final String decrypted = await _channel.invokeMethod(
+        'decryptNip44WithAmberContentProvider',
+        {
+          'ciphertext': ciphertext,
+          'pubkey': pubkey,
+          'npub': npub,
+        },
+      );
+      
+      print('✅ Content decrypted via ContentProvider (no UI shown)');
+      return decrypted;
+    } on PlatformException catch (e) {
+      if (e.code == 'AMBER_REJECTED') {
+        print('⚠️ Permission not granted - need to show UI for approval');
+        rethrow;
+      }
+      print('❌ Failed to decrypt via ContentProvider: ${e.code} - ${e.message}');
+      rethrow;
+    }
+  }
 }
 

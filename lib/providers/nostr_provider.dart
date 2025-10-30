@@ -242,7 +242,43 @@ class NostrService {
     return await rust_api.deleteTodo(todoId: todoId);
   }
 
-  /// NostrからTodoを同期
+  /// TodoリストをNostrに作成（Kind 30001 - 新実装）
+  Future<String> createTodoListOnNostr(List<Todo> todos) async {
+    final todoDataList = todos.map((todo) {
+      return rust_api.TodoData(
+        id: todo.id,
+        title: todo.title,
+        completed: todo.completed,
+        date: todo.date?.toIso8601String(),
+        order: todo.order,
+        createdAt: todo.createdAt.toIso8601String(),
+        updatedAt: todo.updatedAt.toIso8601String(),
+        eventId: todo.eventId,
+      );
+    }).toList();
+
+    return await rust_api.createTodoList(todos: todoDataList);
+  }
+
+  /// NostrからTodoリストを同期（Kind 30001 - 新実装）
+  Future<List<Todo>> syncTodoListFromNostr() async {
+    final todoDataList = await rust_api.syncTodoList();
+
+    return todoDataList.map((todoData) {
+      return Todo(
+        id: todoData.id,
+        title: todoData.title,
+        completed: todoData.completed,
+        date: todoData.date != null ? DateTime.parse(todoData.date!) : null,
+        order: todoData.order,
+        createdAt: DateTime.parse(todoData.createdAt),
+        updatedAt: DateTime.parse(todoData.updatedAt),
+        eventId: todoData.eventId,
+      );
+    }).toList();
+  }
+
+  /// NostrからTodoを同期（旧実装 - Kind 30078）
   Future<List<Todo>> syncTodosFromNostr() async {
     final todoDataList = await rust_api.syncTodos();
 
@@ -312,7 +348,35 @@ class NostrService {
     );
   }
 
-  /// Amberモード: 暗号化されたTodoイベントを取得（復号化はAmber側で行う）
+  /// Amberモード: 暗号化済みcontentで未署名TodoリストイベントKind 30001を作成
+  Future<String> createUnsignedEncryptedTodoListEvent({
+    required String encryptedContent,
+  }) async {
+    final publicKey = _ref.read(publicKeyProvider);
+    if (publicKey == null) {
+      throw Exception('公開鍵が設定されていません');
+    }
+
+    // Rust側で未署名イベントを作成
+    return await rust_api.createUnsignedEncryptedTodoListEvent(
+      encryptedContent: encryptedContent,
+      publicKeyHex: publicKey,
+    );
+  }
+
+  /// Amberモード: 暗号化されたTodoリストイベント（Kind 30001）を取得
+  Future<rust_api.EncryptedTodoListEvent?> fetchEncryptedTodoList() async {
+    final publicKey = _ref.read(publicKeyProvider);
+    if (publicKey == null) {
+      throw Exception('公開鍵が設定されていません');
+    }
+
+    return await rust_api.fetchEncryptedTodoListForPubkey(
+      publicKeyHex: publicKey,
+    );
+  }
+
+  /// Amberモード: 暗号化されたTodoイベントを取得（復号化はAmber側で行う）- 旧実装
   Future<List<rust_api.EncryptedTodoEvent>> fetchEncryptedTodos() async {
     final publicKey = _ref.read(publicKeyProvider);
     if (publicKey == null) {
@@ -332,5 +396,17 @@ class NostrService {
   /// hex形式の公開鍵をnpub形式に変換
   Future<String> hexToNpub(String hex) async {
     return await rust_api.hexToNpub(hex: hex);
+  }
+
+  // ========================================
+  // マイグレーション関連API
+  // ========================================
+
+  /// 指定したイベントIDのリストを削除（Kind 5削除イベントを送信）
+  Future<String> deleteEvents(List<String> eventIds, {String? reason}) async {
+    return await rust_api.deleteEvents(
+      eventIds: eventIds,
+      reason: reason,
+    );
   }
 }

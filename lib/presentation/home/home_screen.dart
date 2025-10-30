@@ -12,24 +12,99 @@ import '../settings/settings_screen.dart';
 
 /// Meisoのメイン画面
 /// 1日分を全画面表示し、スワイプで日付移動
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   late PageController _pageController;
   late PageController _somedayPageController;
   int _currentPageIndex = 7; // 初期値は今日（過去7日分があるので）
   bool _showingSomeday = false;
+  bool _migrationChecked = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentPageIndex);
     _somedayPageController = PageController();
+    
+    // 次のフレームでマイグレーションをチェック
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndRunMigration();
+    });
+  }
+  
+  /// マイグレーションが必要かチェックし、必要なら実行
+  Future<void> _checkAndRunMigration() async {
+    if (_migrationChecked) return;
+    _migrationChecked = true;
+    
+    try {
+      print('🔍 Checking migration status...');
+      final todosNotifier = ref.read(todosProvider.notifier);
+      final needsMigration = await todosNotifier.checkMigrationNeeded();
+      
+      if (needsMigration) {
+        print('🔄 Migration needed, starting...');
+        if (mounted) {
+          _showMigrationDialog();
+        }
+        await todosNotifier.migrateFromKind30078ToKind30001();
+        if (mounted) {
+          Navigator.of(context).pop(); // ダイアログを閉じる
+          _showMigrationSuccessSnackBar();
+        }
+      } else {
+        print('✅ Migration not needed or already completed');
+      }
+    } catch (e) {
+      print('❌ Migration check/execution failed: $e');
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+        _showMigrationErrorSnackBar(e.toString());
+      }
+    }
+  }
+  
+  void _showMigrationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        title: Text('データ移行中'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('TODOデータを新しい形式に移行しています...\nしばらくお待ちください。'),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _showMigrationSuccessSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('✅ データ移行が完了しました'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+  
+  void _showMigrationErrorSnackBar(String error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('❌ データ移行に失敗しました: $error'),
+        duration: const Duration(seconds: 5),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 
   @override
@@ -46,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _jumpToToday(WidgetRef ref, List<DateTime> dates) {
+  void _jumpToToday(List<DateTime> dates) {
     // カレンダーの表示/非表示をトグル
     final isVisible = ref.read(calendarVisibleProvider);
     ref.read(calendarVisibleProvider.notifier).state = !isVisible;
@@ -93,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _onCalendarDaySelected(WidgetRef ref, List<DateTime> dates, DateTime selectedDay) {
+  void _onCalendarDaySelected(List<DateTime> dates, DateTime selectedDay) {
     // カレンダーを閉じる
     ref.read(calendarVisibleProvider.notifier).state = false;
 
@@ -190,12 +265,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ExpandableCalendar(
                   isVisible: isCalendarVisible,
                   onDaySelected: (selectedDay) => 
-                      _onCalendarDaySelected(ref, dates, selectedDay),
+                      _onCalendarDaySelected(dates, selectedDay),
                 ),
 
                 // 底部ナビゲーション
                 BottomNavigation(
-                  onTodayTap: () => _jumpToToday(ref, dates),
+                  onTodayTap: () => _jumpToToday(dates),
                   onAddTap: () => _showAddTodoDialog(context, ref),
                   onSomedayTap: _showSomeday,
                   onSomedayLongPress: _openSettings,

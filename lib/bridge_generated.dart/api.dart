@@ -6,7 +6,7 @@
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Nostrクライアントを初期化（hex公開鍵を返す）
 Future<String> initNostrClient({required String secretKeyHex, required List<String> relays}) =>
@@ -29,7 +29,14 @@ Future<String> updateTodo({required TodoData todo}) => RustLib.instance.api.crat
 /// Todoを削除
 Future<void> deleteTodo({required String todoId}) => RustLib.instance.api.crateApiDeleteTodo(todoId: todoId);
 
-/// 全Todoを同期
+/// 全Todoを同期（Kind 30001 - 新実装）
+Future<List<TodoData>> syncTodoList() => RustLib.instance.api.crateApiSyncTodoList();
+
+/// Todoリストを作成（Kind 30001）
+Future<String> createTodoList({required List<TodoData> todos}) =>
+    RustLib.instance.api.crateApiCreateTodoList(todos: todos);
+
+/// 全Todoを同期（旧実装 - Kind 30078）
 Future<List<TodoData>> syncTodos() => RustLib.instance.api.crateApiSyncTodos();
 
 /// 秘密鍵を暗号化して保存（パスワードベース）
@@ -85,7 +92,14 @@ Future<String> createUnsignedTodoEvent({required TodoData todo, required String 
 Future<String> sendSignedEvent({required String eventJson}) =>
     RustLib.instance.api.crateApiSendSignedEvent(eventJson: eventJson);
 
-/// 暗号化済みcontentで未署名Todoイベントを作成（Amber暗号化済み用）
+/// 暗号化済みcontentで未署名Todoリストイベントを作成（Kind 30001 - Amber暗号化済み用）
+Future<String> createUnsignedEncryptedTodoListEvent({required String encryptedContent, required String publicKeyHex}) =>
+    RustLib.instance.api.crateApiCreateUnsignedEncryptedTodoListEvent(
+      encryptedContent: encryptedContent,
+      publicKeyHex: publicKeyHex,
+    );
+
+/// 暗号化済みcontentで未署名Todoイベントを作成（Amber暗号化済み用 - 旧実装）
 Future<String> createUnsignedEncryptedTodoEvent({
   required String todoId,
   required String encryptedContent,
@@ -96,6 +110,9 @@ Future<String> createUnsignedEncryptedTodoEvent({
   publicKeyHex: publicKeyHex,
 );
 
+Future<EncryptedTodoListEvent?> fetchEncryptedTodoListForPubkey({required String publicKeyHex}) =>
+    RustLib.instance.api.crateApiFetchEncryptedTodoListForPubkey(publicKeyHex: publicKeyHex);
+
 Future<List<EncryptedTodoEvent>> fetchEncryptedTodosForPubkey({required String publicKeyHex}) =>
     RustLib.instance.api.crateApiFetchEncryptedTodosForPubkey(publicKeyHex: publicKeyHex);
 
@@ -105,10 +122,18 @@ Future<String> npubToHex({required String npub}) => RustLib.instance.api.crateAp
 /// hex形式の公開鍵をnpub形式に変換
 Future<String> hexToNpub({required String hex}) => RustLib.instance.api.crateApiHexToNpub(hex: hex);
 
+/// 指定したイベントIDのリストを削除（Kind 5削除イベントを送信）
+Future<String> deleteEvents({required List<String> eventIds, String? reason}) =>
+    RustLib.instance.api.crateApiDeleteEvents(eventIds: eventIds, reason: reason);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MeisoNostrClient>>
 abstract class MeisoNostrClient implements RustOpaqueInterface {
-  /// TodoをNostrイベントとして作成
+  /// TodoをNostrイベントとして作成（旧実装 - 後方互換性のため残す）
   Future<String> createTodo({required TodoData todo});
+
+  /// TodoリストをNostrイベントとして作成（Kind 30001 - NIP-51 Bookmark List）
+  /// 全TODOを1つのイベントとして管理
+  Future<String> createTodoList({required List<TodoData> todos});
 
   /// Todoを削除（削除イベント送信）
   Future<void> deleteTodo({required String todoId});
@@ -124,14 +149,17 @@ abstract class MeisoNostrClient implements RustOpaqueInterface {
   /// 公開鍵を取得（npub形式）
   Future<String> publicKeyNpub();
 
-  /// 全てのTodoを同期（リレーから取得）
+  /// TodoリストをNostrから同期（Kind 30001）
+  Future<List<TodoData>> syncTodoList();
+
+  /// 全てのTodoを同期（リレーから取得）- 旧実装（Kind 30078）
   Future<List<TodoData>> syncTodos();
 
   /// Todoを更新（既存イベントを置き換え）
   Future<String> updateTodo({required TodoData todo});
 }
 
-/// 公開鍵だけで暗号化されたTodoイベントを取得（Amber復号化用）
+/// 公開鍵だけで暗号化されたTodoイベントを取得（Amber復号化用 - 旧実装 Kind 30078）
 /// 復号化はAmber側で行うため、暗号化されたままのイベントを返す
 class EncryptedTodoEvent {
   final String eventId;
@@ -158,6 +186,27 @@ class EncryptedTodoEvent {
           encryptedContent == other.encryptedContent &&
           createdAt == other.createdAt &&
           dTag == other.dTag;
+}
+
+/// 暗号化されたTodoリストイベントを取得（Amber復号化用 - Kind 30001）
+class EncryptedTodoListEvent {
+  final String eventId;
+  final String encryptedContent;
+  final PlatformInt64 createdAt;
+
+  const EncryptedTodoListEvent({required this.eventId, required this.encryptedContent, required this.createdAt});
+
+  @override
+  int get hashCode => eventId.hashCode ^ encryptedContent.hashCode ^ createdAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EncryptedTodoListEvent &&
+          runtimeType == other.runtimeType &&
+          eventId == other.eventId &&
+          encryptedContent == other.encryptedContent &&
+          createdAt == other.createdAt;
 }
 
 /// 鍵ペアを生成（nsec/npub形式で返す）

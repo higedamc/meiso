@@ -46,6 +46,7 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   shared_preferences: ^2.3.3
+  path_provider: ^2.1.5
   
   # Rust Bridge
   flutter_rust_bridge: ^2.0.0
@@ -54,6 +55,12 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.8
   table_calendar: ^3.1.2
+  
+  # Navigation
+  go_router: ^14.6.2
+  
+  # Android Intents (for Amber)
+  android_intent_plus: ^5.1.1
 
 dev_dependencies:
   flutter_test:
