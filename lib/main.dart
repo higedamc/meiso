@@ -13,6 +13,7 @@ import 'presentation/settings/app_settings_detail_screen.dart';
 import 'bridge_generated.dart/frb_generated.dart';
 import 'services/local_storage_service.dart';
 import 'providers/app_settings_provider.dart';
+import 'providers/nostr_provider.dart' as nostrProvider;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,12 +53,18 @@ class MeisoApp extends ConsumerStatefulWidget {
   ConsumerState<MeisoApp> createState() => _MeisoAppState();
 }
 
-class _MeisoAppState extends ConsumerState<MeisoApp> {
+class _MeisoAppState extends ConsumerState<MeisoApp> with WidgetsBindingObserver {
   late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
+    
+    // アプリのライフサイクル監視を開始
+    WidgetsBinding.instance.addObserver(this);
+    
+    // アプリ起動時にNostr接続を復元
+    _restoreNostrConnection();
     
     // GoRouterの初期化
     _router = GoRouter(
@@ -118,6 +125,89 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
         ),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    // アプリのライフサイクル監視を終了
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // アプリがフォアグラウンドに復帰した時
+    if (state == AppLifecycleState.resumed) {
+      print('🔄 アプリがフォアグラウンドに復帰しました');
+      _restoreNostrConnection();
+    }
+  }
+
+  /// Nostr接続を復元する
+  Future<void> _restoreNostrConnection() async {
+    try {
+      // 既に初期化済みかチェック
+      final isInitialized = ref.read(nostrProvider.nostrInitializedProvider);
+      if (isInitialized) {
+        print('✅ Nostr接続は既に初期化済みです');
+        return;
+      }
+
+      print('🔄 Nostr接続を復元しています...');
+
+      // ローカルストレージでAmber使用フラグをチェック
+      final isUsingAmber = localStorageService.isUsingAmber();
+      print('🔍 Amber使用モード: $isUsingAmber');
+
+      final nostrService = ref.read(nostrProvider.nostrServiceProvider);
+
+      if (isUsingAmber) {
+        // Amberモード: Rust側から公開鍵を取得
+        final publicKey = await nostrService.getPublicKey();
+        
+        if (publicKey != null) {
+          print('🔐 Amberモードで公開鍵を復元しました');
+          
+          // アプリ設定からリレーリストとプロキシURLを取得
+          final appSettingsAsync = ref.read(appSettingsProvider);
+          final relays = appSettingsAsync.value?.relays.isNotEmpty == true
+              ? appSettingsAsync.value!.relays
+              : null;
+          final proxyUrl = appSettingsAsync.value?.torEnabled == true
+              ? 'socks5://127.0.0.1:9050'
+              : null;
+          
+          // Nostrクライアントを初期化（Amberモード）
+          await nostrService.initializeNostrWithPubkey(
+            publicKeyHex: publicKey,
+            relays: relays,
+            proxyUrl: proxyUrl,
+          );
+          
+          print('✅ Amberモードでノstr接続を復元しました');
+        } else {
+          print('⚠️ 公開鍵が見つかりませんでした（Amberモード）');
+        }
+      } else {
+        // 秘密鍵モード: 暗号化された秘密鍵が存在するかチェック
+        final hasKey = await nostrService.hasEncryptedKey();
+        
+        if (hasKey) {
+          print('🔐 秘密鍵モードで暗号化された秘密鍵が見つかりました');
+          print('⚠️ パスワード入力が必要なため、自動復元をスキップします');
+          // 秘密鍵モードはパスワードが必要なので自動復元しない
+          // ユーザーが手動でログインする必要がある
+        } else {
+          print('ℹ️ 保存された認証情報がありません');
+        }
+      }
+    } catch (e, stackTrace) {
+      print('❌ Nostr接続の復元に失敗しました: $e');
+      print('スタックトレース: ${stackTrace.toString().split('\n').take(5).join('\n')}');
+      // エラーは無視（ユーザーは手動でログインできる）
+    }
   }
 
   @override
