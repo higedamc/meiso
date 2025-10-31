@@ -69,11 +69,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
         
         if (todayIndex != -1) {
+          // 今日が日付リストに存在する場合は、そのページにジャンプ
           _pageController.animateToPage(
             todayIndex,
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
           );
+        } else {
+          // 今日が日付リストに存在しない場合は、今日を中心とした日付リストを生成
+          ref.read(centerDateProvider.notifier).state = today;
+          
+          // 次のフレームで中心ページにジャンプ
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_pageController.hasClients) {
+              _pageController.animateToPage(
+                7, // 中心ページ（index 7）= 今日
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            }
+          });
         }
       });
     }
