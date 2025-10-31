@@ -10,6 +10,7 @@ import 'presentation/settings/settings_screen.dart';
 import 'presentation/settings/secret_key_management_screen.dart';
 import 'presentation/settings/relay_management_screen.dart';
 import 'presentation/settings/app_settings_detail_screen.dart';
+import 'presentation/settings/cryptography_detail_screen.dart';
 import 'bridge_generated.dart/frb_generated.dart';
 import 'services/local_storage_service.dart';
 import 'providers/app_settings_provider.dart';
@@ -122,6 +123,10 @@ class _MeisoAppState extends ConsumerState<MeisoApp> with WidgetsBindingObserver
         GoRoute(
           path: '/settings/app',
           builder: (context, state) => const AppSettingsDetailScreen(),
+        ),
+        GoRoute(
+          path: '/settings/secret-key/cryptography',
+          builder: (context, state) => const CryptographyDetailScreen(),
         ),
       ],
     );

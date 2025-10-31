@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'link_preview.dart';
 
 part 'todo.freezed.dart';
 part 'todo.g.dart';
@@ -35,6 +36,9 @@ class Todo with _$Todo {
     
     /// Nostrイベントの event ID (同期後に設定)
     String? eventId,
+    
+    /// URLリンクプレビュー（テキストにURLが含まれる場合）
+    LinkPreview? linkPreview,
   }) = _Todo;
 
   factory Todo.fromJson(Map<String, dynamic> json) => _$TodoFromJson(json);
