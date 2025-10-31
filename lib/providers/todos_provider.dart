@@ -271,7 +271,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           final index = list.indexWhere((t) => t.id == todoId);
           
           if (index != -1) {
-            list[index] = list[index].copyWith(
+            final currentTodo = list[index];
+            
+            // タイトルからURLを削除
+            final newTitle = LinkPreviewService.removeUrlFromText(
+              currentTodo.title,
+              url,
+            );
+            
+            print('📝 Title updated: "${currentTodo.title}" → "$newTitle"');
+            
+            list[index] = currentTodo.copyWith(
+              title: newTitle.isNotEmpty ? newTitle : currentTodo.title, // 空になった場合は元のまま
               linkPreview: linkPreview,
               updatedAt: DateTime.now(),
             );
