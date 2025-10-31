@@ -70,15 +70,8 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
     ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
 
-    setState(() {
-      _successMessage = 'リレーを追加しました';
-      _errorMessage = null;
-    });
-
-    // 接続済みの場合は新しいリレーにも接続
-    if (ref.read(nostrInitializedProvider)) {
-      _reconnectToRelays();
-    }
+    // リレー変更を通知
+    _notifyRelayChange();
   }
 
   void _removeRelay(String url) {
@@ -88,51 +81,18 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
     ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
 
-    setState(() {
-      _successMessage = 'リレーを削除しました';
-      _errorMessage = null;
-    });
+    // リレー変更を通知
+    _notifyRelayChange();
   }
 
-  /// リレーに再接続（Amberモード・Tor対応）
-  Future<void> _reconnectToRelays() async {
-    try {
-      final nostrService = ref.read(nostrServiceProvider);
-      final publicKey = ref.read(nostrPublicKeyProvider);
-      final relayList = ref.read(relayStatusProvider).keys.toList();
-      
-      // アプリ設定からTor/プロキシ設定を取得
-      final appSettingsAsync = ref.read(appSettingsProvider);
-      final proxyUrl = appSettingsAsync.maybeWhen(
-        data: (settings) => settings.torEnabled ? settings.proxyUrl : null,
-        orElse: () => null,
-      );
-
-      // Amberモード（公開鍵のみ）の場合
-      if (publicKey != null && publicKey.isNotEmpty) {
-        print('🔗 Reconnecting to relays in Amber mode${proxyUrl != null ? " via proxy" : ""}...');
-
-        if (relayList.isEmpty) {
-          await nostrService.initializeNostrWithPubkey(
-            publicKeyHex: publicKey,
-            proxyUrl: proxyUrl,
-          );
-        } else {
-          await nostrService.initializeNostrWithPubkey(
-            publicKeyHex: publicKey,
-            relays: relayList,
-            proxyUrl: proxyUrl,
-          );
-        }
-        
-        print('✅ Reconnected to relays (Amber mode${proxyUrl != null ? " / Tor" : ""})');
-      }
-    } catch (e) {
-      print('❌ Failed to reconnect to relays: $e');
-      setState(() {
-        _errorMessage = 'リレー再接続エラー: $e';
-      });
-    }
+  /// リレー変更を通知（次回起動時に反映）
+  /// 現在の実装では、動的なリレー追加・削除がサポートされていないため、
+  /// アプリを再起動するまで変更は反映されません
+  void _notifyRelayChange() {
+    setState(() {
+      _successMessage = 'リレーリストを保存しました。次回起動時に反映されます。';
+      _errorMessage = null;
+    });
   }
 
   @override

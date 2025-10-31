@@ -205,7 +205,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     print('🆕 addTodo called: "$title" for date: $date');
 
-    state.whenData((todos) async {
+    await state.whenData((todos) async {
       final now = DateTime.now();
       
       // URLを検出してメタデータを取得（バックグラウンド）
@@ -244,12 +244,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final isNostrInitialized = _ref.read(nostrInitializedProvider);
       print('🔍 Nostr initialized: $isNostrInitialized');
 
-      // Nostr側に全TODOリストを送信（バックグラウンド実行）
+      // Nostr側に全TODOリストを送信（await追加）
       print('📤 Starting Nostr sync...');
-      _syncToNostr(() async {
+      await _syncToNostr(() async {
         await _syncAllTodosToNostr();
       });
-    });
+      print('✅ Nostr sync completed');
+    }).value;
   }
 
   /// バックグラウンドでリンクプレビューを取得
@@ -420,7 +421,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   /// Todoを更新
   Future<void> updateTodo(Todo todo) async {
-    state.whenData((todos) async {
+    await state.whenData((todos) async {
       final list = List<Todo>.from(todos[todo.date] ?? []);
       final index = list.indexWhere((t) => t.id == todo.id);
 
@@ -434,19 +435,19 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // ローカルストレージに保存
         await _saveAllTodosToLocal();
 
-        // Nostr側に全TODOリストを送信（バックグラウンド実行）
-        _syncToNostr(() async {
+        // Nostr側に全TODOリストを送信（await追加）
+        await _syncToNostr(() async {
           await _syncAllTodosToNostr();
         });
       }
-    });
+    }).value;
   }
 
   /// Todoのタイトルを更新
   Future<void> updateTodoTitle(String id, DateTime? date, String newTitle) async {
     if (newTitle.trim().isEmpty) return;
 
-    state.whenData((todos) async {
+    await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
       final index = list.indexWhere((t) => t.id == id);
 
@@ -464,17 +465,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // ローカルストレージに保存
         await _saveAllTodosToLocal();
 
-        // Nostr側に全TODOリストを送信（バックグラウンド実行）
-        _syncToNostr(() async {
+        // Nostr側に全TODOリストを送信（await追加）
+        await _syncToNostr(() async {
           await _syncAllTodosToNostr();
         });
       }
-    });
+    }).value;
   }
 
   /// Todoの完了状態をトグル
   Future<void> toggleTodo(String id, DateTime? date) async {
-    state.whenData((todos) async {
+    await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
       final index = list.indexWhere((t) => t.id == id);
 
@@ -493,17 +494,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // ローカルストレージに保存
         await _saveAllTodosToLocal();
 
-        // Nostr側に全TODOリストを送信（バックグラウンド実行）
-        _syncToNostr(() async {
+        // Nostr側に全TODOリストを送信（await追加）
+        await _syncToNostr(() async {
           await _syncAllTodosToNostr();
         });
       }
-    });
+    }).value;
   }
 
   /// Todoを削除
   Future<void> deleteTodo(String id, DateTime? date) async {
-    state.whenData((todos) async {
+    await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
       list.removeWhere((t) => t.id == id);
 
@@ -515,12 +516,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // ローカルストレージに保存
       await _saveAllTodosToLocal();
 
-      // Nostr側に全TODOリストを送信（バックグラウンド実行）
+      // Nostr側に全TODOリストを送信（await追加）
       // 削除後の全TODOリストを送信（Replaceable eventなので古いイベントは自動的に置き換わる）
-      _syncToNostr(() async {
+      await _syncToNostr(() async {
         await _syncAllTodosToNostr();
       });
-    });
+    }).value;
   }
 
   /// Todoを並び替え
@@ -529,7 +530,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     int oldIndex,
     int newIndex,
   ) async {
-    state.whenData((todos) async {
+    await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
 
       if (oldIndex < newIndex) {
@@ -555,18 +556,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // ローカルストレージに保存
       await _saveAllTodosToLocal();
 
-      // Nostr側に全TODOリストを送信（バックグラウンド実行）
-      _syncToNostr(() async {
+      // Nostr側に全TODOリストを送信（await追加）
+      await _syncToNostr(() async {
         await _syncAllTodosToNostr();
       });
-    });
+    }).value;
   }
 
   /// Todoを別の日付に移動
   Future<void> moveTodo(String id, DateTime? fromDate, DateTime? toDate) async {
     if (fromDate == toDate) return;
 
-    state.whenData((todos) async {
+    await state.whenData((todos) async {
       final fromList = List<Todo>.from(todos[fromDate] ?? []);
       final toList = List<Todo>.from(todos[toDate] ?? []);
 
@@ -590,11 +591,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // ローカルストレージに保存
       await _saveAllTodosToLocal();
 
-      // Nostr側に全TODOリストを送信（バックグラウンド実行）
-      _syncToNostr(() async {
+      // Nostr側に全TODOリストを送信（await追加）
+      await _syncToNostr(() async {
         await _syncAllTodosToNostr();
       });
-    });
+    }).value;
   }
 
   /// 次の order 値を取得
