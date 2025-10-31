@@ -19,6 +19,16 @@ class LinkPreviewService {
     return match?.group(0);
   }
 
+  /// テキストからURLを除去
+  /// 
+  /// 例: "Check https://github.com later" → "Check later"
+  static String removeUrlFromText(String text, String url) {
+    return text
+        .replaceAll(url, '')
+        .replaceAll(RegExp(r'\s+'), ' ') // 複数スペースを1つに
+        .trim();
+  }
+
   /// URLからメタデータを取得してLinkPreviewを生成
   /// 
   /// Open Graph、Twitter Card、通常のHTMLメタタグからデータを取得します
