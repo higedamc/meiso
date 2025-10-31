@@ -398,6 +398,28 @@ class _SecretKeyManagementScreenState
     );
   }
 
+  Widget _buildTechBadge(BuildContext context, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryPurple.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.primaryPurple.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.darkPurple,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
@@ -696,6 +718,79 @@ class _SecretKeyManagementScreenState
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 使用している暗号技術
+                  Card(
+                    color: Colors.white,
+                    elevation: 2,
+                    child: InkWell(
+                      onTap: () => context.push('/settings/secret-key/cryptography'),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryPurple.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.security,
+                                    color: AppTheme.primaryPurple,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    '使用している暗号技術',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: AppTheme.darkPurple,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Meisoで採用している暗号技術の詳細',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade700,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _buildTechBadge(context, 'Argon2id'),
+                                _buildTechBadge(context, 'AES-256-GCM'),
+                                _buildTechBadge(context, 'NIP-44'),
+                                _buildTechBadge(context, 'Ed25519'),
+                                _buildTechBadge(context, 'Amber'),
+                                _buildTechBadge(context, 'Rust'),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
