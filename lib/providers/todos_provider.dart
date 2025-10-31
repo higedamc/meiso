@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/todo.dart';
+import '../models/link_preview.dart';
 import '../services/local_storage_service.dart';
 import '../services/amber_service.dart';
+import '../services/link_preview_service.dart';
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 
@@ -205,6 +207,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     state.whenData((todos) async {
       final now = DateTime.now();
+      
+      // URLを検出してメタデータを取得（バックグラウンド）
+      final detectedUrl = LinkPreviewService.extractUrl(title);
+      print('🔗 URL detected: $detectedUrl');
+      
       final newTodo = Todo(
         id: _uuid.v4(),
         title: title.trim(),
@@ -228,6 +235,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       await _saveAllTodosToLocal();
       print('✅ Local save complete');
 
+      // URLメタデータ取得（非同期・バックグラウンド）
+      if (detectedUrl != null) {
+        _fetchLinkPreviewInBackground(newTodo.id, date, detectedUrl);
+      }
+
       // Nostrが初期化されているかチェック
       final isNostrInitialized = _ref.read(nostrInitializedProvider);
       print('🔍 Nostr initialized: $isNostrInitialized');
@@ -238,6 +250,51 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         await _syncAllTodosToNostr();
       });
     });
+  }
+
+  /// バックグラウンドでリンクプレビューを取得
+  Future<void> _fetchLinkPreviewInBackground(
+    String todoId,
+    DateTime? date,
+    String url,
+  ) async {
+    try {
+      print('🔗 Fetching link preview for: $url');
+      final linkPreview = await LinkPreviewService.fetchLinkPreview(url);
+      
+      if (linkPreview != null) {
+        print('✅ Link preview fetched, updating todo...');
+        
+        // Todoを更新
+        state.whenData((todos) async {
+          final list = List<Todo>.from(todos[date] ?? []);
+          final index = list.indexWhere((t) => t.id == todoId);
+          
+          if (index != -1) {
+            list[index] = list[index].copyWith(
+              linkPreview: linkPreview,
+              updatedAt: DateTime.now(),
+            );
+            
+            state = AsyncValue.data({
+              ...todos,
+              date: list,
+            });
+            
+            // ローカルストレージに保存
+            await _saveAllTodosToLocal();
+            
+            // Nostr同期（バックグラウンド）
+            _syncToNostr(() async {
+              await _syncAllTodosToNostr();
+            });
+          }
+        });
+      }
+    } catch (e) {
+      print('⚠️ Failed to fetch link preview: $e');
+      // エラーは無視（リンクプレビューなしでTodoは利用可能）
+    }
   }
 
   /// Nostrから取得したTodoを追加（既存データを保持）
@@ -578,6 +635,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             'created_at': todo.createdAt.toIso8601String(),
             'updated_at': todo.updatedAt.toIso8601String(),
             'event_id': todo.eventId,
+            'link_preview': todo.linkPreview?.toJson(),
           }).toList());
           
           print('📝 TODOリスト JSON (${todosJson.length} bytes, ${allTodos.length}件)');
@@ -831,6 +889,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             createdAt: DateTime.parse(map['created_at'] as String),
             updatedAt: DateTime.parse(map['updated_at'] as String),
             eventId: map['event_id'] as String? ?? encryptedEvent.eventId,
+            linkPreview: map['link_preview'] != null 
+                ? LinkPreview.fromJson(map['link_preview'] as Map<String, dynamic>)
+                : null,
           );
         }).toList();
         
@@ -957,6 +1018,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               createdAt: DateTime.parse(todoMap['created_at'] as String),
               updatedAt: DateTime.parse(todoMap['updated_at'] as String),
               eventId: encryptedTodo.eventId,
+              linkPreview: todoMap['link_preview'] != null
+                  ? LinkPreview.fromJson(todoMap['link_preview'] as Map<String, dynamic>)
+                  : null,
             ));
           } catch (e) {
             print('⚠️ Failed to decrypt/parse event ${encryptedTodo.eventId}: $e');

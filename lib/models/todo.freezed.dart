@@ -45,6 +45,9 @@ mixin _$Todo {
   /// Nostrイベントの event ID (同期後に設定)
   String? get eventId => throw _privateConstructorUsedError;
 
+  /// URLリンクプレビュー（テキストにURLが含まれる場合）
+  LinkPreview? get linkPreview => throw _privateConstructorUsedError;
+
   /// Serializes this Todo to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -68,7 +71,10 @@ abstract class $TodoCopyWith<$Res> {
     DateTime createdAt,
     DateTime updatedAt,
     String? eventId,
+    LinkPreview? linkPreview,
   });
+
+  $LinkPreviewCopyWith<$Res>? get linkPreview;
 }
 
 /// @nodoc
@@ -94,6 +100,7 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
     Object? createdAt = null,
     Object? updatedAt = null,
     Object? eventId = freezed,
+    Object? linkPreview = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -129,9 +136,27 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
                 ? _value.eventId
                 : eventId // ignore: cast_nullable_to_non_nullable
                       as String?,
+            linkPreview: freezed == linkPreview
+                ? _value.linkPreview
+                : linkPreview // ignore: cast_nullable_to_non_nullable
+                      as LinkPreview?,
           )
           as $Val,
     );
+  }
+
+  /// Create a copy of Todo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $LinkPreviewCopyWith<$Res>? get linkPreview {
+    if (_value.linkPreview == null) {
+      return null;
+    }
+
+    return $LinkPreviewCopyWith<$Res>(_value.linkPreview!, (value) {
+      return _then(_value.copyWith(linkPreview: value) as $Val);
+    });
   }
 }
 
@@ -152,7 +177,11 @@ abstract class _$$TodoImplCopyWith<$Res> implements $TodoCopyWith<$Res> {
     DateTime createdAt,
     DateTime updatedAt,
     String? eventId,
+    LinkPreview? linkPreview,
   });
+
+  @override
+  $LinkPreviewCopyWith<$Res>? get linkPreview;
 }
 
 /// @nodoc
@@ -175,6 +204,7 @@ class __$$TodoImplCopyWithImpl<$Res>
     Object? createdAt = null,
     Object? updatedAt = null,
     Object? eventId = freezed,
+    Object? linkPreview = freezed,
   }) {
     return _then(
       _$TodoImpl(
@@ -210,6 +240,10 @@ class __$$TodoImplCopyWithImpl<$Res>
             ? _value.eventId
             : eventId // ignore: cast_nullable_to_non_nullable
                   as String?,
+        linkPreview: freezed == linkPreview
+            ? _value.linkPreview
+            : linkPreview // ignore: cast_nullable_to_non_nullable
+                  as LinkPreview?,
       ),
     );
   }
@@ -227,6 +261,7 @@ class _$TodoImpl implements _Todo {
     required this.createdAt,
     required this.updatedAt,
     this.eventId,
+    this.linkPreview,
   });
 
   factory _$TodoImpl.fromJson(Map<String, dynamic> json) =>
@@ -266,9 +301,13 @@ class _$TodoImpl implements _Todo {
   @override
   final String? eventId;
 
+  /// URLリンクプレビュー（テキストにURLが含まれる場合）
+  @override
+  final LinkPreview? linkPreview;
+
   @override
   String toString() {
-    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId)';
+    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, linkPreview: $linkPreview)';
   }
 
   @override
@@ -286,7 +325,9 @@ class _$TodoImpl implements _Todo {
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt) &&
-            (identical(other.eventId, eventId) || other.eventId == eventId));
+            (identical(other.eventId, eventId) || other.eventId == eventId) &&
+            (identical(other.linkPreview, linkPreview) ||
+                other.linkPreview == linkPreview));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -301,6 +342,7 @@ class _$TodoImpl implements _Todo {
     createdAt,
     updatedAt,
     eventId,
+    linkPreview,
   );
 
   /// Create a copy of Todo
@@ -327,6 +369,7 @@ abstract class _Todo implements Todo {
     required final DateTime createdAt,
     required final DateTime updatedAt,
     final String? eventId,
+    final LinkPreview? linkPreview,
   }) = _$TodoImpl;
 
   factory _Todo.fromJson(Map<String, dynamic> json) = _$TodoImpl.fromJson;
@@ -362,6 +405,10 @@ abstract class _Todo implements Todo {
   /// Nostrイベントの event ID (同期後に設定)
   @override
   String? get eventId;
+
+  /// URLリンクプレビュー（テキストにURLが含まれる場合）
+  @override
+  LinkPreview? get linkPreview;
 
   /// Create a copy of Todo
   /// with the given fields replaced by the non-null parameter values.

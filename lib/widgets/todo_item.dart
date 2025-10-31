@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../app_theme.dart';
 import '../models/todo.dart';
+import '../models/link_preview.dart';
 import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
 
@@ -285,6 +287,153 @@ class TodoItem extends StatelessWidget {
     );
   }
 
+  /// リンクカードウィジェット
+  Widget _buildLinkCard(BuildContext context, LinkPreview linkPreview) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 48, right: 16, bottom: 8),
+      child: InkWell(
+        onTap: () => _openUrl(linkPreview.url),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: Theme.of(context).dividerColor,
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: Theme.of(context).cardColor,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // サムネイル画像
+              if (linkPreview.imageUrl != null)
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(8),
+                  ),
+                  child: Image.network(
+                    linkPreview.imageUrl!,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // 画像読み込み失敗時は非表示
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
+              
+              // タイトル・説明・URL
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // タイトル + ファビコン
+                    Row(
+                      children: [
+                        // ファビコン
+                        if (linkPreview.faviconUrl != null)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Image.network(
+                              linkPreview.faviconUrl!,
+                              width: 16,
+                              height: 16,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.link,
+                                  size: 16,
+                                  color: Colors.grey,
+                                );
+                              },
+                            ),
+                          ),
+                        
+                        // タイトル
+                        Expanded(
+                          child: Text(
+                            linkPreview.title ?? linkPreview.url,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    // 説明文
+                    if (linkPreview.description != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        linkPreview.description!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    
+                    // URL
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.open_in_new,
+                          size: 12,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _extractDomain(linkPreview.url),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// URLからドメイン名を抽出
+  String _extractDomain(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return uri.host;
+    } catch (e) {
+      return url;
+    }
+  }
+
+  /// URLをブラウザで開く
+  Future<void> _openUrl(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        print('⚠️ Cannot launch URL: $url');
+      }
+    } catch (e) {
+      print('❌ Failed to open URL: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer(
@@ -380,29 +529,39 @@ class TodoItem extends StatelessWidget {
             child: InkWell(
               onTap: () => _showEditDialog(context, ref),
               onLongPress: () => _showJsonDialog(context, ref),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // チェックボックス
-                  Checkbox(
-                    value: todo.completed,
-                    onChanged: (_) {
-                      ref
-                          .read(todosProvider.notifier)
-                          .toggleTodo(todo.id, todo.date);
-                    },
+                  // Todo タイトル行
+                  Row(
+                    children: [
+                      // チェックボックス
+                      Checkbox(
+                        value: todo.completed,
+                        onChanged: (_) {
+                          ref
+                              .read(todosProvider.notifier)
+                              .toggleTodo(todo.id, todo.date);
+                        },
+                      ),
+                      
+                      // タイトル
+                      Expanded(
+                        child: Text(
+                          todo.title,
+                          style: todo.completed
+                              ? AppTheme.todoTitleCompleted
+                              : AppTheme.todoTitle(context),
+                        ),
+                      ),
+                      
+                      const SizedBox(width: 8),
+                    ],
                   ),
                   
-                  // タイトル
-                  Expanded(
-                    child: Text(
-                      todo.title,
-                      style: todo.completed
-                          ? AppTheme.todoTitleCompleted
-                          : AppTheme.todoTitle(context),
-                    ),
-                  ),
-                  
-                  const SizedBox(width: 8),
+                  // リンクカード（URLが検出された場合）
+                  if (todo.linkPreview != null)
+                    _buildLinkCard(context, todo.linkPreview!),
                 ],
               ),
             ),
