@@ -97,7 +97,7 @@ class SettingsScreen extends ConsumerWidget {
             context,
             icon: Icons.vpn_key,
             title: '秘密鍵管理',
-            subtitle: isNostrInitialized ? '接続済み' : '未設定',
+            subtitle: isNostrInitialized ? '設定済み' : '未設定',
             onTap: () => context.push('/settings/secret-key'),
           ),
 
