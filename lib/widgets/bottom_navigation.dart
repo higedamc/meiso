@@ -7,6 +7,7 @@ class BottomNavigation extends StatelessWidget {
     required this.onAddTap,
     required this.onSomedayTap,
     this.onSomedayLongPress,
+    this.isSomedayActive = false,
     super.key,
   });
 
@@ -14,6 +15,7 @@ class BottomNavigation extends StatelessWidget {
   final VoidCallback onAddTap;
   final VoidCallback onSomedayTap;
   final VoidCallback? onSomedayLongPress;
+  final bool isSomedayActive;
 
   @override
   Widget build(BuildContext context) {
@@ -37,18 +39,9 @@ class BottomNavigation extends StatelessWidget {
               onTap: onTodayTap,
               child: Container(
                 alignment: Alignment.center,
-                child: Row(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     const Text(
                       'TODAY',
                       style: TextStyle(
@@ -58,6 +51,19 @@ class BottomNavigation extends StatelessWidget {
                         letterSpacing: 1.0,
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    // アクティブ時のインジケーター（TODAYページにいる時のみ表示）
+                    if (!isSomedayActive)
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.8),
+                          shape: BoxShape.circle,
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 6), // スペース確保
                   ],
                 ),
               ),
@@ -85,14 +91,32 @@ class BottomNavigation extends StatelessWidget {
               onLongPress: onSomedayLongPress,
               child: Container(
                 alignment: Alignment.center,
-                child: const Text(
-                  'SOMEDAY',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0,
-                  ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'SOMEDAY',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // アクティブ時のインジケーター（SOMEDAYページにいる時のみ表示）
+                    if (isSomedayActive)
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.8),
+                          shape: BoxShape.circle,
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 6), // スペース確保
+                  ],
                 ),
               ),
             ),

@@ -18,6 +18,11 @@ _$TodoImpl _$$TodoImplFromJson(Map<String, dynamic> json) => _$TodoImpl(
   linkPreview: json['linkPreview'] == null
       ? null
       : LinkPreview.fromJson(json['linkPreview'] as Map<String, dynamic>),
+  recurrence: json['recurrence'] == null
+      ? null
+      : RecurrencePattern.fromJson(json['recurrence'] as Map<String, dynamic>),
+  parentRecurringId: json['parentRecurringId'] as String?,
+  customListId: json['customListId'] as String?,
 );
 
 Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
@@ -31,4 +36,7 @@ Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
       'updatedAt': instance.updatedAt.toIso8601String(),
       'eventId': instance.eventId,
       'linkPreview': instance.linkPreview,
+      'recurrence': instance.recurrence,
+      'parentRecurringId': instance.parentRecurringId,
+      'customListId': instance.customListId,
     };

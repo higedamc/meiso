@@ -83,6 +83,9 @@ dev_dependencies:
   freezed: ^2.5.7
   json_serializable: ^6.8.0
   ffigen: ^13.0.0
+  
+  # App Icon Generation
+  flutter_launcher_icons: ^0.14.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -125,3 +128,11 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# App Icon Configuration
+flutter_launcher_icons:
+  android: true
+  ios: false  # iOS対応は現時点では不要
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon.png"

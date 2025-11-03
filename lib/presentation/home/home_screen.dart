@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../app_theme.dart';
 import '../../providers/calendar_provider.dart';
 import '../../providers/date_provider.dart';
-import '../../providers/todos_provider.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
 import '../../widgets/expandable_calendar.dart';
+import '../../widgets/todo_edit_screen.dart';
 import '../settings/settings_screen.dart';
+import '../someday/someday_screen.dart';
 
 /// Meisoのメイン画面
 /// 1日分を全画面表示し、スワイプで日付移動
@@ -47,48 +47,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _jumpToToday(List<DateTime> dates) {
+    // Somedayモード表示中の場合は、今日に戻る
+    if (_showingSomeday) {
+      setState(() {
+        _showingSomeday = false;
+      });
+      
+      // 次のフレームで今日にジャンプ
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _jumpToTodayPage(dates);
+      });
+      return;
+    }
+
     // カレンダーの表示/非表示をトグル
     final isVisible = ref.read(calendarVisibleProvider);
     ref.read(calendarVisibleProvider.notifier).state = !isVisible;
 
     // カレンダーが非表示になる場合は、今日にジャンプ
     if (isVisible) {
-      // まずSomedayモードを解除
-      setState(() {
-        _showingSomeday = false;
-      });
-
-      // 次のフレームでアニメーション実行
+      _jumpToTodayPage(dates);
+    }
+  }
+  
+  /// 今日のページにジャンプする
+  void _jumpToTodayPage(List<DateTime> dates) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todayIndex = dates.indexWhere((date) => 
+      date.year == today.year && 
+      date.month == today.month && 
+      date.day == today.day
+    );
+    
+    if (todayIndex != -1) {
+      // 今日が日付リストに存在する場合は、そのページにジャンプ
+      _pageController.animateToPage(
+        todayIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      // 今日が日付リストに存在しない場合は、今日を中心とした日付リストを生成
+      ref.read(centerDateProvider.notifier).state = today;
+      
+      // 次のフレームで中心ページにジャンプ
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final todayIndex = dates.indexWhere((date) => 
-          date.year == today.year && 
-          date.month == today.month && 
-          date.day == today.day
-        );
-        
-        if (todayIndex != -1) {
-          // 今日が日付リストに存在する場合は、そのページにジャンプ
+        if (_pageController.hasClients) {
           _pageController.animateToPage(
-            todayIndex,
+            7, // 中心ページ（index 7）= 今日
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
           );
-        } else {
-          // 今日が日付リストに存在しない場合は、今日を中心とした日付リストを生成
-          ref.read(centerDateProvider.notifier).state = today;
-          
-          // 次のフレームで中心ページにジャンプ
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_pageController.hasClients) {
-              _pageController.animateToPage(
-                7, // 中心ページ（index 7）= 今日
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            }
-          });
         }
       });
     }
@@ -160,15 +170,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final dates = ref.read(dateListProvider);
     final currentDate = _showingSomeday ? null : dates[_currentPageIndex];
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: _AddTodoBottomSheet(date: currentDate),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TodoEditScreen(date: currentDate),
+        fullscreenDialog: true,
       ),
     );
   }
@@ -189,9 +194,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 // Todoページ部分
                 Expanded(
                   child: _showingSomeday
-                      ? DayPage(
-                          date: null, // Somedayページ
-                          onSettingsTap: _openSettings,
+                      ? SomedayScreen(
+                          onClose: () {
+                            setState(() {
+                              _showingSomeday = false;
+                            });
+                          },
                         )
                       : PageView.builder(
                           controller: _pageController,
@@ -206,28 +214,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                 ),
 
-              // 日付タブバー（Someday表示時は非表示）
-              if (!_showingSomeday)
-                DateTabBar(
-                  dates: dates,
-                  currentIndex: _currentPageIndex,
-                  onDateTap: _onDateTabTap,
-                ),
+                // 日付タブバー（SOMEDAY表示時は非表示）
+                if (!_showingSomeday)
+                  DateTabBar(
+                    dates: dates,
+                    currentIndex: _currentPageIndex,
+                    onDateTap: _onDateTabTap,
+                  ),
 
                 // カレンダー（TODAYボタンタップで展開）
-                ExpandableCalendar(
-                  isVisible: isCalendarVisible,
-                  onDaySelected: (selectedDay) => 
-                      _onCalendarDaySelected(dates, selectedDay),
-                ),
+                if (!_showingSomeday)
+                  ExpandableCalendar(
+                    isVisible: isCalendarVisible,
+                    onDaySelected: (selectedDay) => 
+                        _onCalendarDaySelected(dates, selectedDay),
+                  ),
 
-                // 底部ナビゲーション
-                BottomNavigation(
-                  onTodayTap: () => _jumpToToday(dates),
-                  onAddTap: () => _showAddTodoDialog(context, ref),
-                  onSomedayTap: _showSomeday,
-                  onSomedayLongPress: _openSettings,
-                ),
+                // 底部ナビゲーション（SOMEDAY表示時は非表示）
+                if (!_showingSomeday)
+                  BottomNavigation(
+                    onTodayTap: () => _jumpToToday(dates),
+                    onAddTap: () => _showAddTodoDialog(context, ref),
+                    onSomedayTap: _showSomeday,
+                    onSomedayLongPress: _openSettings,
+                    isSomedayActive: _showingSomeday,
+                  ),
               ],
             ),
           ),
@@ -237,111 +248,3 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// Todo追加用のボトムシート
-class _AddTodoBottomSheet extends StatefulWidget {
-  const _AddTodoBottomSheet({required this.date});
-
-  final DateTime? date;
-
-  @override
-  State<_AddTodoBottomSheet> createState() => _AddTodoBottomSheetState();
-}
-
-class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
-  final _controller = TextEditingController();
-  final _focusNode = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    // 表示されたらすぐにフォーカス
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, child) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardTheme.color,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(16),
-            ),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 入力フィールド
-              TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                decoration: InputDecoration(
-                  hintText: 'タスクを入力',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Theme.of(context).dividerColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(
-                      color: AppTheme.primaryPurple,
-                      width: 2,
-                    ),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-                style: AppTheme.todoTitle(context),
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _saveTodo(ref),
-              ),
-              const SizedBox(height: 16),
-              // SAVEボタン
-              ElevatedButton(
-                onPressed: () => _saveTodo(ref),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'SAVE',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _saveTodo(WidgetRef ref) {
-    final text = _controller.text.trim();
-    if (text.isNotEmpty) {
-      ref.read(todosProvider.notifier).addTodo(text, widget.date);
-      Navigator.of(context).pop();
-    }
-  }
-}

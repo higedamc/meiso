@@ -48,6 +48,15 @@ mixin _$Todo {
   /// URLリンクプレビュー（テキストにURLが含まれる場合）
   LinkPreview? get linkPreview => throw _privateConstructorUsedError;
 
+  /// リカーリングタスクの繰り返しパターン
+  RecurrencePattern? get recurrence => throw _privateConstructorUsedError;
+
+  /// 親リカーリングタスクのID（このタスクが自動生成されたインスタンスの場合）
+  String? get parentRecurringId => throw _privateConstructorUsedError;
+
+  /// カスタムリストID（SOMEDAYページのリストに属する場合）
+  String? get customListId => throw _privateConstructorUsedError;
+
   /// Serializes this Todo to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -72,9 +81,13 @@ abstract class $TodoCopyWith<$Res> {
     DateTime updatedAt,
     String? eventId,
     LinkPreview? linkPreview,
+    RecurrencePattern? recurrence,
+    String? parentRecurringId,
+    String? customListId,
   });
 
   $LinkPreviewCopyWith<$Res>? get linkPreview;
+  $RecurrencePatternCopyWith<$Res>? get recurrence;
 }
 
 /// @nodoc
@@ -101,6 +114,9 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
     Object? updatedAt = null,
     Object? eventId = freezed,
     Object? linkPreview = freezed,
+    Object? recurrence = freezed,
+    Object? parentRecurringId = freezed,
+    Object? customListId = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -140,6 +156,18 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
                 ? _value.linkPreview
                 : linkPreview // ignore: cast_nullable_to_non_nullable
                       as LinkPreview?,
+            recurrence: freezed == recurrence
+                ? _value.recurrence
+                : recurrence // ignore: cast_nullable_to_non_nullable
+                      as RecurrencePattern?,
+            parentRecurringId: freezed == parentRecurringId
+                ? _value.parentRecurringId
+                : parentRecurringId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            customListId: freezed == customListId
+                ? _value.customListId
+                : customListId // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -156,6 +184,20 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
 
     return $LinkPreviewCopyWith<$Res>(_value.linkPreview!, (value) {
       return _then(_value.copyWith(linkPreview: value) as $Val);
+    });
+  }
+
+  /// Create a copy of Todo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $RecurrencePatternCopyWith<$Res>? get recurrence {
+    if (_value.recurrence == null) {
+      return null;
+    }
+
+    return $RecurrencePatternCopyWith<$Res>(_value.recurrence!, (value) {
+      return _then(_value.copyWith(recurrence: value) as $Val);
     });
   }
 }
@@ -178,10 +220,15 @@ abstract class _$$TodoImplCopyWith<$Res> implements $TodoCopyWith<$Res> {
     DateTime updatedAt,
     String? eventId,
     LinkPreview? linkPreview,
+    RecurrencePattern? recurrence,
+    String? parentRecurringId,
+    String? customListId,
   });
 
   @override
   $LinkPreviewCopyWith<$Res>? get linkPreview;
+  @override
+  $RecurrencePatternCopyWith<$Res>? get recurrence;
 }
 
 /// @nodoc
@@ -205,6 +252,9 @@ class __$$TodoImplCopyWithImpl<$Res>
     Object? updatedAt = null,
     Object? eventId = freezed,
     Object? linkPreview = freezed,
+    Object? recurrence = freezed,
+    Object? parentRecurringId = freezed,
+    Object? customListId = freezed,
   }) {
     return _then(
       _$TodoImpl(
@@ -244,6 +294,18 @@ class __$$TodoImplCopyWithImpl<$Res>
             ? _value.linkPreview
             : linkPreview // ignore: cast_nullable_to_non_nullable
                   as LinkPreview?,
+        recurrence: freezed == recurrence
+            ? _value.recurrence
+            : recurrence // ignore: cast_nullable_to_non_nullable
+                  as RecurrencePattern?,
+        parentRecurringId: freezed == parentRecurringId
+            ? _value.parentRecurringId
+            : parentRecurringId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        customListId: freezed == customListId
+            ? _value.customListId
+            : customListId // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -262,6 +324,9 @@ class _$TodoImpl implements _Todo {
     required this.updatedAt,
     this.eventId,
     this.linkPreview,
+    this.recurrence,
+    this.parentRecurringId,
+    this.customListId,
   });
 
   factory _$TodoImpl.fromJson(Map<String, dynamic> json) =>
@@ -305,9 +370,21 @@ class _$TodoImpl implements _Todo {
   @override
   final LinkPreview? linkPreview;
 
+  /// リカーリングタスクの繰り返しパターン
+  @override
+  final RecurrencePattern? recurrence;
+
+  /// 親リカーリングタスクのID（このタスクが自動生成されたインスタンスの場合）
+  @override
+  final String? parentRecurringId;
+
+  /// カスタムリストID（SOMEDAYページのリストに属する場合）
+  @override
+  final String? customListId;
+
   @override
   String toString() {
-    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, linkPreview: $linkPreview)';
+    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId)';
   }
 
   @override
@@ -327,7 +404,13 @@ class _$TodoImpl implements _Todo {
                 other.updatedAt == updatedAt) &&
             (identical(other.eventId, eventId) || other.eventId == eventId) &&
             (identical(other.linkPreview, linkPreview) ||
-                other.linkPreview == linkPreview));
+                other.linkPreview == linkPreview) &&
+            (identical(other.recurrence, recurrence) ||
+                other.recurrence == recurrence) &&
+            (identical(other.parentRecurringId, parentRecurringId) ||
+                other.parentRecurringId == parentRecurringId) &&
+            (identical(other.customListId, customListId) ||
+                other.customListId == customListId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -343,6 +426,9 @@ class _$TodoImpl implements _Todo {
     updatedAt,
     eventId,
     linkPreview,
+    recurrence,
+    parentRecurringId,
+    customListId,
   );
 
   /// Create a copy of Todo
@@ -370,6 +456,9 @@ abstract class _Todo implements Todo {
     required final DateTime updatedAt,
     final String? eventId,
     final LinkPreview? linkPreview,
+    final RecurrencePattern? recurrence,
+    final String? parentRecurringId,
+    final String? customListId,
   }) = _$TodoImpl;
 
   factory _Todo.fromJson(Map<String, dynamic> json) = _$TodoImpl.fromJson;
@@ -409,6 +498,18 @@ abstract class _Todo implements Todo {
   /// URLリンクプレビュー（テキストにURLが含まれる場合）
   @override
   LinkPreview? get linkPreview;
+
+  /// リカーリングタスクの繰り返しパターン
+  @override
+  RecurrencePattern? get recurrence;
+
+  /// 親リカーリングタスクのID（このタスクが自動生成されたインスタンスの場合）
+  @override
+  String? get parentRecurringId;
+
+  /// カスタムリストID（SOMEDAYページのリストに属する場合）
+  @override
+  String? get customListId;
 
   /// Create a copy of Todo
   /// with the given fields replaced by the non-null parameter values.

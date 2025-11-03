@@ -2,13 +2,20 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../app_theme.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
+import 'todo_edit_screen.dart';
+
+/// リカーリングタスク削除オプション
+enum RecurringDeleteOption {
+  thisInstance,   // このインスタンスのみ削除
+  allInstances,   // すべてのインスタンスを削除
+  cancel,         // キャンセル
+}
 
 /// 個別のTodoアイテムウィジェット
 class TodoItem extends StatelessWidget {
@@ -20,143 +27,10 @@ class TodoItem extends StatelessWidget {
   final Todo todo;
 
   void _showEditDialog(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController(text: todo.title);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final theme = Theme.of(context);
-    
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 日付表示
-              Text(
-                todo.date != null 
-                    ? DateFormat('EEEE, MMMM d', 'en_US').format(todo.date!).toUpperCase()
-                    : 'SOMEDAY',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: isDark 
-                      ? AppTheme.darkTextSecondary
-                      : AppTheme.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              
-              // タイトル編集フィールド
-              TextField(
-                controller: controller,
-                autofocus: true,
-                style: theme.textTheme.bodyLarge,
-                decoration: InputDecoration(
-                  border: UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      color: isDark 
-                          ? AppTheme.darkDivider
-                          : AppTheme.lightDivider,
-                    ),
-                  ),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      color: isDark 
-                          ? AppTheme.darkDivider
-                          : AppTheme.lightDivider,
-                    ),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      color: AppTheme.primaryPurple,
-                      width: 2,
-                    ),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                ),
-                maxLines: null,
-                onSubmitted: (value) {
-                  if (value.trim().isNotEmpty) {
-                    ref.read(todosProvider.notifier).updateTodoTitle(
-                      todo.id,
-                      todo.date,
-                      value,
-                    );
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // ボタン行
-              Row(
-                children: [
-                  // MOVE TO ボタン
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      // TODO: Phase2で日付移動ダイアログを実装
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('日付移動は後で実装します'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    child: Row(
-                      children: [
-                        Text(
-                          'MOVE TO',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward,
-                          size: 16,
-                          color: theme.textTheme.bodyMedium?.color,
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const Spacer(),
-                  
-                  // X (閉じる) ボタン
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 20),
-                    color: theme.textTheme.bodyMedium?.color,
-                  ),
-                  
-                  const SizedBox(width: 8),
-                  
-                  // SAVE ボタン（テーマカラーの紫を使用）
-                  ElevatedButton(
-                    onPressed: () {
-                      if (controller.text.trim().isNotEmpty) {
-                        ref.read(todosProvider.notifier).updateTodoTitle(
-                          todo.id,
-                          todo.date,
-                          controller.text,
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text(
-                      'SAVE',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TodoEditScreen(todo: todo),
+        fullscreenDialog: true,
       ),
     );
   }
@@ -434,6 +308,97 @@ class TodoItem extends StatelessWidget {
     }
   }
 
+  /// リカーリングタスク削除確認ダイアログ
+  Future<RecurringDeleteOption?> _showRecurringDeleteDialog(BuildContext context) async {
+    return showDialog<RecurringDeleteOption>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text(
+            'Delete recurring to-do',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          titlePadding: const EdgeInsets.only(top: 20, left: 20, right: 20),
+          contentPadding: EdgeInsets.zero,
+          actionsPadding: EdgeInsets.zero,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              // このインスタンスを削除
+              InkWell(
+                onTap: () => Navigator.of(context).pop(RecurringDeleteOption.thisInstance),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  child: Text(
+                    'Remove this instance',
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: Colors.red.shade600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              Divider(height: 1, color: Colors.grey.shade300),
+              // すべてのインスタンスを削除
+              InkWell(
+                onTap: () => Navigator.of(context).pop(RecurringDeleteOption.allInstances),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  child: Text(
+                    'Remove all instances',
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: Colors.red.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(RecurringDeleteOption.cancel),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.blue,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                ),
+                child: const SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer(
@@ -489,7 +454,47 @@ class TodoItem extends StatelessWidget {
               return true;
             } else {
               // 左スワイプ → 削除
-              return true;
+              // リカーリングタスクの場合は確認ダイアログを表示
+              if (todo.isRecurring) {
+                final result = await _showRecurringDeleteDialog(context);
+                if (result == RecurringDeleteOption.thisInstance) {
+                  // このインスタンスのみ削除
+                  await ref.read(todosProvider.notifier).deleteRecurringInstance(
+                    todo.id,
+                    todo.date,
+                  );
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('「${todo.title}」を削除しました'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                  
+                  return false; // Dismissibleをキャンセル（手動で削除済み）
+                } else if (result == RecurringDeleteOption.allInstances) {
+                  // すべてのインスタンスを削除
+                  await ref.read(todosProvider.notifier).deleteAllRecurringInstances(
+                    todo.id,
+                    todo.date,
+                  );
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('「${todo.title}」のすべてのインスタンスを削除しました'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                  
+                  return false; // Dismissibleをキャンセル（手動で削除済み）
+                } else {
+                  // キャンセル
+                  return false;
+                }
+              } else {
+                // 通常のタスクはそのまま削除
+                return true;
+              }
             }
           },
           onDismissed: (direction) {
@@ -547,11 +552,27 @@ class TodoItem extends StatelessWidget {
                       
                       // タイトル
                       Expanded(
-                        child: Text(
-                          todo.title,
-                          style: todo.completed
-                              ? AppTheme.todoTitleCompleted
-                              : AppTheme.todoTitle(context),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                todo.title,
+                                style: todo.completed
+                                    ? AppTheme.todoTitleCompleted
+                                    : AppTheme.todoTitle(context),
+                              ),
+                            ),
+                            // リカーリングタスクのマーカー
+                            if (todo.isRecurring)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Icon(
+                                  Icons.repeat,
+                                  size: 16,
+                                  color: AppTheme.primaryPurple.withOpacity(0.6),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                       

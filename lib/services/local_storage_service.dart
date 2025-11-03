@@ -1,24 +1,28 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/todo.dart';
 import '../models/app_settings.dart';
+import '../models/custom_list.dart';
 
 /// ローカルストレージサービス（Hive使用）
 /// Todoをローカルに永続化し、オフラインファーストを実現
 class LocalStorageService {
   static const String _todosBoxName = 'todos';
   static const String _settingsBoxName = 'settings';
+  static const String _customListsBoxName = 'custom_lists';
   static const String _onboardingCompletedKey = 'onboarding_completed';
   static const String _useAmberKey = 'use_amber';
   static const String _appSettingsKey = 'app_settings';
   
   Box<Map>? _todosBox;
   Box? _settingsBox;
+  Box<Map>? _customListsBox;
 
   /// Hiveを初期化
   Future<void> initialize() async {
     await Hive.initFlutter();
     _todosBox = await Hive.openBox<Map>(_todosBoxName);
     _settingsBox = await Hive.openBox(_settingsBoxName);
+    _customListsBox = await Hive.openBox<Map>(_customListsBoxName);
   }
 
   /// すべてのTodoを保存
@@ -105,6 +109,47 @@ class LocalStorageService {
   Future<void> close() async {
     await _todosBox?.close();
     await _settingsBox?.close();
+    await _customListsBox?.close();
+  }
+  
+  // === カスタムリスト関連 ===
+  
+  /// すべてのカスタムリストを保存
+  Future<void> saveCustomLists(List<CustomList> lists) async {
+    if (_customListsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+
+    // 既存データをクリア
+    await _customListsBox!.clear();
+
+    // 新しいデータを保存
+    for (final list in lists) {
+      await _customListsBox!.put(list.id, list.toJson());
+    }
+  }
+
+  /// すべてのカスタムリストを取得
+  Future<List<CustomList>> loadCustomLists() async {
+    if (_customListsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+
+    final List<CustomList> lists = [];
+    
+    for (final value in _customListsBox!.values) {
+      try {
+        // Mapをキャストして復元
+        final jsonMap = Map<String, dynamic>.from(value);
+        lists.add(CustomList.fromJson(jsonMap));
+      } catch (e) {
+        print('⚠️ CustomList復元エラー: $e');
+        // エラーがあってもスキップして続行
+        continue;
+      }
+    }
+
+    return lists;
   }
   
   // === オンボーディング関連 ===

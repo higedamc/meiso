@@ -12,11 +12,13 @@ class DayPage extends ConsumerWidget {
   const DayPage({
     required this.date,
     this.onSettingsTap,
+    this.onBackFromSomeday,
     super.key,
   });
 
   final DateTime? date;
   final VoidCallback? onSettingsTap;
+  final VoidCallback? onBackFromSomeday;
 
   /// Pull-to-refreshで同期を実行
   Future<void> _onRefresh(WidgetRef ref) async {
@@ -62,17 +64,30 @@ class DayPage extends ConsumerWidget {
     final statusBarHeight = MediaQuery.of(context).padding.top;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+    final isSomeday = date == null;
     
     return Container(
       color: Theme.of(context).cardTheme.color,
       padding: EdgeInsets.only(
-        left: 20,
+        left: isSomeday && onBackFromSomeday != null ? 12 : 20,
         right: 12,
         top: statusBarHeight + 12,
         bottom: 16,
       ),
       child: Row(
         children: [
+          // SOMEDAYの場合は戻るボタンを表示
+          if (isSomeday && onBackFromSomeday != null)
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              iconSize: 24,
+              color: textColor,
+              onPressed: onBackFromSomeday,
+              tooltip: '戻る',
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
+            ),
+          
           // 日付（左寄せ）
           if (date != null)
             Text(

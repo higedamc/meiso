@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'link_preview.dart';
+import 'recurrence_pattern.dart';
 
 part 'todo.freezed.dart';
 part 'todo.g.dart';
@@ -39,9 +40,27 @@ class Todo with _$Todo {
     
     /// URLリンクプレビュー（テキストにURLが含まれる場合）
     LinkPreview? linkPreview,
+    
+    /// リカーリングタスクの繰り返しパターン
+    RecurrencePattern? recurrence,
+    
+    /// 親リカーリングタスクのID（このタスクが自動生成されたインスタンスの場合）
+    String? parentRecurringId,
+    
+    /// カスタムリストID（SOMEDAYページのリストに属する場合）
+    String? customListId,
   }) = _Todo;
 
   factory Todo.fromJson(Map<String, dynamic> json) => _$TodoFromJson(json);
+}
+
+/// Todoの便利な拡張メソッド
+extension TodoExtension on Todo {
+  /// このタスクがリカーリングタスクかどうか
+  bool get isRecurring => recurrence != null;
+  
+  /// このタスクがリカーリングタスクから生成されたインスタンスかどうか
+  bool get isRecurringInstance => parentRecurringId != null;
 }
 
 /// Todoの日付カテゴリー

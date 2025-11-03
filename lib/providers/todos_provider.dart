@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
+import '../models/recurrence_pattern.dart';
 import '../services/local_storage_service.dart';
 import '../services/amber_service.dart';
 import '../services/link_preview_service.dart';
+import '../services/recurrence_parser.dart';
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 
@@ -200,35 +202,55 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
 
   /// 新しいTodoを追加
-  Future<void> addTodo(String title, DateTime? date) async {
+  Future<void> addTodo(String title, DateTime? date, {String? customListId}) async {
     if (title.trim().isEmpty) return;
 
-    print('🆕 addTodo called: "$title" for date: $date');
+    print('🆕 addTodo called: "$title" for date: $date, customListId: $customListId');
 
     await state.whenData((todos) async {
       final now = DateTime.now();
       
+      // 繰り返しパターンを自動検出（TeuxDeux風）
+      final parseResult = RecurrenceParser.parse(title, date);
+      final cleanTitle = parseResult.cleanTitle;
+      final autoRecurrence = parseResult.pattern;
+      
+      if (autoRecurrence != null) {
+        print('🔄 自動検出: ${autoRecurrence.description}');
+        print('📝 クリーンタイトル: "$cleanTitle"');
+      }
+      
       // URLを検出してメタデータを取得（バックグラウンド）
-      final detectedUrl = LinkPreviewService.extractUrl(title);
+      final detectedUrl = LinkPreviewService.extractUrl(cleanTitle);
       print('🔗 URL detected: $detectedUrl');
       
       final newTodo = Todo(
         id: _uuid.v4(),
-        title: title.trim(),
+        title: cleanTitle,
         completed: false,
         date: date,
         order: _getNextOrder(todos, date),
         createdAt: now,
         updatedAt: now,
+        customListId: customListId,
+        recurrence: autoRecurrence, // 自動検出された繰り返しパターンを設定
       );
 
       final list = List<Todo>.from(todos[date] ?? []);
       list.add(newTodo);
 
-      state = AsyncValue.data({
+      final updatedTodos = {
         ...todos,
         date: list,
-      });
+      };
+
+      state = AsyncValue.data(updatedTodos);
+
+      // リカーリングタスクの場合、将来のインスタンスを事前生成
+      if (autoRecurrence != null && date != null) {
+        // 最新の state を渡す（元のタスクが含まれている）
+        await _generateFutureInstances(newTodo, updatedTodos);
+      }
 
       // ローカルストレージに保存
       print('💾 Saving to local storage...');
@@ -473,6 +495,80 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }).value;
   }
 
+  /// Todoのカスタムリスト紐づけを更新
+  Future<void> updateTodoCustomListId(String id, DateTime? date, String? customListId) async {
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == id);
+
+      if (index != -1) {
+        list[index] = list[index].copyWith(
+          customListId: customListId,
+          updatedAt: DateTime.now(),
+        );
+        
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+
+        // ローカルストレージに保存
+        await _saveAllTodosToLocal();
+
+        // Nostr側に全TODOリストを送信
+        await _syncToNostr(() async {
+          await _syncAllTodosToNostr();
+        });
+      }
+    }).value;
+  }
+
+  /// Todoのタイトルと繰り返しパターンを更新
+  Future<void> updateTodoWithRecurrence(
+    String id,
+    DateTime? date,
+    String newTitle,
+    RecurrencePattern? recurrence,
+  ) async {
+    if (newTitle.trim().isEmpty) return;
+
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == id);
+
+      if (index != -1) {
+        final updatedTodo = list[index].copyWith(
+          title: newTitle.trim(),
+          recurrence: recurrence,
+          updatedAt: DateTime.now(),
+        );
+        
+        list[index] = updatedTodo;
+        
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+
+        // リカーリングタスクの場合、将来のインスタンスを事前生成
+        if (recurrence != null && date != null) {
+          await _generateFutureInstances(updatedTodo, todos);
+        } else if (recurrence == null) {
+          // 繰り返しを解除した場合、子タスクを削除
+          await _removeChildInstances(id, todos);
+        }
+
+        // ローカルストレージに保存
+        await _saveAllTodosToLocal();
+
+        // Nostr側に全TODOリストを送信
+        await _syncToNostr(() async {
+          await _syncAllTodosToNostr();
+        });
+      }
+    }).value;
+  }
+
   /// Todoの完了状態をトグル
   Future<void> toggleTodo(String id, DateTime? date) async {
     await state.whenData((todos) async {
@@ -481,10 +577,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       if (index != -1) {
         final todo = list[index];
+        final wasCompleted = todo.completed;
+        
         list[index] = todo.copyWith(
           completed: !todo.completed,
           updatedAt: DateTime.now(),
         );
+
+        // リカーリングタスクの完了時に次回のタスクを生成
+        if (!wasCompleted && todo.recurrence != null && todo.date != null) {
+          await _createNextRecurringTask(todo, todos);
+        }
 
         state = AsyncValue.data({
           ...todos,
@@ -500,6 +603,187 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         });
       }
     }).value;
+  }
+
+  /// リカーリングタスクの次回インスタンスを生成
+  Future<void> _createNextRecurringTask(
+    Todo originalTodo,
+    Map<DateTime?, List<Todo>> todos,
+  ) async {
+    if (originalTodo.recurrence == null || originalTodo.date == null) {
+      return;
+    }
+
+    // 次回の日付を計算
+    final nextDate = originalTodo.recurrence!.calculateNextDate(originalTodo.date!);
+    
+    if (nextDate == null) {
+      // 繰り返し終了
+      print('🔄 リカーリングタスク終了: ${originalTodo.title}');
+      return;
+    }
+
+    // 既に次回のタスクが存在するかチェック
+    final existingTasks = todos[nextDate] ?? [];
+    final alreadyExists = existingTasks.any((t) => 
+      t.parentRecurringId == originalTodo.id ||
+      (t.title == originalTodo.title && t.recurrence != null)
+    );
+
+    if (alreadyExists) {
+      print('ℹ️ 次回のリカーリングタスクは既に存在します');
+      return;
+    }
+
+    // 新しいタスクを生成
+    final newTodo = Todo(
+      id: _uuid.v4(),
+      title: originalTodo.title,
+      completed: false,
+      date: nextDate,
+      order: _getNextOrder(todos, nextDate),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      recurrence: originalTodo.recurrence, // 繰り返しパターンを継承
+      parentRecurringId: originalTodo.id, // 元のタスクIDを記録
+      linkPreview: originalTodo.linkPreview,
+    );
+
+    // 状態に追加
+    final list = List<Todo>.from(todos[nextDate] ?? []);
+    list.add(newTodo);
+
+    todos[nextDate] = list;
+
+    print('🔄 次回のリカーリングタスクを生成: ${newTodo.title} (${nextDate})');
+
+    // 状態を更新（この時点でUIに反映）
+    state = AsyncValue.data(Map.from(todos));
+    
+    // ローカルに保存
+    await _saveAllTodosToLocal();
+
+    // Nostrにも同期
+    await _syncToNostr(() async {
+      await _syncAllTodosToNostr();
+    });
+  }
+
+  /// リカーリングタスクの将来のインスタンスを事前生成（7日分）
+  Future<void> _generateFutureInstances(
+    Todo originalTodo,
+    Map<DateTime?, List<Todo>> todos,
+  ) async {
+    if (originalTodo.recurrence == null || originalTodo.date == null) {
+      return;
+    }
+
+    print('📅 将来のインスタンスを生成開始: ${originalTodo.title}');
+    print('📅 元のタスクの日付: ${originalTodo.date}');
+    
+    // 元のタスクが含まれているか確認
+    final originalDateTasks = todos[originalTodo.date] ?? [];
+    final originalTaskExists = originalDateTasks.any((t) => t.id == originalTodo.id);
+    print('📅 元のタスクが存在: $originalTaskExists (${originalDateTasks.length}件のタスク)');
+
+    DateTime? currentDate = originalTodo.date;
+    int generatedCount = 0;
+    const maxInstances = 10; // 最大10個まで生成（無限ループ防止）
+    final now = DateTime.now();
+    final sevenDaysLater = now.add(const Duration(days: 7));
+
+    // 既存の子インスタンスを削除
+    await _removeChildInstances(originalTodo.id, todos);
+    
+    // 削除後に元のタスクがまだ存在するか確認
+    final afterRemoveTasks = todos[originalTodo.date] ?? [];
+    final originalTaskStillExists = afterRemoveTasks.any((t) => t.id == originalTodo.id);
+    print('📅 削除後の元のタスク存在: $originalTaskStillExists (${afterRemoveTasks.length}件のタスク)');
+
+    // 7日以内の将来のインスタンスを生成
+    while (generatedCount < maxInstances) {
+      final nextDate = originalTodo.recurrence!.calculateNextDate(currentDate!);
+      
+      if (nextDate == null) {
+        print('🔄 繰り返し終了');
+        break; // 繰り返し終了
+      }
+
+      // 7日以内の日付のみ生成
+      if (nextDate.isAfter(sevenDaysLater)) {
+        print('📅 7日以内の範囲を超えたため終了');
+        break;
+      }
+
+      // 既に同じタイトルのタスクが存在するかチェック
+      final existingTasks = todos[nextDate] ?? [];
+      final alreadyExists = existingTasks.any((t) => 
+        t.parentRecurringId == originalTodo.id ||
+        (t.title == originalTodo.title && t.recurrence != null && t.id != originalTodo.id)
+      );
+
+      if (!alreadyExists) {
+        // 新しいインスタンスを生成
+        final newTodo = Todo(
+          id: _uuid.v4(),
+          title: originalTodo.title,
+          completed: false,
+          date: nextDate,
+          order: _getNextOrder(todos, nextDate),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          recurrence: originalTodo.recurrence,
+          parentRecurringId: originalTodo.id,
+          linkPreview: originalTodo.linkPreview,
+        );
+
+        final list = List<Todo>.from(todos[nextDate] ?? []);
+        list.add(newTodo);
+        todos[nextDate] = list;
+
+        generatedCount++;
+        print('✅ インスタンス生成: ${nextDate.month}/${nextDate.day}');
+      }
+
+      currentDate = nextDate;
+    }
+
+    print('📅 合計${generatedCount}個のインスタンスを生成しました');
+    
+    // 最終的に元のタスクが含まれているか確認
+    final finalTasks = todos[originalTodo.date] ?? [];
+    final finalTaskExists = finalTasks.any((t) => t.id == originalTodo.id);
+    print('📅 最終的な元のタスク存在: $finalTaskExists (${finalTasks.length}件のタスク)');
+
+    // 状態を更新
+    state = AsyncValue.data(Map.from(todos));
+  }
+
+  /// 親タスクの子インスタンスを削除
+  Future<void> _removeChildInstances(
+    String parentId,
+    Map<DateTime?, List<Todo>> todos,
+  ) async {
+    print('🗑️ 子インスタンスを削除: $parentId');
+    
+    int removedCount = 0;
+    for (final date in todos.keys) {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final originalLength = list.length;
+      
+      list.removeWhere((t) => t.parentRecurringId == parentId);
+      
+      if (list.length < originalLength) {
+        removedCount += originalLength - list.length;
+        todos[date] = list;
+      }
+    }
+
+    print('🗑️ ${removedCount}個の子インスタンスを削除しました');
+
+    if (removedCount > 0) {
+      state = AsyncValue.data(Map.from(todos));
+    }
   }
 
   /// Todoを削除
@@ -518,6 +802,80 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       // Nostr側に全TODOリストを送信（await追加）
       // 削除後の全TODOリストを送信（Replaceable eventなので古いイベントは自動的に置き換わる）
+      await _syncToNostr(() async {
+        await _syncAllTodosToNostr();
+      });
+    }).value;
+  }
+
+  /// リカーリングタスクのこのインスタンスのみを削除
+  Future<void> deleteRecurringInstance(String id, DateTime? date) async {
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      
+      // 該当するTodoを探す
+      final todo = list.firstWhere((t) => t.id == id);
+      
+      // このインスタンスを削除
+      list.removeWhere((t) => t.id == id);
+
+      state = AsyncValue.data({
+        ...todos,
+        date: list,
+      });
+
+      print('🗑️ リカーリングタスクのインスタンスを削除: ${todo.title} (${date})');
+
+      // ローカルストレージに保存
+      await _saveAllTodosToLocal();
+
+      // Nostr側に全TODOリストを送信
+      await _syncToNostr(() async {
+        await _syncAllTodosToNostr();
+      });
+    }).value;
+  }
+
+  /// リカーリングタスクのすべてのインスタンスを削除
+  Future<void> deleteAllRecurringInstances(String id, DateTime? date) async {
+    await state.whenData((todos) async {
+      // 削除対象のTodoを取得
+      final list = List<Todo>.from(todos[date] ?? []);
+      final todo = list.firstWhere((t) => t.id == id);
+      
+      // 親タスクのIDを特定
+      final parentId = todo.parentRecurringId ?? todo.id;
+      
+      print('🗑️ すべてのリカーリングインスタンスを削除: parentId=$parentId');
+      
+      // すべての日付から関連するタスクを削除
+      int deletedCount = 0;
+      final updatedTodos = Map<DateTime?, List<Todo>>.from(todos);
+      
+      for (final dateKey in updatedTodos.keys) {
+        final dateList = List<Todo>.from(updatedTodos[dateKey] ?? []);
+        final originalLength = dateList.length;
+        
+        // 親タスク、または親タスクから派生した子タスクをすべて削除
+        dateList.removeWhere((t) => 
+          t.id == parentId || 
+          t.parentRecurringId == parentId
+        );
+        
+        if (dateList.length < originalLength) {
+          deletedCount += originalLength - dateList.length;
+          updatedTodos[dateKey] = dateList;
+        }
+      }
+
+      print('🗑️ 合計${deletedCount}個のリカーリングインスタンスを削除しました');
+
+      state = AsyncValue.data(updatedTodos);
+
+      // ローカルストレージに保存
+      await _saveAllTodosToLocal();
+
+      // Nostr側に全TODOリストを送信
       await _syncToNostr(() async {
         await _syncAllTodosToNostr();
       });
@@ -648,6 +1006,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             'updated_at': todo.updatedAt.toIso8601String(),
             'event_id': todo.eventId,
             'link_preview': todo.linkPreview?.toJson(),
+            'custom_list_id': todo.customListId,
+            'recurrence': todo.recurrence?.toJson(),
+            'parent_recurring_id': todo.parentRecurringId,
           }).toList());
           
           print('📝 TODOリスト JSON (${todosJson.length} bytes, ${allTodos.length}件)');
@@ -904,6 +1265,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             linkPreview: map['link_preview'] != null 
                 ? LinkPreview.fromJson(map['link_preview'] as Map<String, dynamic>)
                 : null,
+            customListId: map['custom_list_id'] as String?,
+            recurrence: map['recurrence'] != null
+                ? RecurrencePattern.fromJson(map['recurrence'] as Map<String, dynamic>)
+                : null,
+            parentRecurringId: map['parent_recurring_id'] as String?,
           );
         }).toList();
         
