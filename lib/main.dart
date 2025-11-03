@@ -14,6 +14,7 @@ import 'presentation/settings/cryptography_detail_screen.dart';
 import 'bridge_generated.dart/frb_generated.dart';
 import 'services/local_storage_service.dart';
 import 'providers/app_settings_provider.dart';
+import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 
 void main() async {
@@ -54,15 +55,16 @@ class MeisoApp extends ConsumerStatefulWidget {
   ConsumerState<MeisoApp> createState() => _MeisoAppState();
 }
 
-class _MeisoAppState extends ConsumerState<MeisoApp> with WidgetsBindingObserver {
+class _MeisoAppState extends ConsumerState<MeisoApp> {
   late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
     
-    // アプリのライフサイクル監視を開始
-    WidgetsBinding.instance.addObserver(this);
+    // AppLifecycleProviderを初期化（アプリのライフサイクル監視を開始）
+    // これによりフォアグラウンド復帰時の自動再接続・同期が有効になります
+    ref.read(appLifecycleProvider);
     
     // アプリ起動時にNostr接続を復元
     _restoreNostrConnection();
@@ -134,20 +136,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> with WidgetsBindingObserver
 
   @override
   void dispose() {
-    // アプリのライフサイクル監視を終了
-    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    
-    // アプリがフォアグラウンドに復帰した時
-    if (state == AppLifecycleState.resumed) {
-      print('🔄 アプリがフォアグラウンドに復帰しました');
-      _restoreNostrConnection();
-    }
   }
 
   /// Nostr接続を復元する

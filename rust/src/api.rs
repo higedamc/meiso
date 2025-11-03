@@ -461,23 +461,52 @@ impl MeisoNostrClient {
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
 
-        // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
-        if let Some(event) = events.first() {
-            // NIP-44で復号化
-            if let Ok(decrypted) = nip44::decrypt(
-                keys.secret_key(),
-                &keys.public_key(),
-                &event.content,
-            ) {
-                if let Ok(todos) = serde_json::from_str::<Vec<TodoData>>(&decrypted) {
-                    println!("✅ TODO list synced: {} todos", todos.len());
-                    return Ok(todos);
-                }
-            }
+        // EventsをVec<Event>に変換
+        let mut events_vec: Vec<_> = events.into_iter().collect();
+
+        if events_vec.is_empty() {
+            println!("⚠️ No TODO list found");
+            return Ok(Vec::new());
         }
 
-        println!("⚠️ No TODO list found");
-        Ok(Vec::new())
+        // 複数のイベントがある場合、created_atタイムスタンプで最新のものを選択
+        // （Replaceable eventなので通常は1つだけだが、念のため）
+        events_vec.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        
+        if events_vec.len() > 1 {
+            println!("⚠️ Warning: Found {} TODO list events (should be 1). Using the latest one.", events_vec.len());
+        }
+        
+        let event = &events_vec[0];
+        println!("📥 Fetched TODO list event: ID={}, created_at={}", 
+            event.id.to_hex(), 
+            event.created_at);
+
+        // NIP-44で復号化
+        match nip44::decrypt(
+            keys.secret_key(),
+            &keys.public_key(),
+            &event.content,
+        ) {
+            Ok(decrypted) => {
+                match serde_json::from_str::<Vec<TodoData>>(&decrypted) {
+                    Ok(todos) => {
+                        println!("✅ TODO list synced: {} todos (event timestamp: {})", 
+                            todos.len(), 
+                            event.created_at);
+                        Ok(todos)
+                    }
+                    Err(e) => {
+                        eprintln!("❌ Failed to parse TODO list JSON: {}", e);
+                        Err(anyhow::anyhow!("Failed to parse TODO list: {}", e))
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to decrypt TODO list: {}", e);
+                Err(anyhow::anyhow!("Failed to decrypt TODO list: {}", e))
+            }
+        }
     }
 
 

@@ -7,6 +7,7 @@ import '../app_theme.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../providers/todos_provider.dart';
+import '../providers/nostr_provider.dart';
 import 'todo_edit_screen.dart';
 
 /// リカーリングタスク削除オプション
@@ -79,88 +80,77 @@ class TodoItem extends StatelessWidget {
           ),
         ),
         actions: [
-          // 新実装（Kind 30001）では全Todoが1つのイベントとして自動同期されるため、
-          // 個別のeventIdや手動送信ボタンは不要
-          TextButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('全Todoは自動的にリレーと同期されています'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            icon: const Icon(Icons.cloud_done, size: 16),
-            label: const Text('自動同期中'),
-          ),
-          
-          // 旧実装のコード（Kind 30078） - 使用されません
-          /*
-          if (todo.eventId != null)
+          // Kind 30001実装: needsSyncフラグで同期状態を判定
+          if (!todo.needsSync)
             // 同期済み
             TextButton.icon(
               onPressed: () {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Event ID: ${todo.eventId}'),
-                    duration: const Duration(seconds: 3),
+                    content: Text(todo.eventId != null 
+                      ? '同期済み (Event ID: ${todo.eventId!.substring(0, 8)}...)'
+                      : '同期済み'),
+                    duration: const Duration(seconds: 2),
                   ),
                 );
               },
               icon: const Icon(Icons.cloud_done, size: 16),
-              label: const Text('リレー送信済み'),
+              label: const Text('同期済み'),
             )
           else
-            // 未同期 - 手動送信ボタン
+            // 未同期 - 手動送信ボタン（全Todoリストを再送信）
             TextButton.icon(
               onPressed: () async {
                 Navigator.pop(context);
                 
                 // Nostr接続チェック
-                final nostrService = ref.read(nostrServiceProvider);
                 final isInitialized = ref.read(nostrInitializedProvider);
                 
                 if (!isInitialized) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Nostrが初期化されていません。設定画面で接続してください。'),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Nostrが初期化されていません。設定画面で接続してください。'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
                   return;
                 }
                 
-                // リレーに送信
+                // 全Todoリストをリレーに送信（Kind 30001）
                 try {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('リレーに送信中...'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('リレーに送信中...'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  }
                   
-                  final eventId = await nostrService.createTodoOnNostr(todo);
+                  // 内部で_syncAllTodosToNostr()を呼び出す
+                  await ref.read(todosProvider.notifier).manualSyncToNostr();
                   
-                  // eventIdを設定して更新
-                  final updatedTodo = todo.copyWith(eventId: eventId);
-                  await ref.read(todosProvider.notifier).updateTodo(updatedTodo);
-                  
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ リレーに送信しました'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ リレーに送信しました'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ 送信エラー: $e'),
-                      duration: const Duration(seconds: 3),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('❌ 送信エラー: $e'),
+                        duration: const Duration(seconds: 3),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
               },
               icon: const Icon(Icons.cloud_upload, size: 16),
@@ -169,7 +159,6 @@ class TodoItem extends StatelessWidget {
                 foregroundColor: Colors.orange.shade700,
               ),
             ),
-          */
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('閉じる'),
