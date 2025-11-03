@@ -284,9 +284,9 @@ class ListDetailScreen extends StatelessWidget {
               hintText: 'タスクを入力',
               border: OutlineInputBorder(),
             ),
-            onSubmitted: (value) {
+            onSubmitted: (value) async {
               if (value.trim().isNotEmpty) {
-                _addTodoToList(ref, value.trim());
+                await _addTodoToList(ref, value.trim());
                 Navigator.pop(context);
               }
             },
@@ -297,10 +297,10 @@ class ListDetailScreen extends StatelessWidget {
               child: const Text('キャンセル'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final text = controller.text.trim();
                 if (text.isNotEmpty) {
-                  _addTodoToList(ref, text);
+                  await _addTodoToList(ref, text);
                   Navigator.pop(context);
                 }
               },
@@ -317,13 +317,15 @@ class ListDetailScreen extends StatelessWidget {
   }
 
   /// リストにTodoを追加
-  void _addTodoToList(WidgetRef ref, String title) {
+  Future<void> _addTodoToList(WidgetRef ref, String title) async {
     // カスタムリストに属するTodoは date=null（Someday）に追加し、customListIdを設定
-    ref.read(todosProvider.notifier).addTodo(
+    print('📝 Adding todo to list: "$title" (listId: ${customList.id})');
+    await ref.read(todosProvider.notifier).addTodo(
       title,
       null,
       customListId: customList.id,
     );
+    print('✅ Todo added and synced to list: ${customList.name}');
   }
 }
 
