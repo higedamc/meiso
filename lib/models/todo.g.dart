@@ -23,6 +23,7 @@ _$TodoImpl _$$TodoImplFromJson(Map<String, dynamic> json) => _$TodoImpl(
       : RecurrencePattern.fromJson(json['recurrence'] as Map<String, dynamic>),
   parentRecurringId: json['parentRecurringId'] as String?,
   customListId: json['customListId'] as String?,
+  needsSync: json['needsSync'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
@@ -39,4 +40,5 @@ Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
       'recurrence': instance.recurrence?.toJson(),
       'parentRecurringId': instance.parentRecurringId,
       'customListId': instance.customListId,
+      'needsSync': instance.needsSync,
     };

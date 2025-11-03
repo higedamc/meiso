@@ -263,8 +263,19 @@ class NostrService {
 
   /// TodoリストをNostrに作成（Kind 30001 - 新実装）
   Future<rust_api.EventSendResult> createTodoListOnNostr(List<Todo> todos) async {
+    print('🔧 NostrProvider: createTodoListOnNostr called with ${todos.length} todos');
+    
+    // カスタムリストIDを持つTodoをログ
+    final customListTodos = todos.where((t) => t.customListId != null).toList();
+    if (customListTodos.isNotEmpty) {
+      print('🎯 NostrProvider: ${customListTodos.length} todos have customListId:');
+      for (final todo in customListTodos) {
+        print('   - "${todo.title}" → customListId: ${todo.customListId}');
+      }
+    }
+    
     final todoDataList = todos.map((todo) {
-      return rust_api.TodoData(
+      final todoData = rust_api.TodoData(
         id: todo.id,
         title: todo.title,
         completed: todo.completed,
@@ -282,14 +293,38 @@ class NostrService {
         parentRecurringId: todo.parentRecurringId,
         customListId: todo.customListId,
       );
+      
+      // カスタムリストIDが設定されている場合のみログ
+      if (todoData.customListId != null) {
+        print('📤 Sending TodoData to Rust: "${todoData.title}" with customListId: ${todoData.customListId}');
+      }
+      
+      return todoData;
     }).toList();
 
-    return await rust_api.createTodoList(todos: todoDataList);
+    print('📤 Calling Rust createTodoList with ${todoDataList.length} TodoData objects');
+    final result = await rust_api.createTodoList(todos: todoDataList);
+    print('✅ Rust createTodoList completed: success=${result.success}, eventId=${result.eventId}');
+    
+    return result;
   }
 
   /// NostrからTodoリストを同期（Kind 30001 - 新実装）
   Future<List<Todo>> syncTodoListFromNostr() async {
+    print('🔧 NostrProvider: syncTodoListFromNostr called');
     final todoDataList = await rust_api.syncTodoList();
+    print('📥 Received ${todoDataList.length} TodoData objects from Rust');
+    
+    // カスタムリストIDを持つTodoDataをログ
+    final customListTodoData = todoDataList.where((t) => t.customListId != null).toList();
+    if (customListTodoData.isNotEmpty) {
+      print('🎯 NostrProvider: ${customListTodoData.length} TodoData have customListId:');
+      for (final todoData in customListTodoData) {
+        print('   - "${todoData.title}" → customListId: ${todoData.customListId}');
+      }
+    } else {
+      print('⚠️ NostrProvider: No TodoData with customListId found');
+    }
 
     return todoDataList.map((todoData) {
       // JSON文字列からオブジェクトに復元

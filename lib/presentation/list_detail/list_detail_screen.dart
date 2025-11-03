@@ -7,6 +7,7 @@ import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/todo_edit_screen.dart';
 
 /// カスタムリスト詳細画面
 class ListDetailScreen extends StatelessWidget {
@@ -158,7 +159,7 @@ class ListDetailScreen extends StatelessWidget {
             builder: (context, ref, child) {
               return BottomNavigation(
                 onTodayTap: () => Navigator.of(context).pop(),
-                onAddTap: () => _showAddTodoDialog(context),
+                onAddTap: () => _showAddTodoScreen(context),
                 onSomedayTap: () => Navigator.of(context).pop(),
                 isSomedayActive: true,
               );
@@ -268,64 +269,18 @@ class ListDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Todo追加ダイアログ
-  void _showAddTodoDialog(BuildContext context) {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => Consumer(
-        builder: (context, ref, child) => AlertDialog(
-          title: Text('「${customList.name}」にタスクを追加'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'タスクを入力',
-              border: OutlineInputBorder(),
-            ),
-            onSubmitted: (value) async {
-              if (value.trim().isNotEmpty) {
-                await _addTodoToList(ref, value.trim());
-                Navigator.pop(context);
-              }
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final text = controller.text.trim();
-                if (text.isNotEmpty) {
-                  await _addTodoToList(ref, text);
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryPurple,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('追加'),
-            ),
-          ],
+  /// Todo追加画面を表示
+  void _showAddTodoScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TodoEditScreen(
+          date: null, // カスタムリストに属するTodoは date=null（Someday）
+          customListId: customList.id,
+          customListName: customList.name,
         ),
+        fullscreenDialog: true,
       ),
     );
-  }
-
-  /// リストにTodoを追加
-  Future<void> _addTodoToList(WidgetRef ref, String title) async {
-    // カスタムリストに属するTodoは date=null（Someday）に追加し、customListIdを設定
-    print('📝 Adding todo to list: "$title" (listId: ${customList.id})');
-    await ref.read(todosProvider.notifier).addTodo(
-      title,
-      null,
-      customListId: customList.id,
-    );
-    print('✅ Todo added and synced to list: ${customList.name}');
   }
 }
 

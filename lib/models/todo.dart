@@ -49,6 +49,9 @@ class Todo with _$Todo {
     
     /// カスタムリストID（SOMEDAYページのリストに属する場合）
     String? customListId,
+    
+    /// Nostrへの同期が必要かどうか（楽観的UI更新用）
+    @Default(true) bool needsSync,
   }) = _Todo;
 
   factory Todo.fromJson(Map<String, dynamic> json) => _$TodoFromJson(json);

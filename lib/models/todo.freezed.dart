@@ -57,6 +57,9 @@ mixin _$Todo {
   /// カスタムリストID（SOMEDAYページのリストに属する場合）
   String? get customListId => throw _privateConstructorUsedError;
 
+  /// Nostrへの同期が必要かどうか（楽観的UI更新用）
+  bool get needsSync => throw _privateConstructorUsedError;
+
   /// Serializes this Todo to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -84,6 +87,7 @@ abstract class $TodoCopyWith<$Res> {
     RecurrencePattern? recurrence,
     String? parentRecurringId,
     String? customListId,
+    bool needsSync,
   });
 
   $LinkPreviewCopyWith<$Res>? get linkPreview;
@@ -117,6 +121,7 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
     Object? recurrence = freezed,
     Object? parentRecurringId = freezed,
     Object? customListId = freezed,
+    Object? needsSync = null,
   }) {
     return _then(
       _value.copyWith(
@@ -168,6 +173,10 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
                 ? _value.customListId
                 : customListId // ignore: cast_nullable_to_non_nullable
                       as String?,
+            needsSync: null == needsSync
+                ? _value.needsSync
+                : needsSync // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -223,6 +232,7 @@ abstract class _$$TodoImplCopyWith<$Res> implements $TodoCopyWith<$Res> {
     RecurrencePattern? recurrence,
     String? parentRecurringId,
     String? customListId,
+    bool needsSync,
   });
 
   @override
@@ -255,6 +265,7 @@ class __$$TodoImplCopyWithImpl<$Res>
     Object? recurrence = freezed,
     Object? parentRecurringId = freezed,
     Object? customListId = freezed,
+    Object? needsSync = null,
   }) {
     return _then(
       _$TodoImpl(
@@ -306,6 +317,10 @@ class __$$TodoImplCopyWithImpl<$Res>
             ? _value.customListId
             : customListId // ignore: cast_nullable_to_non_nullable
                   as String?,
+        needsSync: null == needsSync
+            ? _value.needsSync
+            : needsSync // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -327,6 +342,7 @@ class _$TodoImpl implements _Todo {
     this.recurrence,
     this.parentRecurringId,
     this.customListId,
+    this.needsSync = true,
   });
 
   factory _$TodoImpl.fromJson(Map<String, dynamic> json) =>
@@ -382,9 +398,14 @@ class _$TodoImpl implements _Todo {
   @override
   final String? customListId;
 
+  /// Nostrへの同期が必要かどうか（楽観的UI更新用）
+  @override
+  @JsonKey()
+  final bool needsSync;
+
   @override
   String toString() {
-    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId)';
+    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync)';
   }
 
   @override
@@ -410,7 +431,9 @@ class _$TodoImpl implements _Todo {
             (identical(other.parentRecurringId, parentRecurringId) ||
                 other.parentRecurringId == parentRecurringId) &&
             (identical(other.customListId, customListId) ||
-                other.customListId == customListId));
+                other.customListId == customListId) &&
+            (identical(other.needsSync, needsSync) ||
+                other.needsSync == needsSync));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -429,6 +452,7 @@ class _$TodoImpl implements _Todo {
     recurrence,
     parentRecurringId,
     customListId,
+    needsSync,
   );
 
   /// Create a copy of Todo
@@ -459,6 +483,7 @@ abstract class _Todo implements Todo {
     final RecurrencePattern? recurrence,
     final String? parentRecurringId,
     final String? customListId,
+    final bool needsSync,
   }) = _$TodoImpl;
 
   factory _Todo.fromJson(Map<String, dynamic> json) = _$TodoImpl.fromJson;
@@ -510,6 +535,10 @@ abstract class _Todo implements Todo {
   /// カスタムリストID（SOMEDAYページのリストに属する場合）
   @override
   String? get customListId;
+
+  /// Nostrへの同期が必要かどうか（楽観的UI更新用）
+  @override
+  bool get needsSync;
 
   /// Create a copy of Todo
   /// with the given fields replaced by the non-null parameter values.
