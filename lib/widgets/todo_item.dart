@@ -7,7 +7,6 @@ import '../app_theme.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../providers/todos_provider.dart';
-import '../providers/nostr_provider.dart';
 import 'todo_edit_screen.dart';
 
 /// リカーリングタスク削除オプション
@@ -80,6 +79,24 @@ class TodoItem extends StatelessWidget {
           ),
         ),
         actions: [
+          // 新実装（Kind 30001）では全Todoが1つのイベントとして自動同期されるため、
+          // 個別のeventIdや手動送信ボタンは不要
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('全Todoは自動的にリレーと同期されています'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            icon: const Icon(Icons.cloud_done, size: 16),
+            label: const Text('自動同期中'),
+          ),
+          
+          // 旧実装のコード（Kind 30078） - 使用されません
+          /*
           if (todo.eventId != null)
             // 同期済み
             TextButton.icon(
@@ -152,6 +169,7 @@ class TodoItem extends StatelessWidget {
                 foregroundColor: Colors.orange.shade700,
               ),
             ),
+          */
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('閉じる'),

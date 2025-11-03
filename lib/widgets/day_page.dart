@@ -30,13 +30,8 @@ class DayPage extends ConsumerWidget {
     try {
       final todoNotifier = ref.read(todosProvider.notifier);
       
-      // 1. ローカルの未送信Todoをアップロード
-      await todoNotifier.uploadPendingTodos();
-      
-      // 2. Nostrから最新のTodoをダウンロード
-      final nostrService = ref.read(nostrServiceProvider);
-      final todos = await nostrService.syncTodosFromNostr();
-      await todoNotifier.mergeTodosFromNostr(todos);
+      // 新実装（Kind 30001）: Nostrから全Todoリストを同期
+      await todoNotifier.syncFromNostr();
     } catch (e) {
       debugPrint('⚠️ 同期エラー: $e');
       // エラーは表示せずに静かに失敗させる（UX改善のため）

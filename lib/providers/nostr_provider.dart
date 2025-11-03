@@ -1,8 +1,13 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
 import '../models/todo.dart';
+import '../models/link_preview.dart';
+import '../models/recurrence_pattern.dart';
 import '../services/local_storage_service.dart';
+import '../services/nostr_cache_service.dart';
+import '../services/nostr_subscription_service.dart';
 import 'sync_status_provider.dart';
 
 /// デフォルトのNostrリレーリスト
@@ -67,6 +72,18 @@ final publicKeyNpubProvider = FutureProvider<String?>((ref) async {
   }
 });
 
+/// Nostrキャッシュサービスを提供するProvider
+final nostrCacheServiceProvider = Provider((ref) {
+  final service = NostrCacheService();
+  // 初期化は非同期なので、別途initメソッドを呼ぶ必要がある
+  return service;
+});
+
+/// Nostr Subscriptionサービスを提供するProvider
+final nostrSubscriptionServiceProvider = Provider((ref) {
+  return NostrSubscriptionService();
+});
+
 /// NostrServiceを提供するProvider
 final nostrServiceProvider = Provider((ref) => NostrService(ref));
 
@@ -74,6 +91,12 @@ class NostrService {
   NostrService(this._ref);
 
   final Ref _ref;
+  
+  /// キャッシュサービスへの参照
+  NostrCacheService? _cacheService;
+  
+  /// Subscriptionサービスへの参照
+  NostrSubscriptionService? _subscriptionService;
 
   /// 暗号化鍵ファイルのパスを取得
   Future<String> _getKeyStoragePath() async {
@@ -188,6 +211,9 @@ class NostrService {
     
     // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
+    
+    // キャッシュとSubscriptionサービスを初期化
+    await _initializeCacheAndSubscription(publicKey);
 
     print('✅ Nostr client initialized with secret key${proxyUrl != null ? " (via proxy)" : ""}');
     return publicKey;
@@ -224,6 +250,9 @@ class NostrService {
     // Amber使用フラグを設定
     await localStorageService.setUseAmber(true);
     
+    // キャッシュとSubscriptionサービスを初期化
+    await _initializeCacheAndSubscription(publicKey);
+    
     // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
@@ -231,45 +260,9 @@ class NostrService {
     return publicKey;
   }
 
-  /// TodoをNostrに作成
-  Future<String> createTodoOnNostr(Todo todo) async {
-    final todoData = rust_api.TodoData(
-      id: todo.id,
-      title: todo.title,
-      completed: todo.completed,
-      date: todo.date?.toIso8601String(),
-      order: todo.order,
-      createdAt: todo.createdAt.toIso8601String(),
-      updatedAt: todo.updatedAt.toIso8601String(),
-      eventId: todo.eventId,
-    );
-
-    return await rust_api.createTodo(todo: todoData);
-  }
-
-  /// TodoをNostrで更新
-  Future<String> updateTodoOnNostr(Todo todo) async {
-    final todoData = rust_api.TodoData(
-      id: todo.id,
-      title: todo.title,
-      completed: todo.completed,
-      date: todo.date?.toIso8601String(),
-      order: todo.order,
-      createdAt: todo.createdAt.toIso8601String(),
-      updatedAt: todo.updatedAt.toIso8601String(),
-      eventId: todo.eventId,
-    );
-
-    return await rust_api.updateTodo(todo: todoData);
-  }
-
-  /// TodoをNostrから削除
-  Future<void> deleteTodoOnNostr(String todoId) async {
-    return await rust_api.deleteTodo(todoId: todoId);
-  }
 
   /// TodoリストをNostrに作成（Kind 30001 - 新実装）
-  Future<String> createTodoListOnNostr(List<Todo> todos) async {
+  Future<rust_api.EventSendResult> createTodoListOnNostr(List<Todo> todos) async {
     final todoDataList = todos.map((todo) {
       return rust_api.TodoData(
         id: todo.id,
@@ -280,6 +273,14 @@ class NostrService {
         createdAt: todo.createdAt.toIso8601String(),
         updatedAt: todo.updatedAt.toIso8601String(),
         eventId: todo.eventId,
+        linkPreview: todo.linkPreview != null 
+            ? jsonEncode(todo.linkPreview!.toJson())
+            : null,
+        recurrence: todo.recurrence != null
+            ? jsonEncode(todo.recurrence!.toJson())
+            : null,
+        parentRecurringId: todo.parentRecurringId,
+        customListId: todo.customListId,
       );
     }).toList();
 
@@ -291,6 +292,29 @@ class NostrService {
     final todoDataList = await rust_api.syncTodoList();
 
     return todoDataList.map((todoData) {
+      // JSON文字列からオブジェクトに復元
+      LinkPreview? linkPreview;
+      if (todoData.linkPreview != null) {
+        try {
+          linkPreview = LinkPreview.fromJson(
+            jsonDecode(todoData.linkPreview!) as Map<String, dynamic>
+          );
+        } catch (e) {
+          print('⚠️ Failed to parse linkPreview: $e');
+        }
+      }
+
+      RecurrencePattern? recurrence;
+      if (todoData.recurrence != null) {
+        try {
+          recurrence = RecurrencePattern.fromJson(
+            jsonDecode(todoData.recurrence!) as Map<String, dynamic>
+          );
+        } catch (e) {
+          print('⚠️ Failed to parse recurrence: $e');
+        }
+      }
+
       return Todo(
         id: todoData.id,
         title: todoData.title,
@@ -300,59 +324,21 @@ class NostrService {
         createdAt: DateTime.parse(todoData.createdAt),
         updatedAt: DateTime.parse(todoData.updatedAt),
         eventId: todoData.eventId,
+        linkPreview: linkPreview,
+        recurrence: recurrence,
+        parentRecurringId: todoData.parentRecurringId,
+        customListId: todoData.customListId,
       );
     }).toList();
   }
 
-  /// NostrからTodoを同期（旧実装 - Kind 30078）
-  Future<List<Todo>> syncTodosFromNostr() async {
-    final todoDataList = await rust_api.syncTodos();
-
-    return todoDataList.map((todoData) {
-      return Todo(
-        id: todoData.id,
-        title: todoData.title,
-        completed: todoData.completed,
-        date: todoData.date != null ? DateTime.parse(todoData.date!) : null,
-        order: todoData.order,
-        createdAt: DateTime.parse(todoData.createdAt),
-        updatedAt: DateTime.parse(todoData.updatedAt),
-        eventId: todoData.eventId,
-      );
-    }).toList();
-  }
 
   // ========================================
   // Amberモード専用メソッド
   // ========================================
 
-  /// Amberモード: 未署名Todoイベントを作成
-  Future<String> createUnsignedTodoEvent(Todo todo) async {
-    final publicKey = _ref.read(publicKeyProvider);
-    if (publicKey == null) {
-      throw Exception('公開鍵が設定されていません');
-    }
-
-    final todoData = rust_api.TodoData(
-      id: todo.id,
-      title: todo.title,
-      completed: todo.completed,
-      date: todo.date?.toIso8601String(),
-      order: todo.order,
-      createdAt: todo.createdAt.toIso8601String(),
-      updatedAt: todo.updatedAt.toIso8601String(),
-      eventId: todo.eventId,
-    );
-
-    // Rust側で未署名イベントを作成
-    return await rust_api.createUnsignedTodoEvent(
-      todo: todoData,
-      publicKeyHex: publicKey,
-    );
-  }
-
   /// Amberモード: 署名済みイベントをリレーに送信
-  Future<String> sendSignedEvent(String signedEventJson) async {
+  Future<rust_api.EventSendResult> sendSignedEvent(String signedEventJson) async {
     return await rust_api.sendSignedEvent(eventJson: signedEventJson);
   }
 
@@ -429,10 +415,105 @@ class NostrService {
   // ========================================
 
   /// 指定したイベントIDのリストを削除（Kind 5削除イベントを送信）
-  Future<String> deleteEvents(List<String> eventIds, {String? reason}) async {
+  Future<rust_api.EventSendResult> deleteEvents(List<String> eventIds, {String? reason}) async {
     return await rust_api.deleteEvents(
       eventIds: eventIds,
       reason: reason,
     );
+  }
+  
+  // ========================================
+  // キャッシュ & Subscription管理
+  // ========================================
+  
+  /// キャッシュとSubscriptionサービスを初期化
+  Future<void> _initializeCacheAndSubscription(String publicKey) async {
+    try {
+      // キャッシュサービスを取得・初期化
+      _cacheService = _ref.read(nostrCacheServiceProvider);
+      await _cacheService!.init();
+      print('✅ Cache service initialized');
+      
+      // Subscriptionサービスを取得
+      _subscriptionService = _ref.read(nostrSubscriptionServiceProvider);
+      
+      // TodoリストのSubscriptionを開始
+      await _startTodoListSubscription(publicKey);
+      
+      // 期限切れキャッシュをクリーンアップ
+      await _cacheService!.cleanExpiredCache();
+      
+      print('✅ Subscription service initialized');
+    } catch (e) {
+      print('⚠️ Failed to initialize cache/subscription: $e');
+    }
+  }
+  
+  /// TodoリストのSubscriptionを開始
+  Future<void> _startTodoListSubscription(String publicKey) async {
+    if (_subscriptionService == null) return;
+    
+    try {
+      // Kind 30001（Todoリスト）のフィルター
+      final filters = [
+        {
+          'kinds': [30001],
+          'authors': [publicKey],
+          '#d': ['meiso-todos'],
+        }
+      ];
+      
+      await _subscriptionService!.startSubscription(
+        filters: filters,
+        onEventsReceived: (events) {
+          // イベント受信時の処理
+          print('📥 Received ${events.length} todo list events');
+          
+          for (final event in events) {
+            // キャッシュに保存
+            _cacheService?.cacheEvent(
+              eventJson: event.eventJson,
+              ttlSeconds: 300, // 5分
+            );
+            
+            // TodosProviderに通知（syncが必要）
+            // これはTodosProvider側で実装する
+          }
+        },
+      );
+      
+      print('📡 Todo list subscription started');
+    } catch (e) {
+      print('⚠️ Failed to start todo list subscription: $e');
+    }
+  }
+  
+  /// キャッシュからイベントを取得
+  Future<String?> getCachedEvent(String eventId) async {
+    if (_cacheService == null) return null;
+    return await _cacheService!.getCachedEvent(eventId);
+  }
+  
+  /// イベントをキャッシュに保存
+  Future<void> cacheEvent({
+    required String eventJson,
+    int ttlSeconds = 300,
+  }) async {
+    if (_cacheService == null) return;
+    await _cacheService!.cacheEvent(
+      eventJson: eventJson,
+      ttlSeconds: ttlSeconds,
+    );
+  }
+  
+  /// すべてのSubscriptionを停止
+  Future<void> stopAllSubscriptions() async {
+    if (_subscriptionService == null) return;
+    await _subscriptionService!.stopAllSubscriptions();
+  }
+  
+  /// サービスをクリーンアップ
+  void dispose() {
+    _subscriptionService?.dispose();
   }
 }

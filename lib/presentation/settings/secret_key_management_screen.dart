@@ -293,15 +293,10 @@ class _SecretKeyManagementScreenState
     try {
       final todoNotifier = ref.read(todosProvider.notifier);
       
-      // 1. ローカルの未送信Todoをアップロード
-      await todoNotifier.uploadPendingTodos();
+      // 新実装（Kind 30001）: Nostrから全Todoリストを同期
+      await todoNotifier.syncFromNostr();
       
-      // 2. Nostrから最新のTodoをダウンロード
-      final nostrService = ref.read(nostrServiceProvider);
-      final todos = await nostrService.syncTodosFromNostr();
-      await todoNotifier.mergeTodosFromNostr(todos);
-      
-      print('✅ Auto sync completed: ${todos.length} todos synced');
+      print('✅ Auto sync completed');
     } catch (e) {
       print('❌ Auto sync failed: $e');
       // エラーは表示しない（バックグラウンド同期のため）
