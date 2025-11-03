@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +36,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   final Ref _ref;
   final _uuid = const Uuid();
+  
+  // バッチ同期用のタイマー
+  Timer? _batchSyncTimer;
 
   Future<void> _initialize() async {
     try {
@@ -63,6 +67,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // Nostr同期は非同期で実行（初期化をブロックしない）
       _backgroundSync();
       
+      // 自動バッチ同期タイマーを開始（30秒ごと）
+      _startBatchSyncTimer();
+      
     } catch (e) {
       print('⚠️ Todo初期化エラー: $e');
       // エラー時でもダミーデータで初期化（UIを表示）
@@ -81,10 +88,20 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // 画面表示後に実行
     await Future.delayed(const Duration(seconds: 1));
     
+    // Nostr初期化を最大10秒待つ
+    int attempts = 0;
+    while (!_ref.read(nostrInitializedProvider) && attempts < 10) {
+      print('⏳ Waiting for Nostr initialization... (attempt ${attempts + 1}/10)');
+      await Future.delayed(const Duration(seconds: 1));
+      attempts++;
+    }
+    
     if (!_ref.read(nostrInitializedProvider)) {
-      print('ℹ️ Nostr not initialized - skipping background sync');
+      print('⚠️ Nostr not initialized after 10 seconds - skipping background sync');
       return;
     }
+    
+    print('✅ Nostr initialized, proceeding with background sync');
 
     try {
       print('🔄 Starting background Nostr sync...');
@@ -226,11 +243,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     });
   }
 
-  /// 新しいTodoを追加
+  /// 新しいTodoを追加（楽観的UI更新）
   Future<void> addTodo(String title, DateTime? date, {String? customListId}) async {
     if (title.trim().isEmpty) return;
 
     print('🆕 addTodo called: "$title" for date: $date, customListId: $customListId');
+    print('📍 Stack trace location: addTodo');
+    if (customListId != null) {
+      print('🎯 IMPORTANT: This todo is being added to custom list: $customListId');
+    }
 
     await state.whenData((todos) async {
       final now = DateTime.now();
@@ -259,7 +280,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         updatedAt: now,
         customListId: customListId,
         recurrence: autoRecurrence, // 自動検出された繰り返しパターンを設定
+        needsSync: true, // 同期が必要
       );
+      
+      print('📦 Created new Todo object:');
+      print('   - id: ${newTodo.id}');
+      print('   - title: ${newTodo.title}');
+      print('   - date: ${newTodo.date}');
+      print('   - customListId: ${newTodo.customListId}');
+      print('   - order: ${newTodo.order}');
 
       final list = List<Todo>.from(todos[date] ?? []);
       list.add(newTodo);
@@ -277,7 +306,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         await _generateFutureInstances(newTodo, updatedTodos);
       }
 
-      // ローカルストレージに保存
+      // ローカルストレージに保存（awaitする - これは速い）
       print('💾 Saving to local storage...');
       await _saveAllTodosToLocal();
       print('✅ Local save complete');
@@ -287,16 +316,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         _fetchLinkPreviewInBackground(newTodo.id, date, detectedUrl);
       }
 
-      // Nostrが初期化されているかチェック
-      final isNostrInitialized = _ref.read(nostrInitializedProvider);
-      print('🔍 Nostr initialized: $isNostrInitialized');
-
-      // Nostr側に全TODOリストを送信（await追加）
-      print('📤 Starting Nostr sync...');
-      await _syncToNostr(() async {
-        await _syncAllTodosToNostr();
-      });
-      print('✅ Nostr sync completed');
+      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+      print('🚀 Starting background Nostr sync (non-blocking)...');
+      _updateUnsyncedCount(); // 未同期カウントを更新
+      _syncToNostrBackground();
     }).value;
   }
 
@@ -375,31 +398,33 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
 
 
-  /// Todoを更新
+  /// Todoを更新（楽観的UI更新）
   Future<void> updateTodo(Todo todo) async {
     await state.whenData((todos) async {
       final list = List<Todo>.from(todos[todo.date] ?? []);
       final index = list.indexWhere((t) => t.id == todo.id);
 
       if (index != -1) {
-        list[index] = todo.copyWith(updatedAt: DateTime.now());
+        list[index] = todo.copyWith(
+          updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
+        );
         state = AsyncValue.data({
           ...todos,
           todo.date: list,
         });
 
-        // ローカルストレージに保存
+        // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
 
-        // Nostr側に全TODOリストを送信（await追加）
-        await _syncToNostr(() async {
-          await _syncAllTodosToNostr();
-        });
+        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
       }
     }).value;
   }
 
-  /// Todoのタイトルを更新
+  /// Todoのタイトルを更新（楽観的UI更新）
   Future<void> updateTodoTitle(String id, DateTime? date, String newTitle) async {
     if (newTitle.trim().isEmpty) return;
 
@@ -411,6 +436,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         list[index] = list[index].copyWith(
           title: newTitle.trim(),
           updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
         );
         
         state = AsyncValue.data({
@@ -418,18 +444,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           date: list,
         });
 
-        // ローカルストレージに保存
+        // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
 
-        // Nostr側に全TODOリストを送信（await追加）
-        await _syncToNostr(() async {
-          await _syncAllTodosToNostr();
-        });
+        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
       }
     }).value;
   }
 
-  /// Todoのカスタムリスト紐づけを更新
+  /// Todoのカスタムリスト紐づけを更新（楽観的UI更新）
   Future<void> updateTodoCustomListId(String id, DateTime? date, String? customListId) async {
     await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
@@ -439,6 +464,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         list[index] = list[index].copyWith(
           customListId: customListId,
           updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
         );
         
         state = AsyncValue.data({
@@ -446,18 +472,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           date: list,
         });
 
-        // ローカルストレージに保存
+        // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
 
-        // Nostr側に全TODOリストを送信
-        await _syncToNostr(() async {
-          await _syncAllTodosToNostr();
-        });
+        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
       }
     }).value;
   }
 
-  /// Todoのタイトルと繰り返しパターンを更新
+  /// Todoのタイトルと繰り返しパターンを更新（楽観的UI更新）
   Future<void> updateTodoWithRecurrence(
     String id,
     DateTime? date,
@@ -475,6 +500,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           title: newTitle.trim(),
           recurrence: recurrence,
           updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
         );
         
         list[index] = updatedTodo;
@@ -492,18 +518,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           await _removeChildInstances(id, todos);
         }
 
-        // ローカルストレージに保存
+        // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
 
-        // Nostr側に全TODOリストを送信
-        await _syncToNostr(() async {
-          await _syncAllTodosToNostr();
-        });
+        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
       }
     }).value;
   }
 
-  /// Todoの完了状態をトグル
+  /// Todoの完了状態をトグル（楽観的UI更新）
   Future<void> toggleTodo(String id, DateTime? date) async {
     await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
@@ -516,6 +541,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         list[index] = todo.copyWith(
           completed: !todo.completed,
           updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
         );
 
         // リカーリングタスクの完了時に次回のタスクを生成
@@ -528,13 +554,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           date: list,
         });
 
-        // ローカルストレージに保存
+        // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
 
-        // Nostr側に全TODOリストを送信（await追加）
-        await _syncToNostr(() async {
-          await _syncAllTodosToNostr();
-        });
+        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
       }
     }).value;
   }
@@ -581,6 +606,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       recurrence: originalTodo.recurrence, // 繰り返しパターンを継承
       parentRecurringId: originalTodo.id, // 元のタスクIDを記録
       linkPreview: originalTodo.linkPreview,
+      needsSync: true, // 同期が必要
     );
 
     // 状態に追加
@@ -669,6 +695,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           recurrence: originalTodo.recurrence,
           parentRecurringId: originalTodo.id,
           linkPreview: originalTodo.linkPreview,
+          needsSync: true, // 同期が必要
         );
 
         final list = List<Todo>.from(todos[nextDate] ?? []);
@@ -720,7 +747,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
 
-  /// Todoを削除
+  /// Todoを削除（楽観的UI更新）
   Future<void> deleteTodo(String id, DateTime? date) async {
     await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
@@ -731,18 +758,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: list,
       });
 
-      // ローカルストレージに保存
+      // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
 
-      // Nostr側に全TODOリストを送信（await追加）
+      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
       // 削除後の全TODOリストを送信（Replaceable eventなので古いイベントは自動的に置き換わる）
-      await _syncToNostr(() async {
-        await _syncAllTodosToNostr();
-      });
+      _updateUnsyncedCount();
+      _syncToNostrBackground();
     }).value;
   }
 
-  /// リカーリングタスクのこのインスタンスのみを削除
+  /// リカーリングタスクのこのインスタンスのみを削除（楽観的UI更新）
   Future<void> deleteRecurringInstance(String id, DateTime? date) async {
     await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
@@ -760,17 +786,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       print('🗑️ リカーリングタスクのインスタンスを削除: ${todo.title} (${date})');
 
-      // ローカルストレージに保存
+      // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
 
-      // Nostr側に全TODOリストを送信
-      await _syncToNostr(() async {
-        await _syncAllTodosToNostr();
-      });
+      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+      _updateUnsyncedCount();
+      _syncToNostrBackground();
     }).value;
   }
 
-  /// リカーリングタスクのすべてのインスタンスを削除
+  /// リカーリングタスクのすべてのインスタンスを削除（楽観的UI更新）
   Future<void> deleteAllRecurringInstances(String id, DateTime? date) async {
     await state.whenData((todos) async {
       // 削除対象のTodoを取得
@@ -806,17 +831,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       state = AsyncValue.data(updatedTodos);
 
-      // ローカルストレージに保存
+      // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
 
-      // Nostr側に全TODOリストを送信
-      await _syncToNostr(() async {
-        await _syncAllTodosToNostr();
-      });
+      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+      _updateUnsyncedCount();
+      _syncToNostrBackground();
     }).value;
   }
 
-  /// Todoを並び替え
+  /// Todoを並び替え（楽観的UI更新）
   Future<void> reorderTodo(
     DateTime? date,
     int oldIndex,
@@ -837,6 +861,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         list[i] = list[i].copyWith(
           order: i,
           updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
         );
       }
 
@@ -845,17 +870,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: list,
       });
 
-      // ローカルストレージに保存
+      // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
 
-      // Nostr側に全TODOリストを送信（await追加）
-      await _syncToNostr(() async {
-        await _syncAllTodosToNostr();
-      });
+      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+      _updateUnsyncedCount();
+      _syncToNostrBackground();
     }).value;
   }
 
-  /// Todoを別の日付に移動
+  /// Todoを別の日付に移動（楽観的UI更新）
   Future<void> moveTodo(String id, DateTime? fromDate, DateTime? toDate) async {
     if (fromDate == toDate) return;
 
@@ -871,6 +895,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: toDate,
         order: _getNextOrder({toDate: toList}, toDate),
         updatedAt: DateTime.now(),
+        needsSync: true, // 同期が必要
       );
       toList.add(movedTodo);
 
@@ -880,13 +905,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         toDate: toList,
       });
 
-      // ローカルストレージに保存
+      // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
 
-      // Nostr側に全TODOリストを送信（await追加）
-      await _syncToNostr(() async {
-        await _syncAllTodosToNostr();
-      });
+      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+      _updateUnsyncedCount();
+      _syncToNostrBackground();
     }).value;
   }
 
@@ -895,6 +919,132 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final list = todos[date];
     if (list == null || list.isEmpty) return 0;
     return list.map((t) => t.order).reduce((a, b) => a > b ? a : b) + 1;
+  }
+
+  /// バックグラウンドでNostr同期（awaitしない、UIをブロックしない）
+  void _syncToNostrBackground() {
+    print('🚀 _syncToNostrBackground called (non-blocking)');
+    
+    final isInitialized = _ref.read(nostrInitializedProvider);
+    if (!isInitialized) {
+      print('⚠️ Nostr未初期化のため、バックグラウンド同期をスキップ');
+      return;
+    }
+
+    // awaitせずに実行（Fire and forget）
+    Future.microtask(() async {
+      try {
+        print('🔄 Starting background sync to Nostr...');
+        await _syncAllTodosToNostr();
+        
+        // 同期成功後、needsSyncフラグをクリア
+        await _clearNeedsSyncFlags();
+        
+        print('✅ Background sync completed successfully');
+        _ref.read(syncStatusProvider.notifier).syncSuccess();
+      } catch (e, stackTrace) {
+        print('❌ Background sync failed: $e');
+        print('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+        // エラーは記録するが、UIには影響しない
+        _ref.read(syncStatusProvider.notifier).syncError(
+          'バックグラウンド同期エラー: ${e.toString()}',
+          shouldRetry: false,
+        );
+        
+        // 3秒後にエラーをクリア
+        Future.delayed(const Duration(seconds: 3), () {
+          _ref.read(syncStatusProvider.notifier).clearError();
+        });
+      }
+    });
+  }
+
+  /// 未同期のTodoを取得
+  List<Todo> _getUnsyncedTodos() {
+    return state.when(
+      data: (todos) {
+        final allTodos = <Todo>[];
+        for (final dateGroup in todos.values) {
+          allTodos.addAll(dateGroup.where((t) => t.needsSync));
+        }
+        return allTodos;
+      },
+      loading: () => [],
+      error: (_, __) => [],
+    );
+  }
+
+  /// 未同期タスク数をSyncStatusProviderに通知
+  void _updateUnsyncedCount() {
+    final unsyncedTodos = _getUnsyncedTodos();
+    _ref.read(syncStatusProvider.notifier).state = 
+      _ref.read(syncStatusProvider).copyWith(
+        pendingItems: unsyncedTodos.length,
+      );
+  }
+
+  /// 同期成功後、needsSyncフラグをクリア
+  Future<void> _clearNeedsSyncFlags() async {
+    state.whenData((todos) async {
+      final Map<DateTime?, List<Todo>> updatedTodos = {};
+      bool hasChanges = false;
+
+      for (final entry in todos.entries) {
+        final date = entry.key;
+        final list = entry.value.map((todo) {
+          if (todo.needsSync) {
+            hasChanges = true;
+            return todo.copyWith(needsSync: false);
+          }
+          return todo;
+        }).toList();
+        updatedTodos[date] = list;
+      }
+
+      if (hasChanges) {
+        state = AsyncValue.data(updatedTodos);
+        await _saveAllTodosToLocal();
+        _updateUnsyncedCount(); // 未同期カウントを更新
+        print('✅ Cleared needsSync flags for all todos');
+      }
+    });
+  }
+
+  /// 自動バッチ同期タイマーを開始（30秒ごと）
+  void _startBatchSyncTimer() {
+    print('⏱️ Starting batch sync timer (every 30 seconds)');
+    
+    // 既存のタイマーをキャンセル
+    _batchSyncTimer?.cancel();
+    
+    // 30秒ごとに実行
+    _batchSyncTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _executeBatchSync();
+    });
+  }
+
+  /// バッチ同期を実行
+  Future<void> _executeBatchSync() async {
+    final unsyncedTodos = _getUnsyncedTodos();
+    
+    if (unsyncedTodos.isEmpty) {
+      print('✅ No unsynced todos - skipping batch sync');
+      return;
+    }
+
+    print('🔄 Batch sync: ${unsyncedTodos.length} unsynced todos found');
+    print('📤 Syncing to Nostr...');
+    
+    // バックグラウンドで同期
+    _syncToNostrBackground();
+  }
+
+  /// Notifierがdisposeされたときにタイマーをキャンセル
+  @override
+  void dispose() {
+    print('🛑 Disposing TodosNotifier, cancelling batch sync timer');
+    _batchSyncTimer?.cancel();
+    super.dispose();
   }
 
   /// 全TODOリストをNostrに同期（新実装 - Kind 30001）
@@ -910,7 +1060,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       return;
     }
 
-    state.whenData((todos) async {
+    // state.whenDataは、stateがdata状態でない場合は何もしない
+    // そのため、loading/error状態の場合は同期をスキップ
+    final stateValue = state;
+    if (!stateValue.hasValue) {
+      print('⚠️ State is not ready (loading or error), skipping sync');
+      throw Exception('State is not ready for sync');
+    }
+
+    await state.whenData((todos) async {  // ← awaitを追加！
+      print('🎯 _syncAllTodosToNostr: state.whenData callback STARTED');
+      
       // 全TODOをフラット化
       final allTodos = <Todo>[];
       for (final dateGroup in todos.values) {
@@ -918,6 +1078,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
 
       print('📦 Total todos to sync: ${allTodos.length}');
+      
+      // カスタムリストに属するTodoをログ出力
+      final customListTodos = allTodos.where((t) => t.customListId != null).toList();
+      if (customListTodos.isNotEmpty) {
+        print('🎯 Found ${customListTodos.length} todos with customListId:');
+        for (final todo in customListTodos) {
+          print('   - "${todo.title}" → customListId: ${todo.customListId}');
+        }
+      }
 
       final isAmberMode = _ref.read(isAmberModeProvider);
       final nostrService = _ref.read(nostrServiceProvider);
@@ -943,9 +1112,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             'custom_list_id': todo.customListId,
             'recurrence': todo.recurrence?.toJson(),
             'parent_recurring_id': todo.parentRecurringId,
+            'needs_sync': todo.needsSync,
           }).toList());
           
           print('📝 TODOリスト JSON (${todosJson.length} bytes, ${allTodos.length}件)');
+          
+          // カスタムリストIDが含まれているか確認
+          if (todosJson.contains('"custom_list_id"')) {
+            print('✅ JSON contains custom_list_id field');
+          } else {
+            print('⚠️ WARNING: JSON does NOT contain custom_list_id field!');
+          }
           
           // 2. 公開鍵取得
           final publicKey = _ref.read(publicKeyProvider);
@@ -1023,7 +1200,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         print('スタックトレース: $stackTrace');
         rethrow;
       }
-    });
+      
+      print('🎯 _syncAllTodosToNostr: state.whenData callback COMPLETED successfully');
+    }).value;  // ← .value追加で確実に完了を待つ
+    
+    print('🎯 _syncAllTodosToNostr: method COMPLETED');
   }
 
 
@@ -1036,8 +1217,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     print('🔍 Nostr initialized in _syncToNostr: $isInitialized');
     
     if (!isInitialized) {
-      // Nostr未初期化の場合はスキップ
+      // Nostr未初期化の場合はスキップ（ローカル保存は完了している）
       print('⚠️ Nostr未初期化のため_syncToNostrをスキップ');
+      print('ℹ️ ローカル保存は完了しています。Nostr接続後に同期されます。');
       return;
     }
 
@@ -1046,9 +1228,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     if (_ref.read(isAmberModeProvider)) {
       print('🔐 Amberモードで同期します');
       // Amberモードの場合はリトライなし（ユーザー操作が必要なため）
+      print('📊 Calling startSync()');
       _ref.read(syncStatusProvider.notifier).startSync();
       
       try {
+        print('🚀 Executing syncFunction() (Amber mode)...');
         // タイムアウト付きで同期実行（30秒）
         await syncFunction().timeout(
           const Duration(seconds: 30),
@@ -1056,9 +1240,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             throw Exception('同期がタイムアウトしました（30秒）');
           },
         );
+        print('📊 Calling syncSuccess()');
         _ref.read(syncStatusProvider.notifier).syncSuccess();
         print('✅ Amber同期成功');
       } catch (e) {
+        print('📊 Calling syncError()');
         _ref.read(syncStatusProvider.notifier).syncError(
           e.toString(),
           shouldRetry: false,
@@ -1066,11 +1252,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         print('❌ Amber同期失敗: $e');
         // エラーを再スローせず、ローカルデータは保持
       }
+      print('🎯 _syncToNostr: Amber mode COMPLETED');
       return;
     }
 
     // 通常モード: 秘密鍵で署名
+    print('🔑 通常モードで同期します');
     // 同期開始
+    print('📊 Calling startSync()');
     _ref.read(syncStatusProvider.notifier).startSync();
 
     const maxRetries = 3;
@@ -1079,6 +1268,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     for (int attempt = 0; attempt <= maxRetries; attempt++) {
       try {
+        print('🚀 Executing syncFunction() (attempt ${attempt + 1}/${maxRetries + 1})...');
         // タイムアウト付きで同期実行
         await syncFunction().timeout(
           timeout,
@@ -1088,8 +1278,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         );
         
         // 成功
+        print('📊 Calling syncSuccess()');
         _ref.read(syncStatusProvider.notifier).syncSuccess();
         print('✅ Nostr同期成功');
+        print('🎯 _syncToNostr: Normal mode COMPLETED successfully');
         return;
         
       } catch (e) {
@@ -1097,11 +1289,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         
         if (isLastAttempt) {
           // 最終試行でも失敗
+          print('📊 Calling syncError() (final attempt)');
           _ref.read(syncStatusProvider.notifier).syncError(
             e.toString(),
             shouldRetry: false,
           );
           print('❌ Nostr同期失敗（最終試行）: $e');
+          print('🎯 _syncToNostr: Normal mode COMPLETED with error');
           // エラーを再スローせず、ローカルデータは保持
         } else {
           // リトライする
@@ -1221,6 +1415,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
                   ? RecurrencePattern.fromJson(map['recurrence'] as Map<String, dynamic>)
                   : null,
               parentRecurringId: map['parent_recurring_id'] as String?,
+              needsSync: false, // Nostrから取得したデータは常に同期済み（map['needs_sync']の値は無視）
             );
           }).toList();
           
@@ -1246,7 +1441,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             });
           }
           
-          _updateStateWithSyncedTodos(syncedTodos);
+          // Nostrから取得したデータのneedsSyncフラグを強制的にfalseにする
+          final cleanedTodos = syncedTodos.map((todo) => todo.copyWith(needsSync: false)).toList();
+          print('✅ needsSyncフラグをクリア: ${cleanedTodos.length}件');
+          
+          _updateStateWithSyncedTodos(cleanedTodos);
         }
         
         _ref.read(syncStatusProvider.notifier).syncSuccess();

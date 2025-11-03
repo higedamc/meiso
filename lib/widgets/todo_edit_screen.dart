@@ -11,11 +11,15 @@ class TodoEditScreen extends ConsumerStatefulWidget {
   const TodoEditScreen({
     this.todo,
     this.date,
+    this.customListId,
+    this.customListName,
     super.key,
   });
 
   final Todo? todo;
   final DateTime? date;
+  final String? customListId;
+  final String? customListName;
 
   @override
   ConsumerState<TodoEditScreen> createState() => _TodoEditScreenState();
@@ -205,6 +209,11 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
 
   /// 日付ラベルを取得
   String _getDateLabel() {
+    // カスタムリストの場合はリスト名を表示
+    if (widget.customListName != null) {
+      return widget.customListName!;
+    }
+
     final currentDate = widget.todo?.date ?? widget.date;
     
     if (currentDate == null) {
@@ -313,24 +322,34 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
   }
 
   /// 保存処理
-  void _save() {
+  Future<void> _save() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
     if (isEditing) {
       // 編集モード: タイトルと繰り返しパターンを更新
-      ref.read(todosProvider.notifier).updateTodoWithRecurrence(
+      print('📝 Updating todo: "$text" (id: ${widget.todo!.id})');
+      await ref.read(todosProvider.notifier).updateTodoWithRecurrence(
         widget.todo!.id,
         widget.todo!.date,
         text,
         _recurrence,
       );
+      print('✅ Todo update completed and synced');
     } else {
       // 追加モード: 新しいTodoを作成
-      ref.read(todosProvider.notifier).addTodo(text, widget.date);
+      print('📝 Adding todo to list: "$text" (customListId: ${widget.customListId})');
+      await ref.read(todosProvider.notifier).addTodo(
+        text,
+        widget.date,
+        customListId: widget.customListId,
+      );
+      print('✅ Todo added and synced to Nostr');
     }
 
-    Navigator.pop(context);
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 }
 
