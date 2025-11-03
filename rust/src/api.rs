@@ -4,7 +4,33 @@ use nostr_sdk::nips::nip44; // NIP-44暗号化を明示的にインポート
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::NOSTR_CLIENT;
+use crate::{NOSTR_CLIENTS, DEFAULT_CLIENT_ID};
+
+/// クライアントモード
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ClientMode {
+    /// 秘密鍵モード（暗号化/署名可能）
+    SecretKey,
+    /// Amberモード（署名はAmber経由、暗号化/復号化もAmber経由）
+    Amber { public_key_hex: String },
+}
+
+/// イベント送信結果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventSendResult {
+    /// イベントID
+    pub event_id: String,
+    /// 送信成功したか
+    pub success: bool,
+    /// 成功したリレー数
+    pub successful_relays: usize,
+    /// 失敗したリレー数
+    pub failed_relays: usize,
+    /// タイムアウトしたか
+    pub timed_out: bool,
+    /// エラーメッセージ（失敗時）
+    pub error_message: Option<String>,
+}
 
 /// Todoデータ構造（Flutter側と同期）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,6 +43,18 @@ pub struct TodoData {
     pub created_at: String,
     pub updated_at: String,
     pub event_id: Option<String>,
+    /// リンクプレビュー（JSON文字列形式で保存）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link_preview: Option<String>,
+    /// リカーリングタスクの繰り返しパターン（JSON文字列形式で保存）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recurrence: Option<String>,
+    /// 親リカーリングタスクのID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_recurring_id: Option<String>,
+    /// カスタムリストID（SOMEDAYページのリストに属する場合）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_list_id: Option<String>,
 }
 
 /// アプリ設定データ構造（NIP-78 Application-specific data - Kind 30078）
@@ -47,10 +85,73 @@ fn default_proxy_url() -> String {
     "socks5://127.0.0.1:9050".to_string()
 }
 
+/// キャッシュされたイベント情報（Hive保存用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedEventInfo {
+    /// イベントID
+    pub event_id: String,
+    /// イベントの種類
+    pub kind: u64,
+    /// イベント作成日時（UNIX timestamp）
+    pub created_at: i64,
+    /// イベント内容（JSON文字列）
+    pub event_json: String,
+    /// キャッシュされた日時（UNIX timestamp）
+    pub cached_at: i64,
+    /// TTL（秒）
+    pub ttl_seconds: u64,
+    /// d-tag（Replaceable eventの場合）
+    pub d_tag: Option<String>,
+}
+
+impl CachedEventInfo {
+    /// キャッシュが有効かチェック
+    pub fn is_valid(&self) -> bool {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        
+        now - self.cached_at < self.ttl_seconds as i64
+    }
+}
+
+/// Subscription情報
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionInfo {
+    /// Subscription ID
+    pub subscription_id: String,
+    /// フィルター（JSON形式）
+    pub filters_json: String,
+    /// 作成日時
+    pub created_at: i64,
+}
+
+/// Subscription経由で受信したイベント
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceivedEvent {
+    /// イベントID
+    pub event_id: String,
+    /// イベントの種類
+    pub kind: u64,
+    /// イベント作成日時
+    pub created_at: i64,
+    /// イベント内容（JSON文字列）
+    pub event_json: String,
+    /// 受信日時
+    pub received_at: i64,
+    /// Subscription ID
+    pub subscription_id: String,
+}
+
 /// Nostrクライアントのラッパー
+#[derive(Clone)]
 pub struct MeisoNostrClient {
-    pub(crate) keys: Keys,
+    /// 秘密鍵（Amberモードの場合はNone）
+    pub(crate) keys: Option<Keys>,
     pub(crate) client: Client,
+    /// クライアントモード
+    pub(crate) mode: ClientMode,
 }
 
 impl MeisoNostrClient {
@@ -116,28 +217,189 @@ impl MeisoNostrClient {
             }
         }
 
-        Ok(Self { keys, client })
+        Ok(Self { 
+            keys: Some(keys), 
+            client,
+            mode: ClientMode::SecretKey,
+        })
+    }
+    
+    /// 新しいクライアントを作成（Amberモード - 公開鍵のみ）
+    pub async fn new_amber_mode(
+        public_key_hex: String,
+        relays: Vec<String>,
+        proxy_url: Option<String>,
+    ) -> Result<Self> {
+        println!("🟡 Creating Amber mode client (no secret key)");
+        
+        // プロキシ設定（環境変数経由）
+        if let Some(ref proxy) = proxy_url {
+            println!("🔐 Tor/Proxy経由で接続します (Amber mode): {}", proxy);
+            
+            std::env::set_var("all_proxy", proxy);
+            std::env::set_var("ALL_PROXY", proxy);
+            std::env::set_var("socks_proxy", proxy);
+            std::env::set_var("SOCKS_PROXY", proxy);
+            
+            println!("✅ プロキシ環境変数を設定 (Amber mode): {}", proxy);
+        }
+        
+        // Amberモードでは秘密鍵なしでクライアントを作成
+        // nostr-sdk 0.30以降はPublicKeyだけでClientを作成可能
+        let _public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // Keysをpublic keyだけから作成する方法がないため、
+        // ダミーの秘密鍵を生成するが、使わないことを明示
+        let dummy_keys = Keys::generate();
+        let client = Client::new(dummy_keys);
+        
+        // リレー追加
+        for relay_url in &relays {
+            println!("Adding relay: {}", relay_url);
+            match client.add_relay(relay_url).await {
+                Ok(_) => println!("✅ Relay added: {}", relay_url),
+                Err(e) => {
+                    eprintln!("⚠️ Failed to add relay {}: {}", relay_url, e);
+                }
+            }
+        }
+        
+        // リレーに接続（タイムアウト付き）
+        let timeout_sec = if proxy_url.is_some() { 20 } else { 10 };
+        println!("🔌 Connecting to relays (Amber mode){}...",
+            if proxy_url.is_some() { " (via proxy)" } else { "" });
+        
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_sec), 
+            client.connect()
+        ).await {
+            Ok(_) => println!("✅ Connected to relays (Amber mode)"),
+            Err(_) => {
+                eprintln!("⚠️ Relay connection timeout ({}s) in Amber mode - continuing anyway", timeout_sec);
+            }
+        }
+        
+        Ok(Self {
+            keys: None, // Amberモードでは秘密鍵なし
+            client,
+            mode: ClientMode::Amber { public_key_hex },
+        })
     }
 
     /// 公開鍵を取得（hex形式）
     pub fn public_key_hex(&self) -> String {
-        self.keys.public_key().to_hex()
+        match &self.mode {
+            ClientMode::SecretKey => {
+                self.keys.as_ref()
+                    .expect("SecretKey mode must have keys")
+                    .public_key()
+                    .to_hex()
+            }
+            ClientMode::Amber { public_key_hex } => public_key_hex.clone(),
+        }
     }
 
     /// 公開鍵を取得（npub形式）
     pub fn public_key_npub(&self) -> String {
-        self.keys.public_key().to_bech32().unwrap_or_else(|_| self.keys.public_key().to_hex())
+        match &self.mode {
+            ClientMode::SecretKey => {
+                let pubkey = self.keys.as_ref()
+                    .expect("SecretKey mode must have keys")
+                    .public_key();
+                pubkey.to_bech32().unwrap_or_else(|_| pubkey.to_hex())
+            }
+            ClientMode::Amber { public_key_hex } => {
+                // hex → npub変換
+                PublicKey::from_hex(public_key_hex)
+                    .ok()
+                    .and_then(|pk| pk.to_bech32().ok())
+                    .unwrap_or_else(|| public_key_hex.clone())
+            }
+        }
+    }
+    
+    /// クライアントモードを取得
+    pub fn mode(&self) -> &ClientMode {
+        &self.mode
+    }
+    
+    /// 秘密鍵が利用可能かチェック
+    pub fn has_secret_key(&self) -> bool {
+        self.keys.is_some()
+    }
+
+    /// イベントをリレーに送信（改善されたエラーハンドリング）
+    async fn send_event_with_result(&self, event: Event) -> Result<EventSendResult> {
+        let event_id = event.id.to_hex();
+        
+        match tokio::time::timeout(Duration::from_secs(10), self.client.send_event(event)).await {
+            Ok(Ok(send_output)) => {
+                // 成功: nostr-sdkのSendEventOutputから情報を取得
+                let successful = send_output.success.len();
+                let failed = send_output.failed.len();
+                
+                println!("✅ Event sent: {} successful, {} failed", successful, failed);
+                
+                Ok(EventSendResult {
+                    event_id,
+                    success: successful > 0, // 少なくとも1つ成功したら成功扱い
+                    successful_relays: successful,
+                    failed_relays: failed,
+                    timed_out: false,
+                    error_message: if failed > 0 {
+                        Some(format!("{} relays failed to receive the event", failed))
+                    } else {
+                        None
+                    },
+                })
+            }
+            Ok(Err(e)) => {
+                // 送信エラー（全リレー失敗）
+                eprintln!("❌ Failed to send event: {}", e);
+                Ok(EventSendResult {
+                    event_id,
+                    success: false,
+                    successful_relays: 0,
+                    failed_relays: 0, // 不明
+                    timed_out: false,
+                    error_message: Some(format!("Send failed: {}", e)),
+                })
+            }
+            Err(_) => {
+                // タイムアウト
+                eprintln!("⏱️ Event send timeout (10s)");
+                Ok(EventSendResult {
+                    event_id,
+                    success: false,
+                    successful_relays: 0,
+                    failed_relays: 0,
+                    timed_out: true,
+                    error_message: Some("Timeout after 10 seconds".to_string()),
+                })
+            }
+        }
     }
 
     /// TodoリストをNostrイベントとして作成（Kind 30001 - NIP-51 Bookmark List）
     /// 全TODOを1つのイベントとして管理
-    pub async fn create_todo_list(&self, todos: Vec<TodoData>) -> Result<String> {
+    pub async fn create_todo_list(&self, todos: Vec<TodoData>) -> Result<EventSendResult> {
+        // Amberモードでは暗号化/署名ができないのでエラー
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!(
+                "Cannot create TODO list in Amber mode. Use create_unsigned_encrypted_todo_list_event + Amber signing instead."
+            ));
+        }
+        
+        let keys = self.keys.as_ref()
+            .context("Secret key required for TODO list creation")?;
+        
         let todos_json = serde_json::to_string(&todos)?;
 
         // NIP-44で自己暗号化
-        let public_key = self.keys.public_key();
+        let public_key = keys.public_key();
         let encrypted_content = nip44::encrypt(
-            self.keys.secret_key(),
+            keys.secret_key(),
             &public_key,
             &todos_json,
             nip44::Version::V2,
@@ -156,7 +418,7 @@ impl MeisoNostrClient {
 
         let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
             .tags(vec![d_tag, title_tag])
-            .sign(&self.keys)
+            .sign(keys)
             .await?;
 
         // リレーに送信するイベントをJSONとしてログ出力
@@ -170,33 +432,25 @@ impl MeisoNostrClient {
             }
         }
 
-        // リレーに送信（タイムアウト付き、エラーを無視して続行）
-        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(event.clone())).await {
-            Ok(Ok(event_id)) => {
-                println!("✅ TODO list event sent successfully: {}", event_id.to_hex());
-                Ok(event_id.to_hex())
-            }
-            Ok(Err(e)) => {
-                // 送信エラーでもイベントIDは返す（ローカルで保存済み）
-                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
-                Ok(event.id.to_hex())
-            }
-            Err(_) => {
-                // タイムアウトでもイベントIDは返す
-                eprintln!("⚠️ イベント送信タイムアウト");
-                Ok(event.id.to_hex())
-            }
-        }
+        // リレーに送信（改善されたエラーハンドリング）
+        self.send_event_with_result(event).await
     }
 
     /// TodoをNostrイベントとして作成（旧実装 - 後方互換性のため残す）
     pub async fn create_todo(&self, todo: TodoData) -> Result<String> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!("Cannot create TODO in Amber mode"));
+        }
+        
+        let keys = self.keys.as_ref()
+            .context("Secret key required")?;
+        
         let todo_json = serde_json::to_string(&todo)?;
 
         // NIP-44で自己暗号化
-        let public_key = self.keys.public_key();
+        let public_key = keys.public_key();
         let encrypted_content = nip44::encrypt(
-            self.keys.secret_key(),
+            keys.secret_key(),
             &public_key,
             &todo_json,
             nip44::Version::V2,
@@ -210,7 +464,7 @@ impl MeisoNostrClient {
 
         let event = EventBuilder::new(Kind::Custom(30078), encrypted_content)
             .tags(vec![tag])
-            .sign(&self.keys)
+            .sign(keys)
             .await?;
 
         // リレーに送信するイベントをJSONとしてログ出力
@@ -251,10 +505,17 @@ impl MeisoNostrClient {
 
     /// Todoを削除（削除イベント送信）
     pub async fn delete_todo(&self, todo_id: &str) -> Result<()> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!("Cannot delete TODO in Amber mode"));
+        }
+        
+        let keys = self.keys.as_ref()
+            .context("Secret key required")?;
+        
         // まず該当イベントを取得
         let filter = Filter::new()
             .kind(Kind::Custom(30078))
-            .author(self.keys.public_key())
+            .author(keys.public_key())
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
                 vec![format!("todo-{}", todo_id)],
@@ -268,7 +529,7 @@ impl MeisoNostrClient {
         if let Some(event) = events.first() {
             // 削除イベント (Kind 5) を送信
             let delete_event = EventBuilder::delete([event.id])
-                .sign(&self.keys)
+                .sign(keys)
                 .await?;
 
             // リレーに送信する削除イベントをJSONとしてログ出力
@@ -301,9 +562,18 @@ impl MeisoNostrClient {
 
     /// TodoリストをNostrから同期（Kind 30001）
     pub async fn sync_todo_list(&self) -> Result<Vec<TodoData>> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!(
+                "Cannot sync TODO list in Amber mode. Use fetch_encrypted_todo_list_for_pubkey + Amber decryption instead."
+            ));
+        }
+        
+        let keys = self.keys.as_ref()
+            .context("Secret key required for syncing")?;
+        
         let filter = Filter::new()
             .kind(Kind::Custom(30001))
-            .author(self.keys.public_key())
+            .author(keys.public_key())
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
                 vec!["meiso-todos".to_string()],
@@ -318,8 +588,8 @@ impl MeisoNostrClient {
         if let Some(event) = events.first() {
             // NIP-44で復号化
             if let Ok(decrypted) = nip44::decrypt(
-                self.keys.secret_key(),
-                &self.keys.public_key(),
+                keys.secret_key(),
+                &keys.public_key(),
                 &event.content,
             ) {
                 if let Ok(todos) = serde_json::from_str::<Vec<TodoData>>(&decrypted) {
@@ -338,9 +608,16 @@ impl MeisoNostrClient {
     /// ⚠️ 注意: `d`タグが`todo-`で始まるイベントは除外されます
     /// これは設定イベント（`meiso-settings`など）を除外するためです
     pub async fn sync_todos(&self) -> Result<Vec<TodoData>> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!("Cannot sync TODOs in Amber mode"));
+        }
+        
+        let keys = self.keys.as_ref()
+            .context("Secret key required")?;
+        
         let filter = Filter::new()
             .kind(Kind::Custom(30078))
-            .author(self.keys.public_key());
+            .author(keys.public_key());
 
         let events = self
             .client
@@ -368,8 +645,8 @@ impl MeisoNostrClient {
 
             // NIP-44で復号化
             if let Ok(decrypted) = nip44::decrypt(
-                self.keys.secret_key(),
-                &self.keys.public_key(),
+                keys.secret_key(),
+                &keys.public_key(),
                 &event.content,
             ) {
                 if let Ok(mut todo) = serde_json::from_str::<TodoData>(&decrypted) {
@@ -387,13 +664,20 @@ impl MeisoNostrClient {
     // ========================================
 
     /// アプリ設定をNostrイベントとして作成（Kind 30078 - NIP-78）
-    pub async fn create_app_settings(&self, settings: AppSettings) -> Result<String> {
+    pub async fn create_app_settings(&self, settings: AppSettings) -> Result<EventSendResult> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!("Cannot create app settings in Amber mode"));
+        }
+        
+        let keys = self.keys.as_ref()
+            .context("Secret key required")?;
+        
         let settings_json = serde_json::to_string(&settings)?;
 
         // NIP-44で自己暗号化
-        let public_key = self.keys.public_key();
+        let public_key = keys.public_key();
         let encrypted_content = nip44::encrypt(
-            self.keys.secret_key(),
+            keys.secret_key(),
             &public_key,
             &settings_json,
             nip44::Version::V2,
@@ -407,7 +691,7 @@ impl MeisoNostrClient {
 
         let event = EventBuilder::new(Kind::Custom(30078), encrypted_content)
             .tags(vec![d_tag])
-            .sign(&self.keys)
+            .sign(keys)
             .await?;
 
         // リレーに送信するイベントをJSONとしてログ出力
@@ -421,28 +705,22 @@ impl MeisoNostrClient {
             }
         }
 
-        // リレーに送信（タイムアウト付き）
-        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(event.clone())).await {
-            Ok(Ok(event_id)) => {
-                println!("✅ App settings event sent successfully: {}", event_id.to_hex());
-                Ok(event_id.to_hex())
-            }
-            Ok(Err(e)) => {
-                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
-                Ok(event.id.to_hex())
-            }
-            Err(_) => {
-                eprintln!("⚠️ イベント送信タイムアウト");
-                Ok(event.id.to_hex())
-            }
-        }
+        // リレーに送信（改善されたエラーハンドリング）
+        self.send_event_with_result(event).await
     }
 
     /// アプリ設定をNostrから同期（Kind 30078）
     pub async fn sync_app_settings(&self) -> Result<Option<AppSettings>> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!("Cannot sync app settings in Amber mode"));
+        }
+        
+        let keys = self.keys.as_ref()
+            .context("Secret key required")?;
+        
         let filter = Filter::new()
             .kind(Kind::Custom(30078))
-            .author(self.keys.public_key())
+            .author(keys.public_key())
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
                 vec!["meiso-settings".to_string()],
@@ -457,8 +735,8 @@ impl MeisoNostrClient {
         if let Some(event) = events.first() {
             // NIP-44で復号化
             if let Ok(decrypted) = nip44::decrypt(
-                self.keys.secret_key(),
-                &self.keys.public_key(),
+                keys.secret_key(),
+                &keys.public_key(),
                 &event.content,
             ) {
                 if let Ok(settings) = serde_json::from_str::<AppSettings>(&decrypted) {
@@ -473,7 +751,14 @@ impl MeisoNostrClient {
     }
 
     /// リレーリストをNostrに保存（NIP-65 Kind 10002 - Relay List Metadata）
-    pub async fn save_relay_list(&self, relays: Vec<String>) -> Result<String> {
+    pub async fn save_relay_list(&self, relays: Vec<String>) -> Result<EventSendResult> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!("Cannot save relay list in Amber mode"));
+        }
+        
+        let keys = self.keys.as_ref()
+            .context("Secret key required")?;
+        
         println!("💾 Saving relay list to Nostr (Kind 10002)...");
         
         // NIP-65: リレーをタグとして追加
@@ -489,7 +774,7 @@ impl MeisoNostrClient {
         // Kind 10002イベント作成（contentは空）
         let event = EventBuilder::new(Kind::RelayList, String::new())
             .tags(tags)
-            .sign(&self.keys)
+            .sign(keys)
             .await?;
         
         // リレーに送信するイベントをJSONとしてログ出力
@@ -503,30 +788,22 @@ impl MeisoNostrClient {
             }
         }
         
-        // リレーに送信（タイムアウト付き）
-        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(event.clone())).await {
-            Ok(Ok(event_id)) => {
-                println!("✅ Relay list event sent successfully: {}", event_id.to_hex());
-                Ok(event_id.to_hex())
-            }
-            Ok(Err(e)) => {
-                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
-                Ok(event.id.to_hex())
-            }
-            Err(_) => {
-                eprintln!("⚠️ イベント送信タイムアウト");
-                Ok(event.id.to_hex())
-            }
-        }
+        // リレーに送信（改善されたエラーハンドリング）
+        self.send_event_with_result(event).await
     }
 
     /// リレーリストをNostrから同期（NIP-65 Kind 10002）
     pub async fn sync_relay_list(&self) -> Result<Vec<String>> {
         println!("🔄 Syncing relay list from Nostr (Kind 10002)...");
         
+        // 公開鍵を取得（モードに応じて）
+        let pubkey_hex = self.public_key_hex();
+        let pubkey = PublicKey::from_hex(&pubkey_hex)
+            .context("Failed to parse public key")?;
+        
         let filter = Filter::new()
             .kind(Kind::RelayList)
-            .author(self.keys.public_key());
+            .author(pubkey);
 
         let events = self
             .client
@@ -554,6 +831,141 @@ impl MeisoNostrClient {
         println!("⚠️ No relay list found");
         Ok(Vec::new())
     }
+    
+    // ========================================
+    // Subscription管理機能
+    // ========================================
+    
+    /// Subscriptionを開始（リアルタイム更新を受信）
+    pub(crate) async fn subscribe(&self, filters: Vec<Filter>) -> Result<SubscriptionInfo> {
+        println!("📡 Starting subscription with {} filters", filters.len());
+        
+        // Subscriptionを開始
+        let subscription_id = self.client.subscribe(filters.clone(), None).await?;
+        
+        let filters_json = serde_json::to_string(&filters)?;
+        let created_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        
+        println!("✅ Subscription started: {}", subscription_id.to_string());
+        
+        Ok(SubscriptionInfo {
+            subscription_id: subscription_id.to_string(),
+            filters_json,
+            created_at,
+        })
+    }
+    
+    /// Subscriptionを停止
+    pub(crate) async fn unsubscribe(&self, subscription_id: String) -> Result<()> {
+        println!("🛑 Stopping subscription: {}", subscription_id);
+        
+        let sub_id = SubscriptionId::new(subscription_id);
+        self.client.unsubscribe(sub_id).await;
+        
+        println!("✅ Subscription stopped");
+        Ok(())
+    }
+    
+    /// すべてのSubscriptionを停止
+    pub(crate) async fn unsubscribe_all(&self) -> Result<()> {
+        println!("🛑 Stopping all subscriptions");
+        self.client.unsubscribe_all().await;
+        println!("✅ All subscriptions stopped");
+        Ok(())
+    }
+    
+    /// Subscription経由でイベントを受信（1回のポーリング）
+    /// タイムアウト付きで新しいイベントを取得
+    pub(crate) async fn receive_subscription_events(&self, timeout_ms: u64) -> Result<Vec<ReceivedEvent>> {
+        let timeout = Duration::from_millis(timeout_ms);
+        
+        // Notification channelから受信
+        let mut events = Vec::new();
+        let mut notifications = self.client.notifications();
+        let deadline = tokio::time::Instant::now() + timeout;
+        
+        loop {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            
+            // 通知を受信（タイムアウト付き）
+            match tokio::time::timeout(remaining, notifications.recv()).await {
+                Ok(Ok(notification)) => {
+                    // イベント通知のみ処理
+                    if let RelayPoolNotification::Event { event, subscription_id, .. } = notification {
+                        let received_at = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs() as i64;
+                        
+                        let event_json = serde_json::to_string(&event.as_json())?;
+                        
+                        events.push(ReceivedEvent {
+                            event_id: event.id.to_hex(),
+                            kind: event.kind.as_u16() as u64,
+                            created_at: event.created_at.as_u64() as i64,
+                            event_json,
+                            received_at,
+                            subscription_id: subscription_id.to_string(),
+                        });
+                        
+                        // イベントを1つ受信したら即座に返す
+                        break;
+                    }
+                    // 他の通知タイプは無視して次を待つ
+                }
+                Ok(Err(_)) => {
+                    // チャンネルエラー
+                    break;
+                }
+                Err(_) => {
+                    // タイムアウト
+                    break;
+                }
+            }
+        }
+        
+        if !events.is_empty() {
+            println!("📥 Received {} events via subscription", events.len());
+        }
+        
+        Ok(events)
+    }
+    
+    /// リレー接続状態をチェック
+    pub(crate) async fn check_connection_status(&self) -> Result<bool> {
+        // 接続されているリレー数を確認
+        let relays = self.client.relays().await;
+        let connected_count = relays.len();
+        
+        println!("🔌 Connected relays: {}", connected_count);
+        Ok(connected_count > 0)
+    }
+    
+    /// リレーに再接続
+    pub(crate) async fn reconnect(&self) -> Result<()> {
+        println!("🔄 Reconnecting to relays...");
+        
+        // 一度切断
+        self.client.disconnect().await?;
+        
+        // 再接続（タイムアウト付き）
+        match tokio::time::timeout(Duration::from_secs(10), self.client.connect()).await {
+            Ok(_) => {
+                println!("✅ Reconnected to relays");
+                Ok(())
+            }
+            Err(_) => {
+                eprintln!("⚠️ Reconnection timeout");
+                Err(anyhow::anyhow!("Reconnection timeout"))
+            }
+        }
+    }
 }
 
 // ========================================
@@ -567,8 +979,9 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
     });
 
 /// Nostrクライアントを初期化（hex公開鍵を返す）
+/// client_id を指定しない場合はデフォルトクライアントとして保存
 pub fn init_nostr_client(secret_key_hex: String, relays: Vec<String>) -> Result<String> {
-    init_nostr_client_with_proxy(secret_key_hex, relays, None)
+    init_nostr_client_with_id(DEFAULT_CLIENT_ID.to_string(), secret_key_hex, relays, None)
 }
 
 /// Nostrクライアントを初期化（プロキシオプション付き）
@@ -577,7 +990,18 @@ pub fn init_nostr_client_with_proxy(
     relays: Vec<String>,
     proxy_url: Option<String>,
 ) -> Result<String> {
-    println!("🔧 Initializing Nostr client{}...", 
+    init_nostr_client_with_id(DEFAULT_CLIENT_ID.to_string(), secret_key_hex, relays, proxy_url)
+}
+
+/// Nostrクライアントを初期化（client_id指定可能）
+pub fn init_nostr_client_with_id(
+    client_id: String,
+    secret_key_hex: String, 
+    relays: Vec<String>,
+    proxy_url: Option<String>,
+) -> Result<String> {
+    println!("🔧 Initializing Nostr client [{}]{}...", 
+        client_id,
         if proxy_url.is_some() { " with proxy" } else { "" });
     println!("Secret key (first 10 chars): {}...", &secret_key_hex[..10.min(secret_key_hex.len())]);
     println!("Relays: {:?}", relays);
@@ -589,28 +1013,40 @@ pub fn init_nostr_client_with_proxy(
         match MeisoNostrClient::new_with_proxy(&secret_key_hex, relays, proxy_url).await {
             Ok(client) => {
                 let public_key = client.public_key_hex();
-                println!("✅ Nostr client initialized. Public key: {}", &public_key[..16]);
+                println!("✅ Nostr client [{}] initialized. Public key: {}", client_id, &public_key[..16]);
 
-                let mut global_client = NOSTR_CLIENT.lock().await;
-                *global_client = Some(client);
+                let mut clients = NOSTR_CLIENTS.lock().await;
+                clients.insert(client_id, client);
 
                 Ok(public_key)
             }
             Err(e) => {
-                eprintln!("❌ Failed to initialize Nostr client: {}", e);
+                eprintln!("❌ Failed to initialize Nostr client [{}]: {}", client_id, e);
                 Err(e)
             }
         }
     })
 }
 
+/// クライアントを取得（ヘルパー関数）
+async fn get_client(client_id: Option<String>) -> Result<MeisoNostrClient> {
+    let id = client_id.unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
+    let clients = NOSTR_CLIENTS.lock().await;
+    clients
+        .get(&id)
+        .cloned()
+        .with_context(|| format!("Nostrクライアント [{}] が初期化されていません", id))
+}
+
 /// 公開鍵をnpub形式で取得
 pub fn get_public_key_npub() -> Result<String> {
+    get_public_key_npub_with_client_id(None)
+}
+
+/// 公開鍵をnpub形式で取得（client_id指定可能）
+pub fn get_public_key_npub_with_client_id(client_id: Option<String>) -> Result<String> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+        let client = get_client(client_id).await?;
         Ok(client.public_key_npub())
     })
 }
@@ -655,74 +1091,64 @@ pub fn generate_keypair() -> Result<KeyPair> {
     })
 }
 
-/// Todoを作成
+/// Todoを作成（旧実装 - 非推奨、代わりにcreate_todo_listを使用）
+#[deprecated(note = "Use create_todo_list instead")]
 pub fn create_todo(todo: TodoData) -> Result<String> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
-
+        let client = get_client(None).await?;
         client.create_todo(todo).await
     })
 }
 
-/// Todoを更新
+/// Todoを更新（旧実装 - 非推奨、代わりにcreate_todo_listを使用）
+#[deprecated(note = "Use create_todo_list instead")]
 pub fn update_todo(todo: TodoData) -> Result<String> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
-
+        let client = get_client(None).await?;
         client.update_todo(todo).await
     })
 }
 
-/// Todoを削除
+/// Todoを削除（旧実装 - 非推奨）
+#[deprecated(note = "Use delete_events instead")]
 pub fn delete_todo(todo_id: String) -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
-
+        let client = get_client(None).await?;
         client.delete_todo(&todo_id).await
     })
 }
 
 /// 全Todoを同期（Kind 30001 - 新実装）
 pub fn sync_todo_list() -> Result<Vec<TodoData>> {
-    TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+    sync_todo_list_with_client_id(None)
+}
 
+/// 全Todoを同期（client_id指定可能）
+pub fn sync_todo_list_with_client_id(client_id: Option<String>) -> Result<Vec<TodoData>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
         client.sync_todo_list().await
     })
 }
 
 /// Todoリストを作成（Kind 30001）
-pub fn create_todo_list(todos: Vec<TodoData>) -> Result<String> {
-    TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+pub fn create_todo_list(todos: Vec<TodoData>) -> Result<EventSendResult> {
+    create_todo_list_with_client_id(todos, None)
+}
 
+/// Todoリストを作成（client_id指定可能）
+pub fn create_todo_list_with_client_id(todos: Vec<TodoData>, client_id: Option<String>) -> Result<EventSendResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
         client.create_todo_list(todos).await
     })
 }
 
-/// 全Todoを同期（旧実装 - Kind 30078）
+/// 全Todoを同期（旧実装 - Kind 30078 - 非推奨）
+#[deprecated(note = "Use sync_todo_list instead")]
 pub fn sync_todos() -> Result<Vec<TodoData>> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
-
+        let client = get_client(None).await?;
         client.sync_todos().await
     })
 }
@@ -834,7 +1260,7 @@ pub fn init_nostr_client_with_pubkey(
     public_key_hex: String,
     relays: Vec<String>,
 ) -> Result<String> {
-    init_nostr_client_with_pubkey_and_proxy(public_key_hex, relays, None)
+    init_nostr_client_with_pubkey_and_id(DEFAULT_CLIENT_ID.to_string(), public_key_hex, relays, None)
 }
 
 /// Amberモードで初期化（プロキシオプション付き）
@@ -843,7 +1269,18 @@ pub fn init_nostr_client_with_pubkey_and_proxy(
     relays: Vec<String>,
     proxy_url: Option<String>,
 ) -> Result<String> {
-    println!("🔧 Initializing Nostr client with public key only (Amber mode){}...",
+    init_nostr_client_with_pubkey_and_id(DEFAULT_CLIENT_ID.to_string(), public_key_hex, relays, proxy_url)
+}
+
+/// Amberモードで初期化（client_id指定可能）
+pub fn init_nostr_client_with_pubkey_and_id(
+    client_id: String,
+    public_key_hex: String,
+    relays: Vec<String>,
+    proxy_url: Option<String>,
+) -> Result<String> {
+    println!("🔧 Initializing Nostr client [{}] with public key only (Amber mode){}...",
+        client_id,
         if proxy_url.is_some() { " with proxy" } else { "" });
     println!("Public key: {}...", &public_key_hex[..16.min(public_key_hex.len())]);
     println!("Relays: {:?}", relays);
@@ -852,58 +1289,20 @@ pub fn init_nostr_client_with_pubkey_and_proxy(
     }
     
     TOKIO_RUNTIME.block_on(async {
-        // Amber使用時はダミーの秘密鍵でクライアントを作成
-        // 実際の署名操作はAmber経由で行うため、この秘密鍵は使用されない
-        let dummy_keys = Keys::generate();
-        
-        // プロキシ設定（環境変数経由）
-        if let Some(ref proxy) = proxy_url {
-            println!("🔐 Tor/Proxy経由で接続します (Amber mode): {}", proxy);
-            
-            // SOCKS5プロキシを環境変数に設定
-            std::env::set_var("all_proxy", proxy);
-            std::env::set_var("ALL_PROXY", proxy);
-            std::env::set_var("socks_proxy", proxy);
-            std::env::set_var("SOCKS_PROXY", proxy);
-            
-            println!("✅ プロキシ環境変数を設定 (Amber mode): {}", proxy);
-        }
-        
-        let client = Client::new(dummy_keys.clone());
-        
-        // リレー追加
-        for relay_url in &relays {
-            println!("Adding relay: {}", relay_url);
-            match client.add_relay(relay_url).await {
-                Ok(_) => println!("✅ Relay added: {}", relay_url),
-                Err(e) => {
-                    eprintln!("⚠️ Failed to add relay {}: {}", relay_url, e);
-                }
+        match MeisoNostrClient::new_amber_mode(public_key_hex.clone(), relays, proxy_url).await {
+            Ok(client) => {
+                println!("✅ Nostr client [{}] initialized in Amber mode", client_id);
+                
+                let mut clients = NOSTR_CLIENTS.lock().await;
+                clients.insert(client_id, client);
+                
+                Ok(public_key_hex)
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to initialize Nostr client [{}] in Amber mode: {}", client_id, e);
+                Err(e)
             }
         }
-        
-        // リレーに接続（タイムアウト付き）
-        let timeout_sec = if proxy_url.is_some() { 20 } else { 10 }; // Tor経由は時間がかかる
-        println!("🔌 Connecting to relays in Amber mode{}...",
-            if proxy_url.is_some() { " (via proxy)" } else { "" });
-        
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(timeout_sec), 
-            client.connect()
-        ).await {
-            Ok(_) => println!("✅ Connected to relays (Amber mode)"),
-            Err(_) => {
-                eprintln!("⚠️ Relay connection timeout ({}s) in Amber mode - continuing anyway", timeout_sec);
-            }
-        }
-        
-        // グローバルクライアントに保存
-        let nostr_client = MeisoNostrClient { keys: dummy_keys, client };
-        let mut global_client = NOSTR_CLIENT.lock().await;
-        *global_client = Some(nostr_client);
-        
-        println!("✅ Nostr client initialized in Amber mode");
-        Ok(public_key_hex)
     })
 }
 
@@ -949,12 +1348,14 @@ pub fn create_unsigned_todo_event(
 }
 
 /// 署名済みイベントをリレーに送信
-pub fn send_signed_event(event_json: String) -> Result<String> {
+pub fn send_signed_event(event_json: String) -> Result<EventSendResult> {
+    send_signed_event_with_client_id(event_json, None)
+}
+
+/// 署名済みイベントをリレーに送信（client_id指定可能）
+pub fn send_signed_event_with_client_id(event_json: String, client_id: Option<String>) -> Result<EventSendResult> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+        let client = get_client(client_id).await?;
         
         // イベントをパース
         let event: Event = serde_json::from_str(&event_json)
@@ -968,25 +1369,8 @@ pub fn send_signed_event(event_json: String) -> Result<String> {
         println!("🔍 Event ID: {}", event.id.to_hex());
         println!("🔍 Event pubkey: {}...", &event.pubkey.to_hex()[..16]);
         
-        // リレーに送信（タイムアウトを10秒に延長）
-        match tokio::time::timeout(
-            Duration::from_secs(10),
-            client.client.send_event(event.clone())
-        ).await {
-            Ok(Ok(event_id)) => {
-                println!("✅✅✅ Event sent successfully to relays!");
-                println!("✅ Event ID: {}", event_id.to_hex());
-                Ok(event_id.to_hex())
-            }
-            Ok(Err(e)) => {
-                eprintln!("❌❌❌ Failed to send event to relays: {}", e);
-                Err(anyhow::anyhow!("Failed to send event: {}", e))
-            }
-            Err(_) => {
-                eprintln!("❌❌❌ Event send timeout (10s)");
-                Err(anyhow::anyhow!("Event send timeout"))
-            }
-        }
+        // リレーに送信（改善されたエラーハンドリング）
+        client.send_event_with_result(event).await
     })
 }
 
@@ -1077,11 +1461,15 @@ pub struct EncryptedTodoListEvent {
 pub fn fetch_encrypted_todo_list_for_pubkey(
     public_key_hex: String,
 ) -> Result<Option<EncryptedTodoListEvent>> {
+    fetch_encrypted_todo_list_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_encrypted_todo_list_for_pubkey_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Option<EncryptedTodoListEvent>> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+        let client = get_client(client_id).await?;
         
         // 公開鍵をパース
         let public_key = PublicKey::from_hex(&public_key_hex)
@@ -1128,11 +1516,15 @@ pub struct EncryptedTodoEvent {
 pub fn fetch_encrypted_todos_for_pubkey(
     public_key_hex: String,
 ) -> Result<Vec<EncryptedTodoEvent>> {
+    fetch_encrypted_todos_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_encrypted_todos_for_pubkey_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<EncryptedTodoEvent>> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+        let client = get_client(client_id).await?;
         
         // 公開鍵をパース
         let public_key = PublicKey::from_hex(&public_key_hex)
@@ -1213,25 +1605,27 @@ pub fn hex_to_npub(hex: String) -> Result<String> {
 // ========================================
 
 /// アプリ設定を保存（Kind 30078 - Application-specific data）
-pub fn save_app_settings(settings: AppSettings) -> Result<String> {
-    TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+pub fn save_app_settings(settings: AppSettings) -> Result<EventSendResult> {
+    save_app_settings_with_client_id(settings, None)
+}
 
+/// アプリ設定を保存（client_id指定可能）
+pub fn save_app_settings_with_client_id(settings: AppSettings, client_id: Option<String>) -> Result<EventSendResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
         client.create_app_settings(settings).await
     })
 }
 
 /// アプリ設定を同期（Kind 30078）
 pub fn sync_app_settings() -> Result<Option<AppSettings>> {
-    TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+    sync_app_settings_with_client_id(None)
+}
 
+/// アプリ設定を同期（client_id指定可能）
+pub fn sync_app_settings_with_client_id(client_id: Option<String>) -> Result<Option<AppSettings>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
         client.sync_app_settings().await
     })
 }
@@ -1324,11 +1718,15 @@ pub struct EncryptedAppSettingsEvent {
 pub fn fetch_encrypted_app_settings_for_pubkey(
     public_key_hex: String,
 ) -> Result<Option<EncryptedAppSettingsEvent>> {
+    fetch_encrypted_app_settings_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_encrypted_app_settings_for_pubkey_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Option<EncryptedAppSettingsEvent>> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+        let client = get_client(client_id).await?;
         
         // 公開鍵をパース
         let public_key = PublicKey::from_hex(&public_key_hex)
@@ -1367,25 +1765,27 @@ pub fn fetch_encrypted_app_settings_for_pubkey(
 // ========================================
 
 /// リレーリストをNostrに保存（Kind 10002 - Relay List Metadata）
-pub fn save_relay_list(relays: Vec<String>) -> Result<String> {
-    TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+pub fn save_relay_list(relays: Vec<String>) -> Result<EventSendResult> {
+    save_relay_list_with_client_id(relays, None)
+}
 
+/// リレーリストをNostrに保存（client_id指定可能）
+pub fn save_relay_list_with_client_id(relays: Vec<String>, client_id: Option<String>) -> Result<EventSendResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
         client.save_relay_list(relays).await
     })
 }
 
 /// リレーリストをNostrから同期（Kind 10002）
 pub fn sync_relay_list() -> Result<Vec<String>> {
-    TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+    sync_relay_list_with_client_id(None)
+}
 
+/// リレーリストをNostrから同期（client_id指定可能）
+pub fn sync_relay_list_with_client_id(client_id: Option<String>) -> Result<Vec<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
         client.sync_relay_list().await
     })
 }
@@ -1398,12 +1798,18 @@ pub fn sync_relay_list() -> Result<Vec<String>> {
 pub fn delete_events(
     event_ids: Vec<String>,
     reason: Option<String>,
-) -> Result<String> {
+) -> Result<EventSendResult> {
+    delete_events_with_client_id(event_ids, reason, None)
+}
+
+/// イベント削除（client_id指定可能）
+pub fn delete_events_with_client_id(
+    event_ids: Vec<String>,
+    reason: Option<String>,
+    client_id: Option<String>,
+) -> Result<EventSendResult> {
     TOKIO_RUNTIME.block_on(async {
-        let client_guard = NOSTR_CLIENT.lock().await;
-        let client = client_guard
-            .as_ref()
-            .context("Nostrクライアントが初期化されていません")?;
+        let client = get_client(client_id).await?;
         
         if event_ids.is_empty() {
             return Err(anyhow::anyhow!("削除するイベントIDが指定されていません"));
@@ -1427,6 +1833,13 @@ pub fn delete_events(
             return Err(anyhow::anyhow!("有効なイベントIDがありません"));
         }
         
+        if let ClientMode::Amber { .. } = client.mode {
+            return Err(anyhow::anyhow!("Cannot delete events in Amber mode"));
+        }
+        
+        let keys = client.keys.as_ref()
+            .context("Secret key required for deletion")?;
+        
         // Kind 5削除イベントを作成
         let content = reason.unwrap_or_default();
         
@@ -1438,30 +1851,167 @@ pub fn delete_events(
         
         let event = EventBuilder::new(Kind::EventDeletion, content)
             .tags(tags)
-            .sign(&client.keys)
+            .sign(keys)
             .await?;
         
         println!("📤 Sending Kind 5 deletion event...");
         
-        // リレーに送信
-        match tokio::time::timeout(
-            Duration::from_secs(10),
-            client.client.send_event(event.clone())
-        ).await {
-            Ok(Ok(event_id)) => {
-                println!("✅ Deletion event sent successfully!");
-                println!("✅ Deletion Event ID: {}", event_id.to_hex());
-                Ok(event_id.to_hex())
-            }
-            Ok(Err(e)) => {
-                eprintln!("❌ Failed to send deletion event: {}", e);
-                Err(anyhow::anyhow!("Failed to send deletion event: {}", e))
-            }
-            Err(_) => {
-                eprintln!("❌ Deletion event send timeout (10s)");
-                Err(anyhow::anyhow!("Deletion event send timeout"))
-            }
-        }
+        // リレーに送信（改善されたエラーハンドリング）
+        client.send_event_with_result(event).await
     })
+}
+
+// ========================================
+// Subscription & キャッシュ関連API
+// ========================================
+
+/// Subscriptionを開始（Todo/設定などのリアルタイム更新）
+pub fn start_subscription(filters_json: String) -> Result<SubscriptionInfo> {
+    start_subscription_with_client_id(filters_json, None)
+}
+
+/// Subscriptionを開始（client_id指定可能）
+pub fn start_subscription_with_client_id(
+    filters_json: String,
+    client_id: Option<String>,
+) -> Result<SubscriptionInfo> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // JSON文字列からFilterのリストをパース
+        let filters: Vec<Filter> = serde_json::from_str(&filters_json)
+            .context("Failed to parse filters JSON")?;
+        
+        client.subscribe(filters).await
+    })
+}
+
+/// Subscriptionを停止
+pub fn stop_subscription(subscription_id: String) -> Result<()> {
+    stop_subscription_with_client_id(subscription_id, None)
+}
+
+/// Subscriptionを停止（client_id指定可能）
+pub fn stop_subscription_with_client_id(
+    subscription_id: String,
+    client_id: Option<String>,
+) -> Result<()> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.unsubscribe(subscription_id).await
+    })
+}
+
+/// すべてのSubscriptionを停止
+pub fn stop_all_subscriptions() -> Result<()> {
+    stop_all_subscriptions_with_client_id(None)
+}
+
+/// すべてのSubscriptionを停止（client_id指定可能）
+pub fn stop_all_subscriptions_with_client_id(client_id: Option<String>) -> Result<()> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.unsubscribe_all().await
+    })
+}
+
+/// Subscription経由でイベントを受信
+/// timeout_ms: タイムアウト（ミリ秒）
+pub fn receive_subscription_events(timeout_ms: u64) -> Result<Vec<ReceivedEvent>> {
+    receive_subscription_events_with_client_id(timeout_ms, None)
+}
+
+/// Subscription経由でイベントを受信（client_id指定可能）
+pub fn receive_subscription_events_with_client_id(
+    timeout_ms: u64,
+    client_id: Option<String>,
+) -> Result<Vec<ReceivedEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.receive_subscription_events(timeout_ms).await
+    })
+}
+
+/// リレー接続状態をチェック
+pub fn check_connection_status() -> Result<bool> {
+    check_connection_status_with_client_id(None)
+}
+
+/// リレー接続状態をチェック（client_id指定可能）
+pub fn check_connection_status_with_client_id(client_id: Option<String>) -> Result<bool> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.check_connection_status().await
+    })
+}
+
+/// リレーに再接続
+pub fn reconnect_to_relays() -> Result<()> {
+    reconnect_to_relays_with_client_id(None)
+}
+
+/// リレーに再接続（client_id指定可能）
+pub fn reconnect_to_relays_with_client_id(client_id: Option<String>) -> Result<()> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.reconnect().await
+    })
+}
+
+/// イベントJSONからキャッシュ情報を作成（Event型を使わずに）
+pub fn create_cache_info(
+    event_json: String,
+    ttl_seconds: u64,
+) -> Result<CachedEventInfo> {
+    // JSONからイベント情報を抽出（nostr-sdkの Event型を経由せずに）
+    let json_value: serde_json::Value = serde_json::from_str(&event_json)
+        .context("Failed to parse event JSON")?;
+    
+    let event_id = json_value["id"]
+        .as_str()
+        .context("Missing or invalid event id")?
+        .to_string();
+    
+    let kind = json_value["kind"]
+        .as_u64()
+        .context("Missing or invalid event kind")?;
+    
+    let created_at = json_value["created_at"]
+        .as_i64()
+        .context("Missing or invalid created_at")?;
+    
+    // d-tagを取得（あれば）
+    let d_tag = json_value["tags"]
+        .as_array()
+        .and_then(|tags| {
+            tags.iter().find_map(|tag| {
+                let tag_array = tag.as_array()?;
+                if tag_array.len() >= 2 && tag_array[0].as_str()? == "d" {
+                    Some(tag_array[1].as_str()?.to_string())
+                } else {
+                    None
+                }
+            })
+        });
+    
+    let cached_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    
+    Ok(CachedEventInfo {
+        event_id,
+        kind,
+        created_at,
+        event_json,
+        cached_at,
+        ttl_seconds,
+        d_tag,
+    })
+}
+
+/// キャッシュが有効かチェック
+pub fn is_cache_valid(cache_info: CachedEventInfo) -> bool {
+    cache_info.is_valid()
 }
 
