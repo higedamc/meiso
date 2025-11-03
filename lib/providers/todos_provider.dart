@@ -193,64 +193,90 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   // 現在は初回起動時は空のリストから始まり、リレーサーバーからデータを同期します。
 
   /// 新しいTodoを追加（楽観的UI更新）
+  /// 
+  /// ## デフォルトリストとカスタムリストの排他性
+  /// - `customListId`が指定された場合、`date`は強制的に`null`になります
+  /// - `customListId`が`null`の場合、`date`が使用されます（Today/Tomorrow/Someday）
   Future<void> addTodo(String title, DateTime? date, {String? customListId}) async {
     if (title.trim().isEmpty) return;
 
-    print('🆕 addTodo called: "$title" for date: $date, customListId: $customListId');
-    print('📍 Stack trace location: addTodo');
+    // ⚠️ 排他性を保証: customListIdが指定された場合、dateは必ずnullにする
+    DateTime? finalDate = date;
     if (customListId != null) {
-      print('🎯 IMPORTANT: This todo is being added to custom list: $customListId');
+      finalDate = null; // カスタムリストの場合、dateは強制的にnull
+      print('🎯 カスタムリストに追加: "$title" → customListId: $customListId (date強制null)');
+    } else {
+      print('🆕 デフォルトリストに追加: "$title" for date: $finalDate');
     }
 
     await state.whenData((todos) async {
       final now = DateTime.now();
       
       // 繰り返しパターンを自動検出（TeuxDeux風）
-      final parseResult = RecurrenceParser.parse(title, date);
-      final cleanTitle = parseResult.cleanTitle;
-      final autoRecurrence = parseResult.pattern;
+      // ⚠️ カスタムリストの場合は繰り返しパターンは適用しない
+      RecurrencePattern? autoRecurrence;
+      String cleanTitle = title;
       
-      if (autoRecurrence != null) {
-        print('🔄 自動検出: ${autoRecurrence.description}');
-        print('📝 クリーンタイトル: "$cleanTitle"');
+      if (customListId == null && finalDate != null) {
+        // デフォルトリストかつ日付が指定されている場合のみ繰り返しパターンを検出
+        final parseResult = RecurrenceParser.parse(title, finalDate);
+        cleanTitle = parseResult.cleanTitle;
+        autoRecurrence = parseResult.pattern;
+        
+        if (autoRecurrence != null) {
+          print('🔄 自動検出: ${autoRecurrence.description}');
+          print('📝 クリーンタイトル: "$cleanTitle"');
+        }
+      } else {
+        cleanTitle = title.trim();
       }
       
       // URLを検出してメタデータを取得（バックグラウンド）
       final detectedUrl = LinkPreviewService.extractUrl(cleanTitle);
-      print('🔗 URL detected: $detectedUrl');
+      if (detectedUrl != null) {
+        print('🔗 URL detected: $detectedUrl');
+      }
       
       final newTodo = Todo(
         id: _uuid.v4(),
         title: cleanTitle,
         completed: false,
-        date: date,
-        order: _getNextOrder(todos, date),
+        date: finalDate, // カスタムリストの場合は必ずnull
+        order: _getNextOrder(todos, finalDate),
         createdAt: now,
         updatedAt: now,
         customListId: customListId,
-        recurrence: autoRecurrence, // 自動検出された繰り返しパターンを設定
+        recurrence: autoRecurrence, // カスタムリストの場合はnull
         needsSync: true, // 同期が必要
       );
+      
+      // バリデーション: 不正なデータをチェック
+      if (!newTodo.isValid) {
+        print('❌ ERROR: Invalid todo created! date=${newTodo.date}, customListId=${newTodo.customListId}');
+        throw Exception('Invalid todo: date and customListId cannot be set at the same time');
+      }
       
       print('📦 Created new Todo object:');
       print('   - id: ${newTodo.id}');
       print('   - title: ${newTodo.title}');
       print('   - date: ${newTodo.date}');
       print('   - customListId: ${newTodo.customListId}');
+      print('   - belongsToCustomList: ${newTodo.belongsToCustomList}');
       print('   - order: ${newTodo.order}');
 
-      final list = List<Todo>.from(todos[date] ?? []);
+      final list = List<Todo>.from(todos[finalDate] ?? []);
       list.add(newTodo);
 
       final updatedTodos = {
         ...todos,
-        date: list,
+        finalDate: list,
       };
 
       state = AsyncValue.data(updatedTodos);
 
       // リカーリングタスクの場合、将来のインスタンスを事前生成
-      if (autoRecurrence != null && date != null) {
+      // ⚠️ カスタムリストの場合は繰り返しパターンは適用されない
+      if (autoRecurrence != null && finalDate != null && customListId == null) {
         // 最新の state を渡す（元のタスクが含まれている）
         await _generateFutureInstances(newTodo, updatedTodos);
       }
@@ -262,7 +288,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       // URLメタデータ取得（非同期・バックグラウンド）
       if (detectedUrl != null) {
-        _fetchLinkPreviewInBackground(newTodo.id, date, detectedUrl);
+        _fetchLinkPreviewInBackground(newTodo.id, finalDate, detectedUrl);
       }
 
       // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
@@ -790,6 +816,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
 
   /// Todoを並び替え（楽観的UI更新）
+  /// デフォルトリスト内での並び替えに使用
   Future<void> reorderTodo(
     DateTime? date,
     int oldIndex,
@@ -827,8 +854,71 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       _syncToNostrBackground();
     }).value;
   }
+  
+  /// カスタムリスト内でTodoを並び替え（楽観的UI更新）
+  Future<void> reorderTodoInCustomList(
+    String customListId,
+    List<Todo> sortedTodos,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    await state.whenData((todos) async {
+      print('🔄 Reordering todo in custom list: $customListId');
+      print('   - oldIndex: $oldIndex, newIndex: $newIndex');
+      
+      // 並び替え後のリストを作成
+      final reorderedList = List<Todo>.from(sortedTodos);
+      
+      if (oldIndex < newIndex) {
+        newIndex -= 1;
+      }
+
+      final item = reorderedList.removeAt(oldIndex);
+      reorderedList.insert(newIndex, item);
+      
+      print('   - moved todo: "${item.title}"');
+
+      // orderを再計算
+      for (var i = 0; i < reorderedList.length; i++) {
+        reorderedList[i] = reorderedList[i].copyWith(
+          order: i,
+          updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
+        );
+      }
+      
+      // 状態を更新: カスタムリストのTodoはdate=nullに格納されている
+      final updatedTodos = Map<DateTime?, List<Todo>>.from(todos);
+      final nullDateList = List<Todo>.from(todos[null] ?? []);
+      
+      // カスタムリストのTodoを更新
+      for (final updatedTodo in reorderedList) {
+        final index = nullDateList.indexWhere((t) => t.id == updatedTodo.id);
+        if (index != -1) {
+          nullDateList[index] = updatedTodo;
+        }
+      }
+      
+      updatedTodos[null] = nullDateList;
+
+      state = AsyncValue.data(updatedTodos);
+      
+      print('✅ Custom list reorder complete');
+
+      // ローカルストレージに保存（awaitする）
+      await _saveAllTodosToLocal();
+
+      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+      _updateUnsyncedCount();
+      _syncToNostrBackground();
+    }).value;
+  }
 
   /// Todoを別の日付に移動（楽観的UI更新）
+  /// 
+  /// ## デフォルトリストとカスタムリストの排他性
+  /// - カスタムリストのTodoをデフォルトリストに移動する場合、`customListId`はクリアされます
+  /// - この場合、`toDate`が新しい日付になります
   Future<void> moveTodo(String id, DateTime? fromDate, DateTime? toDate) async {
     if (fromDate == toDate) return;
 
@@ -840,12 +930,26 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       if (todoIndex == -1) return;
 
       final todo = fromList.removeAt(todoIndex);
+      
+      // カスタムリストからデフォルトリストへの移動の場合、customListIdをクリア
       final movedTodo = todo.copyWith(
         date: toDate,
+        customListId: null, // デフォルトリストに移動するため、customListIdをクリア
         order: _getNextOrder({toDate: toList}, toDate),
         updatedAt: DateTime.now(),
         needsSync: true, // 同期が必要
       );
+      
+      // バリデーション
+      if (!movedTodo.isValid) {
+        print('❌ ERROR: Invalid todo after move! date=${movedTodo.date}, customListId=${movedTodo.customListId}');
+        throw Exception('Invalid todo: date and customListId cannot be set at the same time');
+      }
+      
+      print('📍 Todo moved: "${movedTodo.title}"');
+      print('   - from: date=$fromDate, customListId=${todo.customListId}');
+      print('   - to: date=$toDate, customListId=${movedTodo.customListId}');
+      
       toList.add(movedTodo);
 
       state = AsyncValue.data({
