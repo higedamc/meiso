@@ -4,7 +4,7 @@ part 'custom_list.freezed.dart';
 part 'custom_list.g.dart';
 
 /// カスタムリスト（SOMEDAYページで使用）
-@freezed
+@Freezed(makeCollectionsUnmodifiable: false)
 class CustomList with _$CustomList {
   const factory CustomList({
     /// UUID

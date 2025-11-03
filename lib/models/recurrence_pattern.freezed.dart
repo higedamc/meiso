@@ -163,7 +163,7 @@ class __$$RecurrencePatternImplCopyWithImpl<$Res>
             : interval // ignore: cast_nullable_to_non_nullable
                   as int,
         weekdays: freezed == weekdays
-            ? _value._weekdays
+            ? _value.weekdays
             : weekdays // ignore: cast_nullable_to_non_nullable
                   as List<int>?,
         dayOfMonth: freezed == dayOfMonth
@@ -185,10 +185,10 @@ class _$RecurrencePatternImpl implements _RecurrencePattern {
   const _$RecurrencePatternImpl({
     required this.type,
     this.interval = 1,
-    final List<int>? weekdays,
+    this.weekdays,
     this.dayOfMonth,
     this.endDate,
-  }) : _weekdays = weekdays;
+  });
 
   factory _$RecurrencePatternImpl.fromJson(Map<String, dynamic> json) =>
       _$$RecurrencePatternImplFromJson(json);
@@ -205,19 +205,8 @@ class _$RecurrencePatternImpl implements _RecurrencePattern {
   /// 週単位の繰り返しで使用する曜日リスト
   /// 1=月曜, 2=火曜, ..., 7=日曜
   /// 例: [1, 3, 5] = 月・水・金
-  final List<int>? _weekdays;
-
-  /// 週単位の繰り返しで使用する曜日リスト
-  /// 1=月曜, 2=火曜, ..., 7=日曜
-  /// 例: [1, 3, 5] = 月・水・金
   @override
-  List<int>? get weekdays {
-    final value = _weekdays;
-    if (value == null) return null;
-    if (_weekdays is EqualUnmodifiableListView) return _weekdays;
-    // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(value);
-  }
+  final List<int>? weekdays;
 
   /// 月単位の繰り返しで使用する日
   /// 1-31 または null (日付がない月はスキップ)
@@ -241,7 +230,7 @@ class _$RecurrencePatternImpl implements _RecurrencePattern {
             (identical(other.type, type) || other.type == type) &&
             (identical(other.interval, interval) ||
                 other.interval == interval) &&
-            const DeepCollectionEquality().equals(other._weekdays, _weekdays) &&
+            const DeepCollectionEquality().equals(other.weekdays, weekdays) &&
             (identical(other.dayOfMonth, dayOfMonth) ||
                 other.dayOfMonth == dayOfMonth) &&
             (identical(other.endDate, endDate) || other.endDate == endDate));
@@ -253,7 +242,7 @@ class _$RecurrencePatternImpl implements _RecurrencePattern {
     runtimeType,
     type,
     interval,
-    const DeepCollectionEquality().hash(_weekdays),
+    const DeepCollectionEquality().hash(weekdays),
     dayOfMonth,
     endDate,
   );

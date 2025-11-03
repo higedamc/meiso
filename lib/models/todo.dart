@@ -11,7 +11,7 @@ part 'todo.g.dart';
 /// - Kind: 30078
 /// - content: NIP-44で暗号化されたこのTodoのJSONデータ
 /// - tags: ["d", "todo-{id}"] (Replaceable Event用)
-@freezed
+@Freezed(makeCollectionsUnmodifiable: false)
 class Todo with _$Todo {
   const factory Todo({
     /// UUID (Nostrイベントの'd' tagとしても使用)

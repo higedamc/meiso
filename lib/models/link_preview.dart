@@ -4,7 +4,7 @@ part 'link_preview.freezed.dart';
 part 'link_preview.g.dart';
 
 /// URLメタデータのプレビュー情報
-@freezed
+@Freezed(makeCollectionsUnmodifiable: false)
 class LinkPreview with _$LinkPreview {
   const factory LinkPreview({
     /// 元のURL

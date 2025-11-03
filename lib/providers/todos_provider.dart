@@ -81,10 +81,26 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // 画面表示後に実行
     await Future.delayed(const Duration(seconds: 1));
     
-    if (_ref.read(nostrInitializedProvider)) {
-      try {
-        print('🔄 Starting background Nostr sync...');
-        
+    if (!_ref.read(nostrInitializedProvider)) {
+      print('ℹ️ Nostr not initialized - skipping background sync');
+      return;
+    }
+
+    try {
+      print('🔄 Starting background Nostr sync...');
+      
+      // タイムアウト付きで実行（60秒）
+      await Future.delayed(Duration.zero).timeout(
+        const Duration(seconds: 60),
+        onTimeout: () async {
+          print('⏱️ Background sync timeout - continuing with local data');
+          _ref.read(syncStatusProvider.notifier).syncError(
+            'バックグラウンド同期がタイムアウトしました',
+            shouldRetry: false,
+          );
+          return;
+        },
+      ).then((_) async {
         // マイグレーション完了チェック（一度だけ実行）
         final migrationCompleted = await localStorageService.isMigrationCompleted();
         print('📋 Migration status check: completed=$migrationCompleted');
@@ -136,12 +152,21 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
         await syncFromNostr();
         print('✅ Background sync completed');
-      } catch (e) {
-        print('⚠️ バックグラウンド同期失敗: $e');
-        // エラーは無視（ローカルデータで継続）
-      }
-    } else {
-      print('ℹ️ Nostr not initialized - skipping background sync');
+      });
+    } catch (e, stackTrace) {
+      print('⚠️ バックグラウンド同期失敗: $e');
+      print('スタックトレース: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      
+      // エラー状態を更新（ローカルデータは保持）
+      _ref.read(syncStatusProvider.notifier).syncError(
+        'バックグラウンド同期に失敗しました: ${e.toString()}',
+        shouldRetry: false,
+      );
+      
+      // 3秒後にエラーをクリア
+      Future.delayed(const Duration(seconds: 3), () {
+        _ref.read(syncStatusProvider.notifier).clearError();
+      });
     }
   }
 
@@ -1115,7 +1140,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       _ref.read(syncStatusProvider.notifier).startSync();
       
       try {
-        await syncFunction();
+        // タイムアウト付きで同期実行（30秒）
+        await syncFunction().timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw Exception('同期がタイムアウトしました（30秒）');
+          },
+        );
         _ref.read(syncStatusProvider.notifier).syncSuccess();
         print('✅ Amber同期成功');
       } catch (e) {
@@ -1124,6 +1155,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           shouldRetry: false,
         );
         print('❌ Amber同期失敗: $e');
+        // エラーを再スローせず、ローカルデータは保持
       }
       return;
     }
@@ -1134,10 +1166,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     const maxRetries = 3;
     const retryDelay = Duration(seconds: 2);
+    const timeout = Duration(seconds: 15);
 
     for (int attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        await syncFunction();
+        // タイムアウト付きで同期実行
+        await syncFunction().timeout(
+          timeout,
+          onTimeout: () {
+            throw Exception('同期がタイムアウトしました（${timeout.inSeconds}秒）');
+          },
+        );
         
         // 成功
         _ref.read(syncStatusProvider.notifier).syncSuccess();
@@ -1154,6 +1193,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             shouldRetry: false,
           );
           print('❌ Nostr同期失敗（最終試行）: $e');
+          // エラーを再スローせず、ローカルデータは保持
         } else {
           // リトライする
           print('⚠️ Nostr同期エラー（${attempt + 1}/${maxRetries + 1}回目）: $e');
@@ -1197,109 +1237,118 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     _ref.read(syncStatusProvider.notifier).startSync();
 
     try {
-      if (isAmberMode) {
-        // Amberモード: 暗号化されたTodoリストイベント（Kind 30001）を取得 → Amberで復号化
-        print('🔐 Amberモードで同期します（Kind 30001、復号化あり、バックグラウンド処理）');
-        
-        final encryptedEvent = await nostrService.fetchEncryptedTodoList();
-        
-        if (encryptedEvent == null) {
-          print('⚠️ Todoリストイベントが見つかりません（Kind 30001）');
-          print('ℹ️ ローカルデータを保持します');
-          // イベントが見つからない場合はローカルデータを保持（上書きしない）
-          _ref.read(syncStatusProvider.notifier).syncSuccess();
-          return;
+      // タイムアウト付きで同期実行（30秒）
+      await Future(() async {
+        if (isAmberMode) {
+          // Amberモード: 暗号化されたTodoリストイベント（Kind 30001）を取得 → Amberで復号化
+          print('🔐 Amberモードで同期します（Kind 30001、復号化あり、バックグラウンド処理）');
+          
+          final encryptedEvent = await nostrService.fetchEncryptedTodoList();
+          
+          if (encryptedEvent == null) {
+            print('⚠️ Todoリストイベントが見つかりません（Kind 30001）');
+            print('ℹ️ ローカルデータを保持します');
+            // イベントが見つからない場合はローカルデータを保持（上書きしない）
+            _ref.read(syncStatusProvider.notifier).syncSuccess();
+            return;
+          }
+          
+          print('📥 Todoリストイベントを取得 (Event ID: ${encryptedEvent.eventId})');
+          
+          final amberService = _ref.read(amberServiceProvider);
+          final publicKey = _ref.read(publicKeyProvider);
+          final npub = _ref.read(nostrPublicKeyProvider);
+          
+          if (publicKey == null || npub == null) {
+            throw Exception('公開鍵が設定されていません');
+          }
+          
+          print('🔑 公開鍵: ${publicKey.substring(0, 16)}...');
+          print('🔓 Todoリストを復号化中...');
+          
+          // Amberで復号化
+          String decryptedJson;
+          try {
+            // まずContentProvider経由で試す（バックグラウンド処理）
+            decryptedJson = await amberService.decryptNip44WithContentProvider(
+              ciphertext: encryptedEvent.encryptedContent,
+              pubkey: publicKey,
+              npub: npub,
+            );
+            print('✅ 復号化完了（バックグラウンド、UIなし）');
+          } on PlatformException catch (e) {
+            // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+            print('⚠️ ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...');
+            decryptedJson = await amberService.decryptNip44(
+              encryptedEvent.encryptedContent,
+              publicKey,
+            );
+            print('✅ 復号化完了（UI経由）');
+          }
+          
+          print('復号化結果 (最初100文字): ${decryptedJson.substring(0, 100.clamp(0, decryptedJson.length))}...');
+          
+          // JSONをパース（Todoリスト配列）
+          final todoList = jsonDecode(decryptedJson) as List<dynamic>;
+          
+          final syncedTodos = todoList.map((todoMap) {
+            final map = todoMap as Map<String, dynamic>;
+            return Todo(
+              id: map['id'] as String,
+              title: map['title'] as String,
+              completed: map['completed'] as bool,
+              date: map['date'] != null 
+                  ? DateTime.parse(map['date'] as String) 
+                  : null,
+              order: map['order'] as int,
+              createdAt: DateTime.parse(map['created_at'] as String),
+              updatedAt: DateTime.parse(map['updated_at'] as String),
+              eventId: map['event_id'] as String? ?? encryptedEvent.eventId,
+              linkPreview: map['link_preview'] != null 
+                  ? LinkPreview.fromJson(map['link_preview'] as Map<String, dynamic>)
+                  : null,
+              customListId: map['custom_list_id'] as String?,
+              recurrence: map['recurrence'] != null
+                  ? RecurrencePattern.fromJson(map['recurrence'] as Map<String, dynamic>)
+                  : null,
+              parentRecurringId: map['parent_recurring_id'] as String?,
+            );
+          }).toList();
+          
+          print('✅ 復号化完了: ${syncedTodos.length}件のTodo');
+          
+          // 状態を更新
+          _updateStateWithSyncedTodos(syncedTodos);
+          
+        } else {
+          // 通常モード: Rust側で復号化済みのTodoリストを取得（Kind 30001）
+          print('🔄 通常モードで同期します（Kind 30001）');
+          final syncedTodos = await nostrService.syncTodoListFromNostr();
+          print('📥 ${syncedTodos.length}件のTodoを取得しました');
+          
+          // イベントが見つからない場合（空リスト）はローカルデータを保持
+          if (syncedTodos.isEmpty) {
+            state.whenData((localTodos) {
+              final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
+              if (localTodoCount > 0) {
+                print('ℹ️ リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
+                return; // ローカルデータを保持
+              }
+            });
+          }
+          
+          _updateStateWithSyncedTodos(syncedTodos);
         }
         
-        print('📥 Todoリストイベントを取得 (Event ID: ${encryptedEvent.eventId})');
-        
-        final amberService = _ref.read(amberServiceProvider);
-        final publicKey = _ref.read(publicKeyProvider);
-        final npub = _ref.read(nostrPublicKeyProvider);
-        
-        if (publicKey == null || npub == null) {
-          throw Exception('公開鍵が設定されていません');
-        }
-        
-        print('🔑 公開鍵: ${publicKey.substring(0, 16)}...');
-        print('🔓 Todoリストを復号化中...');
-        
-        // Amberで復号化
-        String decryptedJson;
-        try {
-          // まずContentProvider経由で試す（バックグラウンド処理）
-          decryptedJson = await amberService.decryptNip44WithContentProvider(
-            ciphertext: encryptedEvent.encryptedContent,
-            pubkey: publicKey,
-            npub: npub,
-          );
-          print('✅ 復号化完了（バックグラウンド、UIなし）');
-        } on PlatformException catch (e) {
-          // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-          print('⚠️ ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...');
-          decryptedJson = await amberService.decryptNip44(
-            encryptedEvent.encryptedContent,
-            publicKey,
-          );
-          print('✅ 復号化完了（UI経由）');
-        }
-        
-        print('復号化結果 (最初100文字): ${decryptedJson.substring(0, 100.clamp(0, decryptedJson.length))}...');
-        
-        // JSONをパース（Todoリスト配列）
-        final todoList = jsonDecode(decryptedJson) as List<dynamic>;
-        
-        final syncedTodos = todoList.map((todoMap) {
-          final map = todoMap as Map<String, dynamic>;
-          return Todo(
-            id: map['id'] as String,
-            title: map['title'] as String,
-            completed: map['completed'] as bool,
-            date: map['date'] != null 
-                ? DateTime.parse(map['date'] as String) 
-                : null,
-            order: map['order'] as int,
-            createdAt: DateTime.parse(map['created_at'] as String),
-            updatedAt: DateTime.parse(map['updated_at'] as String),
-            eventId: map['event_id'] as String? ?? encryptedEvent.eventId,
-            linkPreview: map['link_preview'] != null 
-                ? LinkPreview.fromJson(map['link_preview'] as Map<String, dynamic>)
-                : null,
-            customListId: map['custom_list_id'] as String?,
-            recurrence: map['recurrence'] != null
-                ? RecurrencePattern.fromJson(map['recurrence'] as Map<String, dynamic>)
-                : null,
-            parentRecurringId: map['parent_recurring_id'] as String?,
-          );
-        }).toList();
-        
-        print('✅ 復号化完了: ${syncedTodos.length}件のTodo');
-        
-        // 状態を更新
-        _updateStateWithSyncedTodos(syncedTodos);
-        
-      } else {
-        // 通常モード: Rust側で復号化済みのTodoリストを取得（Kind 30001）
-        print('🔄 通常モードで同期します（Kind 30001）');
-        final syncedTodos = await nostrService.syncTodoListFromNostr();
-        print('📥 ${syncedTodos.length}件のTodoを取得しました');
-        
-        // イベントが見つからない場合（空リスト）はローカルデータを保持
-        if (syncedTodos.isEmpty) {
-          state.whenData((localTodos) {
-            final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
-            if (localTodoCount > 0) {
-              print('ℹ️ リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
-              return; // ローカルデータを保持
-            }
-          });
-        }
-        
-        _updateStateWithSyncedTodos(syncedTodos);
-      }
-      
-      _ref.read(syncStatusProvider.notifier).syncSuccess();
-      print('✅ Nostr同期成功');
+        _ref.read(syncStatusProvider.notifier).syncSuccess();
+        print('✅ Nostr同期成功');
+      }).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          print('⏱️ syncFromNostr タイムアウト（30秒）');
+          throw Exception('データ同期がタイムアウトしました（30秒）');
+        },
+      );
       
     } catch (e, stackTrace) {
       _ref.read(syncStatusProvider.notifier).syncError(
@@ -1308,6 +1357,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       );
       print('❌ Nostr同期失敗: $e');
       print('スタックトレース: ${stackTrace.toString().split('\n').take(5).join('\n')}');
+      
+      // 3秒後にエラーをクリア（ローカルデータで継続使用可能にする）
+      Future.delayed(const Duration(seconds: 3), () {
+        _ref.read(syncStatusProvider.notifier).clearError();
+      });
     }
   }
 
