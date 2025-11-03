@@ -260,58 +260,6 @@ class NostrService {
     return publicKey;
   }
 
-  /// TodoをNostrに作成
-  Future<String> createTodoOnNostr(Todo todo) async {
-    final todoData = rust_api.TodoData(
-      id: todo.id,
-      title: todo.title,
-      completed: todo.completed,
-      date: todo.date?.toIso8601String(),
-      order: todo.order,
-      createdAt: todo.createdAt.toIso8601String(),
-      updatedAt: todo.updatedAt.toIso8601String(),
-      eventId: todo.eventId,
-      linkPreview: todo.linkPreview != null 
-          ? jsonEncode(todo.linkPreview!.toJson())
-          : null,
-      recurrence: todo.recurrence != null
-          ? jsonEncode(todo.recurrence!.toJson())
-          : null,
-      parentRecurringId: todo.parentRecurringId,
-      customListId: todo.customListId,
-    );
-
-    return await rust_api.createTodo(todo: todoData);
-  }
-
-  /// TodoをNostrで更新
-  Future<String> updateTodoOnNostr(Todo todo) async {
-    final todoData = rust_api.TodoData(
-      id: todo.id,
-      title: todo.title,
-      completed: todo.completed,
-      date: todo.date?.toIso8601String(),
-      order: todo.order,
-      createdAt: todo.createdAt.toIso8601String(),
-      updatedAt: todo.updatedAt.toIso8601String(),
-      eventId: todo.eventId,
-      linkPreview: todo.linkPreview != null 
-          ? jsonEncode(todo.linkPreview!.toJson())
-          : null,
-      recurrence: todo.recurrence != null
-          ? jsonEncode(todo.recurrence!.toJson())
-          : null,
-      parentRecurringId: todo.parentRecurringId,
-      customListId: todo.customListId,
-    );
-
-    return await rust_api.updateTodo(todo: todoData);
-  }
-
-  /// TodoをNostrから削除
-  Future<void> deleteTodoOnNostr(String todoId) async {
-    return await rust_api.deleteTodo(todoId: todoId);
-  }
 
   /// TodoリストをNostrに作成（Kind 30001 - 新実装）
   Future<rust_api.EventSendResult> createTodoListOnNostr(List<Todo> todos) async {
@@ -384,87 +332,10 @@ class NostrService {
     }).toList();
   }
 
-  /// NostrからTodoを同期（旧実装 - Kind 30078）
-  Future<List<Todo>> syncTodosFromNostr() async {
-    final todoDataList = await rust_api.syncTodos();
-
-    return todoDataList.map((todoData) {
-      // JSON文字列からオブジェクトに復元
-      LinkPreview? linkPreview;
-      if (todoData.linkPreview != null) {
-        try {
-          linkPreview = LinkPreview.fromJson(
-            jsonDecode(todoData.linkPreview!) as Map<String, dynamic>
-          );
-        } catch (e) {
-          print('⚠️ Failed to parse linkPreview: $e');
-        }
-      }
-
-      RecurrencePattern? recurrence;
-      if (todoData.recurrence != null) {
-        try {
-          recurrence = RecurrencePattern.fromJson(
-            jsonDecode(todoData.recurrence!) as Map<String, dynamic>
-          );
-        } catch (e) {
-          print('⚠️ Failed to parse recurrence: $e');
-        }
-      }
-
-      return Todo(
-        id: todoData.id,
-        title: todoData.title,
-        completed: todoData.completed,
-        date: todoData.date != null ? DateTime.parse(todoData.date!) : null,
-        order: todoData.order,
-        createdAt: DateTime.parse(todoData.createdAt),
-        updatedAt: DateTime.parse(todoData.updatedAt),
-        eventId: todoData.eventId,
-        linkPreview: linkPreview,
-        recurrence: recurrence,
-        parentRecurringId: todoData.parentRecurringId,
-        customListId: todoData.customListId,
-      );
-    }).toList();
-  }
 
   // ========================================
   // Amberモード専用メソッド
   // ========================================
-
-  /// Amberモード: 未署名Todoイベントを作成
-  Future<String> createUnsignedTodoEvent(Todo todo) async {
-    final publicKey = _ref.read(publicKeyProvider);
-    if (publicKey == null) {
-      throw Exception('公開鍵が設定されていません');
-    }
-
-    final todoData = rust_api.TodoData(
-      id: todo.id,
-      title: todo.title,
-      completed: todo.completed,
-      date: todo.date?.toIso8601String(),
-      order: todo.order,
-      createdAt: todo.createdAt.toIso8601String(),
-      updatedAt: todo.updatedAt.toIso8601String(),
-      eventId: todo.eventId,
-      linkPreview: todo.linkPreview != null 
-          ? jsonEncode(todo.linkPreview!.toJson())
-          : null,
-      recurrence: todo.recurrence != null
-          ? jsonEncode(todo.recurrence!.toJson())
-          : null,
-      parentRecurringId: todo.parentRecurringId,
-      customListId: todo.customListId,
-    );
-
-    // Rust側で未署名イベントを作成
-    return await rust_api.createUnsignedTodoEvent(
-      todo: todoData,
-      publicKeyHex: publicKey,
-    );
-  }
 
   /// Amberモード: 署名済みイベントをリレーに送信
   Future<rust_api.EventSendResult> sendSignedEvent(String signedEventJson) async {

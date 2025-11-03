@@ -373,98 +373,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     });
   }
 
-  /// ローカルのeventIdがないTodoをNostrに送信
-  Future<void> uploadPendingTodos() async {
-    if (!_ref.read(nostrInitializedProvider)) {
-      print('⚠️ Nostr未初期化のためアップロードをスキップ');
-      return;
-    }
 
-    state.whenData((todos) async {
-      final nostrService = _ref.read(nostrServiceProvider);
-      int uploadCount = 0;
-
-      for (final dateGroup in todos.entries) {
-        final date = dateGroup.key;
-        final list = List<Todo>.from(dateGroup.value);
-
-        for (int i = 0; i < list.length; i++) {
-          final todo = list[i];
-          
-          // eventIdがないTodoを送信
-          if (todo.eventId == null) {
-            try {
-              final eventId = await nostrService.createTodoOnNostr(todo);
-              list[i] = todo.copyWith(eventId: eventId);
-              uploadCount++;
-              print('✅ Todoをアップロード: ${todo.title}');
-            } catch (e) {
-              print('⚠️ Todoアップロード失敗 (${todo.title}): $e');
-            }
-          }
-        }
-
-        // 更新された日付グループを反映
-        todos[date] = list;
-      }
-
-      if (uploadCount > 0) {
-        state = AsyncValue.data(Map.from(todos));
-        await _saveAllTodosToLocal();
-        print('✅ ${uploadCount}件のTodoをアップロードしました');
-      } else {
-        print('ℹ️ アップロードが必要なTodoはありません');
-      }
-    });
-  }
-
-  /// NostrからのTodoをローカルとマージ（スマートマージ）
-  /// updatedAtが新しい方を優先
-  Future<void> mergeTodosFromNostr(List<Todo> nostrTodos) async {
-    state.whenData((localTodos) async {
-      final Map<String, Todo> mergedMap = {};
-      
-      // ローカルのTodoをマップに追加
-      for (final dateGroup in localTodos.values) {
-        for (final todo in dateGroup) {
-          mergedMap[todo.id] = todo;
-        }
-      }
-      
-      // NostrのTodoをマージ（新しい方を優先）
-      for (final nostrTodo in nostrTodos) {
-        final localTodo = mergedMap[nostrTodo.id];
-        
-        if (localTodo == null) {
-          // ローカルに存在しない → 追加
-          mergedMap[nostrTodo.id] = nostrTodo;
-        } else {
-          // 両方に存在 → 新しい方を採用
-          if (nostrTodo.updatedAt.isAfter(localTodo.updatedAt)) {
-            mergedMap[nostrTodo.id] = nostrTodo;
-          }
-          // localの方が新しい場合はそのまま
-        }
-      }
-      
-      // 日付ごとにグループ化
-      final Map<DateTime?, List<Todo>> grouped = {};
-      for (final todo in mergedMap.values) {
-        grouped[todo.date] ??= [];
-        grouped[todo.date]!.add(todo);
-      }
-      
-      // 各日付のリストをorder順にソート
-      for (final key in grouped.keys) {
-        grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
-      }
-      
-      state = AsyncValue.data(grouped);
-      
-      // ローカルストレージに保存
-      await _saveAllTodosToLocal();
-    });
-  }
 
   /// Todoを更新
   Future<void> updateTodo(Todo todo) async {
@@ -1459,14 +1368,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           }
         }
       } else {
-        // 通常モード: 秘密鍵で復号化
-        oldTodos = await nostrService.syncTodosFromNostr();
-        
-        if (oldTodos.isEmpty) {
-          print('✅ No Kind 30078 events found. Migration not needed.');
-          _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.notNeeded;
-          return;
-        }
+        // 旧実装（Kind 30078）は削除されました
+        throw Exception('旧実装（Kind 30078）は削除されました。マイグレーション機能は利用できません。');
       }
       
       print('📦 Found ${oldTodos.length} todos in Kind 30078 format');
@@ -1606,13 +1509,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           return true;
         }
       } else {
-        // 通常モード: 秘密鍵で復号化
-        final oldTodos = await nostrService.syncTodosFromNostr();
-        
-        if (oldTodos.isNotEmpty) {
-          print('📦 Found ${oldTodos.length} old Kind 30078 TODO events (normal mode)');
-          return true;
-        }
+        // 旧実装（Kind 30078）は削除されました
+        print('⚠️ 旧実装（Kind 30078）は削除されました。マイグレーションチェックをスキップします。');
+        return false;
       }
       
       print('✅ No old Kind 30078 TODO events found');

@@ -436,129 +436,6 @@ impl MeisoNostrClient {
         self.send_event_with_result(event).await
     }
 
-    /// TodoをNostrイベントとして作成（旧実装 - 後方互換性のため残す）
-    pub async fn create_todo(&self, todo: TodoData) -> Result<String> {
-        if let ClientMode::Amber { .. } = self.mode {
-            return Err(anyhow::anyhow!("Cannot create TODO in Amber mode"));
-        }
-        
-        let keys = self.keys.as_ref()
-            .context("Secret key required")?;
-        
-        let todo_json = serde_json::to_string(&todo)?;
-
-        // NIP-44で自己暗号化
-        let public_key = keys.public_key();
-        let encrypted_content = nip44::encrypt(
-            keys.secret_key(),
-            &public_key,
-            &todo_json,
-            nip44::Version::V2,
-        )?;
-
-        // イベント作成（dタグを追加）
-        let tag = Tag::custom(
-            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
-            vec![format!("todo-{}", todo.id)],
-        );
-
-        let event = EventBuilder::new(Kind::Custom(30078), encrypted_content)
-            .tags(vec![tag])
-            .sign(keys)
-            .await?;
-
-        // リレーに送信するイベントをJSONとしてログ出力
-        match serde_json::to_string_pretty(&event.as_json()) {
-            Ok(event_json) => {
-                println!("📤 Nostr event to relay:");
-                println!("{}", event_json);
-            }
-            Err(e) => {
-                eprintln!("⚠️ Failed to serialize event to JSON: {}", e);
-            }
-        }
-
-        // リレーに送信（タイムアウト付き、エラーを無視して続行）
-        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(event.clone())).await {
-            Ok(Ok(event_id)) => {
-                println!("✅ Event sent successfully: {}", event_id.to_hex());
-                Ok(event_id.to_hex())
-            }
-            Ok(Err(e)) => {
-                // 送信エラーでもイベントIDは返す（ローカルで保存済み）
-                eprintln!("⚠️ 一部のリレーへの送信に失敗: {}", e);
-                Ok(event.id.to_hex())
-            }
-            Err(_) => {
-                // タイムアウトでもイベントIDは返す
-                eprintln!("⚠️ イベント送信タイムアウト");
-                Ok(event.id.to_hex())
-            }
-        }
-    }
-
-    /// Todoを更新（既存イベントを置き換え）
-    pub async fn update_todo(&self, todo: TodoData) -> Result<String> {
-        // 作成と同じ処理（Kind 30078は同じdタグで上書き）
-        self.create_todo(todo).await
-    }
-
-    /// Todoを削除（削除イベント送信）
-    pub async fn delete_todo(&self, todo_id: &str) -> Result<()> {
-        if let ClientMode::Amber { .. } = self.mode {
-            return Err(anyhow::anyhow!("Cannot delete TODO in Amber mode"));
-        }
-        
-        let keys = self.keys.as_ref()
-            .context("Secret key required")?;
-        
-        // まず該当イベントを取得
-        let filter = Filter::new()
-            .kind(Kind::Custom(30078))
-            .author(keys.public_key())
-            .custom_tag(
-                SingleLetterTag::lowercase(Alphabet::D),
-                vec![format!("todo-{}", todo_id)],
-            );
-
-        let events = self
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(5)))
-            .await?;
-
-        if let Some(event) = events.first() {
-            // 削除イベント (Kind 5) を送信
-            let delete_event = EventBuilder::delete([event.id])
-                .sign(keys)
-                .await?;
-
-            // リレーに送信する削除イベントをJSONとしてログ出力
-            match serde_json::to_string_pretty(&delete_event.as_json()) {
-                Ok(event_json) => {
-                    println!("🗑️ Nostr delete event to relay:");
-                    println!("{}", event_json);
-                }
-                Err(e) => {
-                    eprintln!("⚠️ Failed to serialize delete event to JSON: {}", e);
-                }
-            }
-
-            // タイムアウト付き送信
-            match tokio::time::timeout(Duration::from_secs(5), self.client.send_event(delete_event.clone())).await {
-                Ok(Ok(event_id)) => {
-                    println!("✅ Delete event sent successfully: {}", event_id.to_hex());
-                }
-                Ok(Err(e)) => {
-                    eprintln!("⚠️ Failed to send delete event: {}", e);
-                }
-                Err(_) => {
-                    eprintln!("⚠️ Delete event send timeout");
-                }
-            }
-        }
-
-        Ok(())
-    }
 
     /// TodoリストをNostrから同期（Kind 30001）
     pub async fn sync_todo_list(&self) -> Result<Vec<TodoData>> {
@@ -603,61 +480,6 @@ impl MeisoNostrClient {
         Ok(Vec::new())
     }
 
-    /// 全てのTodoを同期（リレーから取得）- 旧実装（Kind 30078）
-    /// 
-    /// ⚠️ 注意: `d`タグが`todo-`で始まるイベントは除外されます
-    /// これは設定イベント（`meiso-settings`など）を除外するためです
-    pub async fn sync_todos(&self) -> Result<Vec<TodoData>> {
-        if let ClientMode::Amber { .. } = self.mode {
-            return Err(anyhow::anyhow!("Cannot sync TODOs in Amber mode"));
-        }
-        
-        let keys = self.keys.as_ref()
-            .context("Secret key required")?;
-        
-        let filter = Filter::new()
-            .kind(Kind::Custom(30078))
-            .author(keys.public_key());
-
-        let events = self
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
-            .await?;
-
-        let mut todos = Vec::new();
-
-        for event in events {
-            // dタグをチェック：`todo-`で始まる場合はスキップ
-            let should_skip = event.tags.iter().any(|tag| {
-                let tag_kind = tag.kind();
-                if tag_kind.to_string() == "d" {
-                    if let Some(value) = tag.content() {
-                        return value.starts_with("todo-");
-                    }
-                }
-                false
-            });
-
-            if should_skip {
-                println!("⏭️  Skipping Kind 30078 event with d tag starting with 'todo-': {}", event.id.to_hex());
-                continue;
-            }
-
-            // NIP-44で復号化
-            if let Ok(decrypted) = nip44::decrypt(
-                keys.secret_key(),
-                &keys.public_key(),
-                &event.content,
-            ) {
-                if let Ok(mut todo) = serde_json::from_str::<TodoData>(&decrypted) {
-                    todo.event_id = Some(event.id.to_hex());
-                    todos.push(todo);
-                }
-            }
-        }
-
-        Ok(todos)
-    }
 
     // ========================================
     // アプリ設定管理（NIP-78 Application-specific data）
@@ -1091,32 +913,6 @@ pub fn generate_keypair() -> Result<KeyPair> {
     })
 }
 
-/// Todoを作成（旧実装 - 非推奨、代わりにcreate_todo_listを使用）
-#[deprecated(note = "Use create_todo_list instead")]
-pub fn create_todo(todo: TodoData) -> Result<String> {
-    TOKIO_RUNTIME.block_on(async {
-        let client = get_client(None).await?;
-        client.create_todo(todo).await
-    })
-}
-
-/// Todoを更新（旧実装 - 非推奨、代わりにcreate_todo_listを使用）
-#[deprecated(note = "Use create_todo_list instead")]
-pub fn update_todo(todo: TodoData) -> Result<String> {
-    TOKIO_RUNTIME.block_on(async {
-        let client = get_client(None).await?;
-        client.update_todo(todo).await
-    })
-}
-
-/// Todoを削除（旧実装 - 非推奨）
-#[deprecated(note = "Use delete_events instead")]
-pub fn delete_todo(todo_id: String) -> Result<()> {
-    TOKIO_RUNTIME.block_on(async {
-        let client = get_client(None).await?;
-        client.delete_todo(&todo_id).await
-    })
-}
 
 /// 全Todoを同期（Kind 30001 - 新実装）
 pub fn sync_todo_list() -> Result<Vec<TodoData>> {
@@ -1144,14 +940,6 @@ pub fn create_todo_list_with_client_id(todos: Vec<TodoData>, client_id: Option<S
     })
 }
 
-/// 全Todoを同期（旧実装 - Kind 30078 - 非推奨）
-#[deprecated(note = "Use sync_todo_list instead")]
-pub fn sync_todos() -> Result<Vec<TodoData>> {
-    TOKIO_RUNTIME.block_on(async {
-        let client = get_client(None).await?;
-        client.sync_todos().await
-    })
-}
 
 // ========================================
 // 鍵管理API (SecureKeyStore)
@@ -1306,46 +1094,6 @@ pub fn init_nostr_client_with_pubkey_and_id(
     })
 }
 
-/// 未署名Todoイベントを作成（Amber署名用）
-/// Amberに送信するイベントJSON文字列を返す
-pub fn create_unsigned_todo_event(
-    todo: TodoData,
-    public_key_hex: String,
-) -> Result<String> {
-    use serde_json::json;
-    
-    let todo_json = serde_json::to_string(&todo)?;
-    
-    // 公開鍵をパース
-    let public_key = PublicKey::from_hex(&public_key_hex)
-        .context("Failed to parse public key")?;
-    
-    // Amber用の未署名イベントを作成
-    // NIP-01形式: id, pubkey, created_at, kind, tags, contentを含み、sigは空
-    let created_at = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    
-    // dタグを追加
-    let tags = vec![
-        vec!["d".to_string(), format!("todo-{}", todo.id)]
-    ];
-    
-    // 未署名イベントJSON（Amber用）
-    let unsigned_event = json!({
-        "pubkey": public_key.to_hex(),
-        "created_at": created_at,
-        "kind": 30078,
-        "tags": tags,
-        "content": todo_json,
-    });
-    
-    let event_json = serde_json::to_string(&unsigned_event)?;
-    
-    println!("📝 Created unsigned event for Amber signing");
-    Ok(event_json)
-}
 
 /// 署名済みイベントをリレーに送信
 pub fn send_signed_event(event_json: String) -> Result<EventSendResult> {
