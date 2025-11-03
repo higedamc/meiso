@@ -33,14 +33,24 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
           setState(() => _isVisible = false);
         }
       });
-    } else if (status.state == SyncState.syncing || 
-               status.state == SyncState.error) {
-      // 同期中またはエラー時は表示
+    } else if (status.state == SyncState.syncing) {
+      // 同期中は表示
       setState(() => _isVisible = true);
       _hideTimer?.cancel();
+    } else if (status.state == SyncState.error) {
+      // エラー時は表示し、5秒後に自動的に非表示にする
+      setState(() => _isVisible = true);
+      
+      _hideTimer?.cancel();
+      _hideTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted) {
+          setState(() => _isVisible = false);
+        }
+      });
     } else if (status.state == SyncState.idle) {
       // アイドル時は非表示
       setState(() => _isVisible = false);
+      _hideTimer?.cancel();
     }
   }
 
@@ -90,7 +100,7 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
                           _formatSyncTime(syncStatus.lastSyncTime!),
                           style: TextStyle(
                             fontSize: 9,
-                            color: _getTextColor(syncStatus.state).withOpacity(0.7),
+                            color: _getTextColor(syncStatus.state).withValues(alpha: 0.7),
                           ),
                         ),
                     ],
@@ -155,7 +165,13 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
       case SyncState.success:
         return '同期完了';
       case SyncState.error:
-        if (status.retryCount > 0) {
+        // エラーメッセージを短縮表示
+        final errorMsg = status.errorMessage ?? '同期エラー';
+        if (errorMsg.contains('タイムアウト')) {
+          return 'タイムアウト';
+        } else if (errorMsg.contains('failed') || errorMsg.contains('失敗')) {
+          return '接続エラー';
+        } else if (status.retryCount > 0) {
           return 'エラー (リトライ${status.retryCount}回)';
         }
         return '同期エラー';
@@ -214,4 +230,5 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
     }
   }
 }
+
 

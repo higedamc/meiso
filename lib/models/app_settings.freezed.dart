@@ -201,7 +201,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             : notificationsEnabled // ignore: cast_nullable_to_non_nullable
                   as bool,
         relays: null == relays
-            ? _value._relays
+            ? _value.relays
             : relays // ignore: cast_nullable_to_non_nullable
                   as List<String>,
         torEnabled: null == torEnabled
@@ -229,11 +229,11 @@ class _$AppSettingsImpl implements _AppSettings {
     this.weekStartDay = 1,
     this.calendarView = 'week',
     this.notificationsEnabled = true,
-    final List<String> relays = const [],
+    this.relays = const [],
     this.torEnabled = false,
     this.proxyUrl = 'socks5://127.0.0.1:9050',
     required this.updatedAt,
-  }) : _relays = relays;
+  });
 
   factory _$AppSettingsImpl.fromJson(Map<String, dynamic> json) =>
       _$$AppSettingsImplFromJson(json);
@@ -259,16 +259,9 @@ class _$AppSettingsImpl implements _AppSettings {
   final bool notificationsEnabled;
 
   /// リレーリスト（NIP-65 kind 10002から同期）
-  final List<String> _relays;
-
-  /// リレーリスト（NIP-65 kind 10002から同期）
   @override
   @JsonKey()
-  List<String> get relays {
-    if (_relays is EqualUnmodifiableListView) return _relays;
-    // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_relays);
-  }
+  final List<String> relays;
 
   /// Tor有効/無効（Orbot経由での接続）
   @override
@@ -302,7 +295,7 @@ class _$AppSettingsImpl implements _AppSettings {
                 other.calendarView == calendarView) &&
             (identical(other.notificationsEnabled, notificationsEnabled) ||
                 other.notificationsEnabled == notificationsEnabled) &&
-            const DeepCollectionEquality().equals(other._relays, _relays) &&
+            const DeepCollectionEquality().equals(other.relays, relays) &&
             (identical(other.torEnabled, torEnabled) ||
                 other.torEnabled == torEnabled) &&
             (identical(other.proxyUrl, proxyUrl) ||
@@ -319,7 +312,7 @@ class _$AppSettingsImpl implements _AppSettings {
     weekStartDay,
     calendarView,
     notificationsEnabled,
-    const DeepCollectionEquality().hash(_relays),
+    const DeepCollectionEquality().hash(relays),
     torEnabled,
     proxyUrl,
     updatedAt,

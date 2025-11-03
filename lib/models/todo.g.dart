@@ -35,8 +35,8 @@ Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
       'eventId': instance.eventId,
-      'linkPreview': instance.linkPreview,
-      'recurrence': instance.recurrence,
+      'linkPreview': instance.linkPreview?.toJson(),
+      'recurrence': instance.recurrence?.toJson(),
       'parentRecurringId': instance.parentRecurringId,
       'customListId': instance.customListId,
     };

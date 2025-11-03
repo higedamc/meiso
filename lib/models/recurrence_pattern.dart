@@ -4,7 +4,7 @@ part 'recurrence_pattern.freezed.dart';
 part 'recurrence_pattern.g.dart';
 
 /// リカーリングタスクの繰り返しパターン
-@freezed
+@Freezed(makeCollectionsUnmodifiable: false)
 class RecurrencePattern with _$RecurrencePattern {
   const factory RecurrencePattern({
     /// 繰り返しタイプ

@@ -4,7 +4,7 @@ part 'app_settings.freezed.dart';
 part 'app_settings.g.dart';
 
 /// アプリ設定データ（NIP-78 Application-specific data - Kind 30078）
-@freezed
+@Freezed(makeCollectionsUnmodifiable: false)
 class AppSettings with _$AppSettings {
   const factory AppSettings({
     /// ダークモード設定
