@@ -46,8 +46,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final localTodos = await localStorageService.loadTodos();
       
       if (localTodos.isEmpty) {
-        // 初回起動時のみダミーデータを作成
-        await _createInitialDummyData();
+        // 初回起動時は空のリストから始める
+        // （リレーサーバーからデータを同期する）
+        print('🆕 初回起動: 空のリストで開始');
+        state = AsyncValue.data({});
       } else {
         // ローカルデータをグループ化して状態に設定
         final Map<DateTime?, List<Todo>> grouped = {};
@@ -61,6 +63,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
         }
         
+        print('📦 ローカルから${localTodos.length}件のタスクを読み込み');
         state = AsyncValue.data(grouped);
       }
       
@@ -72,14 +75,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
     } catch (e) {
       print('⚠️ Todo初期化エラー: $e');
-      // エラー時でもダミーデータで初期化（UIを表示）
-      try {
-        await _createInitialDummyData();
-      } catch (e2) {
-        print('⚠️ ダミーデータ作成も失敗: $e2');
-        // 最終フォールバック: 空のマップで初期化
-        state = AsyncValue.data({});
-      }
+      // エラー時は空のマップで初期化
+      print('⚠️ エラー発生のため空のリストで開始');
+      state = AsyncValue.data({});
     }
   }
   
@@ -187,61 +185,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
 
-  /// 初回起動時のダミーデータを作成
-  Future<void> _createInitialDummyData() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
-    
-    final initialTodos = [
-      Todo(
-        id: _uuid.v4(),
-        title: 'Nostr統合を完了する',
-        completed: false,
-        date: today,
-        order: 0,
-        createdAt: now,
-        updatedAt: now,
-      ),
-      Todo(
-        id: _uuid.v4(),
-        title: 'UI/UXを改善する',
-        completed: false,
-        date: today,
-        order: 1,
-        createdAt: now,
-        updatedAt: now,
-      ),
-      Todo(
-        id: _uuid.v4(),
-        title: 'Amber統合をテストする',
-        completed: false,
-        date: tomorrow,
-        order: 0,
-        createdAt: now,
-        updatedAt: now,
-      ),
-      Todo(
-        id: _uuid.v4(),
-        title: 'リカーリングタスクを実装する',
-        completed: false,
-        date: null,
-        order: 0,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    ];
-    
-    // ローカルストレージに保存
-    await localStorageService.saveTodos(initialTodos);
-    
-    // 状態に反映
-    state = AsyncValue.data({
-      today: [initialTodos[0], initialTodos[1]],
-      tomorrow: [initialTodos[2]],
-      null: [initialTodos[3]],
-    });
-  }
+  // 初回起動時のダミーデータは作成しない
+  // （削除済み: _createInitialDummyData メソッド）
+  // 
+  // 以前は「Nostr統合を完了する」などのダミーデータを作成していましたが、
+  // これによりリレーサーバー上の既存データが空のリストで上書きされる問題がありました。
+  // 現在は初回起動時は空のリストから始まり、リレーサーバーからデータを同期します。
 
   /// 新しいTodoを追加（楽観的UI更新）
   Future<void> addTodo(String title, DateTime? date, {String? customListId}) async {
@@ -1327,6 +1276,38 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
 
 
+  /// 手動で全Todoリストをリレーに送信（バックアップ手段）
+  /// UIから呼び出される公開メソッド
+  Future<void> manualSyncToNostr() async {
+    print('🔄 Manual sync to Nostr triggered');
+    _ref.read(syncStatusProvider.notifier).startSync();
+    
+    try {
+      await _syncAllTodosToNostr();
+      
+      // 同期成功後、needsSyncフラグをクリア
+      await _clearNeedsSyncFlags();
+      
+      _ref.read(syncStatusProvider.notifier).syncSuccess();
+      print('✅ Manual sync completed successfully');
+    } catch (e, stackTrace) {
+      print('❌ Manual sync failed: $e');
+      print('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      
+      _ref.read(syncStatusProvider.notifier).syncError(
+        '手動同期エラー: ${e.toString()}',
+        shouldRetry: false,
+      );
+      
+      // 3秒後にエラーをクリア
+      Future.delayed(const Duration(seconds: 3), () {
+        _ref.read(syncStatusProvider.notifier).clearError();
+      });
+      
+      rethrow; // UIにエラーを伝播
+    }
+  }
+
   /// Nostrからすべてのtodoを同期（Kind 30001 - Todoリスト全体を取得）
   Future<void> syncFromNostr() async {
     if (!_ref.read(nostrInitializedProvider)) {
@@ -1350,8 +1331,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           if (encryptedEvent == null) {
             print('⚠️ Todoリストイベントが見つかりません（Kind 30001）');
-            print('ℹ️ ローカルデータを保持します');
-            // イベントが見つからない場合はローカルデータを保持（上書きしない）
+            
+            // ローカルデータの有無をチェック
+            final hasLocalData = await state.whenData((localTodos) {
+              final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
+              if (localTodoCount > 0) {
+                print('ℹ️ リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
+                return true;
+              }
+              return false;
+            }).value ?? false;
+            
+            if (hasLocalData) {
+              print('✅ ローカルデータを保持（リモートは空/Amber）');
+              _ref.read(syncStatusProvider.notifier).syncSuccess();
+              return; // ここで関数を抜ける
+            }
+            
+            // ローカルデータもない場合は空状態に
+            print('ℹ️ ローカルもリモートもデータがありません');
             _ref.read(syncStatusProvider.notifier).syncSuccess();
             return;
           }
@@ -1432,13 +1430,21 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // イベントが見つからない場合（空リスト）はローカルデータを保持
           if (syncedTodos.isEmpty) {
-            state.whenData((localTodos) {
+            final hasLocalData = await state.whenData((localTodos) {
               final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
               if (localTodoCount > 0) {
                 print('ℹ️ リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
-                return; // ローカルデータを保持
+                return true; // ローカルデータがある
               }
-            });
+              return false;
+            }).value ?? false;
+            
+            // ローカルデータがある場合は同期をスキップ
+            if (hasLocalData) {
+              print('✅ ローカルデータを保持（リモートは空）');
+              _ref.read(syncStatusProvider.notifier).syncSuccess();
+              return; // ここで関数を抜ける
+            }
           }
           
           // Nostrから取得したデータのneedsSyncフラグを強制的にfalseにする
@@ -1473,24 +1479,168 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
 
-  /// 同期したTodoで状態を更新
+  /// 同期したTodoで状態を更新（競合解決付き）
+  /// 
+  /// リモートとローカルのTodoをマージし、競合を解決します。
+  /// 
+  /// 競合解決のルール:
+  /// 1. needsSyncフラグがtrueのタスク → ローカルを優先（未送信の変更を保護）
+  /// 2. updatedAtタイムスタンプを比較 → より新しい方を採用
+  /// 3. ローカルのみに存在 → ローカルを保持
+  /// 4. リモートのみに存在 → リモートを採用
   void _updateStateWithSyncedTodos(List<Todo> syncedTodos) {
-    // 日付ごとにグループ化
-    final Map<DateTime?, List<Todo>> grouped = {};
-    for (final todo in syncedTodos) {
-      grouped[todo.date] ??= [];
-      grouped[todo.date]!.add(todo);
-    }
+    print('🔄 Starting merge: ${syncedTodos.length} remote todos');
     
-    // 各日付のリストをorder順にソート
-    for (final key in grouped.keys) {
-      grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
-    }
-    
-    state = AsyncValue.data(grouped);
-    
-    // ローカルストレージに保存
-    _saveAllTodosToLocal();
+    state.whenData((localTodos) {
+      // ローカルの全タスクをフラット化してMapに変換
+      final localTodoMap = <String, Todo>{};
+      int localTotalCount = 0;
+      for (final dateGroup in localTodos.values) {
+        for (final todo in dateGroup) {
+          localTodoMap[todo.id] = todo;
+          localTotalCount++;
+        }
+      }
+      
+      print('📦 Local todos: $localTotalCount');
+      
+      // マージ結果を格納
+      final mergedTodos = <String, Todo>{};
+      int conflictCount = 0;
+      int localWinsCount = 0;
+      int remoteWinsCount = 0;
+      
+      // ステップ1: リモートのタスクを処理
+      for (final remoteTodo in syncedTodos) {
+        final localTodo = localTodoMap[remoteTodo.id];
+        
+        if (localTodo == null) {
+          // ローカルに存在しない → リモートを採用
+          mergedTodos[remoteTodo.id] = remoteTodo;
+          print('📥 Remote only: "${remoteTodo.title}" (${remoteTodo.id.substring(0, 8)}...)');
+        } else {
+          // 両方に存在 → 競合解決
+          conflictCount++;
+          
+          // ルール1: needsSyncフラグがtrueの場合、ローカルを優先
+          if (localTodo.needsSync) {
+            mergedTodos[remoteTodo.id] = localTodo;
+            localWinsCount++;
+            print('⚡ Conflict resolved (needsSync): Local wins - "${localTodo.title}"');
+            print('   Local updated: ${localTodo.updatedAt.toIso8601String()}');
+            print('   Remote updated: ${remoteTodo.updatedAt.toIso8601String()}');
+            continue;
+          }
+          
+          // ルール2: updatedAtタイムスタンプを比較
+          final localUpdated = localTodo.updatedAt;
+          final remoteUpdated = remoteTodo.updatedAt;
+          
+          if (remoteUpdated.isAfter(localUpdated)) {
+            // リモートの方が新しい → リモートを採用
+            mergedTodos[remoteTodo.id] = remoteTodo;
+            remoteWinsCount++;
+            
+            // タイトルが異なる場合は競合を警告
+            if (localTodo.title != remoteTodo.title) {
+              print('🔀 Conflict resolved: Remote wins - "${remoteTodo.title}"');
+              print('   Local: "${localTodo.title}" (${localUpdated.toIso8601String()})');
+              print('   Remote: "${remoteTodo.title}" (${remoteUpdated.toIso8601String()})');
+            }
+          } else if (localUpdated.isAfter(remoteUpdated)) {
+            // ローカルの方が新しい → ローカルを採用
+            // ローカルの方が新しい場合、リレーに再送信が必要
+            mergedTodos[remoteTodo.id] = localTodo.copyWith(needsSync: true);
+            localWinsCount++;
+            
+            // タイトルが異なる場合は競合を警告
+            if (localTodo.title != remoteTodo.title) {
+              print('🔀 Conflict resolved: Local wins - "${localTodo.title}" (will resync)');
+              print('   Local: "${localTodo.title}" (${localUpdated.toIso8601String()})');
+              print('   Remote: "${remoteTodo.title}" (${remoteUpdated.toIso8601String()})');
+            }
+          } else {
+            // 同じタイムスタンプ → リモートを優先（デフォルト動作）
+            mergedTodos[remoteTodo.id] = remoteTodo;
+            remoteWinsCount++;
+            
+            if (localTodo.title != remoteTodo.title || localTodo.completed != remoteTodo.completed) {
+              print('⚠️ Same timestamp but different content: Remote wins - "${remoteTodo.title}"');
+              print('   Local: "${localTodo.title}" (completed: ${localTodo.completed})');
+              print('   Remote: "${remoteTodo.title}" (completed: ${remoteTodo.completed})');
+            }
+          }
+        }
+      }
+      
+      // ステップ2: ローカルのみに存在するタスクを追加
+      int localOnlyCount = 0;
+      int deletedByRemoteCount = 0;
+      
+      for (final localTodo in localTodoMap.values) {
+        if (!mergedTodos.containsKey(localTodo.id)) {
+          // リモートに存在しない場合の処理
+          
+          if (localTodo.needsSync) {
+            // ケース1: needsSyncがtrue → まだ同期されていない新しいタスク
+            // ローカルを保持してリレーに送信する
+            mergedTodos[localTodo.id] = localTodo;
+            localOnlyCount++;
+            print('📤 Local only (new): "${localTodo.title}" (${localTodo.id.substring(0, 8)}...) - will sync');
+          } else {
+            // ケース2: needsSyncがfalse → 他のデバイスで削除された可能性
+            // ただし、ローカルが最近更新されている場合は保持する
+            final now = DateTime.now();
+            final hoursSinceUpdate = now.difference(localTodo.updatedAt).inHours;
+            
+            if (hoursSinceUpdate < 24) {
+              // 24時間以内の更新 → ローカルを保持（削除ではなく、同期のタイミング差の可能性）
+              mergedTodos[localTodo.id] = localTodo.copyWith(needsSync: true);
+              localOnlyCount++;
+              print('📤 Local only (recent update): "${localTodo.title}" - will resync (updated ${hoursSinceUpdate}h ago)');
+            } else {
+              // 24時間以上前の更新 → 他のデバイスで削除されたと判断
+              deletedByRemoteCount++;
+              print('🗑️  Deleted by remote: "${localTodo.title}" (${localTodo.id.substring(0, 8)}...) - removing locally');
+              // mergedTodosに追加しない = ローカルから削除
+            }
+          }
+        }
+      }
+      
+      // マージ結果のサマリーを出力
+      print('✅ Merge completed:');
+      print('   Total merged: ${mergedTodos.length}');
+      print('   Conflicts: $conflictCount');
+      print('   Local wins: $localWinsCount');
+      print('   Remote wins: $remoteWinsCount');
+      print('   Local only: $localOnlyCount');
+      print('   Deleted by remote: $deletedByRemoteCount');
+      
+      // ステップ3: 日付ごとにグループ化
+      final grouped = <DateTime?, List<Todo>>{};
+      for (final todo in mergedTodos.values) {
+        grouped[todo.date] ??= [];
+        grouped[todo.date]!.add(todo);
+      }
+      
+      // 各日付のリストをorder順にソート
+      for (final key in grouped.keys) {
+        grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
+      }
+      
+      // 状態を更新
+      state = AsyncValue.data(grouped);
+      
+      // ローカルストレージに保存
+      _saveAllTodosToLocal();
+      
+      // ローカルが新しいタスクがある場合、自動的に再同期
+      if (localWinsCount > 0 || localOnlyCount > 0) {
+        print('🔄 Scheduling resync due to local changes');
+        _updateUnsyncedCount();
+      }
+    });
   }
 
   // ========================================

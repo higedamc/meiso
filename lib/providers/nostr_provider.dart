@@ -445,6 +445,19 @@ class NostrService {
     return await rust_api.hexToNpub(hex: hex);
   }
 
+  /// リレーサーバーへ再接続
+  /// バックグラウンドから復帰時などに使用
+  Future<void> reconnectRelays() async {
+    print('🔄 Reconnecting to relays...');
+    try {
+      await rust_api.reconnectToRelays();
+      print('✅ Successfully reconnected to relays');
+    } catch (e) {
+      print('❌ Failed to reconnect to relays: $e');
+      rethrow;
+    }
+  }
+
   // ========================================
   // マイグレーション関連API
   // ========================================

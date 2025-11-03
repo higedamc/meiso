@@ -1,0 +1,151 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'nostr_provider.dart';
+import 'todos_provider.dart';
+import 'sync_status_provider.dart';
+
+/// アプリのライフサイクル状態を管理するProvider
+final appLifecycleProvider = StateNotifierProvider<AppLifecycleNotifier, AppLifecycleState>((ref) {
+  return AppLifecycleNotifier(ref);
+});
+
+class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with WidgetsBindingObserver {
+  AppLifecycleNotifier(this._ref) : super(AppLifecycleState.resumed) {
+    // WidgetsBindingにオブザーバーを登録
+    WidgetsBinding.instance.addObserver(this);
+    print('📱 AppLifecycleNotifier initialized');
+  }
+
+  final Ref _ref;
+  DateTime? _lastResumedTime;
+  bool _isReconnecting = false;
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    print('📱 AppLifecycleNotifier disposed');
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
+    super.didChangeAppLifecycleState(lifecycleState);
+    state = lifecycleState;
+    print('📱 App lifecycle changed: $lifecycleState');
+
+    // フォアグラウンドに復帰した場合
+    if (lifecycleState == AppLifecycleState.resumed) {
+      _onAppResumed();
+    } else if (lifecycleState == AppLifecycleState.paused) {
+      _onAppPaused();
+    }
+  }
+
+  /// アプリがフォアグラウンドに復帰した時の処理
+  Future<void> _onAppResumed() async {
+    final now = DateTime.now();
+    print('📱 App resumed at: ${now.toIso8601String()}');
+
+    // 前回の復帰からの経過時間を計算
+    if (_lastResumedTime != null) {
+      final duration = now.difference(_lastResumedTime!);
+      print('📱 Time since last resume: ${duration.inSeconds} seconds');
+      
+      // 5秒以上経過している場合のみ再接続を実行（連続復帰を防ぐ）
+      if (duration.inSeconds < 5) {
+        print('📱 Skipping reconnect (too soon)');
+        return;
+      }
+    }
+
+    _lastResumedTime = now;
+
+    // Nostr初期化済みかチェック
+    final isInitialized = _ref.read(nostrInitializedProvider);
+    if (!isInitialized) {
+      print('📱 Nostr not initialized, skipping reconnect');
+      return;
+    }
+
+    // 既に再接続中の場合はスキップ
+    if (_isReconnecting) {
+      print('📱 Already reconnecting, skipping');
+      return;
+    }
+
+    // リレー再接続と同期を実行
+    await _reconnectAndSync();
+  }
+
+  /// アプリがバックグラウンドに移行した時の処理
+  void _onAppPaused() {
+    print('📱 App paused');
+    // 必要に応じてクリーンアップ処理を追加
+  }
+
+  /// リレー再接続と同期を実行
+  Future<void> _reconnectAndSync() async {
+    _isReconnecting = true;
+    
+    try {
+      print('🔄 Starting relay reconnection...');
+      _ref.read(syncStatusProvider.notifier).updateMessage('リレー再接続中...');
+      
+      final nostrService = _ref.read(nostrServiceProvider);
+      
+      // リレー再接続を実行
+      try {
+        await nostrService.reconnectRelays();
+        print('✅ Relay reconnection completed');
+      } catch (e) {
+        print('⚠️ Relay reconnection failed: $e');
+        // 再接続失敗時もエラーは記録するが、同期は試行する
+        _ref.read(syncStatusProvider.notifier).syncError(
+          'リレー再接続エラー: ${e.toString()}',
+          shouldRetry: false,
+        );
+        
+        // 3秒後にエラーをクリア
+        Future.delayed(const Duration(seconds: 3), () {
+          _ref.read(syncStatusProvider.notifier).clearError();
+        });
+        
+        return;
+      }
+      
+      // 再接続成功後、データ同期を実行
+      print('🔄 Starting sync after reconnect...');
+      _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
+      
+      // TodosProviderの同期メソッドを呼び出し
+      final todosNotifier = _ref.read(todosProvider.notifier);
+      await todosNotifier.syncFromNostr();
+      
+      print('✅ Sync after reconnect completed');
+      _ref.read(syncStatusProvider.notifier).clearMessage();
+      
+    } catch (e, stackTrace) {
+      print('❌ Reconnect and sync failed: $e');
+      print('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      
+      _ref.read(syncStatusProvider.notifier).syncError(
+        'フォアグラウンド復帰時の同期エラー: ${e.toString()}',
+        shouldRetry: false,
+      );
+      
+      // 3秒後にエラーをクリア
+      Future.delayed(const Duration(seconds: 3), () {
+        _ref.read(syncStatusProvider.notifier).clearError();
+      });
+    } finally {
+      _isReconnecting = false;
+    }
+  }
+
+  /// 手動でリレー再接続と同期を実行（デバッグ用）
+  Future<void> manualReconnectAndSync() async {
+    print('📱 Manual reconnect triggered');
+    await _reconnectAndSync();
+  }
+}
+
