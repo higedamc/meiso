@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Meisoアプリのテーマ設定
 /// Nostr風の紫を基調としたシンプルなデザイン
@@ -50,6 +51,9 @@ class AppTheme {
         onSurface: lightTextPrimary,
         error: Colors.red.shade600,
       ),
+      
+      // Noto Sans JPを使用（日本語フォント）
+      fontFamily: GoogleFonts.notoSansJp().fontFamily,
       
       scaffoldBackgroundColor: lightBackground,
       
@@ -199,6 +203,9 @@ class AppTheme {
         onSurface: darkTextPrimary,
         error: Colors.red.shade400,
       ),
+      
+      // Noto Sans JPを使用（日本語フォント）
+      fontFamily: GoogleFonts.notoSansJp().fontFamily,
       
       scaffoldBackgroundColor: darkBackground,
       

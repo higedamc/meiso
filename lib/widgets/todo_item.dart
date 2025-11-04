@@ -586,16 +586,6 @@ class TodoItem extends StatelessWidget {
                               color: AppTheme.primaryPurple.withOpacity(0.5),
                             ),
                           ),
-                        
-                        // 同期ステータスアイコン
-                        const SizedBox(width: 8),
-                        Icon(
-                          todo.needsSync ? Icons.sync : Icons.cloud_done,
-                          size: 18,
-                          color: todo.needsSync 
-                              ? Colors.orange.withOpacity(0.5)
-                              : Colors.grey.withOpacity(0.4),
-                        ),
                       ],
                     ),
                   ),
