@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
@@ -212,6 +213,38 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          ),
+          const SizedBox(height: 24),
+
+          // バージョン情報
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                final info = snapshot.data!;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Version ${info.version} (${info.buildNumber})',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey.shade600,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        info.appName,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey.shade500,
+                            ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
           const SizedBox(height: 24),
         ],
