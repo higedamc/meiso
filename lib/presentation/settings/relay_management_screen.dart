@@ -17,6 +17,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
   final _newRelayController = TextEditingController();
   String? _errorMessage;
   String? _successMessage;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -51,7 +52,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     });
   }
 
-  void _addRelay() {
+  Future<void> _addRelay() async {
     final url = _newRelayController.text.trim();
     if (url.isEmpty) return;
 
@@ -66,33 +67,94 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     ref.read(relayStatusProvider.notifier).addRelay(url);
     _newRelayController.clear();
 
-    // AppSettingsにも反映
+    // AppSettingsにも反映（ローカルのみ）
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
-    ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+    await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
 
-    // リレー変更を通知
-    _notifyRelayChange();
+    // Nostrに明示的に保存（Kind 10002）
+    try {
+      await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
+      setState(() {
+        _successMessage = 'リレーを追加し、Nostrに保存しました';
+        _errorMessage = null;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'リレーは追加されましたが、Nostrへの保存に失敗しました: $e';
+        _successMessage = null;
+      });
+    }
   }
 
-  void _removeRelay(String url) {
+  Future<void> _removeRelay(String url) async {
     ref.read(relayStatusProvider.notifier).removeRelay(url);
 
-    // AppSettingsにも反映
+    // AppSettingsにも反映（ローカルのみ）
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
-    ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+    await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
 
-    // リレー変更を通知
-    _notifyRelayChange();
+    // Nostrに明示的に保存（Kind 10002）
+    try {
+      // リレーが空の場合でも保存を試みる（削除を反映するため）
+      if (updatedRelays.isNotEmpty) {
+        await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
+      }
+      setState(() {
+        _successMessage = 'リレーを削除し、Nostrに保存しました';
+        _errorMessage = null;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'リレーは削除されましたが、Nostrへの保存に失敗しました: $e';
+        _successMessage = null;
+      });
+    }
   }
 
-  /// リレー変更を通知（次回起動時に反映）
-  /// 現在の実装では、動的なリレー追加・削除がサポートされていないため、
-  /// アプリを再起動するまで変更は反映されません
-  void _notifyRelayChange() {
+  /// Nostrからリレーリストを同期（Kind 10002）
+  Future<void> _syncFromNostr() async {
+    if (_isSyncing) return;
+    
     setState(() {
-      _successMessage = 'リレーリストを保存しました。次回起動時に反映されます。';
+      _isSyncing = true;
       _errorMessage = null;
+      _successMessage = null;
     });
+
+    try {
+      print('🔄 Nostrからリレーリストを同期中...');
+      
+      // AppSettingsProviderの同期を実行（Kind 10002を取得）
+      await ref.read(appSettingsProvider.notifier).syncFromNostr();
+      
+      // 同期後、リレーリストを再読み込み
+      final appSettings = ref.read(appSettingsProvider);
+      final settings = appSettings.valueOrNull;
+      
+      if (settings != null && settings.relays.isNotEmpty) {
+        // 同期されたリレーリストでUIを更新
+        final relayNotifier = ref.read(relayStatusProvider.notifier);
+        relayNotifier.initializeWithRelays(settings.relays);
+        
+        setState(() {
+          _successMessage = 'Nostrから${settings.relays.length}件のリレーを同期しました';
+          _isSyncing = false;
+        });
+        print('✅ リレーリスト同期完了: ${settings.relays.length}件');
+      } else {
+        setState(() {
+          _successMessage = 'Nostr上にリレーリストが見つかりませんでした';
+          _isSyncing = false;
+        });
+      }
+      
+    } catch (e) {
+      print('❌ リレーリスト同期失敗: $e');
+      setState(() {
+        _errorMessage = 'リレーリストの同期に失敗しました: $e';
+        _isSyncing = false;
+      });
+    }
   }
 
   @override
@@ -203,9 +265,36 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
             const SizedBox(height: 24),
 
             // リレーリスト
-            Text(
-              'リレーリスト',
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'リレーリスト',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                ElevatedButton.icon(
+                  onPressed: _isSyncing ? null : _syncFromNostr,
+                  icon: _isSyncing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.cloud_download, size: 18),
+                  label: Text(_isSyncing ? '同期中...' : 'Nostrから同期'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryPurple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
 
@@ -274,7 +363,9 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                       '• リレーはNostrネットワーク上のサーバーです\n'
                       '• 複数のリレーに接続することで冗長性が向上します\n'
                       '• リレーURLは wss:// または ws:// で始める必要があります\n'
-                      '• リレーの追加・削除は自動的にNostrに同期されます\n'
+                      '• リレーを追加・削除するとNostr（Kind 10002）に保存されます\n'
+                      '• 「Nostrから同期」ボタンで他のデバイスの設定を取得できます\n'
+                      '• リレー変更は次回起動時に反映されます\n'
                       '${torEnabled ? "• 現在Tor経由で接続しています（Orbotプロキシ使用）" : ""}',
                       style: TextStyle(
                         fontSize: 12,

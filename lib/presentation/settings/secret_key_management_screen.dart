@@ -449,7 +449,7 @@ class _SecretKeyManagementScreenState
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              isAmberMode ? 'Nostr接続中 (Amber)' : 'Nostr接続中',
+                              isAmberMode ? 'ログイン中 (Amber)' : 'Nostr接続中',
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -547,70 +547,72 @@ class _SecretKeyManagementScreenState
                     ),
                   const SizedBox(height: 16),
 
-                  // 秘密鍵入力
-                  Text(
-                    '秘密鍵',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _secretKeyController,
-                    decoration: InputDecoration(
-                      hintText: 'nsec1... または 64文字のhex',
-                      helperText: _detectedKeyFormat != null
-                          ? '検出: $_detectedKeyFormat'
-                          : 'nsecまたはhex形式の秘密鍵を入力',
-                      helperStyle: TextStyle(
-                        color: _detectedKeyFormat?.contains('不完全') == true ||
-                                _detectedKeyFormat?.contains('不明') == true
-                            ? Colors.orange.shade700
-                            : Colors.green.shade700,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureSecretKey
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureSecretKey = !_obscureSecretKey;
-                          });
-                        },
-                        tooltip: _obscureSecretKey ? '秘密鍵を表示' : '秘密鍵を非表示',
-                      ),
+                  // 秘密鍵入力（Amberモードでは非表示）
+                  if (!isAmberMode) ...[
+                    Text(
+                      '秘密鍵',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    obscureText: _obscureSecretKey,
-                    maxLines: 1,
-                    // パスワードマネージャ対応
-                    autofillHints: const [AutofillHints.password],
-                    keyboardType: TextInputType.visiblePassword,
-                    enableSuggestions: false,
-                    autocorrect: false,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _generateNewSecretKey,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('生成'),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _secretKeyController,
+                      decoration: InputDecoration(
+                        hintText: 'nsec1... または 64文字のhex',
+                        helperText: _detectedKeyFormat != null
+                            ? '検出: $_detectedKeyFormat'
+                            : 'nsecまたはhex形式の秘密鍵を入力',
+                        helperStyle: TextStyle(
+                          color: _detectedKeyFormat?.contains('不完全') == true ||
+                                  _detectedKeyFormat?.contains('不明') == true
+                              ? Colors.orange.shade700
+                              : Colors.green.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureSecretKey
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureSecretKey = !_obscureSecretKey;
+                            });
+                          },
+                          tooltip: _obscureSecretKey ? '秘密鍵を表示' : '秘密鍵を非表示',
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _saveSecretKey,
-                          icon: const Icon(Icons.save),
-                          label: const Text('保存して接続'),
+                      obscureText: _obscureSecretKey,
+                      maxLines: 1,
+                      // パスワードマネージャ対応
+                      autofillHints: const [AutofillHints.password],
+                      keyboardType: TextInputType.visiblePassword,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _generateNewSecretKey,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('生成'),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isLoading ? null : _saveSecretKey,
+                            icon: const Icon(Icons.save),
+                            label: const Text('保存して接続'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // Amberモード情報
                   if (isAmberMode)
@@ -676,47 +678,49 @@ class _SecretKeyManagementScreenState
                     ),
                   const SizedBox(height: 24),
 
-                  // 注意事項
-                  Card(
-                    color: AppTheme.primaryPurple.withOpacity(0.1),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.info, color: AppTheme.primaryPurple),
-                              const SizedBox(width: 8),
-                              Text(
-                                '重要',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.darkPurple,
+                  // 注意事項（Amberモードでは非表示）
+                  if (!isAmberMode) ...[
+                    Card(
+                      color: AppTheme.primaryPurple.withOpacity(0.1),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.info, color: AppTheme.primaryPurple),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '重要',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.darkPurple,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '• 秘密鍵はパスワードで暗号化されて保存されます\n'
-                            '• パスワードと秘密鍵は安全に保管してください\n'
-                            '• パスワードを忘れると秘密鍵を復元できません\n'
-                            '• 秘密鍵を保存すると自動的にリレーに接続します\n'
-                            '• タスクの変更は自動的にリレーに同期されます\n\n'
-                            '対応形式:\n'
-                            '  • nsec形式: nsec1... (Bech32エンコード)\n'
-                            '  • hex形式: 64文字の16進数',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.darkPurple,
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Text(
+                              '• 秘密鍵はパスワードで暗号化されて保存されます\n'
+                              '• パスワードと秘密鍵は安全に保管してください\n'
+                              '• パスワードを忘れると秘密鍵を復元できません\n'
+                              '• 秘密鍵を保存すると自動的にリレーに接続します\n'
+                              '• タスクの変更は自動的にリレーに同期されます\n\n'
+                              '対応形式:\n'
+                              '  • nsec形式: nsec1... (Bech32エンコード)\n'
+                              '  • hex形式: 64文字の16進数',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.darkPurple,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
+                  ],
 
                   // 使用している暗号技術
                   Card(

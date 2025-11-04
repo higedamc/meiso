@@ -102,11 +102,105 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
     });
   }
 
-  /// リレーリストを更新
+  /// リレーリストを更新（ローカルのみ）
   Future<void> updateRelays(List<String> relays) async {
     state.whenData((settings) async {
-      await updateSettings(settings.copyWith(relays: relays));
+      final updatedSettings = settings.copyWith(
+        relays: relays,
+        updatedAt: DateTime.now(),
+      );
+      
+      state = AsyncValue.data(updatedSettings);
+      
+      // ローカルストレージに保存
+      await localStorageService.saveAppSettings(updatedSettings);
+      
+      // 注意: Kind 10002への保存はsaveRelaysToNostr()で明示的に行う
     });
+  }
+
+  /// リレーリストをNostr（Kind 10002）に明示的に保存
+  Future<void> saveRelaysToNostr(List<String> relays) async {
+    if (!_ref.read(nostrInitializedProvider)) {
+      print('⚠️ Nostr未初期化のためリレーリスト保存をスキップ');
+      return;
+    }
+
+    if (relays.isEmpty) {
+      print('⚠️ リレーリストが空のため保存をスキップ');
+      return;
+    }
+
+    final isAmberMode = _ref.read(isAmberModeProvider);
+
+    try {
+      if (isAmberMode) {
+        // Amberモード: 未署名イベント作成 → 署名 → 送信
+        print('🔄 Amberモードでリレーリストを保存中（Kind 10002）...');
+        
+        var publicKey = _ref.read(publicKeyProvider);
+        var npub = _ref.read(nostrPublicKeyProvider);
+        
+        // 公開鍵がnullの場合、復元を試みる
+        if (publicKey == null || npub == null) {
+          print('⚠️ 公開鍵が未設定、復元を試みます...');
+          try {
+            final nostrService = _ref.read(nostrServiceProvider);
+            publicKey = await nostrService.getPublicKey();
+            if (publicKey != null) {
+              print('✅ hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+              _ref.read(publicKeyProvider.notifier).state = publicKey;
+              
+              npub = await nostrService.hexToNpub(publicKey);
+              _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+              print('✅ npub公開鍵も復元: ${npub.substring(0, 16)}...');
+            } else {
+              throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+            }
+          } catch (e) {
+            print('❌ 公開鍵の復元に失敗: $e');
+            throw Exception('公開鍵が設定されていません: $e');
+          }
+        }
+        
+        // 未署名イベント作成
+        final unsignedRelayEvent = await bridge.createUnsignedRelayListEvent(
+          relays: relays,
+          publicKeyHex: publicKey,
+        );
+        
+        // Amberで署名
+        final amberService = _ref.read(amberServiceProvider);
+        String signedRelayEvent;
+        try {
+          signedRelayEvent = await amberService.signEventWithContentProvider(
+            event: unsignedRelayEvent,
+            npub: npub,
+          );
+          print('✅ リレーリスト署名完了（バックグラウンド）');
+        } on PlatformException catch (e) {
+          print('⚠️ ContentProvider署名失敗 (${e.code}), UI経由で再試行');
+          signedRelayEvent = await amberService.signEventWithTimeout(unsignedRelayEvent);
+          print('✅ リレーリスト署名完了（UI経由）');
+        }
+        
+        // リレーに送信
+        final nostrService = _ref.read(nostrServiceProvider);
+        final relayEventId = await nostrService.sendSignedEvent(signedRelayEvent);
+        print('✅ リレーリスト保存完了（Kind 10002）: $relayEventId');
+        
+      } else {
+        // 通常モード: 秘密鍵で署名
+        print('🔄 通常モードでリレーリストを保存中（Kind 10002）...');
+        
+        final relayEventId = await bridge.saveRelayList(relays: relays);
+        print('✅ リレーリスト保存完了（Kind 10002）: $relayEventId');
+      }
+    } catch (e, stackTrace) {
+      print('❌ リレーリスト保存失敗: $e');
+      print('スタックトレース: $stackTrace');
+      rethrow;
+    }
   }
 
   /// Tor設定を切り替え
@@ -150,10 +244,29 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         });
         
         // 2. 公開鍵取得
-        final publicKey = _ref.read(publicKeyProvider);
-        final npub = _ref.read(nostrPublicKeyProvider);
+        var publicKey = _ref.read(publicKeyProvider);
+        var npub = _ref.read(nostrPublicKeyProvider);
+        
+        // 公開鍵がnullの場合、復元を試みる
         if (publicKey == null || npub == null) {
-          throw Exception('公開鍵が設定されていません');
+          print('⚠️ 公開鍵が未設定、復元を試みます...');
+          try {
+            final nostrService = _ref.read(nostrServiceProvider);
+            publicKey = await nostrService.getPublicKey();
+            if (publicKey != null) {
+              print('✅ hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+              _ref.read(publicKeyProvider.notifier).state = publicKey;
+              
+              npub = await nostrService.hexToNpub(publicKey);
+              _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+              print('✅ npub公開鍵も復元: ${npub.substring(0, 16)}...');
+            } else {
+              throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+            }
+          } catch (e) {
+            print('❌ 公開鍵の復元に失敗: $e');
+            throw Exception('公開鍵が設定されていません: $e');
+          }
         }
         
         // 3. Amberで暗号化
@@ -203,38 +316,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         final eventId = await nostrService.sendSignedEvent(signedEvent);
         print('✅ 設定同期完了: $eventId');
         
-        // 7. リレーリストを別途同期（NIP-65 Kind 10002 - 暗号化不要）
-        if (settings.relays.isNotEmpty) {
-          try {
-            print('🔄 リレーリストを同期中（Kind 10002）...');
-            
-            // 未署名イベント作成
-            final unsignedRelayEvent = await bridge.createUnsignedRelayListEvent(
-              relays: settings.relays,
-              publicKeyHex: publicKey,
-            );
-            
-            // Amberで署名
-            String signedRelayEvent;
-            try {
-              signedRelayEvent = await amberService.signEventWithContentProvider(
-                event: unsignedRelayEvent,
-                npub: npub,
-              );
-              print('✅ リレーリスト署名完了（バックグラウンド）');
-            } on PlatformException catch (e) {
-              print('⚠️ ContentProvider署名失敗 (${e.code}), UI経由で再試行');
-              signedRelayEvent = await amberService.signEventWithTimeout(unsignedRelayEvent);
-              print('✅ リレーリスト署名完了（UI経由）');
-            }
-            
-            // リレーに送信
-            final relayEventId = await nostrService.sendSignedEvent(signedRelayEvent);
-            print('✅ リレーリスト同期完了: $relayEventId');
-          } catch (e) {
-            print('⚠️ リレーリスト同期失敗: $e');
-          }
-        }
+        // 注意: リレーリスト（Kind 10002）は自動保存しない
+        // ユーザーが明示的にリレーを追加・削除した場合のみ保存される
         
       } else {
         // 通常モード: 秘密鍵で署名
@@ -254,15 +337,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         final eventId = await bridge.saveAppSettings(settings: bridgeSettings);
         print('✅ 設定同期完了: $eventId');
         
-        // リレーリストを別途同期（NIP-65 Kind 10002）
-        if (settings.relays.isNotEmpty) {
-          try {
-            final relayEventId = await bridge.saveRelayList(relays: settings.relays);
-            print('✅ リレーリスト同期完了: $relayEventId');
-          } catch (e) {
-            print('⚠️ リレーリスト同期失敗: $e');
-          }
-        }
+        // 注意: リレーリスト（Kind 10002）は自動保存しない
+        // ユーザーが明示的にリレーを追加・削除した場合のみ保存される
       }
     } catch (e, stackTrace) {
       print('❌ 設定同期失敗: $e');
@@ -284,10 +360,29 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         // Amberモード: 暗号化されたイベント取得 → 復号化
         print('🔐 Amberモードで設定を同期します');
         
-        final publicKey = _ref.read(publicKeyProvider);
-        final npub = _ref.read(nostrPublicKeyProvider);
+        var publicKey = _ref.read(publicKeyProvider);
+        var npub = _ref.read(nostrPublicKeyProvider);
+        
+        // 公開鍵がnullの場合、復元を試みる
         if (publicKey == null || npub == null) {
-          throw Exception('公開鍵が設定されていません');
+          print('⚠️ 公開鍵が未設定、復元を試みます...');
+          try {
+            final nostrService = _ref.read(nostrServiceProvider);
+            publicKey = await nostrService.getPublicKey();
+            if (publicKey != null) {
+              print('✅ hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+              _ref.read(publicKeyProvider.notifier).state = publicKey;
+              
+              npub = await nostrService.hexToNpub(publicKey);
+              _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+              print('✅ npub公開鍵も復元: ${npub.substring(0, 16)}...');
+            } else {
+              throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+            }
+          } catch (e) {
+            print('❌ 公開鍵の復元に失敗: $e');
+            throw Exception('公開鍵が設定されていません: $e');
+          }
         }
         
         final encryptedEvent = await bridge.fetchEncryptedAppSettingsForPubkey(

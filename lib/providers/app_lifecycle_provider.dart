@@ -118,8 +118,17 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       if (publicKey != null) {
         print('✅ Public key restored: ${publicKey.substring(0, 16)}...');
         
-        // publicKeyProviderに設定
+        // publicKeyProviderに設定（hex形式）
         _ref.read(publicKeyProvider.notifier).state = publicKey;
+        
+        // hex形式からnpub形式に変換して設定
+        try {
+          final npubKey = await nostrService.hexToNpub(publicKey);
+          _ref.read(nostrPublicKeyProvider.notifier).state = npubKey;
+          print('✅ npub公開鍵も設定しました: ${npubKey.substring(0, 16)}...');
+        } catch (e) {
+          print('❌ hex→npub変換エラー: $e');
+        }
         
         // nostrInitializedProviderもtrueにする（念のため）
         _ref.read(nostrInitializedProvider.notifier).state = true;
