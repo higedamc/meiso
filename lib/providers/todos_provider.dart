@@ -447,6 +447,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final index = list.indexWhere((t) => t.id == id);
 
       if (index != -1) {
+        // URLを検出してメタデータを取得（バックグラウンド）
+        final detectedUrl = LinkPreviewService.extractUrl(newTitle.trim());
+        print('🔗 URL detected in update: $detectedUrl');
+        
         final updatedTodo = list[index].copyWith(
           title: newTitle.trim(),
           recurrence: recurrence,
@@ -468,6 +472,39 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // 繰り返しを解除した場合、子タスクを削除
           await _removeChildInstances(id, todos);
         }
+
+        // ローカルストレージに保存（awaitする）
+        await _saveAllTodosToLocal();
+
+        // URLメタデータ取得（非同期・バックグラウンド）
+        if (detectedUrl != null) {
+          _fetchLinkPreviewInBackground(id, date, detectedUrl);
+        }
+
+        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
+      }
+    }).value;
+  }
+
+  /// リンクプレビューを削除（楽観的UI更新）
+  Future<void> removeLinkPreview(String id, DateTime? date) async {
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == id);
+
+      if (index != -1) {
+        list[index] = list[index].copyWith(
+          linkPreview: null,
+          updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
+        );
+
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
 
         // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
