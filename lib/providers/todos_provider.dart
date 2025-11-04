@@ -1074,10 +1074,29 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           }
           
           // 2. 公開鍵取得
-          final publicKey = _ref.read(publicKeyProvider);
+          var publicKey = _ref.read(publicKeyProvider);
           final npub = _ref.read(nostrPublicKeyProvider);
-          if (publicKey == null || npub == null) {
-            throw Exception('公開鍵が設定されていません');
+          
+          // 公開鍵がnullの場合、Rust側から復元を試みる
+          if (publicKey == null) {
+            print('⚠️ Public key is null, attempting to restore from storage...');
+            try {
+              publicKey = await nostrService.getPublicKey();
+              if (publicKey != null) {
+                print('✅ Public key restored from storage');
+                _ref.read(publicKeyProvider.notifier).state = publicKey;
+              } else {
+                print('❌ Failed to restore public key - no key found in storage');
+                throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+              }
+            } catch (e) {
+              print('❌ Failed to restore public key: $e');
+              throw Exception('公開鍵が設定されていません');
+            }
+          }
+          
+          if (npub == null) {
+            throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
           
           // 3. AmberでNIP-44暗号化
@@ -1357,11 +1376,29 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           print('📥 Todoリストイベントを取得 (Event ID: ${encryptedEvent.eventId})');
           
           final amberService = _ref.read(amberServiceProvider);
-          final publicKey = _ref.read(publicKeyProvider);
+          var publicKey = _ref.read(publicKeyProvider);
           final npub = _ref.read(nostrPublicKeyProvider);
           
-          if (publicKey == null || npub == null) {
-            throw Exception('公開鍵が設定されていません');
+          // 公開鍵がnullの場合、Rust側から復元を試みる
+          if (publicKey == null) {
+            print('⚠️ Public key is null, attempting to restore from storage...');
+            try {
+              publicKey = await nostrService.getPublicKey();
+              if (publicKey != null) {
+                print('✅ Public key restored from storage');
+                _ref.read(publicKeyProvider.notifier).state = publicKey;
+              } else {
+                print('❌ Failed to restore public key - no key found in storage');
+                throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+              }
+            } catch (e) {
+              print('❌ Failed to restore public key: $e');
+              throw Exception('公開鍵が設定されていません');
+            }
+          }
+          
+          if (npub == null) {
+            throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
           
           print('🔑 公開鍵: ${publicKey.substring(0, 16)}...');

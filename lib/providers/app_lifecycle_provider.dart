@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'nostr_provider.dart';
 import 'todos_provider.dart';
 import 'sync_status_provider.dart';
+import '../services/local_storage_service.dart';
 
 /// アプリのライフサイクル状態を管理するProvider
 final appLifecycleProvider = StateNotifierProvider<AppLifecycleNotifier, AppLifecycleState>((ref) {
@@ -67,6 +68,20 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       return;
     }
 
+    // 公開鍵が設定されているかチェック（Amberモード対応）
+    final publicKey = _ref.read(publicKeyProvider);
+    if (publicKey == null) {
+      print('⚠️ Public key is null, attempting to restore...');
+      await _restorePublicKey();
+      
+      // 復元後も null の場合はスキップ
+      final restoredKey = _ref.read(publicKeyProvider);
+      if (restoredKey == null) {
+        print('❌ Failed to restore public key, skipping reconnect');
+        return;
+      }
+    }
+
     // 既に再接続中の場合はスキップ
     if (_isReconnecting) {
       print('📱 Already reconnecting, skipping');
@@ -81,6 +96,40 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
   void _onAppPaused() {
     print('📱 App paused');
     // 必要に応じてクリーンアップ処理を追加
+  }
+
+  /// 公開鍵を復元する（Amberモード対応）
+  Future<void> _restorePublicKey() async {
+    try {
+      print('🔑 Attempting to restore public key...');
+      
+      // Amberモードかチェック
+      final isUsingAmber = localStorageService.isUsingAmber();
+      if (!isUsingAmber) {
+        print('ℹ️ Not in Amber mode, skipping public key restoration');
+        return;
+      }
+      
+      print('🔐 Amber mode detected, restoring public key from storage...');
+      
+      final nostrService = _ref.read(nostrServiceProvider);
+      final publicKey = await nostrService.getPublicKey();
+      
+      if (publicKey != null) {
+        print('✅ Public key restored: ${publicKey.substring(0, 16)}...');
+        
+        // publicKeyProviderに設定
+        _ref.read(publicKeyProvider.notifier).state = publicKey;
+        
+        // nostrInitializedProviderもtrueにする（念のため）
+        _ref.read(nostrInitializedProvider.notifier).state = true;
+      } else {
+        print('⚠️ No public key found in storage (Amber mode)');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Failed to restore public key: $e');
+      print('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+    }
   }
 
   /// リレー再接続と同期を実行
