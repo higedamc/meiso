@@ -88,20 +88,22 @@ class DayPage extends ConsumerWidget {
             Text(
               DateFormat('EEEE, MMMM d', 'en_US').format(date!).toUpperCase(),
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-                letterSpacing: 0.5,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: textColor.withOpacity(0.6),
+                letterSpacing: 1.0,
+                height: 1.2,
               ),
             )
           else
             Text(
               'SOMEDAY',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-                letterSpacing: 0.5,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: textColor.withOpacity(0.6),
+                letterSpacing: 1.0,
+                height: 1.2,
               ),
             ),
           

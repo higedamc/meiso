@@ -338,17 +338,21 @@ class AppTheme {
   static TextStyle todoTitle(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextStyle(
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: FontWeight.w400,
       color: isDark ? darkTextPrimary : lightTextPrimary,
+      height: 1.4,
+      letterSpacing: 0.1,
     );
   }
   
   static const TextStyle todoTitleCompleted = TextStyle(
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: FontWeight.w400,
     color: completedColor,
     decoration: TextDecoration.lineThrough,
+    height: 1.4,
+    letterSpacing: 0.1,
   );
   
   static TextStyle dateHeader(BuildContext context) {
