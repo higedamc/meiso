@@ -382,7 +382,7 @@ impl MeisoNostrClient {
     }
 
     /// TodoリストをNostrイベントとして作成（Kind 30001 - NIP-51 Bookmark List）
-    /// 全TODOを1つのイベントとして管理
+    /// リストごとに個別のイベントを作成
     pub async fn create_todo_list(&self, todos: Vec<TodoData>) -> Result<EventSendResult> {
         // Amberモードでは暗号化/署名ができないのでエラー
         if let ClientMode::Amber { .. } = self.mode {
@@ -394,50 +394,86 @@ impl MeisoNostrClient {
         let keys = self.keys.as_ref()
             .context("Secret key required for TODO list creation")?;
         
-        let todos_json = serde_json::to_string(&todos)?;
-
-        // NIP-44で自己暗号化
-        let public_key = keys.public_key();
-        let encrypted_content = nip44::encrypt(
-            keys.secret_key(),
-            &public_key,
-            &todos_json,
-            nip44::Version::V2,
-        )?;
-
-        // イベント作成（Kind 30001 - Bookmark List）
-        let d_tag = Tag::custom(
-            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
-            vec!["meiso-todos".to_string()],
-        );
+        // Todoをリストごとにグループ化
+        let grouped_todos = self.group_todos_by_list(&todos);
         
-        let title_tag = Tag::custom(
-            TagKind::Custom(std::borrow::Cow::Borrowed("title")),
-            vec!["My TODO List".to_string()],
-        );
-
-        let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
-            .tags(vec![d_tag, title_tag])
-            .sign(keys)
-            .await?;
-
-        // リレーに送信するイベントをJSONとしてログ出力
-        match serde_json::to_string_pretty(&event.as_json()) {
-            Ok(event_json) => {
-                println!("📤 Nostr TODO list event (Kind 30001) to relay:");
-                println!("{}", event_json);
-            }
-            Err(e) => {
-                eprintln!("⚠️ Failed to serialize event to JSON: {}", e);
-            }
+        println!("📦 Grouped todos into {} lists", grouped_todos.len());
+        for (list_id, list_todos) in &grouped_todos {
+            println!("  - List '{}': {} todos", list_id, list_todos.len());
         }
+        
+        let mut last_result: Option<EventSendResult> = None;
+        
+        // 各リストごとにイベントを作成・送信
+        for (list_id, list_todos) in grouped_todos {
+            let todos_json = serde_json::to_string(&list_todos)?;
 
-        // リレーに送信（改善されたエラーハンドリング）
-        self.send_event_with_result(event).await
+            // NIP-44で自己暗号化
+            let public_key = keys.public_key();
+            let encrypted_content = nip44::encrypt(
+                keys.secret_key(),
+                &public_key,
+                &todos_json,
+                nip44::Version::V2,
+            )?;
+
+            // d tag（リスト識別子）
+            let d_tag_value = if list_id == "default" {
+                "meiso-todos".to_string()
+            } else {
+                format!("meiso-list-{}", list_id)
+            };
+            
+            // title tag（リスト名）
+            let title_value = if list_id == "default" {
+                "My TODO List".to_string()
+            } else {
+                format!("Custom List {}", list_id)
+            };
+            
+            let d_tag = Tag::custom(
+                TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+                vec![d_tag_value.clone()],
+            );
+            
+            let title_tag = Tag::custom(
+                TagKind::Custom(std::borrow::Cow::Borrowed("title")),
+                vec![title_value],
+            );
+
+            let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
+                .tags(vec![d_tag, title_tag])
+                .sign(keys)
+                .await?;
+
+            println!("📤 Sending TODO list event (d='{}', {} todos)", d_tag_value, list_todos.len());
+            
+            // リレーに送信
+            let result = self.send_event_with_result(event).await?;
+            last_result = Some(result);
+        }
+        
+        // 最後のイベントの結果を返す（複数リストの場合）
+        last_result.ok_or_else(|| anyhow::anyhow!("No lists to send"))
+    }
+    
+    /// Todoをリストごとにグループ化
+    fn group_todos_by_list(&self, todos: &[TodoData]) -> std::collections::HashMap<String, Vec<TodoData>> {
+        use std::collections::HashMap;
+        
+        let mut grouped: HashMap<String, Vec<TodoData>> = HashMap::new();
+        
+        for todo in todos {
+            let list_key = todo.custom_list_id.as_deref().unwrap_or("default").to_string();
+            grouped.entry(list_key).or_insert_with(Vec::new).push(todo.clone());
+        }
+        
+        grouped
     }
 
 
     /// TodoリストをNostrから同期（Kind 30001）
+    /// すべてのリスト（デフォルト + カスタムリスト）から取得
     pub async fn sync_todo_list(&self) -> Result<Vec<TodoData>> {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!(
@@ -448,13 +484,10 @@ impl MeisoNostrClient {
         let keys = self.keys.as_ref()
             .context("Secret key required for syncing")?;
         
+        // すべてのリスト（meiso-todos および meiso-list-*）を取得
         let filter = Filter::new()
             .kind(Kind::Custom(30001))
-            .author(keys.public_key())
-            .custom_tag(
-                SingleLetterTag::lowercase(Alphabet::D),
-                vec!["meiso-todos".to_string()],
-            );
+            .author(keys.public_key());
 
         let events = self
             .client
@@ -462,51 +495,91 @@ impl MeisoNostrClient {
             .await?;
 
         // EventsをVec<Event>に変換
-        let mut events_vec: Vec<_> = events.into_iter().collect();
+        let events_vec: Vec<_> = events.into_iter().collect();
 
         if events_vec.is_empty() {
-            println!("⚠️ No TODO list found");
+            println!("⚠️ No TODO lists found");
             return Ok(Vec::new());
         }
 
-        // 複数のイベントがある場合、created_atタイムスタンプで最新のものを選択
-        // （Replaceable eventなので通常は1つだけだが、念のため）
-        events_vec.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        println!("📥 Found {} TODO list events", events_vec.len());
         
-        if events_vec.len() > 1 {
-            println!("⚠️ Warning: Found {} TODO list events (should be 1). Using the latest one.", events_vec.len());
+        // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events_vec {
+            // d タグを取得してリスト名を確認
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            println!("🔍 Found event: d_tag={:?}, event_id={}, created_at={}", 
+                d_tag, event.id.to_hex(), event.created_at.as_u64());
+            
+            // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
+                    // 既存のイベントと比較して、新しい方を保持
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            println!("🔄 Replacing older event for d='{}' (old: {}, new: {})", 
+                                d_value, existing_event.created_at.as_u64(), event.created_at.as_u64());
+                            latest_events.insert(d_value.clone(), event);
+                        } else {
+                            println!("⏭️  Skipping older event for d='{}' (keeping: {})", 
+                                d_value, existing_event.created_at.as_u64());
+                        }
+                    } else {
+                        println!("✅ Adding TODO list event: d='{}', event_id={}, created_at={}", 
+                            d_value, event.id.to_hex(), event.created_at.as_u64());
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                } else {
+                    println!("⏭️  Skipping event with d='{}' (not a TODO list)", d_value);
+                }
+            } else {
+                println!("⏭️  Skipping event with no d tag");
+            }
         }
         
-        let event = &events_vec[0];
-        println!("📥 Fetched TODO list event: ID={}, created_at={}", 
-            event.id.to_hex(), 
-            event.created_at);
+        println!("📋 After deduplication: {} unique TODO lists", latest_events.len());
+        
+        let mut all_todos = Vec::new();
+        
+        // 各リストイベントを復号化してTodoを取得
+        for (d_tag, event) in latest_events {
+            println!("✅ Processing TODO list event: d='{}', event_id={}, created_at={}", 
+                d_tag, event.id.to_hex(), event.created_at.as_u64());
 
-        // NIP-44で復号化
-        match nip44::decrypt(
-            keys.secret_key(),
-            &keys.public_key(),
-            &event.content,
-        ) {
-            Ok(decrypted) => {
-                match serde_json::from_str::<Vec<TodoData>>(&decrypted) {
-                    Ok(todos) => {
-                        println!("✅ TODO list synced: {} todos (event timestamp: {})", 
-                            todos.len(), 
-                            event.created_at);
-                        Ok(todos)
-                    }
-                    Err(e) => {
-                        eprintln!("❌ Failed to parse TODO list JSON: {}", e);
-                        Err(anyhow::anyhow!("Failed to parse TODO list: {}", e))
+            // NIP-44で復号化
+            match nip44::decrypt(
+                keys.secret_key(),
+                &keys.public_key(),
+                &event.content,
+            ) {
+                Ok(decrypted) => {
+                    match serde_json::from_str::<Vec<TodoData>>(&decrypted) {
+                        Ok(todos) => {
+                            println!("✅ Decrypted {} todos from list {:?}", todos.len(), d_tag);
+                            all_todos.extend(todos);
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Failed to parse TODO list JSON from {:?}: {}", d_tag, e);
+                            // エラーは無視して次のリストを処理
+                        }
                     }
                 }
-            }
-            Err(e) => {
-                eprintln!("❌ Failed to decrypt TODO list: {}", e);
-                Err(anyhow::anyhow!("Failed to decrypt TODO list: {}", e))
+                Err(e) => {
+                    eprintln!("❌ Failed to decrypt TODO list {:?}: {}", d_tag, e);
+                    // エラーは無視して次のリストを処理
+                }
             }
         }
+        
+        println!("✅ Total todos synced from all lists: {}", all_todos.len());
+        Ok(all_todos)
     }
 
 
@@ -1152,9 +1225,17 @@ pub fn send_signed_event_with_client_id(event_json: String, client_id: Option<St
 }
 
 /// 暗号化済みcontentで未署名Todoリストイベントを作成（Kind 30001 - Amber暗号化済み用）
-pub fn create_unsigned_encrypted_todo_list_event(
+/// 
+/// # Parameters
+/// - `encrypted_content`: Amber暗号化済みのTodoリストJSON
+/// - `public_key_hex`: 公開鍵（hex形式）
+/// - `list_id`: リスト識別子（None = デフォルトリスト、Some(id) = カスタムリスト）
+/// - `list_title`: リストのタイトル（None = デフォルトタイトル使用）
+pub fn create_unsigned_encrypted_todo_list_event_with_list_id(
     encrypted_content: String,
     public_key_hex: String,
+    list_id: Option<String>,
+    list_title: Option<String>,
 ) -> Result<String> {
     use serde_json::json;
     
@@ -1168,10 +1249,20 @@ pub fn create_unsigned_encrypted_todo_list_event(
         .unwrap()
         .as_secs();
     
+    // d tag（リスト識別子）
+    let d_tag_value = if let Some(id) = list_id {
+        format!("meiso-list-{}", id)
+    } else {
+        "meiso-todos".to_string()
+    };
+    
+    // title tag（リスト名）
+    let title_value = list_title.unwrap_or_else(|| "My TODO List".to_string());
+    
     // Kind 30001のタグ
     let tags = vec![
-        vec!["d".to_string(), "meiso-todos".to_string()],
-        vec!["title".to_string(), "My TODO List".to_string()],
+        vec!["d".to_string(), d_tag_value.clone()],
+        vec!["title".to_string(), title_value],
     ];
     
     // 未署名イベントJSON（Amber用）
@@ -1185,8 +1276,22 @@ pub fn create_unsigned_encrypted_todo_list_event(
     
     let event_json = serde_json::to_string(&unsigned_event)?;
     
-    println!("📝 Created unsigned encrypted TODO list event (Kind 30001) for Amber signing");
+    println!("📝 Created unsigned encrypted TODO list event (d='{}') for Amber signing", d_tag_value);
     Ok(event_json)
+}
+
+/// 暗号化済みcontentで未署名Todoリストイベントを作成（Kind 30001 - Amber暗号化済み用）
+/// デフォルトリスト用の互換性関数
+pub fn create_unsigned_encrypted_todo_list_event(
+    encrypted_content: String,
+    public_key_hex: String,
+) -> Result<String> {
+    create_unsigned_encrypted_todo_list_event_with_list_id(
+        encrypted_content,
+        public_key_hex,
+        None,  // デフォルトリスト
+        None,  // デフォルトタイトル
+    )
 }
 
 /// 暗号化済みcontentで未署名Todoイベントを作成（Amber暗号化済み用 - 旧実装）
@@ -1233,8 +1338,119 @@ pub struct EncryptedTodoListEvent {
     pub event_id: String,
     pub encrypted_content: String,
     pub created_at: i64,
+    /// リスト識別子（d tag）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub list_id: Option<String>,
+    /// リスト名（title tag）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 }
 
+/// すべてのTodoリスト（デフォルト + カスタムリスト）を取得
+pub fn fetch_all_encrypted_todo_lists_for_pubkey(
+    public_key_hex: String,
+) -> Result<Vec<EncryptedTodoListEvent>> {
+    fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<EncryptedTodoListEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // すべてのKind 30001イベントを取得（meiso-todos + meiso-list-*）
+        let filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(public_key);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        if events.is_empty() {
+            println!("⚠️ No encrypted TODO list events found");
+            return Ok(Vec::new());
+        }
+        
+        println!("📥 Found {} encrypted TODO list events", events.len());
+        
+        // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events {
+            // d タグを取得
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            println!("🔍 Found event: d_tag={:?}, event_id={}, created_at={}", 
+                d_tag, event.id.to_hex(), event.created_at.as_u64());
+            
+            // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
+                    // 既存のイベントと比較して、新しい方を保持
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            println!("🔄 Replacing older event for d='{}' (old: {}, new: {})", 
+                                d_value, existing_event.created_at.as_u64(), event.created_at.as_u64());
+                            latest_events.insert(d_value.clone(), event);
+                        } else {
+                            println!("⏭️  Skipping older event for d='{}' (keeping: {})", 
+                                d_value, existing_event.created_at.as_u64());
+                        }
+                    } else {
+                        println!("✅ Adding TODO list event: d='{}', event_id={}, created_at={}", 
+                            d_value, event.id.to_hex(), event.created_at.as_u64());
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                } else {
+                    println!("⏭️  Skipping event with d='{}' (not a TODO list)", d_value);
+                }
+            } else {
+                println!("⏭️  Skipping event with no d tag");
+            }
+        }
+        
+        println!("📋 After deduplication: {} unique TODO lists", latest_events.len());
+        
+        // 最新のイベントのみを返す
+        let list_events: Vec<EncryptedTodoListEvent> = latest_events.into_iter()
+            .map(|(d_tag, event)| {
+                // title タグを取得
+                let title = event.tags.iter()
+                    .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
+                    .and_then(|tag| tag.content())
+                    .map(|s| s.to_string());
+                
+                println!("📤 Final event: d='{}', title={:?}, event_id={}, created_at={}", 
+                    d_tag, title, event.id.to_hex(), event.created_at.as_u64());
+                    
+                EncryptedTodoListEvent {
+                    event_id: event.id.to_hex(),
+                    encrypted_content: event.content.clone(),
+                    created_at: event.created_at.as_u64() as i64,
+                    list_id: Some(d_tag),
+                    title,
+                }
+            })
+            .collect();
+        
+        println!("✅ Fetched {} TODO list events for decryption", list_events.len());
+        Ok(list_events)
+    })
+}
+
+/// デフォルトTodoリスト（meiso-todos）のみを取得（互換性のため残す）
 pub fn fetch_encrypted_todo_list_for_pubkey(
     public_key_hex: String,
 ) -> Result<Option<EncryptedTodoListEvent>> {
@@ -1267,14 +1483,16 @@ pub fn fetch_encrypted_todo_list_for_pubkey_with_client_id(
         
         // 最新のイベント（Replaceable eventなので1つだけのはず）
         if let Some(event) = events.first() {
-            println!("📥 Fetched encrypted TODO list event");
+            println!("📥 Fetched encrypted TODO list event (default list only)");
             Ok(Some(EncryptedTodoListEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
                 created_at: event.created_at.as_u64() as i64,
+                list_id: Some("meiso-todos".to_string()),
+                title: Some("My TODO List".to_string()),
             }))
         } else {
-            println!("⚠️ No encrypted TODO list event found");
+            println!("⚠️ No encrypted TODO list event found (default list)");
             Ok(None)
         }
     })

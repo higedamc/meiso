@@ -6,12 +6,14 @@ import 'package:uuid/uuid.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
+import '../models/custom_list.dart';
 import '../services/local_storage_service.dart';
 import '../services/amber_service.dart';
 import '../services/link_preview_service.dart';
 import '../services/recurrence_parser.dart';
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
+import 'custom_lists_provider.dart';
 
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
@@ -933,6 +935,53 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
 
   /// 同期成功後、needsSyncフラグをクリア
+  /// 指定されたTodoのeventIdを更新
+  Future<void> _updateTodoEventIdInState(String todoId, DateTime? date, String eventId) async {
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == todoId);
+      
+      if (index != -1) {
+        list[index] = list[index].copyWith(
+          eventId: eventId,
+          needsSync: false, // 同期完了
+        );
+        
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+        
+        print('✅ Updated eventId for todo "${list[index].title}": $eventId');
+      }
+    }).value;
+    
+    // ローカルストレージに保存
+    await _saveAllTodosToLocal();
+  }
+
+  /// 指定されたTodoのcustomListIdを更新（マイグレーション用）
+  Future<void> _updateTodoCustomListIdInState(String todoId, DateTime? date, String newListId) async {
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == todoId);
+      
+      if (index != -1) {
+        list[index] = list[index].copyWith(
+          customListId: newListId,
+        );
+        
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+      }
+    }).value;
+    
+    // ローカルストレージに保存
+    await _saveAllTodosToLocal();
+  }
+
   Future<void> _clearNeedsSyncFlags() async {
     state.whenData((todos) async {
       final Map<DateTime?, List<Todo>> updatedTodos = {};
@@ -1044,33 +1093,41 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       try {
         if (isAmberMode) {
-          // Amberモード: 全TODOリスト → JSON → Amber暗号化 → 未署名イベント → Amber署名 → リレー送信
-          print('🔐 Amberモードで全TODOリストを同期します（バックグラウンド処理）');
+          // Amberモード: リストごとに分割 → JSON → Amber暗号化 → 未署名イベント → Amber署名 → リレー送信
+          print('🔐 Amberモードでリストごとに同期します（バックグラウンド処理）');
           
-          // 1. 全TODOをJSONに変換
-          final todosJson = jsonEncode(allTodos.map((todo) => {
-            'id': todo.id,
-            'title': todo.title,
-            'completed': todo.completed,
-            'date': todo.date?.toIso8601String(),
-            'order': todo.order,
-            'created_at': todo.createdAt.toIso8601String(),
-            'updated_at': todo.updatedAt.toIso8601String(),
-            'event_id': todo.eventId,
-            'link_preview': todo.linkPreview?.toJson(),
-            'custom_list_id': todo.customListId,
-            'recurrence': todo.recurrence?.toJson(),
-            'parent_recurring_id': todo.parentRecurringId,
-            'needs_sync': todo.needsSync,
-          }).toList());
+          // カスタムリスト情報を取得（UUIDから名前ベースIDへの変換用）
+          final customListsAsync = _ref.read(customListsProvider);
+          final customListsMap = <String, String>{}; // oldId -> newId
+          final customListNames = <String, String>{}; // newId -> name
+          await customListsAsync.whenData((customLists) async {
+            for (final list in customLists) {
+              final nameBasedId = CustomListHelpers.generateIdFromName(list.name);
+              customListsMap[list.id] = nameBasedId;
+              customListNames[nameBasedId] = list.name;
+            }
+          }).value;
           
-          print('📝 TODOリスト JSON (${todosJson.length} bytes, ${allTodos.length}件)');
+          // 1. Todoをリストごとにグループ化（名前ベースIDに変換）
+          final Map<String, List<Todo>> groupedTodos = {};
+          for (final todo in allTodos) {
+            // customListIdを名前ベースIDに変換
+            String listKey;
+            if (todo.customListId == null) {
+              listKey = 'default';
+            } else {
+              // UUIDベースのIDを名前ベースIDに変換
+              listKey = customListsMap[todo.customListId] ?? todo.customListId!;
+            }
+            
+            groupedTodos.putIfAbsent(listKey, () => []);
+            groupedTodos[listKey]!.add(todo);
+          }
           
-          // カスタムリストIDが含まれているか確認
-          if (todosJson.contains('"custom_list_id"')) {
-            print('✅ JSON contains custom_list_id field');
-          } else {
-            print('⚠️ WARNING: JSON does NOT contain custom_list_id field!');
+          print('📦 Grouped todos into ${groupedTodos.length} lists');
+          for (final entry in groupedTodos.entries) {
+            final todoTitles = entry.value.map((t) => t.title).take(3).join(', ');
+            print('  - List "${entry.key}": ${entry.value.length} todos (${todoTitles}${entry.value.length > 3 ? '...' : ''})');
           }
           
           // 2. 公開鍵取得
@@ -1108,62 +1165,108 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             final hasPublicKey = await nostrService.hasPublicKey();
             final isUsingAmber = localStorageService.isUsingAmber();
             print('❌ npub形式の公開鍵がnullです');
-            print('   - hex公開鍵: ${publicKey != null ? "${publicKey.substring(0, 16)}..." : "null"}');
+            print('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
             print('   - Amberモード: $isUsingAmber');
             print('   - 公開鍵ファイル存在: $hasPublicKey');
             throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
           
-          // 3. AmberでNIP-44暗号化
           final amberService = _ref.read(amberServiceProvider);
-          print('🔐 Amberで暗号化中（バックグラウンド）...');
           
-          String encryptedContent;
-          try {
-            // まずContentProvider経由で試す（バックグラウンド処理）
-            encryptedContent = await amberService.encryptNip44WithContentProvider(
-              plaintext: todosJson,
-              pubkey: publicKey,
-              npub: npub,
+          // 3. 各リストごとに暗号化・署名・送信
+          for (final entry in groupedTodos.entries) {
+            final listId = entry.key; // これは既に名前ベースID
+            final listTodos = entry.value;
+            final listTitle = listId == 'default' 
+                ? null 
+                : customListNames[listId]; // 名前ベースIDから名前を取得
+            
+            print('🔐 Processing list "$listId" (${listTodos.length} todos)');
+            
+            // リストのTodoをJSONに変換
+            final todosJson = jsonEncode(listTodos.map((todo) => {
+              'id': todo.id,
+              'title': todo.title,
+              'completed': todo.completed,
+              'date': todo.date?.toIso8601String(),
+              'order': todo.order,
+              'created_at': todo.createdAt.toIso8601String(),
+              'updated_at': todo.updatedAt.toIso8601String(),
+              'event_id': todo.eventId,
+              'link_preview': todo.linkPreview?.toJson(),
+              'custom_list_id': todo.customListId,
+              'recurrence': todo.recurrence?.toJson(),
+              'parent_recurring_id': todo.parentRecurringId,
+              'needs_sync': todo.needsSync,
+            }).toList());
+            
+            print('📝 List "$listId" JSON (${todosJson.length} bytes, ${listTodos.length}件)');
+            
+            // AmberでNIP-44暗号化
+            print('🔐 Amberで暗号化中（リスト: $listId）...');
+            
+            String encryptedContent;
+            try {
+              // まずContentProvider経由で試す（バックグラウンド処理）
+              encryptedContent = await amberService.encryptNip44WithContentProvider(
+                plaintext: todosJson,
+                pubkey: publicKey,
+                npub: npub,
+              );
+              print('✅ 暗号化完了（バックグラウンド） (${encryptedContent.length} bytes)');
+            } on PlatformException catch (e) {
+              // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+              print('⚠️ ContentProvider暗号化失敗 (${e.code}), UI経由で再試行します...');
+              encryptedContent = await amberService.encryptNip44(todosJson, publicKey);
+              print('✅ 暗号化完了（UI経由） (${encryptedContent.length} bytes)');
+            }
+            
+            // 暗号化済みcontentで未署名イベントを作成（Kind 30001）
+            final unsignedEvent = await nostrService.createUnsignedEncryptedTodoListEvent(
+              encryptedContent: encryptedContent,
+              listId: listId == 'default' ? null : listId,
+              listTitle: listTitle,
             );
-            print('✅ 暗号化完了（バックグラウンド、UIなし） (${encryptedContent.length} bytes)');
-          } on PlatformException catch (e) {
-            // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-            print('⚠️ ContentProvider暗号化失敗 (${e.code}), UI経由で再試行します...');
-            encryptedContent = await amberService.encryptNip44(todosJson, publicKey);
-            print('✅ 暗号化完了（UI経由） (${encryptedContent.length} bytes)');
+            print('📄 未署名イベント作成完了（リスト: $listId）');
+            
+            // Amberで署名
+            print('✍️ Amberで署名中（リスト: $listId）...');
+            
+            String signedEvent;
+            try {
+              // まずContentProvider経由で試す（バックグラウンド）
+              signedEvent = await amberService.signEventWithContentProvider(
+                event: unsignedEvent,
+                npub: npub,
+              );
+              print('✅ 署名完了（バックグラウンド）');
+            } on PlatformException catch (e) {
+              // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+              print('⚠️ ContentProvider署名失敗 (${e.code}), UI経由で再試行します...');
+              signedEvent = await amberService.signEventWithTimeout(unsignedEvent);
+              print('✅ 署名完了（UI経由）');
+            }
+            
+            // リレーに送信
+            print('📤 リレーに送信中（リスト: $listId）...');
+            final sendResult = await nostrService.sendSignedEvent(signedEvent);
+            print('✅ 送信完了: ${sendResult.eventId}');
+            print('🎯 List "$listId" event ID: ${sendResult.eventId}');
+            
+            // このリストの各TodoのeventIdとcustomListIdを更新
+            for (final todo in listTodos) {
+              await _updateTodoEventIdInState(todo.id, todo.date, sendResult.eventId);
+              
+              // 名前ベースIDに更新（UUIDベースの場合のマイグレーション）
+              if (todo.customListId != null && todo.customListId != listId) {
+                await _updateTodoCustomListIdInState(todo.id, todo.date, listId);
+                print('🔄 Migrated customListId: ${todo.customListId} -> $listId for "${todo.title}"');
+              }
+            }
+            print('✅ Updated eventId for ${listTodos.length} todos in list "$listId"');
           }
           
-          // 4. 暗号化済みcontentで未署名イベントを作成（Kind 30001）
-          final unsignedEvent = await nostrService.createUnsignedEncryptedTodoListEvent(
-            encryptedContent: encryptedContent,
-          );
-          print('📄 未署名イベント作成完了（Kind 30001）');
-          
-          // 5. Amberで署名
-          print('✍️ Amberで署名中（バックグラウンド）...');
-          
-          String signedEvent;
-          try {
-            // まずContentProvider経由で試す（バックグラウンド）
-            signedEvent = await amberService.signEventWithContentProvider(
-              event: unsignedEvent,
-              npub: npub,
-            );
-            print('✅ 署名完了（バックグラウンド、UIなし）');
-          } on PlatformException catch (e) {
-            // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-            print('⚠️ ContentProvider署名失敗 (${e.code}), UI経由で再試行します...');
-            signedEvent = await amberService.signEventWithTimeout(unsignedEvent);
-            print('✅ 署名完了（UI経由）');
-          }
-          
-          // 6. リレーに送信
-          print('📤 リレーに送信中...');
-          print('🔍 署名済みイベント (最初200文字): ${signedEvent.substring(0, 200.clamp(0, signedEvent.length))}...');
-          final eventId = await nostrService.sendSignedEvent(signedEvent);
-          print('✅ 送信完了: $eventId');
-          print('🎯 Kind 30001イベントID: $eventId');
+          print('✅ すべてのリストの送信完了');
           
         } else {
           // 通常モード: 秘密鍵で署名（Rust側でNIP-44暗号化）
@@ -1171,8 +1274,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           print('🔄 Calling nostrService.createTodoListOnNostr with ${allTodos.length} todos...');
           
           try {
-            final eventId = await nostrService.createTodoListOnNostr(allTodos);
-            print('✅✅✅ TODOリスト送信完了: $eventId (${allTodos.length}件)');
+            final sendResult = await nostrService.createTodoListOnNostr(allTodos);
+            print('✅✅✅ TODOリスト送信完了: ${sendResult.eventId} (${allTodos.length}件)');
+            
+            // 全TodoのeventIdを更新
+            for (final todo in allTodos) {
+              await _updateTodoEventIdInState(todo.id, todo.date, sendResult.eventId);
+            }
+            print('✅ Updated eventId for ${allTodos.length} todos');
           } catch (e) {
             print('❌❌❌ createTodoListOnNostr failed: $e');
             rethrow;
@@ -1358,12 +1467,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // タイムアウト付きで同期実行（30秒）
       await Future(() async {
         if (isAmberMode) {
-          // Amberモード: 暗号化されたTodoリストイベント（Kind 30001）を取得 → Amberで復号化
-          print('🔐 Amberモードで同期します（Kind 30001、復号化あり、バックグラウンド処理）');
+          // Amberモード: すべてのTodoリストイベント（Kind 30001）を取得 → Amberで復号化
+          print('🔐 Amberモードですべてのリストを同期します（Kind 30001、復号化あり、バックグラウンド処理）');
           
-          final encryptedEvent = await nostrService.fetchEncryptedTodoList();
+          final encryptedEvents = await nostrService.fetchAllEncryptedTodoLists();
           
-          if (encryptedEvent == null) {
+          if (encryptedEvents.isEmpty) {
             print('⚠️ Todoリストイベントが見つかりません（Kind 30001）');
             
             // ローカルデータの有無をチェック
@@ -1388,7 +1497,29 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             return;
           }
           
-          print('📥 Todoリストイベントを取得 (Event ID: ${encryptedEvent.eventId})');
+          print('📥 ${encryptedEvents.length}件のTodoリストイベントを取得');
+          
+          // カスタムリスト名を抽出
+          final List<String> nostrListNames = [];
+          for (final event in encryptedEvents) {
+            if (event.listId != null && event.title != null) {
+              final listId = event.listId!;
+              // デフォルトリストは除外
+              if (listId == 'meiso-todos') {
+                continue;
+              }
+              // titleからリスト名を取得（重複チェック）
+              if (!nostrListNames.contains(event.title!)) {
+                nostrListNames.add(event.title!);
+                print('📋 [Sync] Found custom list: "${event.title}" (d tag: $listId)');
+              }
+            }
+          }
+          
+          // カスタムリストを同期（名前ベース）
+          if (nostrListNames.isNotEmpty) {
+            await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
+          }
           
           final amberService = _ref.read(amberServiceProvider);
           var publicKey = _ref.read(publicKeyProvider);
@@ -1425,69 +1556,76 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             final hasPublicKey = await nostrService.hasPublicKey();
             final isUsingAmber = localStorageService.isUsingAmber();
             print('❌ npub形式の公開鍵がnullです');
-            print('   - hex公開鍵: ${publicKey != null ? "${publicKey.substring(0, 16)}..." : "null"}');
+            print('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
             print('   - Amberモード: $isUsingAmber');
             print('   - 公開鍵ファイル存在: $hasPublicKey');
             throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
           
           print('🔑 公開鍵: ${publicKey.substring(0, 16)}...');
-          print('🔓 Todoリストを復号化中...');
           
-          // Amberで復号化
-          String decryptedJson;
-          try {
-            // まずContentProvider経由で試す（バックグラウンド処理）
-            decryptedJson = await amberService.decryptNip44WithContentProvider(
-              ciphertext: encryptedEvent.encryptedContent,
-              pubkey: publicKey,
-              npub: npub,
-            );
-            print('✅ 復号化完了（バックグラウンド、UIなし）');
-          } on PlatformException catch (e) {
-            // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-            print('⚠️ ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...');
-            decryptedJson = await amberService.decryptNip44(
-              encryptedEvent.encryptedContent,
-              publicKey,
-            );
-            print('✅ 復号化完了（UI経由）');
+          // すべてのリストを復号化してマージ
+          final allSyncedTodos = <Todo>[];
+          
+          for (final encryptedEvent in encryptedEvents) {
+            print('🔓 リストを復号化中 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId})');
+            
+            // Amberで復号化
+            String decryptedJson;
+            try {
+              // まずContentProvider経由で試す（バックグラウンド処理）
+              decryptedJson = await amberService.decryptNip44WithContentProvider(
+                ciphertext: encryptedEvent.encryptedContent,
+                pubkey: publicKey,
+                npub: npub,
+              );
+              print('✅ 復号化完了（バックグラウンド）');
+            } on PlatformException catch (e) {
+              // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+              print('⚠️ ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...');
+              decryptedJson = await amberService.decryptNip44(
+                encryptedEvent.encryptedContent,
+                publicKey,
+              );
+              print('✅ 復号化完了（UI経由）');
+            }
+            
+            // JSONをパース（Todoリスト配列）
+            final todoList = jsonDecode(decryptedJson) as List<dynamic>;
+            
+            final syncedTodos = todoList.map((todoMap) {
+              final map = todoMap as Map<String, dynamic>;
+              return Todo(
+                id: map['id'] as String,
+                title: map['title'] as String,
+                completed: map['completed'] as bool,
+                date: map['date'] != null 
+                    ? DateTime.parse(map['date'] as String) 
+                    : null,
+                order: map['order'] as int,
+                createdAt: DateTime.parse(map['created_at'] as String),
+                updatedAt: DateTime.parse(map['updated_at'] as String),
+                eventId: map['event_id'] as String? ?? encryptedEvent.eventId,
+                linkPreview: map['link_preview'] != null 
+                    ? LinkPreview.fromJson(map['link_preview'] as Map<String, dynamic>)
+                    : null,
+                customListId: map['custom_list_id'] as String?,
+                recurrence: map['recurrence'] != null
+                    ? RecurrencePattern.fromJson(map['recurrence'] as Map<String, dynamic>)
+                    : null,
+                parentRecurringId: map['parent_recurring_id'] as String?,
+                needsSync: false, // Nostrから取得したデータは常に同期済み
+              );
+            }).toList();
+            
+            print('✅ リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})');
+            allSyncedTodos.addAll(syncedTodos);
           }
           
-          print('復号化結果 (最初100文字): ${decryptedJson.substring(0, 100.clamp(0, decryptedJson.length))}...');
-          
-          // JSONをパース（Todoリスト配列）
-          final todoList = jsonDecode(decryptedJson) as List<dynamic>;
-          
-          final syncedTodos = todoList.map((todoMap) {
-            final map = todoMap as Map<String, dynamic>;
-            return Todo(
-              id: map['id'] as String,
-              title: map['title'] as String,
-              completed: map['completed'] as bool,
-              date: map['date'] != null 
-                  ? DateTime.parse(map['date'] as String) 
-                  : null,
-              order: map['order'] as int,
-              createdAt: DateTime.parse(map['created_at'] as String),
-              updatedAt: DateTime.parse(map['updated_at'] as String),
-              eventId: map['event_id'] as String? ?? encryptedEvent.eventId,
-              linkPreview: map['link_preview'] != null 
-                  ? LinkPreview.fromJson(map['link_preview'] as Map<String, dynamic>)
-                  : null,
-              customListId: map['custom_list_id'] as String?,
-              recurrence: map['recurrence'] != null
-                  ? RecurrencePattern.fromJson(map['recurrence'] as Map<String, dynamic>)
-                  : null,
-              parentRecurringId: map['parent_recurring_id'] as String?,
-              needsSync: false, // Nostrから取得したデータは常に同期済み（map['needs_sync']の値は無視）
-            );
-          }).toList();
-          
-          print('✅ 復号化完了: ${syncedTodos.length}件のTodo');
+          print('✅ すべてのリスト復号化完了: 合計${allSyncedTodos.length}件のTodo');
           
           // 状態を更新
-          _updateStateWithSyncedTodos(syncedTodos);
+          _updateStateWithSyncedTodos(allSyncedTodos);
           
         } else {
           // 通常モード: Rust側で復号化済みのTodoリストを取得（Kind 30001）

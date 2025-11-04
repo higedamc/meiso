@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1844341846;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -599939655;
 
 // Section: executor
 
@@ -1056,6 +1056,50 @@ fn wire__crate__api__create_unsigned_encrypted_todo_list_event_impl(
         },
     )
 }
+fn wire__crate__api__create_unsigned_encrypted_todo_list_event_with_list_id_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "create_unsigned_encrypted_todo_list_event_with_list_id",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_encrypted_content = <String>::sse_decode(&mut deserializer);
+            let api_public_key_hex = <String>::sse_decode(&mut deserializer);
+            let api_list_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_list_title = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok =
+                            crate::api::create_unsigned_encrypted_todo_list_event_with_list_id(
+                                api_encrypted_content,
+                                api_public_key_hex,
+                                api_list_id,
+                                api_list_title,
+                            )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__create_unsigned_relay_list_event_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1200,6 +1244,83 @@ fn wire__crate__api__delete_stored_keys_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || {
                         let output_ok = crate::api::delete_stored_keys(api_storage_path)?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_all_encrypted_todo_lists_for_pubkey",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_public_key_hex = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::fetch_all_encrypted_todo_lists_for_pubkey(
+                            api_public_key_hex,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_with_client_id_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_all_encrypted_todo_lists_for_pubkey_with_client_id",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_public_key_hex = <String>::sse_decode(&mut deserializer);
+            let api_client_id = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok =
+                            crate::api::fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
+                                api_public_key_hex,
+                                api_client_id,
+                            )?;
                         Ok(output_ok)
                     })(),
                 )
@@ -3097,10 +3218,14 @@ impl SseDecode for crate::api::EncryptedTodoListEvent {
         let mut var_eventId = <String>::sse_decode(deserializer);
         let mut var_encryptedContent = <String>::sse_decode(deserializer);
         let mut var_createdAt = <i64>::sse_decode(deserializer);
+        let mut var_listId = <Option<String>>::sse_decode(deserializer);
+        let mut var_title = <Option<String>>::sse_decode(deserializer);
         return crate::api::EncryptedTodoListEvent {
             event_id: var_eventId,
             encrypted_content: var_encryptedContent,
             created_at: var_createdAt,
+            list_id: var_listId,
+            title: var_title,
         };
     }
 }
@@ -3174,6 +3299,20 @@ impl SseDecode for Vec<crate::api::EncryptedTodoEvent> {
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
             ans_.push(<crate::api::EncryptedTodoEvent>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::EncryptedTodoListEvent> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::EncryptedTodoListEvent>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -3466,160 +3605,178 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__create_unsigned_relay_list_event_impl(
+        23 => wire__crate__api__create_unsigned_encrypted_todo_list_event_with_list_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__delete_events_impl(port, ptr, rust_vec_len, data_len),
-        25 => {
+        24 => wire__crate__api__create_unsigned_relay_list_event_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        25 => wire__crate__api__delete_events_impl(port, ptr, rust_vec_len, data_len),
+        26 => {
             wire__crate__api__delete_events_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => wire__crate__api__delete_stored_keys_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_impl(
+        27 => wire__crate__api__delete_stored_keys_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_with_client_id_impl(
+        29 => wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_impl(
+        30 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_with_client_id_impl(
+        31 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__fetch_encrypted_todos_for_pubkey_impl(
+        32 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__fetch_encrypted_todos_for_pubkey_with_client_id_impl(
+        33 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__crate__api__generate_keypair_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__generate_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__get_public_key_npub_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__get_public_key_npub_with_client_id_impl(
+        34 => wire__crate__api__fetch_encrypted_todos_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__crate__api__has_encrypted_key_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__has_public_key_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__hex_to_npub_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__init_nostr_client_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__init_nostr_client_with_id_impl(port, ptr, rust_vec_len, data_len),
-        42 => {
+        35 => wire__crate__api__fetch_encrypted_todos_for_pubkey_with_client_id_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        36 => wire__crate__api__generate_keypair_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__generate_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__get_public_key_npub_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__get_public_key_npub_with_client_id_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        40 => wire__crate__api__has_encrypted_key_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__has_public_key_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__hex_to_npub_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__init_nostr_client_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__init_nostr_client_with_id_impl(port, ptr, rust_vec_len, data_len),
+        45 => {
             wire__crate__api__init_nostr_client_with_proxy_impl(port, ptr, rust_vec_len, data_len)
         }
-        43 => {
+        46 => {
             wire__crate__api__init_nostr_client_with_pubkey_impl(port, ptr, rust_vec_len, data_len)
         }
-        44 => wire__crate__api__init_nostr_client_with_pubkey_and_id_impl(
+        47 => wire__crate__api__init_nostr_client_with_pubkey_and_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__crate__api__init_nostr_client_with_pubkey_and_proxy_impl(
+        48 => wire__crate__api__init_nostr_client_with_pubkey_and_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__is_cache_valid_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__load_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__load_public_key_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__npub_to_hex_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__receive_subscription_events_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__receive_subscription_events_with_client_id_impl(
+        49 => wire__crate__api__is_cache_valid_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__load_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__load_public_key_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__npub_to_hex_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__receive_subscription_events_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__receive_subscription_events_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__reconnect_to_relays_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__reconnect_to_relays_with_client_id_impl(
+        55 => wire__crate__api__reconnect_to_relays_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__reconnect_to_relays_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__crate__api__save_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__save_app_settings_with_client_id_impl(
+        57 => wire__crate__api__save_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__save_app_settings_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__crate__api__save_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__save_public_key_impl(port, ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__save_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        59 => {
+        59 => wire__crate__api__save_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__save_public_key_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__save_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        62 => {
             wire__crate__api__save_relay_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        60 => wire__crate__api__send_signed_event_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__send_signed_event_with_client_id_impl(
+        63 => wire__crate__api__send_signed_event_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__send_signed_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__start_subscription_with_client_id_impl(
+        65 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__start_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
+        67 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__stop_subscription_with_client_id_impl(
+        69 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__stop_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__sync_app_settings_with_client_id_impl(
+        71 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__sync_app_settings_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        71 => {
+        73 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        74 => {
             wire__crate__api__sync_relay_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        72 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
-        73 => {
+        75 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
+        76 => {
             wire__crate__api__sync_todo_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        74 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3750,6 +3907,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::EncryptedTodoListEvent {
             self.event_id.into_into_dart().into_dart(),
             self.encrypted_content.into_into_dart().into_dart(),
             self.created_at.into_into_dart().into_dart(),
+            self.list_id.into_into_dart().into_dart(),
+            self.title.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3962,6 +4121,8 @@ impl SseEncode for crate::api::EncryptedTodoListEvent {
         <String>::sse_encode(self.event_id, serializer);
         <String>::sse_encode(self.encrypted_content, serializer);
         <i64>::sse_encode(self.created_at, serializer);
+        <Option<String>>::sse_encode(self.list_id, serializer);
+        <Option<String>>::sse_encode(self.title, serializer);
     }
 }
 
@@ -4017,6 +4178,16 @@ impl SseEncode for Vec<crate::api::EncryptedTodoEvent> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::EncryptedTodoEvent>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::EncryptedTodoListEvent> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::EncryptedTodoListEvent>::sse_encode(item, serializer);
         }
     }
 }

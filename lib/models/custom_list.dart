@@ -27,6 +27,25 @@ class CustomList with _$CustomList {
       _$CustomListFromJson(json);
 }
 
+/// CustomListのヘルパーメソッド
+extension CustomListHelpers on CustomList {
+  /// リスト名から決定的なIDを生成（NIP-51準拠）
+  /// 
+  /// 例:
+  /// - "BRAIN DUMP" → "brain-dump"
+  /// - "Grocery List" → "grocery-list"  
+  /// - "TO BUY!!!" → "to-buy"
+  static String generateIdFromName(String name) {
+    return name
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'[^\w\s-]'), '') // 特殊文字を削除
+        .replaceAll(RegExp(r'\s+'), '-')     // スペースをハイフンに
+        .replaceAll(RegExp(r'-+'), '-')      // 連続するハイフンを1つに
+        .replaceAll(RegExp(r'^-|-$'), '');   // 先頭・末尾のハイフンを削除
+  }
+}
+
 /// 時間ベースのカテゴリー（固定）
 enum PlanningCategory {
   thisWeek,

@@ -5,6 +5,7 @@ import '../app_theme.dart';
 import '../models/todo.dart';
 import '../models/recurrence_pattern.dart';
 import '../providers/todos_provider.dart';
+import '../providers/custom_lists_provider.dart';
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -251,17 +252,22 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
               title: const Text('TOMORROW'),
               onTap: () => Navigator.pop(context, tomorrow),
             ),
-            // SOMEDAY
+            // SOMEDAY LIST（サブメニューを表示）
             ListTile(
               leading: const Icon(Icons.all_inclusive),
-              title: const Text('SOMEDAY'),
-              onTap: () => Navigator.pop(context, 'someday'),
+              title: const Text('SOMEDAY LIST'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                Navigator.pop(context);
+                _showSomedayListDialog();
+              },
             ),
             const Divider(),
-            // Pick a date
+            // Another day（日付選択）
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: const Text('Pick a date...'),
+              title: const Text('Another day'),
+              trailing: const Icon(Icons.chevron_right),
               onTap: () async {
                 Navigator.pop(context);
                 final selectedDate = await showDatePicker(
@@ -295,6 +301,82 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     }
   }
 
+  /// SOMEDAY LISTのサブメニューを表示
+  Future<void> _showSomedayListDialog() async {
+    final customListsAsync = ref.read(customListsProvider);
+
+    final result = await showDialog<dynamic>(
+      context: context,
+      builder: (context) => customListsAsync.when(
+        data: (customLists) => AlertDialog(
+          title: const Text('MOVE TO → SOMEDAY LIST'),
+          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Someday (no list)
+                ListTile(
+                  leading: const Icon(Icons.all_inclusive),
+                  title: const Text('Someday (no list)'),
+                  subtitle: const Text('No specific date or list'),
+                  onTap: () => Navigator.pop(context, {'type': 'someday'}),
+                ),
+                const Divider(),
+                // カスタムリスト一覧
+                ...customLists.map((customList) {
+                  return ListTile(
+                    leading: const Icon(Icons.list),
+                    title: Text(customList.name),
+                    onTap: () => Navigator.pop(context, {
+                      'type': 'customList',
+                      'listId': customList.id,
+                      'listName': customList.name,
+                    }),
+                  );
+                }),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('BACK'),
+            ),
+          ],
+        ),
+        loading: () => const AlertDialog(
+          title: Text('MOVE TO → SOMEDAY LIST'),
+          content: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        error: (_, __) => AlertDialog(
+          title: const Text('Error'),
+          content: const Text('Failed to load custom lists'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CLOSE'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      if (result is Map) {
+        if (result['type'] == 'someday') {
+          // Someday (no list) - 日付なし、リストなし
+          _moveToDateAndList(null, null);
+        } else if (result['type'] == 'customList') {
+          // カスタムリストに移動（日付はnull）
+          _moveToDateAndList(null, result['listId'] as String?, result['listName'] as String?);
+        }
+      }
+    }
+  }
+
   /// Todoを指定した日付に移動
   void _moveToDate(DateTime? targetDate) {
     if (widget.todo == null) return;
@@ -316,6 +398,38 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Moved to $dateLabel'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// Todoを指定した日付とカスタムリストに移動
+  void _moveToDateAndList(DateTime? targetDate, String? customListId, [String? customListName]) {
+    if (widget.todo == null) return;
+
+    // 日付を移動
+    ref.read(todosProvider.notifier).moveTodo(
+      widget.todo!.id,
+      widget.todo!.date,
+      targetDate,
+    );
+
+    // カスタムリストIDを更新
+    ref.read(todosProvider.notifier).updateTodoCustomListId(
+      widget.todo!.id,
+      targetDate,  // 移動後の日付
+      customListId,
+    );
+
+    // 画面を閉じる
+    Navigator.pop(context);
+
+    // フィードバック
+    final label = customListName ?? (targetDate == null ? 'SOMEDAY' : DateFormat('EEEE, MMMM d', 'en_US').format(targetDate).toUpperCase());
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Moved to $label'),
         duration: const Duration(seconds: 2),
       ),
     );
