@@ -405,22 +405,41 @@ class NostrService {
   }
 
   /// Amberモード: 暗号化済みcontentで未署名TodoリストイベントKind 30001を作成
+  /// 
+  /// [listId] - カスタムリストID（nullの場合はデフォルトリスト）
+  /// [listTitle] - リストタイトル（nullの場合はデフォルトタイトル）
   Future<String> createUnsignedEncryptedTodoListEvent({
     required String encryptedContent,
+    String? listId,
+    String? listTitle,
   }) async {
     final publicKey = _ref.read(publicKeyProvider);
     if (publicKey == null) {
       throw Exception('公開鍵が設定されていません');
     }
 
-    // Rust側で未署名イベントを作成
-    return await rust_api.createUnsignedEncryptedTodoListEvent(
+    // Rust側で未署名イベントを作成（リスト識別子とタイトル付き）
+    return await rust_api.createUnsignedEncryptedTodoListEventWithListId(
       encryptedContent: encryptedContent,
+      publicKeyHex: publicKey,
+      listId: listId,
+      listTitle: listTitle,
+    );
+  }
+
+  /// Amberモード: すべての暗号化されたTodoリストイベント（Kind 30001）を取得
+  Future<List<rust_api.EncryptedTodoListEvent>> fetchAllEncryptedTodoLists() async {
+    final publicKey = _ref.read(publicKeyProvider);
+    if (publicKey == null) {
+      throw Exception('公開鍵が設定されていません');
+    }
+
+    return await rust_api.fetchAllEncryptedTodoListsForPubkey(
       publicKeyHex: publicKey,
     );
   }
 
-  /// Amberモード: 暗号化されたTodoリストイベント（Kind 30001）を取得
+  /// Amberモード: デフォルトリストのみを取得（互換性のため残す）
   Future<rust_api.EncryptedTodoListEvent?> fetchEncryptedTodoList() async {
     final publicKey = _ref.read(publicKeyProvider);
     if (publicKey == null) {

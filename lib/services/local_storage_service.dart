@@ -50,8 +50,8 @@ class LocalStorageService {
     
     for (final value in _todosBox!.values) {
       try {
-        // Mapをキャストして復元
-        final jsonMap = Map<String, dynamic>.from(value);
+        // Mapをキャストして復元（deep copy）
+        final jsonMap = _deepCastMap(value);
         todos.add(Todo.fromJson(jsonMap));
       } catch (e) {
         print('⚠️ Todo復元エラー: $e');
@@ -61,6 +61,26 @@ class LocalStorageService {
     }
 
     return todos;
+  }
+  
+  /// Mapをdeep copyでMap<String, dynamic>に変換
+  Map<String, dynamic> _deepCastMap(dynamic value) {
+    if (value is Map) {
+      return value.map((key, value) {
+        if (value is Map) {
+          return MapEntry(key.toString(), _deepCastMap(value));
+        } else if (value is List) {
+          return MapEntry(key.toString(), value.map((e) {
+            if (e is Map) {
+              return _deepCastMap(e);
+            }
+            return e;
+          }).toList());
+        }
+        return MapEntry(key.toString(), value);
+      });
+    }
+    return {};
   }
 
   /// 単一のTodoを保存
@@ -139,8 +159,8 @@ class LocalStorageService {
     
     for (final value in _customListsBox!.values) {
       try {
-        // Mapをキャストして復元
-        final jsonMap = Map<String, dynamic>.from(value);
+        // Mapをキャストして復元（deep copy）
+        final jsonMap = _deepCastMap(value);
         lists.add(CustomList.fromJson(jsonMap));
       } catch (e) {
         print('⚠️ CustomList復元エラー: $e');
@@ -249,7 +269,7 @@ class LocalStorageService {
     }
     
     try {
-      final jsonMap = Map<String, dynamic>.from(settingsMap as Map);
+      final jsonMap = _deepCastMap(settingsMap);
       return AppSettings.fromJson(jsonMap);
     } catch (e) {
       print('⚠️ アプリ設定復元エラー: $e');

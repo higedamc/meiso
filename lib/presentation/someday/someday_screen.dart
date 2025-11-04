@@ -227,13 +227,39 @@ class SomedayScreen extends ConsumerWidget {
   /// カスタムリストのTodo数を取得
   int _getListTodoCount(String listId, Map<DateTime?, List<Todo>> todos) {
     int count = 0;
-    for (final dateGroup in todos.values) {
-      for (final todo in dateGroup) {
+    int totalTodosInMap = 0;
+    int todosWithCustomListId = 0;
+    
+    // デバッグ: 日付nullのTodoを確認
+    if (todos.containsKey(null)) {
+      print('🔍 [SomedayScreen] date=null group has ${todos[null]!.length} todos');
+      for (final todo in todos[null]!) {
+        print('   - "${todo.title}" (customListId: ${todo.customListId}, completed: ${todo.completed})');
+      }
+    } else {
+      print('⚠️ [SomedayScreen] No date=null group found in todos map!');
+    }
+    
+    for (final entry in todos.entries) {
+      print('🔍 [SomedayScreen] Date key: ${entry.key}, ${entry.value.length} todos');
+      for (final todo in entry.value) {
+        totalTodosInMap++;
+        if (todo.customListId != null) {
+          todosWithCustomListId++;
+          print('   - "${todo.title}" → customListId: ${todo.customListId}');
+        }
         if (todo.customListId == listId && !todo.completed) {
           count++;
+          print('   ✅ Matched for list $listId: "${todo.title}"');
         }
       }
     }
+    
+    print('📊 [SomedayScreen] _getListTodoCount for list $listId:');
+    print('   - Total todos in map: $totalTodosInMap');
+    print('   - Todos with customListId: $todosWithCustomListId');
+    print('   - Matched todos: $count');
+    
     return count;
   }
 
