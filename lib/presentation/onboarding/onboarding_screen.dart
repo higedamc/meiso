@@ -48,6 +48,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         description: 'あなたのタスクをNostrネットワークで同期\n複数デバイスで自動的に最新状態を保ちます',
       ),
       _OnboardingPage(
+        icon: Icons.edit_calendar_outlined,
+        iconColor: Colors.purple,
+        title: 'スマートな日付入力',
+        description: 'タスクに "tomorrow" と入力すれば明日のタスクに\n"everyday" で毎日繰り返すタスクを作成\nTeuxDeuxスタイルの自然な入力をサポート',
+      ),
+      _OnboardingPage(
         icon: Icons.privacy_tip_outlined,
         iconColor: Colors.green,
         title: 'プライバシー第一',
