@@ -247,6 +247,15 @@ class NostrService {
     _ref.read(publicKeyProvider.notifier).state = publicKey;
     _ref.read(nostrInitializedProvider.notifier).state = true;
     
+    // hex形式からnpub形式に変換して設定
+    try {
+      final npubKey = await rust_api.hexToNpub(hex: publicKey);
+      _ref.read(nostrPublicKeyProvider.notifier).state = npubKey;
+      print('✅ npub公開鍵を設定しました: ${npubKey.substring(0, 16)}...');
+    } catch (e) {
+      print('❌ hex→npub変換エラー: $e');
+    }
+    
     // Amber使用フラグを設定
     await localStorageService.setUseAmber(true);
     

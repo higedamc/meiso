@@ -1075,27 +1075,42 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // 2. 公開鍵取得
           var publicKey = _ref.read(publicKeyProvider);
-          final npub = _ref.read(nostrPublicKeyProvider);
+          var npub = _ref.read(nostrPublicKeyProvider);
           
           // 公開鍵がnullの場合、Rust側から復元を試みる
           if (publicKey == null) {
-            print('⚠️ Public key is null, attempting to restore from storage...');
+            print('⚠️ Public key (hex) is null, attempting to restore from storage...');
             try {
               publicKey = await nostrService.getPublicKey();
               if (publicKey != null) {
-                print('✅ Public key restored from storage');
+                print('✅ Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...');
                 _ref.read(publicKeyProvider.notifier).state = publicKey;
+                
+                // npub形式にも変換して設定
+                try {
+                  npub = await nostrService.hexToNpub(publicKey);
+                  _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+                  print('✅ Public key (npub) also restored: ${npub.substring(0, 16)}...');
+                } catch (e) {
+                  print('❌ Failed to convert hex to npub: $e');
+                }
               } else {
                 print('❌ Failed to restore public key - no key found in storage');
                 throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
               }
             } catch (e) {
               print('❌ Failed to restore public key: $e');
-              throw Exception('公開鍵が設定されていません');
+              throw Exception('公開鍵が設定されていません: $e');
             }
           }
           
           if (npub == null) {
+            final hasPublicKey = await nostrService.hasPublicKey();
+            final isUsingAmber = localStorageService.isUsingAmber();
+            print('❌ npub形式の公開鍵がnullです');
+            print('   - hex公開鍵: ${publicKey != null ? "${publicKey.substring(0, 16)}..." : "null"}');
+            print('   - Amberモード: $isUsingAmber');
+            print('   - 公開鍵ファイル存在: $hasPublicKey');
             throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
           
@@ -1377,27 +1392,42 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           final amberService = _ref.read(amberServiceProvider);
           var publicKey = _ref.read(publicKeyProvider);
-          final npub = _ref.read(nostrPublicKeyProvider);
+          var npub = _ref.read(nostrPublicKeyProvider);
           
           // 公開鍵がnullの場合、Rust側から復元を試みる
           if (publicKey == null) {
-            print('⚠️ Public key is null, attempting to restore from storage...');
+            print('⚠️ Public key (hex) is null, attempting to restore from storage...');
             try {
               publicKey = await nostrService.getPublicKey();
               if (publicKey != null) {
-                print('✅ Public key restored from storage');
+                print('✅ Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...');
                 _ref.read(publicKeyProvider.notifier).state = publicKey;
+                
+                // npub形式にも変換して設定
+                try {
+                  npub = await nostrService.hexToNpub(publicKey);
+                  _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+                  print('✅ Public key (npub) also restored: ${npub.substring(0, 16)}...');
+                } catch (e) {
+                  print('❌ Failed to convert hex to npub: $e');
+                }
               } else {
                 print('❌ Failed to restore public key - no key found in storage');
                 throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
               }
             } catch (e) {
               print('❌ Failed to restore public key: $e');
-              throw Exception('公開鍵が設定されていません');
+              throw Exception('公開鍵が設定されていません: $e');
             }
           }
           
           if (npub == null) {
+            final hasPublicKey = await nostrService.hasPublicKey();
+            final isUsingAmber = localStorageService.isUsingAmber();
+            print('❌ npub形式の公開鍵がnullです');
+            print('   - hex公開鍵: ${publicKey != null ? "${publicKey.substring(0, 16)}..." : "null"}');
+            print('   - Amberモード: $isUsingAmber');
+            print('   - 公開鍵ファイル存在: $hasPublicKey');
             throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
           

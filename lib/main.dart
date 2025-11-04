@@ -159,10 +159,12 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
 
       if (isUsingAmber) {
         // Amberモード: Rust側から公開鍵を取得
+        print('🔍 Rust側から公開鍵を読み込み中...');
         final publicKey = await nostrService.getPublicKey();
+        print('🔍 公開鍵の取得結果: ${publicKey != null ? "取得成功 (${publicKey.substring(0, 16)}...)" : "null"}');
         
         if (publicKey != null) {
-          print('🔐 Amberモードで公開鍵を復元しました');
+          print('🔐 Amberモードで公開鍵を復元しました: ${publicKey.substring(0, 16)}...');
           
           // アプリ設定からリレーリストとプロキシURLを取得
           final appSettingsAsync = ref.read(appSettingsProvider);
@@ -173,16 +175,26 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
               ? 'socks5://127.0.0.1:9050'
               : null;
           
+          print('🔧 リレー設定: ${relays ?? "デフォルトリレー"}');
+          print('🔧 プロキシ: ${proxyUrl ?? "なし"}');
+          
           // Nostrクライアントを初期化（Amberモード）
+          print('🔄 Nostrクライアントを初期化中...');
           await nostrService.initializeNostrWithPubkey(
             publicKeyHex: publicKey,
             relays: relays,
             proxyUrl: proxyUrl,
           );
           
+          // 復元後のProvider状態を確認
+          final restoredHex = ref.read(nostrProvider.publicKeyProvider);
+          final restoredNpub = ref.read(nostrProvider.nostrPublicKeyProvider);
           print('✅ Amberモードでノstr接続を復元しました');
+          print('✅ 復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}');
+          print('✅ 復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}');
         } else {
           print('⚠️ 公開鍵が見つかりませんでした（Amberモード）');
+          print('⚠️ 公開鍵ファイルが存在するか: ${await nostrService.hasPublicKey()}');
         }
       } else {
         // 秘密鍵モード: 暗号化された秘密鍵が存在するかチェック
