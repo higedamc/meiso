@@ -479,6 +479,34 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }).value;
   }
 
+  /// Todoのリンクプレビューを削除（楽観的UI更新）
+  Future<void> removeLinkPreview(String id, DateTime? date) async {
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == id);
+
+      if (index != -1) {
+        list[index] = list[index].copyWith(
+          linkPreview: null,
+          updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
+        );
+        
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+
+        // ローカルストレージに保存（awaitする）
+        await _saveAllTodosToLocal();
+
+        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
+      }
+    }).value;
+  }
+
   /// Todoの完了状態をトグル（楽観的UI更新）
   Future<void> toggleTodo(String id, DateTime? date) async {
     await state.whenData((todos) async {
