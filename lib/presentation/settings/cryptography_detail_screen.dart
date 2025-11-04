@@ -7,9 +7,14 @@ class CryptographyDetailScreen extends StatelessWidget {
   const CryptographyDetailScreen({super.key});
 
   Future<void> _launchUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      final uri = Uri.parse(url);
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        throw Exception('Could not launch $url');
+      }
+    } catch (e) {
+      print('Error launching URL: $e');
+      // エラーが発生してもアプリをクラッシュさせない
     }
   }
 

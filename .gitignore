@@ -61,3 +61,4 @@ Amber/
 
 # Temporary backup files
 .tmp_backup/
+pubspec.lock
