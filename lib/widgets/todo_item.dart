@@ -9,6 +9,7 @@ import '../models/link_preview.dart';
 import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
 import 'todo_edit_screen.dart';
+import 'circular_checkbox.dart';
 
 /// リカーリングタスク削除オプション
 enum RecurringDeleteOption {
@@ -171,7 +172,7 @@ class TodoItem extends StatelessWidget {
   /// リンクカードウィジェット
   Widget _buildLinkCard(BuildContext context, LinkPreview linkPreview) {
     return Padding(
-      padding: const EdgeInsets.only(left: 48, right: 16, bottom: 8),
+      padding: const EdgeInsets.only(left: 50, right: 16, bottom: 12),
       child: InkWell(
         onTap: () => _openUrl(linkPreview.url),
         borderRadius: BorderRadius.circular(8),
@@ -533,8 +534,8 @@ class TodoItem extends StatelessWidget {
               color: Theme.of(context).cardTheme.color,
               border: Border(
                 bottom: BorderSide(
-                  color: Theme.of(context).dividerColor,
-                  width: 1,
+                  color: Theme.of(context).dividerColor.withOpacity(0.5),
+                  width: 0.5,
                 ),
               ),
             ),
@@ -545,46 +546,48 @@ class TodoItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Todo タイトル行
-                  Row(
-                    children: [
-                      // チェックボックス
-                      Checkbox(
-                        value: todo.completed,
-                        onChanged: (_) {
-                          ref
-                              .read(todosProvider.notifier)
-                              .toggleTodo(todo.id, todo.date);
-                        },
-                      ),
-                      
-                      // タイトル
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                todo.title,
-                                style: todo.completed
-                                    ? AppTheme.todoTitleCompleted
-                                    : AppTheme.todoTitle(context),
-                              ),
-                            ),
-                            // リカーリングタスクのマーカー
-                            if (todo.isRecurring)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: Icon(
-                                  Icons.repeat,
-                                  size: 16,
-                                  color: AppTheme.primaryPurple.withOpacity(0.6),
-                                ),
-                              ),
-                          ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 14.0,
+                    ),
+                    child: Row(
+                      children: [
+                        // 円形チェックボックス
+                        CircularCheckbox(
+                          value: todo.completed,
+                          onChanged: (_) {
+                            ref
+                                .read(todosProvider.notifier)
+                                .toggleTodo(todo.id, todo.date);
+                          },
+                          size: 22.0,
                         ),
-                      ),
-                      
-                      const SizedBox(width: 8),
-                    ],
+                        
+                        const SizedBox(width: 12),
+                        
+                        // タイトル
+                        Expanded(
+                          child: Text(
+                            todo.title,
+                            style: todo.completed
+                                ? AppTheme.todoTitleCompleted
+                                : AppTheme.todoTitle(context),
+                          ),
+                        ),
+                        
+                        // リカーリングタスクのマーカー
+                        if (todo.isRecurring)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Icon(
+                              Icons.repeat,
+                              size: 18,
+                              color: AppTheme.primaryPurple.withOpacity(0.5),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                   
                   // リンクカード（URLが検出された場合）

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Meisoアプリのテーマ設定
 /// Nostr風の紫を基調としたシンプルなデザイン
@@ -50,6 +51,9 @@ class AppTheme {
         onSurface: lightTextPrimary,
         error: Colors.red.shade600,
       ),
+      
+      // Noto Sans JPを使用（日本語フォント）
+      fontFamily: GoogleFonts.notoSansJp().fontFamily,
       
       scaffoldBackgroundColor: lightBackground,
       
@@ -200,6 +204,9 @@ class AppTheme {
         error: Colors.red.shade400,
       ),
       
+      // Noto Sans JPを使用（日本語フォント）
+      fontFamily: GoogleFonts.notoSansJp().fontFamily,
+      
       scaffoldBackgroundColor: darkBackground,
       
       appBarTheme: const AppBarTheme(
@@ -338,17 +345,21 @@ class AppTheme {
   static TextStyle todoTitle(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextStyle(
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: FontWeight.w400,
       color: isDark ? darkTextPrimary : lightTextPrimary,
+      height: 1.4,
+      letterSpacing: 0.1,
     );
   }
   
   static const TextStyle todoTitleCompleted = TextStyle(
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: FontWeight.w400,
     color: completedColor,
     decoration: TextDecoration.lineThrough,
+    height: 1.4,
+    letterSpacing: 0.1,
   );
   
   static TextStyle dateHeader(BuildContext context) {
