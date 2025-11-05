@@ -29,157 +29,190 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // アイコン
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.key,
-                  size: 64,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-
-              const SizedBox(height: 48),
-
-              // タイトル
-              Text(
-                'ログイン方法を選択',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 16),
-
-              // 説明
-              Text(
-                'Nostrアカウントでログインして、\nタスクを同期しましょう',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppTheme.textSecondary,
-                      height: 1.6,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 48),
-
-              // Amberでログインボタン
-              Consumer(
-                builder: (context, ref, child) {
-                  return ElevatedButton.icon(
-                    onPressed: () => _loginWithAmber(context, ref),
-                    icon: const Icon(Icons.android, size: 24),
-                    label: const Text(
-                      'Amberでログイン',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // 区切り線
-              Row(
-                children: [
-                  Expanded(child: Divider(color: Colors.grey.shade300)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'または',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF6366F1), // Indigo
+              Color(0xFF8B5CF6), // Purple
+              Color(0xFFA855F7), // Purple-400
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // アイコン
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
                   ),
-                  Expanded(child: Divider(color: Colors.grey.shade300)),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // 新しい秘密鍵を生成ボタン
-              Consumer(
-                builder: (context, ref, child) {
-                  return OutlinedButton.icon(
-                    onPressed: () => _generateNewKey(context, ref),
-                    icon: const Icon(Icons.add_circle_outline, size: 24),
-                    label: const Text(
-                      '新しい秘密鍵を生成',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.primaryColor,
-                      side: BorderSide(color: AppTheme.primaryColor, width: 2),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // 注意書き
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
+                  child: const Icon(
+                    Icons.key,
+                    size: 64,
+                    color: Colors.white,
+                  ),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.orange.shade700,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        '秘密鍵は安全に保管されます。\nAmberを使用すると、より安全に管理できます。',
+
+                const SizedBox(height: 48),
+
+                // タイトル
+                Text(
+                  'ログイン方法を選択',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 16),
+
+                // 説明
+                Text(
+                  'Nostrアカウントでログインして、\nタスクを同期しましょう',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.white.withOpacity(0.9),
+                        height: 1.6,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 48),
+
+                // Amberでログインボタン
+                Consumer(
+                  builder: (context, ref, child) {
+                    return ElevatedButton.icon(
+                      onPressed: () => _loginWithAmber(context, ref),
+                      icon: const Icon(Icons.android, size: 24),
+                      label: const Text(
+                        'Amberでログイン',
                         style: TextStyle(
-                          color: Colors.orange.shade900,
-                          fontSize: 12,
-                          height: 1.4,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF1F2937), // Gray-800
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 8,
+                        shadowColor: Colors.black.withOpacity(0.3),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // 区切り線
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        color: Colors.white.withOpacity(0.4),
+                        thickness: 1,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'または',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(
+                        color: Colors.white.withOpacity(0.4),
+                        thickness: 1,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 16),
+
+                // 新しい秘密鍵を生成ボタン
+                Consumer(
+                  builder: (context, ref, child) {
+                    return OutlinedButton.icon(
+                      onPressed: () => _generateNewKey(context, ref),
+                      icon: const Icon(Icons.add_circle_outline, size: 24),
+                      label: const Text(
+                        '新しい秘密鍵を生成',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white, width: 2),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                // 注意書き
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.orange.shade700,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '秘密鍵は安全に保管されます。\nAmberを使用すると、より安全に管理できます。',
+                          style: TextStyle(
+                            color: Colors.grey.shade800,
+                            fontSize: 12,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

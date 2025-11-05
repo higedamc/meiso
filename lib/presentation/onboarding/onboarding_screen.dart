@@ -49,7 +49,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         fallbackIcon: Icons.cloud_sync,
       ),
       const _OnboardingPage(
-        lottieUrl: 'assets/lottie/checklist.json',
+        lottieUrl: 'assets/lottie/calendar.json',
         title: 'スマートな日付入力',
         description: 'タスクに "tomorrow" と入力すれば明日のタスクに\n"everyday" で毎日繰り返すタスクを作成\nTeuxDeuxスタイルの自然な入力をサポート',
         fallbackIcon: Icons.edit_calendar_outlined,
@@ -158,7 +158,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          _currentPage == pages.length - 1 ? 'ログイン' : '次へ',
+                          _currentPage == pages.length - 1 ? 'スタート' : '次へ',
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
