@@ -49,6 +49,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         fallbackIcon: Icons.cloud_sync,
       ),
       const _OnboardingPage(
+        lottieUrl: 'assets/lottie/checklist.json',
+        title: 'スマートな日付入力',
+        description: 'タスクに "tomorrow" と入力すれば明日のタスクに\n"everyday" で毎日繰り返すタスクを作成\nTeuxDeuxスタイルの自然な入力をサポート',
+        fallbackIcon: Icons.edit_calendar_outlined,
+      ),
+      const _OnboardingPage(
         lottieUrl: 'assets/lottie/privacy.json',
         title: 'プライバシー第一',
         description: '中央サーバーなし。すべてのデータはあなたの管理下に\nNostrの分散型ネットワークで安全に保管',
