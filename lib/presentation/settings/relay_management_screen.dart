@@ -4,6 +4,7 @@ import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../bridge_generated.dart/api.dart' as bridge;
 
 class RelayManagementScreen extends ConsumerStatefulWidget {
   const RelayManagementScreen({super.key});
@@ -71,11 +72,19 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
     await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
 
+    // Nostrクライアントのリレーリストをリアルタイム更新
+    try {
+      await bridge.updateRelayList(relays: updatedRelays);
+      print('✅ リレーリストをリアルタイム更新しました');
+    } catch (e) {
+      print('⚠️ リレーリストのリアルタイム更新に失敗: $e');
+    }
+
     // Nostrに明示的に保存（Kind 10002）
     try {
       await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
       setState(() {
-        _successMessage = 'リレーを追加し、Nostrに保存しました';
+        _successMessage = 'リレーを追加し、即座にNostrに保存しました';
         _errorMessage = null;
       });
     } catch (e) {
@@ -93,6 +102,14 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
     await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
 
+    // Nostrクライアントのリレーリストをリアルタイム更新
+    try {
+      await bridge.updateRelayList(relays: updatedRelays);
+      print('✅ リレーリストをリアルタイム更新しました');
+    } catch (e) {
+      print('⚠️ リレーリストのリアルタイム更新に失敗: $e');
+    }
+
     // Nostrに明示的に保存（Kind 10002）
     try {
       // リレーが空の場合でも保存を試みる（削除を反映するため）
@@ -100,7 +117,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
         await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
       }
       setState(() {
-        _successMessage = 'リレーを削除し、Nostrに保存しました';
+        _successMessage = 'リレーを削除し、即座にNostrに保存しました';
         _errorMessage = null;
       });
     } catch (e) {
@@ -124,29 +141,57 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     try {
       print('🔄 Nostrからリレーリストを同期中...');
       
-      // AppSettingsProviderの同期を実行（Kind 10002を取得）
-      await ref.read(appSettingsProvider.notifier).syncFromNostr();
+      // Kind 10002から直接リレーリストを取得
+      final remoteRelays = await bridge.syncRelayList();
       
-      // 同期後、リレーリストを再読み込み
-      final appSettings = ref.read(appSettingsProvider);
-      final settings = appSettings.valueOrNull;
-      
-      if (settings != null && settings.relays.isNotEmpty) {
-        // 同期されたリレーリストでUIを更新
-        final relayNotifier = ref.read(relayStatusProvider.notifier);
-        relayNotifier.initializeWithRelays(settings.relays);
-        
-        setState(() {
-          _successMessage = 'Nostrから${settings.relays.length}件のリレーを同期しました';
-          _isSyncing = false;
-        });
-        print('✅ リレーリスト同期完了: ${settings.relays.length}件');
-      } else {
+      if (remoteRelays.isEmpty) {
         setState(() {
           _successMessage = 'Nostr上にリレーリストが見つかりませんでした';
           _isSyncing = false;
         });
+        return;
       }
+      
+      // 現在のローカルリレーリストを取得
+      final currentRelays = ref.read(relayStatusProvider).keys.toList();
+      
+      // リレーリストを比較
+      final isSame = _areRelayListsEqual(currentRelays, remoteRelays);
+      
+      if (isSame) {
+        setState(() {
+          _successMessage = 'リレーリストは既に最新です（${remoteRelays.length}件）';
+          _isSyncing = false;
+        });
+        print('✅ リレーリストは既に同期済み');
+        return;
+      }
+      
+      print('📋 ローカルリレー: ${currentRelays.length}件');
+      print('📋 リモートリレー: ${remoteRelays.length}件');
+      
+      // リレーリストが異なる場合のみ更新
+      
+      // 1. AppSettingsを更新
+      await ref.read(appSettingsProvider.notifier).updateRelays(remoteRelays);
+      
+      // 2. UIを更新
+      final relayNotifier = ref.read(relayStatusProvider.notifier);
+      relayNotifier.initializeWithRelays(remoteRelays);
+      
+      // 3. Nostrクライアントをリアルタイム更新
+      try {
+        await bridge.updateRelayList(relays: remoteRelays);
+        print('✅ Nostrクライアントのリレーリストを更新しました');
+      } catch (e) {
+        print('⚠️ Nostrクライアントの更新に失敗: $e');
+      }
+      
+      setState(() {
+        _successMessage = 'Nostrから${remoteRelays.length}件のリレーを同期しました（変更あり）';
+        _isSyncing = false;
+      });
+      print('✅ リレーリスト同期完了: ${remoteRelays.length}件');
       
     } catch (e) {
       print('❌ リレーリスト同期失敗: $e');
@@ -155,6 +200,16 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
         _isSyncing = false;
       });
     }
+  }
+  
+  /// 2つのリレーリストが同じかどうかを判定
+  bool _areRelayListsEqual(List<String> list1, List<String> list2) {
+    if (list1.length != list2.length) return false;
+    
+    final set1 = Set<String>.from(list1);
+    final set2 = Set<String>.from(list2);
+    
+    return set1.difference(set2).isEmpty && set2.difference(set1).isEmpty;
   }
 
   @override
@@ -363,9 +418,10 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                       '• リレーはNostrネットワーク上のサーバーです\n'
                       '• 複数のリレーに接続することで冗長性が向上します\n'
                       '• リレーURLは wss:// または ws:// で始める必要があります\n'
-                      '• リレーを追加・削除するとNostr（Kind 10002）に保存されます\n'
+                      '• リレーを追加・削除すると即座にNostr（Kind 10002）に保存されます\n'
+                      '• リレー変更は即座に反映されます（再起動不要）\n'
                       '• 「Nostrから同期」ボタンで他のデバイスの設定を取得できます\n'
-                      '• リレー変更は次回起動時に反映されます\n'
+                      '• 同期時、リモートとローカルが異なる場合のみ更新されます\n'
                       '${torEnabled ? "• 現在Tor経由で接続しています（Orbotプロキシ使用）" : ""}',
                       style: TextStyle(
                         fontSize: 12,
