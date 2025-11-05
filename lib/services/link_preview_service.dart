@@ -1,8 +1,13 @@
 import 'dart:convert';
+import '../services/logger_service.dart';
 import 'package:http/http.dart' as http;
+import '../services/logger_service.dart';
 import 'package:html/parser.dart' as html_parser;
+import '../services/logger_service.dart';
 import 'package:html/dom.dart';
+import '../services/logger_service.dart';
 import '../models/link_preview.dart';
+import '../services/logger_service.dart';
 
 /// URLからメタデータを取得してLinkPreviewを生成するサービス
 class LinkPreviewService {
@@ -43,12 +48,12 @@ class LinkPreviewService {
   /// タイムアウト: 10秒
   static Future<LinkPreview?> fetchLinkPreview(String url) async {
     try {
-      print('🔍 Fetching link preview for: $url');
+      AppLogger.debug(' Fetching link preview for: $url');
       
       // URLの正規化
       final uri = Uri.parse(url);
       if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-        print('⚠️ Invalid URL scheme: ${uri.scheme}');
+        AppLogger.warning(' Invalid URL scheme: ${uri.scheme}');
         return null;
       }
 
@@ -58,7 +63,7 @@ class LinkPreviewService {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
-        print('⚠️ HTTP error: ${response.statusCode}');
+        AppLogger.warning(' HTTP error: ${response.statusCode}');
         return null;
       }
 
@@ -73,10 +78,10 @@ class LinkPreviewService {
       final imageUrl = _extractImageUrl(document, uri);
       final faviconUrl = _extractFaviconUrl(document, uri);
 
-      print('✅ Link preview fetched:');
-      print('   Title: $title');
-      print('   Image: $imageUrl');
-      print('   Favicon: $faviconUrl');
+      AppLogger.info(' Link preview fetched:');
+      AppLogger.debug('   Title: $title');
+      AppLogger.debug('   Image: $imageUrl');
+      AppLogger.debug('   Favicon: $faviconUrl');
 
       return LinkPreview(
         url: url,
@@ -86,7 +91,7 @@ class LinkPreviewService {
         faviconUrl: faviconUrl,
       );
     } catch (e) {
-      print('❌ Failed to fetch link preview: $e');
+      AppLogger.error(' Failed to fetch link preview: $e');
       return null;
     }
   }

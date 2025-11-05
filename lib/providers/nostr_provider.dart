@@ -1,14 +1,25 @@
 import 'dart:convert';
+import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/logger_service.dart';
 import 'package:path_provider/path_provider.dart';
+import '../services/logger_service.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
+import '../services/logger_service.dart';
 import '../models/todo.dart';
+import '../services/logger_service.dart';
 import '../models/link_preview.dart';
+import '../services/logger_service.dart';
 import '../models/recurrence_pattern.dart';
+import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
+import '../services/logger_service.dart';
 import '../services/nostr_cache_service.dart';
+import '../services/logger_service.dart';
 import '../services/nostr_subscription_service.dart';
+import '../services/logger_service.dart';
 import 'sync_status_provider.dart';
+import '../services/logger_service.dart';
 
 /// デフォルトのNostrリレーリスト
 const List<String> defaultRelays = [
@@ -59,7 +70,7 @@ final publicKeyNpubProvider = FutureProvider<String?>((ref) async {
     try {
       return await rust_api.hexToNpub(hex: publicKeyHex);
     } catch (e) {
-      print('❌ Failed to convert hex to npub: $e');
+      AppLogger.error(' Failed to convert hex to npub: $e');
       return null;
     }
   }
@@ -112,7 +123,7 @@ class NostrService {
       secretKey: secretKey,
       password: password,
     );
-    print('🔐 Secret key encrypted and saved via Rust');
+    AppLogger.debug(' Secret key encrypted and saved via Rust');
   }
 
   /// 暗号化された秘密鍵を読み込み（Rust APIを使用）
@@ -124,7 +135,7 @@ class NostrService {
         password: password,
       );
     } catch (e) {
-      print('❌ Failed to load encrypted secret key: $e');
+      AppLogger.error(' Failed to load encrypted secret key: $e');
       return null;
     }
   }
@@ -134,9 +145,9 @@ class NostrService {
     final path = await _getKeyStoragePath();
     try {
       await rust_api.deleteStoredKeys(storagePath: path);
-      print('🗑️ Secret key deleted via Rust');
+      AppLogger.debug(' Secret key deleted via Rust');
     } catch (e) {
-      print('❌ Failed to delete secret key: $e');
+      AppLogger.error(' Failed to delete secret key: $e');
     }
   }
 
@@ -153,7 +164,7 @@ class NostrService {
       storagePath: path,
       publicKey: publicKey,
     );
-    print('🔐 Public key saved via Rust (Amber mode)');
+    AppLogger.debug(' Public key saved via Rust (Amber mode)');
   }
 
   /// 公開鍵を読み込み（Amber使用時）
@@ -162,7 +173,7 @@ class NostrService {
     try {
       return await rust_api.loadPublicKey(storagePath: path);
     } catch (e) {
-      print('❌ Failed to load public key: $e');
+      AppLogger.error(' Failed to load public key: $e');
       return null;
     }
   }
@@ -189,7 +200,7 @@ class NostrService {
     // プロキシURLが指定されている場合はプロキシ経由で接続
     final String publicKey;
     if (proxyUrl != null && proxyUrl.isNotEmpty) {
-      print('🔐 Connecting via proxy: $proxyUrl');
+      AppLogger.debug(' Connecting via proxy: $proxyUrl');
       publicKey = await rust_api.initNostrClientWithProxy(
         secretKeyHex: secretKey,
         relays: relayList,
@@ -215,7 +226,7 @@ class NostrService {
     // キャッシュとSubscriptionサービスを初期化
     await _initializeCacheAndSubscription(publicKey);
 
-    print('✅ Nostr client initialized with secret key${proxyUrl != null ? " (via proxy)" : ""}');
+    AppLogger.info(' Nostr client initialized with secret key${proxyUrl != null ? " (via proxy)" : ""}');
     return publicKey;
   }
 
@@ -230,7 +241,7 @@ class NostrService {
     // プロキシURLが指定されている場合はプロキシ経由で接続
     final String publicKey;
     if (proxyUrl != null && proxyUrl.isNotEmpty) {
-      print('🔐 Connecting via proxy (Amber mode): $proxyUrl');
+      AppLogger.debug(' Connecting via proxy (Amber mode): $proxyUrl');
       publicKey = await rust_api.initNostrClientWithPubkeyAndProxy(
         publicKeyHex: publicKeyHex,
         relays: relayList,
@@ -251,9 +262,9 @@ class NostrService {
     try {
       final npubKey = await rust_api.hexToNpub(hex: publicKey);
       _ref.read(nostrPublicKeyProvider.notifier).state = npubKey;
-      print('✅ npub公開鍵を設定しました: ${npubKey.substring(0, 16)}...');
+      AppLogger.info(' npub公開鍵を設定しました: ${npubKey.substring(0, 16)}...');
     } catch (e) {
-      print('❌ hex→npub変換エラー: $e');
+      AppLogger.error(' hex→npub変換エラー: $e');
     }
     
     // Amber使用フラグを設定
@@ -265,21 +276,21 @@ class NostrService {
     // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
-    print('✅ Nostr client initialized in Amber mode${proxyUrl != null ? " (via proxy)" : ""}');
+    AppLogger.info(' Nostr client initialized in Amber mode${proxyUrl != null ? " (via proxy)" : ""}');
     return publicKey;
   }
 
 
   /// TodoリストをNostrに作成（Kind 30001 - 新実装）
   Future<rust_api.EventSendResult> createTodoListOnNostr(List<Todo> todos) async {
-    print('🔧 NostrProvider: createTodoListOnNostr called with ${todos.length} todos');
+    AppLogger.debug(' NostrProvider: createTodoListOnNostr called with ${todos.length} todos');
     
     // カスタムリストIDを持つTodoをログ
     final customListTodos = todos.where((t) => t.customListId != null).toList();
     if (customListTodos.isNotEmpty) {
-      print('🎯 NostrProvider: ${customListTodos.length} todos have customListId:');
+      AppLogger.debug(' NostrProvider: ${customListTodos.length} todos have customListId:');
       for (final todo in customListTodos) {
-        print('   - "${todo.title}" → customListId: ${todo.customListId}');
+        AppLogger.debug('   - "${todo.title}" → customListId: ${todo.customListId}');
       }
     }
     
@@ -305,34 +316,34 @@ class NostrService {
       
       // カスタムリストIDが設定されている場合のみログ
       if (todoData.customListId != null) {
-        print('📤 Sending TodoData to Rust: "${todoData.title}" with customListId: ${todoData.customListId}');
+        AppLogger.debug(' Sending TodoData to Rust: "${todoData.title}" with customListId: ${todoData.customListId}');
       }
       
       return todoData;
     }).toList();
 
-    print('📤 Calling Rust createTodoList with ${todoDataList.length} TodoData objects');
+    AppLogger.debug(' Calling Rust createTodoList with ${todoDataList.length} TodoData objects');
     final result = await rust_api.createTodoList(todos: todoDataList);
-    print('✅ Rust createTodoList completed: success=${result.success}, eventId=${result.eventId}');
+    AppLogger.info(' Rust createTodoList completed: success=${result.success}, eventId=${result.eventId}');
     
     return result;
   }
 
   /// NostrからTodoリストを同期（Kind 30001 - 新実装）
   Future<List<Todo>> syncTodoListFromNostr() async {
-    print('🔧 NostrProvider: syncTodoListFromNostr called');
+    AppLogger.debug(' NostrProvider: syncTodoListFromNostr called');
     final todoDataList = await rust_api.syncTodoList();
-    print('📥 Received ${todoDataList.length} TodoData objects from Rust');
+    AppLogger.debug(' Received ${todoDataList.length} TodoData objects from Rust');
     
     // カスタムリストIDを持つTodoDataをログ
     final customListTodoData = todoDataList.where((t) => t.customListId != null).toList();
     if (customListTodoData.isNotEmpty) {
-      print('🎯 NostrProvider: ${customListTodoData.length} TodoData have customListId:');
+      AppLogger.debug(' NostrProvider: ${customListTodoData.length} TodoData have customListId:');
       for (final todoData in customListTodoData) {
-        print('   - "${todoData.title}" → customListId: ${todoData.customListId}');
+        AppLogger.debug('   - "${todoData.title}" → customListId: ${todoData.customListId}');
       }
     } else {
-      print('⚠️ NostrProvider: No TodoData with customListId found');
+      AppLogger.warning(' NostrProvider: No TodoData with customListId found');
     }
 
     return todoDataList.map((todoData) {
@@ -344,7 +355,7 @@ class NostrService {
             jsonDecode(todoData.linkPreview!) as Map<String, dynamic>
           );
         } catch (e) {
-          print('⚠️ Failed to parse linkPreview: $e');
+          AppLogger.warning(' Failed to parse linkPreview: $e');
         }
       }
 
@@ -355,7 +366,7 @@ class NostrService {
             jsonDecode(todoData.recurrence!) as Map<String, dynamic>
           );
         } catch (e) {
-          print('⚠️ Failed to parse recurrence: $e');
+          AppLogger.warning(' Failed to parse recurrence: $e');
         }
       }
 
@@ -441,10 +452,10 @@ class NostrService {
 
   /// 通常モード: すべてのTodoリストのメタデータ（d tag, title）を取得
   Future<List<rust_api.TodoListMetadata>> fetchAllTodoListMetadata() async {
-    print('🔧 NostrProvider: fetchAllTodoListMetadata called');
+    AppLogger.debug(' NostrProvider: fetchAllTodoListMetadata called');
     
     final metadata = await rust_api.fetchAllTodoListMetadata();
-    print('📥 Received ${metadata.length} TodoListMetadata objects from Rust');
+    AppLogger.debug(' Received ${metadata.length} TodoListMetadata objects from Rust');
     
     // カスタムリストのメタデータをログ
     final customListMetadata = metadata.where((m) => 
@@ -452,12 +463,12 @@ class NostrService {
     ).toList();
     
     if (customListMetadata.isNotEmpty) {
-      print('🎯 NostrProvider: ${customListMetadata.length} custom list metadata found:');
+      AppLogger.debug(' NostrProvider: ${customListMetadata.length} custom list metadata found:');
       for (final meta in customListMetadata) {
-        print('   - listId: ${meta.listId}, title: ${meta.title}');
+        AppLogger.debug('   - listId: ${meta.listId}, title: ${meta.title}');
       }
     } else {
-      print('⚠️ NostrProvider: No custom list metadata found');
+      AppLogger.warning(' NostrProvider: No custom list metadata found');
     }
     
     return metadata;
@@ -500,12 +511,12 @@ class NostrService {
   /// リレーサーバーへ再接続
   /// バックグラウンドから復帰時などに使用
   Future<void> reconnectRelays() async {
-    print('🔄 Reconnecting to relays...');
+    AppLogger.info(' Reconnecting to relays...');
     try {
       await rust_api.reconnectToRelays();
-      print('✅ Successfully reconnected to relays');
+      AppLogger.info(' Successfully reconnected to relays');
     } catch (e) {
-      print('❌ Failed to reconnect to relays: $e');
+      AppLogger.error(' Failed to reconnect to relays: $e');
       rethrow;
     }
   }
@@ -532,7 +543,7 @@ class NostrService {
       // キャッシュサービスを取得・初期化
       _cacheService = _ref.read(nostrCacheServiceProvider);
       await _cacheService!.init();
-      print('✅ Cache service initialized');
+      AppLogger.info(' Cache service initialized');
       
       // Subscriptionサービスを取得
       _subscriptionService = _ref.read(nostrSubscriptionServiceProvider);
@@ -543,9 +554,9 @@ class NostrService {
       // 期限切れキャッシュをクリーンアップ
       await _cacheService!.cleanExpiredCache();
       
-      print('✅ Subscription service initialized');
+      AppLogger.info(' Subscription service initialized');
     } catch (e) {
-      print('⚠️ Failed to initialize cache/subscription: $e');
+      AppLogger.warning(' Failed to initialize cache/subscription: $e');
     }
   }
   
@@ -567,7 +578,7 @@ class NostrService {
         filters: filters,
         onEventsReceived: (events) {
           // イベント受信時の処理
-          print('📥 Received ${events.length} todo list events');
+          AppLogger.debug(' Received ${events.length} todo list events');
           
           for (final event in events) {
             // キャッシュに保存
@@ -582,9 +593,9 @@ class NostrService {
         },
       );
       
-      print('📡 Todo list subscription started');
+      AppLogger.debug(' Todo list subscription started');
     } catch (e) {
-      print('⚠️ Failed to start todo list subscription: $e');
+      AppLogger.warning(' Failed to start todo list subscription: $e');
     }
   }
   

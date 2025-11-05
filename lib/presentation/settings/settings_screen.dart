@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
+import '../../services/logger_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -121,6 +124,24 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'テーマ、カレンダー、通知、Tor',
             onTap: () => context.push('/settings/app'),
           ),
+
+          // デバッグログ表示（デバッグビルドのみ）
+          if (kDebugMode) ...[
+            const Divider(height: 1),
+            _buildSettingTile(
+              context,
+              icon: Icons.bug_report,
+              title: 'デバッグログ',
+              subtitle: 'ログ履歴を表示',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => TalkerScreen(talker: talker),
+                  ),
+                );
+              },
+            ),
+          ],
 
           const SizedBox(height: 24),
 

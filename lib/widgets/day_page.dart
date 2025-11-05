@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
+import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/logger_service.dart';
 import 'package:intl/intl.dart';
+import '../services/logger_service.dart';
 import '../app_theme.dart';
+import '../services/logger_service.dart';
 import '../providers/todos_provider.dart';
+import '../services/logger_service.dart';
 import '../providers/nostr_provider.dart';
+import '../services/logger_service.dart';
 import 'todo_item.dart';
+import '../services/logger_service.dart';
 import 'sync_status_indicator.dart';
+import '../services/logger_service.dart';
 
 /// 1日分のTodoページ
 class DayPage extends ConsumerWidget {
@@ -33,7 +41,7 @@ class DayPage extends ConsumerWidget {
       // 新実装（Kind 30001）: Nostrから全Todoリストを同期
       await todoNotifier.syncFromNostr();
     } catch (e) {
-      debugPrint('⚠️ 同期エラー: $e');
+      AppLogger.warning('⚠️ 同期エラー: $e');
       // エラーは表示せずに静かに失敗させる（UX改善のため）
     }
   }

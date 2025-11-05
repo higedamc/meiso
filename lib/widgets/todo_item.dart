@@ -1,15 +1,27 @@
 import 'dart:convert';
+import '../services/logger_service.dart';
 import 'package:flutter/material.dart';
+import '../services/logger_service.dart';
 import 'package:flutter/services.dart';
+import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/logger_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/logger_service.dart';
 import '../app_theme.dart';
+import '../services/logger_service.dart';
 import '../models/todo.dart';
+import '../services/logger_service.dart';
 import '../models/link_preview.dart';
+import '../services/logger_service.dart';
 import '../providers/todos_provider.dart';
+import '../services/logger_service.dart';
 import '../providers/nostr_provider.dart';
+import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
+import '../services/logger_service.dart';
 import 'circular_checkbox.dart';
+import '../services/logger_service.dart';
 
 /// リカーリングタスク削除オプション
 enum RecurringDeleteOption {
@@ -309,10 +321,10 @@ class TodoItem extends StatelessWidget {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        print('⚠️ Cannot launch URL: $url');
+        AppLogger.warning(' Cannot launch URL: $url');
       }
     } catch (e) {
-      print('❌ Failed to open URL: $e');
+      AppLogger.error(' Failed to open URL: $e');
     }
   }
 

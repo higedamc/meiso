@@ -13,6 +13,7 @@ import 'presentation/settings/app_settings_detail_screen.dart';
 import 'presentation/settings/cryptography_detail_screen.dart';
 import 'bridge_generated.dart/frb_generated.dart';
 import 'services/local_storage_service.dart';
+import 'services/logger_service.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
@@ -27,18 +28,17 @@ void main() async {
   // ローカルストレージの初期化
   try {
     await localStorageService.initialize();
-    print('✅ ローカルストレージ初期化成功');
+    AppLogger.info('ローカルストレージ初期化成功', tag: 'INIT');
   } catch (e) {
-    print('❌ ローカルストレージ初期化エラー: $e');
+    AppLogger.error('ローカルストレージ初期化エラー', error: e, tag: 'INIT');
   }
   
   // Rustブリッジの初期化（エラーハンドリング付き）
   try {
     await RustLib.init();
-    print('✅ Rust初期化成功');
+    AppLogger.info('Rust初期化成功', tag: 'INIT');
   } catch (e, stackTrace) {
-    print('❌ Rust初期化エラー: $e');
-    print('スタックトレース: $stackTrace');
+    AppLogger.error('Rust初期化エラー', error: e, stackTrace: stackTrace, tag: 'INIT');
     // エラーがあってもアプリは起動させる（Nostr機能なしで動作）
   }
   
@@ -79,23 +79,23 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
         final isOnboarding = currentLocation == '/onboarding';
         final isLogin = currentLocation == '/login';
         
-        print('🔀 GoRouter redirect called:');
-        print('  - Current location: $currentLocation');
-        print('  - Onboarding completed: $hasCompleted');
-        print('  - Is onboarding screen: $isOnboarding');
-        print('  - Is login screen: $isLogin');
+        AppLogger.debug('GoRouter redirect called:', tag: 'ROUTER');
+        AppLogger.debug('  - Current location: $currentLocation', tag: 'ROUTER');
+        AppLogger.debug('  - Onboarding completed: $hasCompleted', tag: 'ROUTER');
+        AppLogger.debug('  - Is onboarding screen: $isOnboarding', tag: 'ROUTER');
+        AppLogger.debug('  - Is login screen: $isLogin', tag: 'ROUTER');
         
         // オンボーディング未完了の場合
         if (!hasCompleted) {
           // ログイン画面またはオンボーディング画面以外にアクセスした場合
           if (!isOnboarding && !isLogin) {
-            print('  → Redirecting to /onboarding');
+            AppLogger.debug('  → Redirecting to /onboarding', tag: 'ROUTER');
             return '/onboarding';
           }
         }
         
         // リダイレクト不要
-        print('  → No redirect needed');
+        AppLogger.debug('  → No redirect needed', tag: 'ROUTER');
         return null;
       },
       routes: [
@@ -146,26 +146,26 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
       // 既に初期化済みかチェック
       final isInitialized = ref.read(nostrProvider.nostrInitializedProvider);
       if (isInitialized) {
-        print('✅ Nostr接続は既に初期化済みです');
+        AppLogger.info('Nostr接続は既に初期化済みです', tag: 'NOSTR');
         return;
       }
 
-      print('🔄 Nostr接続を復元しています...');
+      AppLogger.info('Nostr接続を復元しています...', tag: 'NOSTR');
 
       // ローカルストレージでAmber使用フラグをチェック
       final isUsingAmber = localStorageService.isUsingAmber();
-      print('🔍 Amber使用モード: $isUsingAmber');
+      AppLogger.debug('Amber使用モード: $isUsingAmber', tag: 'NOSTR');
 
       final nostrService = ref.read(nostrProvider.nostrServiceProvider);
 
       if (isUsingAmber) {
         // Amberモード: Rust側から公開鍵を取得
-        print('🔍 Rust側から公開鍵を読み込み中...');
+        AppLogger.debug('Rust側から公開鍵を読み込み中...', tag: 'AMBER');
         final publicKey = await nostrService.getPublicKey();
-        print('🔍 公開鍵の取得結果: ${publicKey != null ? "取得成功 (${publicKey.substring(0, 16)}...)" : "null"}');
+        AppLogger.debug('公開鍵の取得結果: ${publicKey != null ? "取得成功 (${publicKey.substring(0, 16)}...)" : "null"}', tag: 'AMBER');
         
         if (publicKey != null) {
-          print('🔐 Amberモードで公開鍵を復元しました: ${publicKey.substring(0, 16)}...');
+          AppLogger.info('Amberモードで公開鍵を復元しました: ${publicKey.substring(0, 16)}...', tag: 'AMBER');
           
           // アプリ設定からリレーリストとプロキシURLを取得
           final appSettingsAsync = ref.read(appSettingsProvider);
@@ -176,11 +176,11 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
               ? 'socks5://127.0.0.1:9050'
               : null;
           
-          print('🔧 リレー設定: ${relays ?? "デフォルトリレー"}');
-          print('🔧 プロキシ: ${proxyUrl ?? "なし"}');
+          AppLogger.debug('リレー設定: ${relays ?? "デフォルトリレー"}', tag: 'NOSTR');
+          AppLogger.debug('プロキシ: ${proxyUrl ?? "なし"}', tag: 'NOSTR');
           
           // Nostrクライアントを初期化（Amberモード）
-          print('🔄 Nostrクライアントを初期化中...');
+          AppLogger.debug('Nostrクライアントを初期化中...', tag: 'NOSTR');
           await nostrService.initializeNostrWithPubkey(
             publicKeyHex: publicKey,
             relays: relays,
@@ -190,39 +190,38 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           // 復元後のProvider状態を確認
           final restoredHex = ref.read(nostrProvider.publicKeyProvider);
           final restoredNpub = ref.read(nostrProvider.nostrPublicKeyProvider);
-          print('✅ Amberモードでノstr接続を復元しました');
-          print('✅ 復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}');
-          print('✅ 復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}');
+          AppLogger.info('Amberモードでノstr接続を復元しました', tag: 'NOSTR');
+          AppLogger.debug('復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
+          AppLogger.debug('復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
           
           // Nostrからデータを同期（カスタムリストとTodoを取得）
-          print('🔄 [復元] Nostrからデータを同期中...');
+          AppLogger.info('[復元] Nostrからデータを同期中...', tag: 'SYNC');
           try {
             await ref.read(todosProvider.notifier).syncFromNostr();
-            print('✅ [復元] Nostr同期完了');
+            AppLogger.info('[復元] Nostr同期完了', tag: 'SYNC');
           } catch (e) {
-            print('⚠️ [復元] Nostr同期エラー（ローカルデータで継続）: $e');
+            AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
             // エラーがあってもアプリ起動は継続
           }
         } else {
-          print('⚠️ 公開鍵が見つかりませんでした（Amberモード）');
-          print('⚠️ 公開鍵ファイルが存在するか: ${await nostrService.hasPublicKey()}');
+          AppLogger.warning('公開鍵が見つかりませんでした（Amberモード）', tag: 'AMBER');
+          AppLogger.debug('公開鍵ファイルが存在するか: ${await nostrService.hasPublicKey()}', tag: 'AMBER');
         }
       } else {
         // 秘密鍵モード: 暗号化された秘密鍵が存在するかチェック
         final hasKey = await nostrService.hasEncryptedKey();
         
         if (hasKey) {
-          print('🔐 秘密鍵モードで暗号化された秘密鍵が見つかりました');
-          print('⚠️ パスワード入力が必要なため、自動復元をスキップします');
+          AppLogger.info('秘密鍵モードで暗号化された秘密鍵が見つかりました', tag: 'NOSTR');
+          AppLogger.debug('パスワード入力が必要なため、自動復元をスキップします', tag: 'NOSTR');
           // 秘密鍵モードはパスワードが必要なので自動復元しない
           // ユーザーが手動でログインする必要がある
         } else {
-          print('ℹ️ 保存された認証情報がありません');
+          AppLogger.debug('保存された認証情報がありません', tag: 'NOSTR');
         }
       }
     } catch (e, stackTrace) {
-      print('❌ Nostr接続の復元に失敗しました: $e');
-      print('スタックトレース: ${stackTrace.toString().split('\n').take(5).join('\n')}');
+      AppLogger.error('Nostr接続の復元に失敗しました', error: e, stackTrace: stackTrace, tag: 'NOSTR');
       // エラーは無視（ユーザーは手動でログインできる）
     }
   }

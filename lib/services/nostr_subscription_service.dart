@@ -1,6 +1,9 @@
 import 'dart:async';
+import '../services/logger_service.dart';
 import 'dart:convert';
+import '../services/logger_service.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
+import '../services/logger_service.dart';
 
 /// Subscription経由でイベントを受信するコールバック
 typedef SubscriptionCallback = void Function(List<rust_api.ReceivedEvent> events);
@@ -33,14 +36,14 @@ class NostrSubscriptionService {
       _callbacks[subscriptionInfo.subscriptionId] = onEventsReceived;
       _activeSubscriptions[subscriptionInfo.subscriptionId] = subscriptionInfo;
       
-      print('📡 Subscription started: ${subscriptionInfo.subscriptionId}');
+      AppLogger.debug(' Subscription started: ${subscriptionInfo.subscriptionId}');
       
       // ポーリング開始（まだ開始していなければ）
       _startPolling();
       
       return subscriptionInfo.subscriptionId;
     } catch (e) {
-      print('⚠️ Failed to start subscription: $e');
+      AppLogger.warning(' Failed to start subscription: $e');
       rethrow;
     }
   }
@@ -52,14 +55,14 @@ class NostrSubscriptionService {
       _callbacks.remove(subscriptionId);
       _activeSubscriptions.remove(subscriptionId);
       
-      print('🛑 Subscription stopped: $subscriptionId');
+      AppLogger.debug(' Subscription stopped: $subscriptionId');
       
       // すべてのSubscriptionが停止したらポーリングも停止
       if (_callbacks.isEmpty) {
         _stopPolling();
       }
     } catch (e) {
-      print('⚠️ Failed to stop subscription: $e');
+      AppLogger.warning(' Failed to stop subscription: $e');
     }
   }
   
@@ -71,9 +74,9 @@ class NostrSubscriptionService {
       _activeSubscriptions.clear();
       _stopPolling();
       
-      print('🛑 All subscriptions stopped');
+      AppLogger.debug(' All subscriptions stopped');
     } catch (e) {
-      print('⚠️ Failed to stop all subscriptions: $e');
+      AppLogger.warning(' Failed to stop all subscriptions: $e');
     }
   }
   
@@ -87,7 +90,7 @@ class NostrSubscriptionService {
       (_) => _pollEvents(),
     );
     
-    print('📡 Event polling started');
+    AppLogger.debug(' Event polling started');
   }
   
   /// ポーリングを停止
@@ -96,7 +99,7 @@ class NostrSubscriptionService {
     _pollingTimer = null;
     _isPolling = false;
     
-    print('🛑 Event polling stopped');
+    AppLogger.debug(' Event polling stopped');
   }
   
   /// イベントをポーリング
@@ -111,7 +114,7 @@ class NostrSubscriptionService {
       
       if (events.isEmpty) return;
       
-      print('📥 Received ${events.length} events via subscription');
+      AppLogger.debug(' Received ${events.length} events via subscription');
       
       // Subscription IDごとにイベントをグループ化
       final eventsBySubscription = <String, List<rust_api.ReceivedEvent>>{};
@@ -133,7 +136,7 @@ class NostrSubscriptionService {
       }
     } catch (e) {
       // ポーリングエラーはログだけ出力（接続エラーなど頻繁に起こりうる）
-      // print('⚠️ Event polling error: $e');
+      // AppLogger.warning(' Event polling error: $e');
     }
   }
   

@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
+import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/logger_service.dart';
 import 'package:intl/intl.dart';
+import '../services/logger_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/logger_service.dart';
 import '../app_theme.dart';
+import '../services/logger_service.dart';
 import '../models/todo.dart';
+import '../services/logger_service.dart';
 import '../models/link_preview.dart';
+import '../services/logger_service.dart';
 import '../models/recurrence_pattern.dart';
+import '../services/logger_service.dart';
 import '../providers/todos_provider.dart';
+import '../services/logger_service.dart';
 import '../providers/custom_lists_provider.dart';
+import '../services/logger_service.dart';
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -484,23 +494,23 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
 
     if (isEditing) {
       // 編集モード: タイトルと繰り返しパターンを更新
-      print('📝 Updating todo: "$text" (id: ${widget.todo!.id})');
+      AppLogger.debug(' Updating todo: "$text" (id: ${widget.todo!.id})');
       await ref.read(todosProvider.notifier).updateTodoWithRecurrence(
         widget.todo!.id,
         widget.todo!.date,
         text,
         _recurrence,
       );
-      print('✅ Todo update completed and synced');
+      AppLogger.info(' Todo update completed and synced');
     } else {
       // 追加モード: 新しいTodoを作成
-      print('📝 Adding todo to list: "$text" (customListId: ${widget.customListId})');
+      AppLogger.debug(' Adding todo to list: "$text" (customListId: ${widget.customListId})');
       await ref.read(todosProvider.notifier).addTodo(
         text,
         widget.date,
         customListId: widget.customListId,
       );
-      print('✅ Todo added and synced to Nostr');
+      AppLogger.info(' Todo added and synced to Nostr');
     }
 
     if (mounted) {
@@ -673,10 +683,10 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        print('⚠️ Cannot launch URL: $url');
+        AppLogger.warning(' Cannot launch URL: $url');
       }
     } catch (e) {
-      print('❌ Failed to open URL: $e');
+      AppLogger.error(' Failed to open URL: $e');
     }
   }
 

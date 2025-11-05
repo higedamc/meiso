@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../app_theme.dart';
+import '../../services/logger_service.dart';
 
 class CryptographyDetailScreen extends StatelessWidget {
   const CryptographyDetailScreen({super.key});
@@ -13,7 +14,7 @@ class CryptographyDetailScreen extends StatelessWidget {
         throw Exception('Could not launch $url');
       }
     } catch (e) {
-      print('Error launching URL: $e');
+      AppLogger.debug('Error launching URL: $e');
       // エラーが発生してもアプリをクラッシュさせない
     }
   }

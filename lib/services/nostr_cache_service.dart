@@ -1,6 +1,9 @@
 import 'dart:convert';
+import '../services/logger_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../services/logger_service.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
+import '../services/logger_service.dart';
 
 /// Nostrイベントのキャッシュを管理するサービス
 class NostrCacheService {
@@ -12,7 +15,7 @@ class NostrCacheService {
   /// 初期化
   Future<void> init() async {
     _cacheBox = await Hive.openBox<String>(_boxName);
-    print('🗄️ Nostr cache service initialized');
+    AppLogger.debug('🗄️ Nostr cache service initialized');
   }
   
   /// キャッシュにイベントを保存
@@ -47,9 +50,9 @@ class NostrCacheService {
         await _cacheBox.put(indexKey, cacheInfoJson);
       }
       
-      print('💾 Cached event: ${cacheInfo.eventId}');
+      AppLogger.debug(' Cached event: ${cacheInfo.eventId}');
     } catch (e) {
-      print('⚠️ Failed to cache event: $e');
+      AppLogger.warning(' Failed to cache event: $e');
     }
   }
   
@@ -78,14 +81,14 @@ class NostrCacheService {
       if (!isValid) {
         // 期限切れなので削除
         await _cacheBox.delete(eventId);
-        print('🗑️ Expired cache removed: $eventId');
+        AppLogger.debug(' Expired cache removed: $eventId');
         return null;
       }
       
-      print('✅ Cache hit: $eventId');
+      AppLogger.info(' Cache hit: $eventId');
       return cacheInfo.eventJson;
     } catch (e) {
-      print('⚠️ Failed to get cached event: $e');
+      AppLogger.warning(' Failed to get cached event: $e');
       return null;
     }
   }
@@ -99,7 +102,7 @@ class NostrCacheService {
       final indexKey = '$kind:$dTag';
       return await getCachedEvent(indexKey);
     } catch (e) {
-      print('⚠️ Failed to get cached replaceable event: $e');
+      AppLogger.warning(' Failed to get cached replaceable event: $e');
       return null;
     }
   }
@@ -107,7 +110,7 @@ class NostrCacheService {
   /// キャッシュをクリア
   Future<void> clearCache() async {
     await _cacheBox.clear();
-    print('🗑️ Cache cleared');
+    AppLogger.debug(' Cache cleared');
   }
   
   /// 期限切れのキャッシュを削除
@@ -146,10 +149,10 @@ class NostrCacheService {
       }
       
       if (keysToDelete.isNotEmpty) {
-        print('🗑️ Cleaned ${keysToDelete.length} expired cache entries');
+        AppLogger.debug(' Cleaned ${keysToDelete.length} expired cache entries');
       }
     } catch (e) {
-      print('⚠️ Failed to clean expired cache: $e');
+      AppLogger.warning(' Failed to clean expired cache: $e');
     }
   }
   
