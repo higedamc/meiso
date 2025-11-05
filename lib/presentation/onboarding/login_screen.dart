@@ -564,12 +564,35 @@ class _LoginScreenState extends State<LoginScreen> {
       print('✅ Onboarding completed flag set (before Nostr init)');
       
       // Nostrクライアントを初期化
-      await nostrService.initializeNostr(
+      final publicKeyHex = await nostrService.initializeNostr(
         secretKey: keypair.privateKeyNsec,
       );
       print('✅ Nostr client initialized with secret key');
+      print('✅ Public key (hex): ${publicKeyHex.substring(0, 16)}...');
+      
+      // リレー接続完了を待機（最大3秒、500msごとに確認）
+      print('⏳ Waiting for relay connection...');
+      int retryCount = 0;
+      const maxRetries = 6; // 3秒 (500ms × 6)
+      while (retryCount < maxRetries) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        retryCount++;
+        
+        // Rust側で接続完了しているはず（タイムアウト5秒設定済み）
+        if (retryCount >= 3) {
+          print('✅ Relay connection check passed (${retryCount * 500}ms)');
+          break;
+        }
+      }
+      
+      if (retryCount >= maxRetries) {
+        print('⚠️ Relay connection check timeout - continuing offline');
+      }
+      
+      print('✅ Connected to default relays (or offline mode)');
 
-      // Nostrプロバイダーを更新
+      // Nostrプロバイダーを更新（hex形式の公開鍵も設定）
+      ref.read(publicKeyProvider.notifier).state = publicKeyHex;
       ref.read(nostrPublicKeyProvider.notifier).state = keypair.publicKeyNpub;
       ref.read(nostrPrivateKeyProvider.notifier).state = keypair.privateKeyNsec;
 

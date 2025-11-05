@@ -621,6 +621,13 @@ class _SecretKeyManagementScreenState
     final publicKeyHex = ref.watch(publicKeyProvider);
     final publicKeyNpubAsync = ref.watch(publicKeyNpubProvider);
     final isAmberMode = ref.watch(isAmberModeProvider);
+    
+    // デバッグログ: ログアウトボタン表示条件を確認
+    print('🔍 SecretKeyManagementScreen build:');
+    print('  isNostrInitialized: $isNostrInitialized');
+    print('  publicKeyHex: ${publicKeyHex?.substring(0, 16) ?? 'null'}');
+    print('  isAmberMode: $isAmberMode');
+    print('  ログアウトボタン表示: ${isNostrInitialized}');
 
     return Scaffold(
       appBar: AppBar(
