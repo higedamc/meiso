@@ -16,6 +16,7 @@ import 'services/local_storage_service.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
+import 'providers/todos_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -192,6 +193,16 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           print('✅ Amberモードでノstr接続を復元しました');
           print('✅ 復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}');
           print('✅ 復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}');
+          
+          // Nostrからデータを同期（カスタムリストとTodoを取得）
+          print('🔄 [復元] Nostrからデータを同期中...');
+          try {
+            await ref.read(todosProvider.notifier).syncFromNostr();
+            print('✅ [復元] Nostr同期完了');
+          } catch (e) {
+            print('⚠️ [復元] Nostr同期エラー（ローカルデータで継続）: $e');
+            // エラーがあってもアプリ起動は継続
+          }
         } else {
           print('⚠️ 公開鍵が見つかりませんでした（Amberモード）');
           print('⚠️ 公開鍵ファイルが存在するか: ${await nostrService.hasPublicKey()}');

@@ -6,6 +6,7 @@ import '../../app_theme.dart';
 import '../../services/local_storage_service.dart';
 import '../../services/amber_service.dart';
 import '../../providers/nostr_provider.dart';
+import '../../providers/todos_provider.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
 
 /// ログインスクリーン
@@ -330,6 +331,16 @@ class _LoginScreenState extends State<LoginScreen> {
               print('⚠️ Could not pop loading dialog: $e');
             }
             
+            // Nostrからデータを同期（カスタムリストとTodoを取得）
+            print('🔄 Nostrからデータを同期中...');
+            try {
+              await ref.read(todosProvider.notifier).syncFromNostr();
+              print('✅ Nostr同期完了');
+            } catch (e) {
+              print('⚠️ Nostr同期エラー（ローカルデータで継続）: $e');
+              // エラーがあってもログインは継続
+            }
+            
             // 次のフレームで画面遷移（GoRouter を使用）
             SchedulerBinding.instance.addPostFrameCallback((_) {
               if (!context.mounted) return;
@@ -598,6 +609,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!context.mounted) return;
       Navigator.of(context).pop(); // ローディング閉じる
+
+      // Nostrからデータを同期（新規アカウントなので空だが、将来的なデータがあれば取得）
+      print('🔄 Nostrからデータを同期中...');
+      try {
+        await ref.read(todosProvider.notifier).syncFromNostr();
+        print('✅ Nostr同期完了');
+      } catch (e) {
+        print('⚠️ Nostr同期エラー（新規アカウントなので問題なし）: $e');
+        // 新規アカウントなのでエラーがあっても問題なし
+      }
 
       // 秘密鍵を表示するダイアログ
       await showDialog(
