@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
+import '../../models/app_settings.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/nostr_provider.dart';
+import '../../providers/proxy_status_provider.dart';
 
 class AppSettingsDetailScreen extends ConsumerWidget {
   const AppSettingsDetailScreen({super.key});
@@ -79,10 +81,261 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     }
   }
 
+  /// プロキシ接続状態インジケーターを構築
+  Widget _buildProxyStatusIndicator(BuildContext context, WidgetRef ref) {
+    final proxyStatus = ref.watch(proxyStatusProvider);
+    
+    // 状態に応じた色とアイコン、メッセージを設定
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+    
+    switch (proxyStatus) {
+      case ProxyConnectionStatus.unknown:
+        statusColor = Colors.grey;
+        statusIcon = Icons.help_outline;
+        statusText = '未テスト';
+        break;
+      case ProxyConnectionStatus.testing:
+        statusColor = Colors.orange;
+        statusIcon = Icons.sync;
+        statusText = 'テスト中...';
+        break;
+      case ProxyConnectionStatus.connected:
+        statusColor = Colors.green;
+        statusIcon = Icons.check_circle;
+        statusText = '接続成功';
+        break;
+      case ProxyConnectionStatus.failed:
+        statusColor = Colors.red;
+        statusIcon = Icons.error;
+        statusText = '接続失敗（Orbotを起動してください）';
+        break;
+    }
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            statusIcon,
+            color: statusColor,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'プロキシ接続状態',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: statusColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (proxyStatus != ProxyConnectionStatus.testing)
+            ElevatedButton.icon(
+              onPressed: () async {
+                await ref.read(proxyStatusProvider.notifier).testProxyConnection();
+              },
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('テスト'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: statusColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: const Size(0, 32),
+              ),
+            )
+          else
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// プロキシURL編集ダイアログ
+  Future<void> _showProxyUrlDialog(
+      BuildContext context, WidgetRef ref, String currentProxyUrl) async {
+    // 現在のプロキシURLをパース
+    String host = '127.0.0.1';
+    String port = '9050';
+    
+    try {
+      final uri = Uri.parse(currentProxyUrl);
+      if (uri.host.isNotEmpty) {
+        host = uri.host;
+      }
+      if (uri.port != 0) {
+        port = uri.port.toString();
+      }
+    } catch (e) {
+      // パースエラー時はデフォルト値を使用
+    }
+
+    final hostController = TextEditingController(text: host);
+    final portController = TextEditingController(text: port);
+    String? errorMessage;
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('プロキシ設定'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SOCKS5プロキシのアドレスとポートを設定してください',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: hostController,
+                  decoration: const InputDecoration(
+                    labelText: 'ホスト',
+                    hintText: '127.0.0.1',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.text,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: portController,
+                  decoration: const InputDecoration(
+                    labelText: 'ポート',
+                    hintText: '9050',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    errorMessage!,
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  '一般的な設定:\n'
+                  '• Orbot: 127.0.0.1:9050\n'
+                  '• カスタムプロキシ: ホストとポートを入力',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('キャンセル'),
+            ),
+            TextButton(
+              onPressed: () {
+                final enteredHost = hostController.text.trim();
+                final enteredPort = portController.text.trim();
+                
+                // バリデーション
+                if (enteredHost.isEmpty) {
+                  setState(() {
+                    errorMessage = 'ホストを入力してください';
+                  });
+                  return;
+                }
+                
+                if (enteredPort.isEmpty) {
+                  setState(() {
+                    errorMessage = 'ポートを入力してください';
+                  });
+                  return;
+                }
+                
+                final portNum = int.tryParse(enteredPort);
+                if (portNum == null || portNum < 1 || portNum > 65535) {
+                  setState(() {
+                    errorMessage = 'ポート番号は 1-65535 の範囲で入力してください';
+                  });
+                  return;
+                }
+                
+                Navigator.pop(context, {
+                  'host': enteredHost,
+                  'port': enteredPort,
+                });
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      final newProxyUrl = 'socks5://${result['host']}:${result['port']}';
+      await ref.read(appSettingsProvider.notifier).setProxyUrl(newProxyUrl);
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('プロキシURLを更新しました: $newProxyUrl'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appSettingsAsync = ref.watch(appSettingsProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
+
+    // Tor有効時に自動的にプロキシテストを実行
+    ref.listen<AsyncValue<AppSettings>>(appSettingsProvider, (previous, next) {
+      final prevSettings = previous?.value;
+      final nextSettings = next.value;
+      
+      // Tor設定が変更された場合のみ実行
+      if (prevSettings?.torEnabled != nextSettings?.torEnabled) {
+        if (nextSettings?.torEnabled == true) {
+          // 少し遅延させてからテスト実行
+          Future.delayed(const Duration(milliseconds: 500), () {
+            ref.read(proxyStatusProvider.notifier).testProxyConnection();
+          });
+        } else {
+          // Tor無効時は状態をリセット
+          ref.read(proxyStatusProvider.notifier).reset();
+        }
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -226,6 +479,23 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       color: settings.torEnabled ? Colors.green.shade700 : Colors.purple.shade700,
                     ),
                   ),
+
+                  // プロキシURL設定（Tor有効時のみ表示）
+                  if (settings.torEnabled) ...[
+                    ListTile(
+                      leading: Icon(Icons.settings_ethernet, color: Colors.purple.shade700),
+                      title: const Text('プロキシアドレスとポート'),
+                      subtitle: Text(
+                        settings.proxyUrl,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.edit, size: 20),
+                      onTap: () => _showProxyUrlDialog(context, ref, settings.proxyUrl),
+                    ),
+                    
+                    // プロキシ接続状態インジケーター
+                    _buildProxyStatusIndicator(context, ref),
+                  ],
 
                   const Divider(height: 1),
                   const SizedBox(height: 24),
