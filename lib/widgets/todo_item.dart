@@ -566,15 +566,16 @@ class TodoItem extends StatelessWidget {
                         
                         const SizedBox(width: 12),
                         
-                        // タイトル
-                        Expanded(
-                          child: Text(
-                            todo.title,
-                            style: todo.completed
-                                ? AppTheme.todoTitleCompleted
-                                : AppTheme.todoTitle(context),
+                        // タイトル（リンクプレビューがある場合は非表示）
+                        if (todo.linkPreview == null)
+                          Expanded(
+                            child: Text(
+                              todo.title,
+                              style: todo.completed
+                                  ? AppTheme.todoTitleCompleted
+                                  : AppTheme.todoTitle(context),
+                            ),
                           ),
-                        ),
                         
                         // リカーリングタスクのマーカー
                         if (todo.isRecurring)

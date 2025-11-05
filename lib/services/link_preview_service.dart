@@ -23,10 +23,18 @@ class LinkPreviewService {
   /// 
   /// 例: "Check https://github.com later" → "Check later"
   static String removeUrlFromText(String text, String url) {
-    return text
-        .replaceAll(url, '')
-        .replaceAll(RegExp(r'\s+'), ' ') // 複数スペースを1つに
+    // まず指定されたURLを削除
+    String result = text.replaceAll(url, '');
+    
+    // 念のため、正規表現でも全てのURLを削除
+    result = result.replaceAll(_urlRegex, '');
+    
+    // 複数スペースを1つに、前後の空白を削除
+    result = result
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+    
+    return result;
   }
 
   /// URLからメタデータを取得してLinkPreviewを生成

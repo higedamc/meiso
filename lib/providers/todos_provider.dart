@@ -226,12 +226,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       LinkPreview? initialLinkPreview;
       
       if (detectedUrl != null) {
-        finalTitle = LinkPreviewService.removeUrlFromText(cleanTitle, detectedUrl);
-        // 空になった場合は元のタイトルを使用
-        if (finalTitle.trim().isEmpty) {
-          finalTitle = cleanTitle;
-        }
-        
         // URLからドメイン名を抽出
         String domainName = detectedUrl;
         try {
@@ -239,6 +233,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           domainName = uri.host;
         } catch (e) {
           // パースエラー時はそのままURLを使用
+        }
+        
+        finalTitle = LinkPreviewService.removeUrlFromText(cleanTitle, detectedUrl);
+        // 空になった場合（URLのみの入力）はドメイン名を使用
+        if (finalTitle.trim().isEmpty) {
+          finalTitle = domainName;
         }
         
         // 一時的なリンクプレビューを作成（取得中を示す）
@@ -249,7 +249,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           imageUrl: null,
         );
         
-        print('📝 Title after URL removal: "$finalTitle"');
+        print('📝 Title after URL removal: "$finalTitle" (domain: $domainName)');
       }
       
       final newTodo = Todo(
@@ -526,12 +526,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         LinkPreview? initialLinkPreview = list[index].linkPreview;
         
         if (detectedUrl != null) {
-          finalTitle = LinkPreviewService.removeUrlFromText(newTitle.trim(), detectedUrl);
-          // 空になった場合は元のタイトルを使用
-          if (finalTitle.trim().isEmpty) {
-            finalTitle = newTitle.trim();
-          }
-          
           // URLからドメイン名を抽出
           String domainName = detectedUrl;
           try {
@@ -539,6 +533,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             domainName = uri.host;
           } catch (e) {
             // パースエラー時はそのままURLを使用
+          }
+          
+          finalTitle = LinkPreviewService.removeUrlFromText(newTitle.trim(), detectedUrl);
+          // 空になった場合（URLのみの入力）はドメイン名を使用
+          if (finalTitle.trim().isEmpty) {
+            finalTitle = domainName;
           }
           
           // 一時的なリンクプレビューを作成（取得中を示す）
@@ -549,7 +549,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             imageUrl: null,
           );
           
-          print('📝 Title after URL removal (update): "$finalTitle"');
+          print('📝 Title after URL removal (update): "$finalTitle" (domain: $domainName)');
         }
         
         final updatedTodo = list[index].copyWith(
