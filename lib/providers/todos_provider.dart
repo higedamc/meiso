@@ -1769,6 +1769,38 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         } else {
           // 通常モード: Rust側で復号化済みのTodoリストを取得（Kind 30001）
           print('🔄 通常モードで同期します（Kind 30001）');
+          
+          // ステップ1: メタデータを取得してカスタムリストを同期
+          print('📋 ステップ1: カスタムリストのメタデータを取得します');
+          final metadata = await nostrService.fetchAllTodoListMetadata();
+          
+          // カスタムリスト名を抽出（デフォルトリストは除外）
+          final List<String> nostrListNames = [];
+          for (final meta in metadata) {
+            if (meta.listId != null && meta.title != null) {
+              final listId = meta.listId!;
+              // デフォルトリストは除外
+              if (listId == 'meiso-todos') {
+                continue;
+              }
+              // titleからリスト名を取得（重複チェック）
+              if (!nostrListNames.contains(meta.title!)) {
+                nostrListNames.add(meta.title!);
+                print('📋 [Sync] Found custom list: "${meta.title}" (d tag: $listId)');
+              }
+            }
+          }
+          
+          // カスタムリストを同期（名前ベース）
+          if (nostrListNames.isNotEmpty) {
+            print('🔄 ${nostrListNames.length}件のカスタムリストを同期します');
+            await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
+          } else {
+            print('ℹ️ カスタムリストが見つかりませんでした');
+          }
+          
+          // ステップ2: Todoデータを取得
+          print('📋 ステップ2: Todoデータを取得します');
           final syncedTodos = await nostrService.syncTodoListFromNostr();
           print('📥 ${syncedTodos.length}件のTodoを取得しました');
           

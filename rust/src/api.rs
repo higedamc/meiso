@@ -722,6 +722,7 @@ impl MeisoNostrClient {
         
         // 公開鍵を取得（モードに応じて）
         let pubkey_hex = self.public_key_hex();
+        println!("📋 Looking for relay list from pubkey: {}", &pubkey_hex[..16]);
         let pubkey = PublicKey::from_hex(&pubkey_hex)
             .context("Failed to parse public key")?;
         
@@ -729,20 +730,43 @@ impl MeisoNostrClient {
             .kind(Kind::RelayList)
             .author(pubkey);
 
+        println!("🔍 Fetching Kind 10002 events from relays...");
         let events = self
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
 
+        println!("📥 Received {} Kind 10002 events", events.len());
+
         // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
         if let Some(event) = events.first() {
+            println!("📝 Processing relay list event ID: {}", event.id.to_hex());
+            println!("📋 Event has {} tags", event.tags.len());
+            
             let mut relays = Vec::new();
             
             // "r" タグからリレーURLを抽出
-            for tag in event.tags.iter() {
-                // TagKind::Relayをチェックし、contentからURLを取得
-                if tag.kind() == TagKind::Relay {
+            for (i, tag) in event.tags.iter().enumerate() {
+                println!("  Tag {}: kind={:?}, content={:?}", i, tag.kind(), tag.content());
+                
+                // 複数の方法でタグをチェック
+                // 方法1: 標準化されたタグとして解析（以前の実装）
+                if let Some(tag_std) = tag.as_standardized() {
+                    use nostr_sdk::prelude::TagStandard;
+                    if matches!(tag_std, TagStandard::Relay(_)) {
+                        if let Some(relay_url) = tag.content() {
+                            println!("    ✅ Found relay (standardized): {}", relay_url);
+                            relays.push(relay_url.to_string());
+                            continue;
+                        }
+                    }
+                }
+                
+                // 方法2: SingleLetterタグとして解析（"r"タグ）
+                use nostr_sdk::prelude::{SingleLetterTag, Alphabet};
+                if tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::R)) {
                     if let Some(relay_url) = tag.content() {
+                        println!("    ✅ Found relay (single letter): {}", relay_url);
                         relays.push(relay_url.to_string());
                     }
                 }
@@ -752,8 +776,55 @@ impl MeisoNostrClient {
             return Ok(relays);
         }
 
-        println!("⚠️ No relay list found");
+        println!("⚠️ No relay list found (no Kind 10002 events)");
         Ok(Vec::new())
+    }
+
+    /// リレーリストを動的に更新（既存の接続を維持しつつ追加・削除）
+    pub async fn update_relay_list(&self, new_relays: Vec<String>) -> Result<()> {
+        println!("🔄 Updating relay list dynamically...");
+        
+        // 現在のリレーリストを取得
+        let current_relays: Vec<String> = self.client
+            .relays()
+            .await
+            .keys()
+            .map(|url| url.to_string())
+            .collect();
+        
+        println!("📋 Current relays: {:?}", current_relays);
+        println!("📋 New relays: {:?}", new_relays);
+        
+        // 削除するリレー（現在のリレーで新しいリストに含まれないもの）
+        for relay_url in &current_relays {
+            if !new_relays.contains(relay_url) {
+                println!("➖ Removing relay: {}", relay_url);
+                match self.client.remove_relay(relay_url).await {
+                    Ok(_) => println!("✅ Relay removed: {}", relay_url),
+                    Err(e) => eprintln!("⚠️ Failed to remove relay {}: {}", relay_url, e),
+                }
+            }
+        }
+        
+        // 追加するリレー（新しいリストで現在のリレーに含まれないもの）
+        for relay_url in &new_relays {
+            if !current_relays.contains(relay_url) {
+                println!("➕ Adding relay: {}", relay_url);
+                match self.client.add_relay(relay_url).await {
+                    Ok(_) => {
+                        println!("✅ Relay added: {}", relay_url);
+                        // 新しいリレーに接続を試みる
+                        if let Err(e) = self.client.connect_relay(relay_url).await {
+                            eprintln!("⚠️ Failed to connect to relay {}: {}", relay_url, e);
+                        }
+                    },
+                    Err(e) => eprintln!("⚠️ Failed to add relay {}: {}", relay_url, e),
+                }
+            }
+        }
+        
+        println!("✅ Relay list updated successfully");
+        Ok(())
     }
     
     // ========================================
@@ -1346,6 +1417,19 @@ pub struct EncryptedTodoListEvent {
     pub title: Option<String>,
 }
 
+/// Todoリストのメタデータ（通常モード用 - Kind 30001）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TodoListMetadata {
+    pub event_id: String,
+    pub created_at: i64,
+    /// リスト識別子（d tag）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub list_id: Option<String>,
+    /// リスト名（title tag）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
 /// すべてのTodoリスト（デフォルト + カスタムリスト）を取得
 pub fn fetch_all_encrypted_todo_lists_for_pubkey(
     public_key_hex: String,
@@ -1447,6 +1531,106 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
         
         println!("✅ Fetched {} TODO list events for decryption", list_events.len());
         Ok(list_events)
+    })
+}
+
+/// すべてのTodoリストのメタデータ（d tag, title）を取得（通常モード用）
+pub fn fetch_all_todo_list_metadata() -> Result<Vec<TodoListMetadata>> {
+    fetch_all_todo_list_metadata_with_client_id(None)
+}
+
+pub fn fetch_all_todo_list_metadata_with_client_id(
+    client_id: Option<String>,
+) -> Result<Vec<TodoListMetadata>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 秘密鍵モードのみサポート（Amberモードでは使用しない）
+        let keys = client.keys.as_ref()
+            .context("Secret key required for fetching metadata")?;
+        
+        // すべてのKind 30001イベントを取得（meiso-todos + meiso-list-*）
+        let filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(keys.public_key());
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        if events.is_empty() {
+            println!("⚠️ No TODO list events found");
+            return Ok(Vec::new());
+        }
+        
+        println!("📥 Found {} TODO list events", events.len());
+        
+        // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events {
+            // d タグを取得
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            println!("🔍 Found event: d_tag={:?}, event_id={}, created_at={}", 
+                d_tag, event.id.to_hex(), event.created_at.as_u64());
+            
+            // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
+                    // 既存のイベントと比較して、新しい方を保持
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            println!("🔄 Replacing older event for d='{}' (old: {}, new: {})", 
+                                d_value, existing_event.created_at.as_u64(), event.created_at.as_u64());
+                            latest_events.insert(d_value.clone(), event);
+                        } else {
+                            println!("⏭️  Skipping older event for d='{}' (keeping: {})", 
+                                d_value, existing_event.created_at.as_u64());
+                        }
+                    } else {
+                        println!("✅ Adding TODO list event: d='{}', event_id={}, created_at={}", 
+                            d_value, event.id.to_hex(), event.created_at.as_u64());
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                } else {
+                    println!("⏭️  Skipping event with d='{}' (not a TODO list)", d_value);
+                }
+            } else {
+                println!("⏭️  Skipping event with no d tag");
+            }
+        }
+        
+        println!("📋 After deduplication: {} unique TODO lists", latest_events.len());
+        
+        // メタデータのみを返す
+        let metadata_list: Vec<TodoListMetadata> = latest_events.into_iter()
+            .map(|(d_tag, event)| {
+                // title タグを取得
+                let title = event.tags.iter()
+                    .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
+                    .and_then(|tag| tag.content())
+                    .map(|s| s.to_string());
+                
+                println!("📤 Metadata: d='{}', title={:?}, event_id={}, created_at={}", 
+                    d_tag, title, event.id.to_hex(), event.created_at.as_u64());
+                    
+                TodoListMetadata {
+                    event_id: event.id.to_hex(),
+                    created_at: event.created_at.as_u64() as i64,
+                    list_id: Some(d_tag),
+                    title,
+                }
+            })
+            .collect();
+        
+        println!("✅ Fetched {} TODO list metadata", metadata_list.len());
+        Ok(metadata_list)
     })
 }
 
@@ -1782,6 +1966,19 @@ pub fn sync_relay_list_with_client_id(client_id: Option<String>) -> Result<Vec<S
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.sync_relay_list().await
+    })
+}
+
+/// リレーリストを動的に更新（リアルタイム反映）
+pub fn update_relay_list(relays: Vec<String>) -> Result<()> {
+    update_relay_list_with_client_id(relays, None)
+}
+
+/// リレーリストを動的に更新（client_id指定可能）
+pub fn update_relay_list_with_client_id(relays: Vec<String>, client_id: Option<String>) -> Result<()> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.update_relay_list(relays).await
     })
 }
 

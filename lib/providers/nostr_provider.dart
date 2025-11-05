@@ -439,6 +439,30 @@ class NostrService {
     );
   }
 
+  /// 通常モード: すべてのTodoリストのメタデータ（d tag, title）を取得
+  Future<List<rust_api.TodoListMetadata>> fetchAllTodoListMetadata() async {
+    print('🔧 NostrProvider: fetchAllTodoListMetadata called');
+    
+    final metadata = await rust_api.fetchAllTodoListMetadata();
+    print('📥 Received ${metadata.length} TodoListMetadata objects from Rust');
+    
+    // カスタムリストのメタデータをログ
+    final customListMetadata = metadata.where((m) => 
+      m.listId != null && m.listId!.startsWith('meiso-list-')
+    ).toList();
+    
+    if (customListMetadata.isNotEmpty) {
+      print('🎯 NostrProvider: ${customListMetadata.length} custom list metadata found:');
+      for (final meta in customListMetadata) {
+        print('   - listId: ${meta.listId}, title: ${meta.title}');
+      }
+    } else {
+      print('⚠️ NostrProvider: No custom list metadata found');
+    }
+    
+    return metadata;
+  }
+
   /// Amberモード: デフォルトリストのみを取得（互換性のため残す）
   Future<rust_api.EncryptedTodoListEvent?> fetchEncryptedTodoList() async {
     final publicKey = _ref.read(publicKeyProvider);
