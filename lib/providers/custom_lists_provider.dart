@@ -40,8 +40,8 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     
     final initialListNames = [
       'BRAIN DUMP',
-      'GROCERY LIST',
-      'TO BUY',
+      'GROCERY',
+      'WISHLIST',
       'NOSTR',
       'WORK',
     ];
