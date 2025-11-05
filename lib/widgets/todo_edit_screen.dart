@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../app_theme.dart';
 import '../models/todo.dart';
+import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
 import '../providers/todos_provider.dart';
 import '../providers/custom_lists_provider.dart';
@@ -101,26 +103,66 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
             ),
           ),
 
-          // テキストフィールド
+          // テキストフィールドとリンクカード
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  hintText: '',
-                  hintStyle: TextStyle(
-                    color: isDark
-                        ? AppTheme.darkTextSecondary.withOpacity(0.5)
-                        : AppTheme.lightTextSecondary.withOpacity(0.5),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // テキストフィールド
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '',
+                        hintStyle: TextStyle(
+                          color: isDark
+                              ? AppTheme.darkTextSecondary.withOpacity(0.5)
+                              : AppTheme.lightTextSecondary.withOpacity(0.5),
+                        ),
+                      ),
+                      maxLines: null,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _save(),
+                    ),
                   ),
-                ),
-                maxLines: null,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _save(),
+                  
+                  // リンクカード（編集時のみ、linkPreviewがある場合）
+                  if (isEditing)
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final todosAsync = ref.watch(todosProvider);
+                        return todosAsync.when(
+                          data: (todos) {
+                            final todoList = todos[widget.todo!.date];
+                            if (todoList == null) {
+                              return const SizedBox.shrink();
+                            }
+                            
+                            Todo? currentTodo;
+                            try {
+                              currentTodo = todoList.firstWhere(
+                                (t) => t.id == widget.todo!.id,
+                              );
+                            } catch (e) {
+                              currentTodo = widget.todo;
+                            }
+                            
+                            if (currentTodo?.linkPreview != null) {
+                              return _buildLinkCard(context, currentTodo!.linkPreview!);
+                            }
+                            return const SizedBox.shrink();
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                        );
+                      },
+                    ),
+                ],
               ),
             ),
           ),
@@ -463,6 +505,197 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
 
     if (mounted) {
       Navigator.pop(context);
+    }
+  }
+
+  /// リンクカードウィジェット（×ボタン付き）
+  Widget _buildLinkCard(BuildContext context, LinkPreview linkPreview) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Theme.of(context).dividerColor,
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        color: Theme.of(context).cardColor,
+      ),
+      child: Stack(
+        children: [
+          // リンクカードのメインコンテンツ
+          InkWell(
+            onTap: () => _openUrl(linkPreview.url),
+            borderRadius: BorderRadius.circular(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // サムネイル画像
+                if (linkPreview.imageUrl != null)
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(8),
+                    ),
+                    child: Image.network(
+                      linkPreview.imageUrl!,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        // 画像読み込み失敗時は非表示
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                
+                // タイトル・説明・URL
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // タイトル + ファビコン
+                      Row(
+                        children: [
+                          // ファビコン
+                          if (linkPreview.faviconUrl != null)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Image.network(
+                                linkPreview.faviconUrl!,
+                                width: 16,
+                                height: 16,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.link,
+                                    size: 16,
+                                    color: Colors.grey,
+                                  );
+                                },
+                              ),
+                            ),
+                          
+                          // タイトル
+                          Expanded(
+                            child: Text(
+                              linkPreview.title ?? linkPreview.url,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      // 説明文
+                      if (linkPreview.description != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          linkPreview.description!,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      
+                      // URL
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.open_in_new,
+                            size: 12,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _extractDomain(linkPreview.url),
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.grey,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // 左上の×ボタン
+          Positioned(
+            top: 8,
+            left: 8,
+            child: Material(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                onTap: () => _removeLinkPreview(),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// URLからドメイン名を抽出
+  String _extractDomain(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return uri.host;
+    } catch (e) {
+      return url;
+    }
+  }
+
+  /// URLをブラウザで開く
+  Future<void> _openUrl(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        print('⚠️ Cannot launch URL: $url');
+      }
+    } catch (e) {
+      print('❌ Failed to open URL: $e');
+    }
+  }
+
+  /// リンクプレビューを削除
+  Future<void> _removeLinkPreview() async {
+    if (widget.todo != null) {
+      await ref.read(todosProvider.notifier).removeLinkPreview(
+        widget.todo!.id,
+        widget.todo!.date,
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('リンクカードを削除しました'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 }

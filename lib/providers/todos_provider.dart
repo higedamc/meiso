@@ -221,9 +221,40 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final detectedUrl = LinkPreviewService.extractUrl(cleanTitle);
       print('🔗 URL detected: $detectedUrl');
       
+      // URLが検出された場合、即座にタイトルから削除
+      String finalTitle = cleanTitle;
+      LinkPreview? initialLinkPreview;
+      
+      if (detectedUrl != null) {
+        // URLからドメイン名を抽出
+        String domainName = detectedUrl;
+        try {
+          final uri = Uri.parse(detectedUrl);
+          domainName = uri.host;
+        } catch (e) {
+          // パースエラー時はそのままURLを使用
+        }
+        
+        finalTitle = LinkPreviewService.removeUrlFromText(cleanTitle, detectedUrl);
+        // 空になった場合（URLのみの入力）はドメイン名を使用
+        if (finalTitle.trim().isEmpty) {
+          finalTitle = domainName;
+        }
+        
+        // 一時的なリンクプレビューを作成（取得中を示す）
+        initialLinkPreview = LinkPreview(
+          url: detectedUrl,
+          title: domainName, // ドメイン名を表示
+          description: '読み込み中...', // 取得中を日本語で表示
+          imageUrl: null,
+        );
+        
+        print('📝 Title after URL removal: "$finalTitle" (domain: $domainName)');
+      }
+      
       final newTodo = Todo(
         id: _uuid.v4(),
-        title: cleanTitle,
+        title: finalTitle,
         completed: false,
         date: date,
         order: _getNextOrder(todos, date),
@@ -231,6 +262,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         updatedAt: now,
         customListId: customListId,
         recurrence: autoRecurrence, // 自動検出された繰り返しパターンを設定
+        linkPreview: initialLinkPreview, // 一時的なリンクプレビューを設定
         needsSync: true, // 同期が必要
       );
       
@@ -287,7 +319,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       if (linkPreview != null) {
         print('✅ Link preview fetched, updating todo...');
         
-        // Todoを更新
+        // Todoを更新（リンクプレビューのみ更新、タイトルは既に処理済み）
         state.whenData((todos) async {
           final list = List<Todo>.from(todos[date] ?? []);
           final index = list.indexWhere((t) => t.id == todoId);
@@ -295,16 +327,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           if (index != -1) {
             final currentTodo = list[index];
             
-            // タイトルからURLを削除
-            final newTitle = LinkPreviewService.removeUrlFromText(
-              currentTodo.title,
-              url,
-            );
-            
-            print('📝 Title updated: "${currentTodo.title}" → "$newTitle"');
+            print('📝 Updating link preview for: "${currentTodo.title}"');
             
             list[index] = currentTodo.copyWith(
-              title: newTitle.isNotEmpty ? newTitle : currentTodo.title, // 空になった場合は元のまま
               linkPreview: linkPreview,
               updatedAt: DateTime.now(),
             );
@@ -323,10 +348,55 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             });
           }
         });
+      } else {
+        // リンクプレビューの取得に失敗した場合、一時的なプレビューを削除
+        print('⚠️ Failed to fetch link preview metadata, removing placeholder...');
+        state.whenData((todos) async {
+          final list = List<Todo>.from(todos[date] ?? []);
+          final index = list.indexWhere((t) => t.id == todoId);
+          
+          if (index != -1) {
+            final currentTodo = list[index];
+            
+            list[index] = currentTodo.copyWith(
+              linkPreview: null, // プレースホルダーを削除
+              updatedAt: DateTime.now(),
+            );
+            
+            state = AsyncValue.data({
+              ...todos,
+              date: list,
+            });
+            
+            // ローカルストレージに保存
+            await _saveAllTodosToLocal();
+          }
+        });
       }
     } catch (e) {
       print('⚠️ Failed to fetch link preview: $e');
-      // エラーは無視（リンクプレビューなしでTodoは利用可能）
+      // エラーの場合も一時的なプレビューを削除
+      state.whenData((todos) async {
+        final list = List<Todo>.from(todos[date] ?? []);
+        final index = list.indexWhere((t) => t.id == todoId);
+        
+        if (index != -1) {
+          final currentTodo = list[index];
+          
+          list[index] = currentTodo.copyWith(
+            linkPreview: null, // プレースホルダーを削除
+            updatedAt: DateTime.now(),
+          );
+          
+          state = AsyncValue.data({
+            ...todos,
+            date: list,
+          });
+          
+          // ローカルストレージに保存
+          await _saveAllTodosToLocal();
+        }
+      });
     }
   }
 
@@ -447,9 +517,45 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final index = list.indexWhere((t) => t.id == id);
 
       if (index != -1) {
+        // URLを検出してメタデータを取得（バックグラウンド）
+        final detectedUrl = LinkPreviewService.extractUrl(newTitle.trim());
+        print('🔗 URL detected in update: $detectedUrl');
+        
+        // URLが検出された場合、即座にタイトルから削除
+        String finalTitle = newTitle.trim();
+        LinkPreview? initialLinkPreview = list[index].linkPreview;
+        
+        if (detectedUrl != null) {
+          // URLからドメイン名を抽出
+          String domainName = detectedUrl;
+          try {
+            final uri = Uri.parse(detectedUrl);
+            domainName = uri.host;
+          } catch (e) {
+            // パースエラー時はそのままURLを使用
+          }
+          
+          finalTitle = LinkPreviewService.removeUrlFromText(newTitle.trim(), detectedUrl);
+          // 空になった場合（URLのみの入力）はドメイン名を使用
+          if (finalTitle.trim().isEmpty) {
+            finalTitle = domainName;
+          }
+          
+          // 一時的なリンクプレビューを作成（取得中を示す）
+          initialLinkPreview = LinkPreview(
+            url: detectedUrl,
+            title: domainName, // ドメイン名を表示
+            description: '読み込み中...', // 取得中を日本語で表示
+            imageUrl: null,
+          );
+          
+          print('📝 Title after URL removal (update): "$finalTitle" (domain: $domainName)');
+        }
+        
         final updatedTodo = list[index].copyWith(
-          title: newTitle.trim(),
+          title: finalTitle,
           recurrence: recurrence,
+          linkPreview: initialLinkPreview,
           updatedAt: DateTime.now(),
           needsSync: true, // 同期が必要
         );
@@ -468,6 +574,39 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // 繰り返しを解除した場合、子タスクを削除
           await _removeChildInstances(id, todos);
         }
+
+        // ローカルストレージに保存（awaitする）
+        await _saveAllTodosToLocal();
+
+        // URLメタデータ取得（非同期・バックグラウンド）
+        if (detectedUrl != null) {
+          _fetchLinkPreviewInBackground(id, date, detectedUrl);
+        }
+
+        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
+      }
+    }).value;
+  }
+
+  /// リンクプレビューを削除（楽観的UI更新）
+  Future<void> removeLinkPreview(String id, DateTime? date) async {
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == id);
+
+      if (index != -1) {
+        list[index] = list[index].copyWith(
+          linkPreview: null,
+          updatedAt: DateTime.now(),
+          needsSync: true, // 同期が必要
+        );
+
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
 
         // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
