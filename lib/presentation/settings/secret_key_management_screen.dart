@@ -25,12 +25,33 @@ class _SecretKeyManagementScreenState
   String? _errorMessage;
   String? _successMessage;
   String? _detectedKeyFormat; // 検出されたフォーマット (nsec/hex)
+  bool _hasEncryptedKey = false; // 暗号化された秘密鍵が存在するか
+  static const String _encryptedPlaceholder = '🔒 暗号化されています';
 
   @override
   void initState() {
     super.initState();
     // テキスト変更時にフォーマットを自動検出
     _secretKeyController.addListener(_detectKeyFormat);
+    // 暗号化された秘密鍵の存在チェック
+    _checkEncryptedKey();
+  }
+  
+  /// 暗号化された秘密鍵が存在するかチェック
+  Future<void> _checkEncryptedKey() async {
+    final nostrService = ref.read(nostrServiceProvider);
+    final hasKey = await nostrService.hasEncryptedKey();
+    
+    if (hasKey && mounted) {
+      setState(() {
+        _hasEncryptedKey = true;
+        // ログイン後、秘密鍵フィールドに暗号化状態を表示
+        if (_secretKeyController.text.isEmpty) {
+          _secretKeyController.text = _encryptedPlaceholder;
+          _obscureSecretKey = true; // 常に非表示状態で開始
+        }
+      });
+    }
   }
 
   @override
@@ -94,9 +115,171 @@ class _SecretKeyManagementScreenState
     );
   }
 
+  /// nsec表示ダイアログを表示
+  Future<void> _showNsecDialog(String nsec) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.key, color: AppTheme.primaryPurple),
+            const SizedBox(width: 8),
+            const Text('秘密鍵 (nsec)'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 警告メッセージ
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '⚠️ 重要な注意事項',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '• 秘密鍵は絶対に他人に見せないでください\n'
+                '• スクリーンショットは推奨しません\n'
+                '• 秘密鍵を失うとアカウントを復元できません\n'
+                '• 安全な場所にバックアップしてください',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade700,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '秘密鍵:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // nsec表示エリア
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: SelectableText(
+                  nsec,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              _copyToClipboard(nsec, '秘密鍵');
+            },
+            icon: const Icon(Icons.copy),
+            label: const Text('コピー'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 目のアイコンタップ時の処理
+  Future<void> _handleVisibilityToggle() async {
+    // 暗号化された秘密鍵が存在し、フィールドが暗号化プレースホルダーの場合
+    if (_hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder) {
+      // パスワード入力ダイアログを表示
+      final password = await _showPasswordDialog(
+        'パスワードを入力',
+        '秘密鍵を復号するためのパスワードを入力してください。',
+      );
+
+      if (password == null || password.isEmpty) return;
+
+      // パスワードで復号化を試みる
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      try {
+        final nostrService = ref.read(nostrServiceProvider);
+        final decryptedKey = await nostrService.getSecretKey(password);
+
+        if (decryptedKey == null) {
+          setState(() {
+            _errorMessage = 'パスワードが間違っているか、秘密鍵の復号に失敗しました';
+          });
+          return;
+        }
+
+        // nsec表示ダイアログを表示（hex形式でもそのまま表示）
+        if (mounted) {
+          await _showNsecDialog(decryptedKey);
+        }
+      } catch (e) {
+        setState(() {
+          _errorMessage = '秘密鍵の復号に失敗: $e';
+        });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } else {
+      // 通常の表示/非表示トグル
+      setState(() {
+        _obscureSecretKey = !_obscureSecretKey;
+      });
+    }
+  }
+
   /// 秘密鍵のフォーマットを自動検出
   void _detectKeyFormat() {
     final key = _secretKeyController.text.trim();
+
+    // 暗号化プレースホルダーの場合はスキップ
+    if (key == _encryptedPlaceholder) {
+      if (_detectedKeyFormat != null) {
+        setState(() {
+          _detectedKeyFormat = null;
+        });
+      }
+      return;
+    }
 
     if (key.isEmpty) {
       if (_detectedKeyFormat != null) {
@@ -173,17 +356,20 @@ class _SecretKeyManagementScreenState
     try {
       final nostrService = ref.read(nostrServiceProvider);
       final newKey = await nostrService.generateNewSecretKey();
-      _secretKeyController.text = newKey;
 
       // Rust APIで暗号化して保存
       await nostrService.saveSecretKey(newKey, password);
-
+      
+      // 暗号化プレースホルダーを表示
       setState(() {
+        _hasEncryptedKey = true;
+        _secretKeyController.text = _encryptedPlaceholder;
+        _obscureSecretKey = true;
         _successMessage = '新しい秘密鍵を生成して暗号化保存しました';
       });
 
-      // 自動的にリレーに接続
-      await _autoConnect();
+      // 自動的にリレーに接続（newKeyを使用）
+      await _autoConnectWithKey(newKey);
     } catch (e) {
       setState(() {
         _errorMessage = '秘密鍵の生成に失敗: $e';
@@ -197,6 +383,14 @@ class _SecretKeyManagementScreenState
 
   Future<void> _saveSecretKey() async {
     final secretKey = _secretKeyController.text.trim();
+
+    // 暗号化プレースホルダーの場合は保存をスキップ
+    if (secretKey == _encryptedPlaceholder) {
+      setState(() {
+        _errorMessage = '暗号化された秘密鍵は既に保存されています';
+      });
+      return;
+    }
 
     // バリデーション
     final validationError = _validateSecretKey(secretKey);
@@ -227,13 +421,17 @@ class _SecretKeyManagementScreenState
       // Rust APIで暗号化して保存
       await nostrService.saveSecretKey(secretKey, password);
 
+      // 暗号化プレースホルダーを表示
       setState(() {
+        _hasEncryptedKey = true;
+        _secretKeyController.text = _encryptedPlaceholder;
+        _obscureSecretKey = true;
         _successMessage =
             '秘密鍵を暗号化保存しました（${_detectedKeyFormat ?? 'フォーマット不明'}）';
       });
 
-      // 自動的にリレーに接続
-      await _autoConnect();
+      // 自動的にリレーに接続（secretKeyを使用）
+      await _autoConnectWithKey(secretKey);
     } catch (e) {
       setState(() {
         _errorMessage = '秘密鍵の保存に失敗: $e';
@@ -245,9 +443,8 @@ class _SecretKeyManagementScreenState
     }
   }
 
-  /// 秘密鍵設定後に自動接続（Tor対応）
-  Future<void> _autoConnect() async {
-    final secretKey = _secretKeyController.text.trim();
+  /// 秘密鍵を指定して自動接続（Tor対応）
+  Future<void> _autoConnectWithKey(String secretKey) async {
     if (secretKey.isEmpty) return;
 
     try {
@@ -364,8 +561,11 @@ class _SecretKeyManagementScreenState
       ref.invalidate(relayStatusProvider);
       print('✅ All providers reset');
 
-      // 4. 入力フィールドをクリア
+      // 4. 入力フィールドをクリアし、暗号化フラグをリセット
       _secretKeyController.clear();
+      setState(() {
+        _hasEncryptedKey = false;
+      });
 
       print('✅ Logout and data deletion completed');
 
@@ -556,11 +756,15 @@ class _SecretKeyManagementScreenState
                     const SizedBox(height: 8),
                     TextField(
                       controller: _secretKeyController,
+                      // 暗号化プレースホルダーの場合は読み取り専用
+                      readOnly: _hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder,
                       decoration: InputDecoration(
                         hintText: 'nsec1... または 64文字のhex',
                         helperText: _detectedKeyFormat != null
                             ? '検出: $_detectedKeyFormat'
-                            : 'nsecまたはhex形式の秘密鍵を入力',
+                            : (_hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder
+                                ? '目のアイコンをタップして秘密鍵を表示'
+                                : 'nsecまたはhex形式の秘密鍵を入力'),
                         helperStyle: TextStyle(
                           color: _detectedKeyFormat?.contains('不完全') == true ||
                                   _detectedKeyFormat?.contains('不明') == true
@@ -575,12 +779,10 @@ class _SecretKeyManagementScreenState
                                 ? Icons.visibility_off
                                 : Icons.visibility,
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _obscureSecretKey = !_obscureSecretKey;
-                            });
-                          },
-                          tooltip: _obscureSecretKey ? '秘密鍵を表示' : '秘密鍵を非表示',
+                          onPressed: _handleVisibilityToggle,
+                          tooltip: _hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder
+                              ? '秘密鍵を復号して表示'
+                              : (_obscureSecretKey ? '秘密鍵を表示' : '秘密鍵を非表示'),
                         ),
                       ),
                       obscureText: _obscureSecretKey,
