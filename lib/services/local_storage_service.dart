@@ -1,7 +1,11 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import '../services/logger_service.dart';
 import '../models/todo.dart';
+import '../services/logger_service.dart';
 import '../models/app_settings.dart';
+import '../services/logger_service.dart';
 import '../models/custom_list.dart';
+import '../services/logger_service.dart';
 
 /// ローカルストレージサービス（Hive使用）
 /// Todoをローカルに永続化し、オフラインファーストを実現
@@ -54,7 +58,7 @@ class LocalStorageService {
         final jsonMap = _deepCastMap(value);
         todos.add(Todo.fromJson(jsonMap));
       } catch (e) {
-        print('⚠️ Todo復元エラー: $e');
+        AppLogger.warning(' Todo復元エラー: $e');
         // エラーがあってもスキップして続行
         continue;
       }
@@ -118,11 +122,11 @@ class LocalStorageService {
     
     // Todoデータをクリア
     await _todosBox!.clear();
-    print('✅ Todoデータを削除しました');
+    AppLogger.info(' Todoデータを削除しました');
     
     // 設定データをクリア（オンボーディング完了フラグ含む）
     await _settingsBox!.clear();
-    print('✅ 設定データを削除しました');
+    AppLogger.info(' 設定データを削除しました');
   }
 
   /// ボックスを閉じる
@@ -163,7 +167,7 @@ class LocalStorageService {
         final jsonMap = _deepCastMap(value);
         lists.add(CustomList.fromJson(jsonMap));
       } catch (e) {
-        print('⚠️ CustomList復元エラー: $e');
+        AppLogger.warning(' CustomList復元エラー: $e');
         // エラーがあってもスキップして続行
         continue;
       }
@@ -235,7 +239,7 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.put(_migrationCompletedKey, true);
-    print('✅ Migration completed flag set');
+    AppLogger.info(' Migration completed flag set');
   }
   
   /// マイグレーション完了フラグをリセット（デバッグ用）
@@ -244,7 +248,7 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.delete(_migrationCompletedKey);
-    print('🔄 Migration completed flag reset');
+    AppLogger.info(' Migration completed flag reset');
   }
   
   // === アプリ設定関連 ===
@@ -272,7 +276,7 @@ class LocalStorageService {
       final jsonMap = _deepCastMap(settingsMap);
       return AppSettings.fromJson(jsonMap);
     } catch (e) {
-      print('⚠️ アプリ設定復元エラー: $e');
+      AppLogger.warning(' アプリ設定復元エラー: $e');
       return null;
     }
   }

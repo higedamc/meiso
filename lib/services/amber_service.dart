@@ -1,6 +1,9 @@
 import 'dart:io' show Platform;
+import '../services/logger_service.dart';
 import 'dart:async';
+import '../services/logger_service.dart';
 import 'package:flutter/services.dart';
+import '../services/logger_service.dart';
 
 /// Amber連携サービス
 /// NostrアカウントへのアクセスをAmberアプリ経由で行う
@@ -19,32 +22,32 @@ class AmberService {
   /// EventChannelのリスニングを開始
   void startListening() {
     if (_eventSubscription != null) {
-      print('⚠️ EventChannel already listening');
+      AppLogger.warning(' EventChannel already listening');
       return;
     }
     
-    print('👂 Starting EventChannel listening...');
+    AppLogger.debug('👂 Starting EventChannel listening...');
     _eventSubscription = _eventChannel.receiveBroadcastStream().listen(
       (dynamic event) {
-        print('📨 Received event from Amber: $event');
+        AppLogger.debug('📨 Received event from Amber: $event');
         if (event is Map) {
           final Map<String, dynamic> eventMap = Map<String, dynamic>.from(event);
           _amberResponseController.add(eventMap);
         }
       },
       onError: (dynamic error) {
-        print('❌ EventChannel error: $error');
+        AppLogger.error(' EventChannel error: $error');
         _amberResponseController.addError(error);
       },
       onDone: () {
-        print('✅ EventChannel closed');
+        AppLogger.info(' EventChannel closed');
       },
     );
   }
   
   /// EventChannelのリスニングを停止
   void stopListening() {
-    print('🛑 Stopping EventChannel listening...');
+    AppLogger.debug(' Stopping EventChannel listening...');
     _eventSubscription?.cancel();
     _eventSubscription = null;
   }
@@ -73,24 +76,24 @@ class AmberService {
     }
 
     try {
-      print('🔑 Requesting public key from Amber...');
+      AppLogger.debug(' Requesting public key from Amber...');
       final String? publicKey = await _channel.invokeMethod('getPublicKeyFromAmber');
       
       if (publicKey != null && publicKey.isNotEmpty) {
-        print('✅ Received public key from Amber: ${publicKey.substring(0, 10)}...');
+        AppLogger.info(' Received public key from Amber: ${publicKey.substring(0, 10)}...');
         return publicKey;
       }
       
-      print('⚠️ No public key received from Amber');
+      AppLogger.warning(' No public key received from Amber');
       return null;
     } on PlatformException catch (e) {
-      print('❌ Failed to get public key from Amber: ${e.code} - ${e.message}');
+      AppLogger.error(' Failed to get public key from Amber: ${e.code} - ${e.message}');
       if (e.code == 'AMBER_USER_REJECTED') {
         throw Exception('ユーザーがAmberでの認証をキャンセルしました');
       }
       rethrow;
     } catch (e) {
-      print('❌ Unexpected error getting public key from Amber: $e');
+      AppLogger.error(' Unexpected error getting public key from Amber: $e');
       rethrow;
     }
   }
@@ -102,27 +105,27 @@ class AmberService {
     }
 
     try {
-      print('✍️ Requesting event signature from Amber...');
+      AppLogger.debug('✍️ Requesting event signature from Amber...');
       final String? signedEvent = await _channel.invokeMethod(
         'signEventWithAmber',
         {'event': eventJson},
       );
       
       if (signedEvent != null && signedEvent.isNotEmpty) {
-        print('✅ Received signed event from Amber');
+        AppLogger.info(' Received signed event from Amber');
         return signedEvent;
       }
       
-      print('⚠️ No signed event received from Amber');
+      AppLogger.warning(' No signed event received from Amber');
       return null;
     } on PlatformException catch (e) {
-      print('❌ Failed to sign event with Amber: ${e.code} - ${e.message}');
+      AppLogger.error(' Failed to sign event with Amber: ${e.code} - ${e.message}');
       if (e.code == 'AMBER_USER_REJECTED') {
         throw Exception('ユーザーがAmberでの署名をキャンセルしました');
       }
       rethrow;
     } catch (e) {
-      print('❌ Unexpected error signing event with Amber: $e');
+      AppLogger.error(' Unexpected error signing event with Amber: $e');
       rethrow;
     }
   }
@@ -137,7 +140,7 @@ class AmberService {
       // Android Intent Plusを使ってAmberを開く
       await _channel.invokeMethod('launchAmber');
     } catch (e) {
-      print('❌ Failed to open Amber: $e');
+      AppLogger.error(' Failed to open Amber: $e');
       rethrow;
     }
   }
@@ -151,7 +154,7 @@ class AmberService {
     try {
       await _channel.invokeMethod('openAmberInStore');
     } catch (e) {
-      print('❌ Failed to open Amber in store: $e');
+      AppLogger.error(' Failed to open Amber in store: $e');
       // フォールバックとして直接URLを開く
       rethrow;
     }
@@ -167,7 +170,7 @@ class AmberService {
       throw UnsupportedError('Amber is only available on Android');
     }
 
-    print('🔐 Signing event with Amber (timeout: ${timeout.inSeconds}s)...');
+    AppLogger.debug(' Signing event with Amber (timeout: ${timeout.inSeconds}s)...');
 
     // EventChannelのリスニングを開始（まだの場合）
     startListening();
@@ -189,7 +192,7 @@ class AmberService {
     // Amberからの応答を待つ
     subscription = amberResponseStream.listen(
       (response) {
-        print('📩 Received Amber response: $response');
+        AppLogger.debug('📩 Received Amber response: $response');
 
         // エラーチェック
         if (response['error'] != null) {
@@ -253,7 +256,7 @@ class AmberService {
       throw UnsupportedError('Amber is only available on Android');
     }
 
-    print('🔐 Encrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...');
+    AppLogger.debug(' Encrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...');
 
     // EventChannelのリスニングを開始（まだの場合）
     startListening();
@@ -274,7 +277,7 @@ class AmberService {
     // Amberからの応答を待つ
     subscription = amberResponseStream.listen(
       (response) {
-        print('📩 Received Amber encryption response: $response');
+        AppLogger.debug('📩 Received Amber encryption response: $response');
 
         if (response['error'] != null) {
           if (!completer.isCompleted) {
@@ -336,7 +339,7 @@ class AmberService {
       throw UnsupportedError('Amber is only available on Android');
     }
 
-    print('🔓 Decrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...');
+    AppLogger.debug(' Decrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...');
 
     // EventChannelのリスニングを開始（まだの場合）
     startListening();
@@ -357,7 +360,7 @@ class AmberService {
     // Amberからの応答を待つ
     subscription = amberResponseStream.listen(
       (response) {
-        print('📩 Received Amber decryption response: $response');
+        AppLogger.debug('📩 Received Amber decryption response: $response');
 
         if (response['error'] != null) {
           if (!completer.isCompleted) {
@@ -424,7 +427,7 @@ class AmberService {
     }
 
     try {
-      print('✍️ Signing event via ContentProvider (background)...');
+      AppLogger.debug(' Signing event via ContentProvider (background)...');
       final String signedEvent = await _channel.invokeMethod(
         'signEventWithAmberContentProvider',
         {
@@ -433,14 +436,14 @@ class AmberService {
         },
       );
       
-      print('✅ Event signed via ContentProvider (no UI shown)');
+      AppLogger.info(' Event signed via ContentProvider (no UI shown)');
       return signedEvent;
     } on PlatformException catch (e) {
       if (e.code == 'AMBER_REJECTED') {
-        print('⚠️ Permission not granted - need to show UI for approval');
+        AppLogger.warning(' Permission not granted - need to show UI for approval');
         rethrow;
       }
-      print('❌ Failed to sign event via ContentProvider: ${e.code} - ${e.message}');
+      AppLogger.error(' Failed to sign event via ContentProvider: ${e.code} - ${e.message}');
       rethrow;
     }
   }
@@ -458,7 +461,7 @@ class AmberService {
     }
 
     try {
-      print('🔐 Encrypting via ContentProvider (background)...');
+      AppLogger.debug(' Encrypting via ContentProvider (background)...');
       final String encrypted = await _channel.invokeMethod(
         'encryptNip44WithAmberContentProvider',
         {
@@ -468,14 +471,14 @@ class AmberService {
         },
       );
       
-      print('✅ Content encrypted via ContentProvider (no UI shown)');
+      AppLogger.info(' Content encrypted via ContentProvider (no UI shown)');
       return encrypted;
     } on PlatformException catch (e) {
       if (e.code == 'AMBER_REJECTED') {
-        print('⚠️ Permission not granted - need to show UI for approval');
+        AppLogger.warning(' Permission not granted - need to show UI for approval');
         rethrow;
       }
-      print('❌ Failed to encrypt via ContentProvider: ${e.code} - ${e.message}');
+      AppLogger.error(' Failed to encrypt via ContentProvider: ${e.code} - ${e.message}');
       rethrow;
     }
   }
@@ -493,7 +496,7 @@ class AmberService {
     }
 
     try {
-      print('🔓 Decrypting via ContentProvider (background)...');
+      AppLogger.debug(' Decrypting via ContentProvider (background)...');
       final String decrypted = await _channel.invokeMethod(
         'decryptNip44WithAmberContentProvider',
         {
@@ -503,14 +506,14 @@ class AmberService {
         },
       );
       
-      print('✅ Content decrypted via ContentProvider (no UI shown)');
+      AppLogger.info(' Content decrypted via ContentProvider (no UI shown)');
       return decrypted;
     } on PlatformException catch (e) {
       if (e.code == 'AMBER_REJECTED') {
-        print('⚠️ Permission not granted - need to show UI for approval');
+        AppLogger.warning(' Permission not granted - need to show UI for approval');
         rethrow;
       }
-      print('❌ Failed to decrypt via ContentProvider: ${e.code} - ${e.message}');
+      AppLogger.error(' Failed to decrypt via ContentProvider: ${e.code} - ${e.message}');
       rethrow;
     }
   }

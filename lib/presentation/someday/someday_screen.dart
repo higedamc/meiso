@@ -5,6 +5,7 @@ import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
+import '../../services/logger_service.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/add_list_screen.dart';
 import '../list_detail/list_detail_screen.dart';
@@ -232,33 +233,33 @@ class SomedayScreen extends ConsumerWidget {
     
     // デバッグ: 日付nullのTodoを確認
     if (todos.containsKey(null)) {
-      print('🔍 [SomedayScreen] date=null group has ${todos[null]!.length} todos');
+      AppLogger.debug('🔍 [SomedayScreen] date=null group has ${todos[null]!.length} todos');
       for (final todo in todos[null]!) {
-        print('   - "${todo.title}" (customListId: ${todo.customListId}, completed: ${todo.completed})');
+        AppLogger.debug('   - "${todo.title}" (customListId: ${todo.customListId}, completed: ${todo.completed})');
       }
     } else {
-      print('⚠️ [SomedayScreen] No date=null group found in todos map!');
+      AppLogger.debug('⚠️ [SomedayScreen] No date=null group found in todos map!');
     }
     
     for (final entry in todos.entries) {
-      print('🔍 [SomedayScreen] Date key: ${entry.key}, ${entry.value.length} todos');
+      AppLogger.debug('🔍 [SomedayScreen] Date key: ${entry.key}, ${entry.value.length} todos');
       for (final todo in entry.value) {
         totalTodosInMap++;
         if (todo.customListId != null) {
           todosWithCustomListId++;
-          print('   - "${todo.title}" → customListId: ${todo.customListId}');
+          AppLogger.debug('   - "${todo.title}" → customListId: ${todo.customListId}');
         }
         if (todo.customListId == listId && !todo.completed) {
           count++;
-          print('   ✅ Matched for list $listId: "${todo.title}"');
+          AppLogger.debug('   ✅ Matched for list $listId: "${todo.title}"');
         }
       }
     }
     
-    print('📊 [SomedayScreen] _getListTodoCount for list $listId:');
-    print('   - Total todos in map: $totalTodosInMap');
-    print('   - Todos with customListId: $todosWithCustomListId');
-    print('   - Matched todos: $count');
+    AppLogger.debug('📊 [SomedayScreen] _getListTodoCount for list $listId:');
+    AppLogger.debug('   - Total todos in map: $totalTodosInMap');
+    AppLogger.debug('   - Todos with customListId: $todosWithCustomListId');
+    AppLogger.debug('   - Matched todos: $count');
     
     return count;
   }

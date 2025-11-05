@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app_theme.dart';
 import '../../services/local_storage_service.dart';
+import '../../services/logger_service.dart';
 import '../../services/amber_service.dart';
 import '../../providers/nostr_provider.dart';
+import '../../providers/todos_provider.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
 
 /// ログインスクリーン
@@ -259,8 +261,8 @@ class _LoginScreenState extends State<LoginScreen> {
       // フラグを事前に設定しておく必要がある
       await localStorageService.setOnboardingCompleted();
       await localStorageService.setUseAmber(true);
-      print('✅ Onboarding completed flag set (before Amber)');
-      print('✅ Amber usage flag set');
+      AppLogger.info('Onboarding completed flag set (before Amber)', tag: 'AMBER');
+      AppLogger.info('Amber usage flag set', tag: 'AMBER');
 
       // ローディング表示
       if (!context.mounted) return;
@@ -277,45 +279,24 @@ class _LoginScreenState extends State<LoginScreen> {
         final publicKeyRaw = await _amberService.getPublicKey();
         
         if (publicKeyRaw != null && publicKeyRaw.isNotEmpty) {
-          print('✅ Public key received: ${publicKeyRaw.substring(0, 10)}...');
+          AppLogger.info('Public key received: ${publicKeyRaw.substring(0, 10)}...', tag: 'AMBER');
           
           try {
             // Amberはnpub形式で公開鍵を返すため、hex形式に変換
             final nostrService = ref.read(nostrServiceProvider);
             final publicKeyHex = await nostrService.npubToHex(publicKeyRaw);
-            print('✅ Public key converted to hex: ${publicKeyHex.substring(0, 16)}...');
+            AppLogger.info('Public key converted to hex: ${publicKeyHex.substring(0, 16)}...', tag: 'AMBER');
             
             // Rust APIで公開鍵を保存（Amberモード、hex形式）
             await nostrService.savePublicKey(publicKeyHex);
-            print('✅ Public key saved to Rust storage');
+            AppLogger.info('Public key saved to Rust storage', tag: 'AMBER');
             
             // Nostrクライアントを公開鍵のみで初期化（Amberモード）
-            // デフォルトリレーに自動接続
+            // リレー接続は非同期でバックグラウンド実行
             await nostrService.initializeNostrWithPubkey(
               publicKeyHex: publicKeyHex,
             );
-            print('✅ Nostr client initialized with public key');
-            
-            // リレー接続完了を待機（最大3秒、500msごとに確認）
-            print('⏳ Waiting for relay connection...');
-            int retryCount = 0;
-            const maxRetries = 6; // 3秒 (500ms × 6)
-            while (retryCount < maxRetries) {
-              await Future.delayed(const Duration(milliseconds: 500));
-              retryCount++;
-              
-              // Rust側で接続完了しているはず（タイムアウト5秒設定済み）
-              if (retryCount >= 3) {
-                print('✅ Relay connection check passed (${retryCount * 500}ms)');
-                break;
-              }
-            }
-            
-            if (retryCount >= maxRetries) {
-              print('⚠️ Relay connection check timeout - continuing offline');
-            }
-            
-            print('✅ Connected to default relays (or offline mode)');
+            AppLogger.info('Nostr client initialized with public key (relay connection in background)', tag: 'NOSTR');
             
             // Nostrプロバイダーを更新
             ref.read(publicKeyProvider.notifier).state = publicKeyHex; // hex形式
@@ -327,23 +308,26 @@ class _LoginScreenState extends State<LoginScreen> {
             try {
               Navigator.of(context).pop();
             } catch (e) {
-              print('⚠️ Could not pop loading dialog: $e');
+              AppLogger.warning('Could not pop loading dialog', error: e, tag: 'UI');
             }
             
-            // 次のフレームで画面遷移（GoRouter を使用）
-            SchedulerBinding.instance.addPostFrameCallback((_) {
-              if (!context.mounted) return;
-              
-              print('🚀 Navigating to home screen via GoRouter...');
-              
-              // GoRouter で画面遷移（redirect が自動的に処理）
-              context.go('/');
-              
-              print('✅ GoRouter navigation triggered');
+            // ホーム画面に遷移（すぐに遷移）
+            AppLogger.debug('Navigating to home screen via GoRouter...', tag: 'ROUTER');
+            context.go('/');
+            AppLogger.debug('GoRouter navigation triggered', tag: 'ROUTER');
+            
+            // バックグラウンドでNostrからデータを同期（カスタムリストとTodoを取得）
+            AppLogger.info('Starting background sync...', tag: 'SYNC');
+            Future.microtask(() async {
+              try {
+                await ref.read(todosProvider.notifier).syncFromNostr();
+                AppLogger.info('Background sync completed', tag: 'SYNC');
+              } catch (e) {
+                AppLogger.warning('Background sync error (continuing with local data)', error: e, tag: 'SYNC');
+              }
             });
           } catch (e, stackTrace) {
-            print('❌ Error during Amber login: $e');
-            print('Stack trace: $stackTrace');
+            AppLogger.error('Error during Amber login', error: e, stackTrace: stackTrace, tag: 'AMBER');
             
             if (!context.mounted) return;
             
@@ -354,7 +338,7 @@ class _LoginScreenState extends State<LoginScreen> {
               try {
                 Navigator.of(context, rootNavigator: true).pop();
               } catch (e) {
-                print('⚠️ Could not pop loading dialog: $e');
+                AppLogger.warning('Could not pop loading dialog', error: e, tag: 'UI');
               }
               
               showDialog(
@@ -373,7 +357,7 @@ class _LoginScreenState extends State<LoginScreen> {
             });
           }
         } else {
-          print('⚠️ No public key received from Amber');
+          AppLogger.warning('No public key received from Amber', tag: 'AMBER');
           
           if (!context.mounted) return;
           
@@ -384,7 +368,7 @@ class _LoginScreenState extends State<LoginScreen> {
             try {
               Navigator.of(context, rootNavigator: true).pop();
             } catch (e) {
-              print('⚠️ Could not pop loading dialog: $e');
+              AppLogger.warning('Could not pop loading dialog', error: e, tag: 'UI');
             }
             
             showDialog(
@@ -403,7 +387,7 @@ class _LoginScreenState extends State<LoginScreen> {
           });
         }
       } catch (e) {
-        print('❌ Failed to get public key from Amber: $e');
+        AppLogger.error('Failed to get public key from Amber', error: e, tag: 'AMBER');
         
         if (!context.mounted) return;
         
@@ -414,7 +398,7 @@ class _LoginScreenState extends State<LoginScreen> {
           try {
             Navigator.of(context, rootNavigator: true).pop();
           } catch (e) {
-            print('⚠️ Could not pop loading dialog: $e');
+            AppLogger.warning('Could not pop loading dialog', error: e, tag: 'UI');
           }
           
           showDialog(
@@ -546,50 +530,29 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       // Rust側で秘密鍵を生成
-      print('🔑 Generating new keypair...');
+      AppLogger.info('Generating new keypair...', tag: 'KEYPAIR');
       final keypair = await rust_api.generateKeypair();
 
-      print('✅ Keypair generated:');
-      print('  Private (nsec): ${keypair.privateKeyNsec.substring(0, 20)}...');
-      print('  Public (npub): ${keypair.publicKeyNpub}');
+      AppLogger.info('Keypair generated:', tag: 'KEYPAIR');
+      AppLogger.debug('  Private (nsec): ${keypair.privateKeyNsec.substring(0, 20)}...', tag: 'KEYPAIR');
+      AppLogger.debug('  Public (npub): ${keypair.publicKeyNpub}', tag: 'KEYPAIR');
 
       // Rust APIで秘密鍵を暗号化して保存
       final nostrService = ref.read(nostrServiceProvider);
       await nostrService.saveSecretKey(keypair.privateKeyNsec, password);
-      print('✅ Secret key encrypted and saved');
+      AppLogger.info('Secret key encrypted and saved', tag: 'KEYPAIR');
       
       // オンボーディング完了フラグを設定（Nostr初期化前）
       await localStorageService.setOnboardingCompleted();
       await localStorageService.setUseAmber(false); // 秘密鍵モードを明示
-      print('✅ Onboarding completed flag set (before Nostr init)');
+      AppLogger.info('Onboarding completed flag set (before Nostr init)', tag: 'KEYPAIR');
       
-      // Nostrクライアントを初期化
+      // Nostrクライアントを初期化（リレー接続は非同期でバックグラウンド実行）
       final publicKeyHex = await nostrService.initializeNostr(
         secretKey: keypair.privateKeyNsec,
       );
-      print('✅ Nostr client initialized with secret key');
-      print('✅ Public key (hex): ${publicKeyHex.substring(0, 16)}...');
-      
-      // リレー接続完了を待機（最大3秒、500msごとに確認）
-      print('⏳ Waiting for relay connection...');
-      int retryCount = 0;
-      const maxRetries = 6; // 3秒 (500ms × 6)
-      while (retryCount < maxRetries) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        retryCount++;
-        
-        // Rust側で接続完了しているはず（タイムアウト5秒設定済み）
-        if (retryCount >= 3) {
-          print('✅ Relay connection check passed (${retryCount * 500}ms)');
-          break;
-        }
-      }
-      
-      if (retryCount >= maxRetries) {
-        print('⚠️ Relay connection check timeout - continuing offline');
-      }
-      
-      print('✅ Connected to default relays (or offline mode)');
+      AppLogger.info('Nostr client initialized with secret key (relay connection in background)', tag: 'NOSTR');
+      AppLogger.debug('Public key (hex): ${publicKeyHex.substring(0, 16)}...', tag: 'NOSTR');
 
       // Nostrプロバイダーを更新（hex形式の公開鍵も設定）
       ref.read(publicKeyProvider.notifier).state = publicKeyHex;
@@ -598,6 +561,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!context.mounted) return;
       Navigator.of(context).pop(); // ローディング閉じる
+
+      // バックグラウンドでNostrからデータを同期（新規アカウントなので空だが、将来的なデータがあれば取得）
+      AppLogger.info('Starting background sync...', tag: 'SYNC');
+      Future.microtask(() async {
+        try {
+          await ref.read(todosProvider.notifier).syncFromNostr();
+          AppLogger.info('Background sync completed', tag: 'SYNC');
+        } catch (e) {
+          AppLogger.warning('Background sync error (new account, no data expected)', error: e, tag: 'SYNC');
+        }
+      });
 
       // 秘密鍵を表示するダイアログ
       await showDialog(
@@ -699,12 +673,12 @@ class _LoginScreenState extends State<LoginScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                print('🚀 Navigating to home screen after key backup...');
+                AppLogger.debug('Navigating to home screen after key backup...', tag: 'ROUTER');
                 
                 // GoRouter で画面遷移
                 context.go('/');
                 
-                print('✅ GoRouter navigation triggered');
+                AppLogger.debug('GoRouter navigation triggered', tag: 'ROUTER');
               },
               child: const Text(
                 'バックアップしました',
@@ -715,8 +689,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } catch (e, stackTrace) {
-      print('❌ Failed to generate keypair: $e');
-      print('Stack trace: $stackTrace');
+      AppLogger.error('Failed to generate keypair', error: e, stackTrace: stackTrace, tag: 'KEYPAIR');
 
       if (!context.mounted) return;
       Navigator.of(context).pop(); // ローディング閉じる

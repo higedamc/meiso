@@ -63,3 +63,4 @@ Amber/
 .tmp_backup/
 pubspec.lock
 rust/src/frb_generated.rs
+pubspec.lock

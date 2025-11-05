@@ -8,6 +8,7 @@ import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
 import '../models/custom_list.dart';
 import '../services/local_storage_service.dart';
+import '../services/logger_service.dart';
 import '../services/amber_service.dart';
 import '../services/link_preview_service.dart';
 import '../services/recurrence_parser.dart';
@@ -50,7 +51,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       if (localTodos.isEmpty) {
         // 初回起動時は空のリストから始める
         // （リレーサーバーからデータを同期する）
-        print('🆕 初回起動: 空のリストで開始');
+        AppLogger.debug(' 初回起動: 空のリストで開始');
         state = AsyncValue.data({});
       } else {
         // ローカルデータをグループ化して状態に設定
@@ -65,7 +66,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
         }
         
-        print('📦 ローカルから${localTodos.length}件のタスクを読み込み');
+        AppLogger.debug(' ローカルから${localTodos.length}件のタスクを読み込み');
         state = AsyncValue.data(grouped);
       }
       
@@ -76,9 +77,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       _startBatchSyncTimer();
       
     } catch (e) {
-      print('⚠️ Todo初期化エラー: $e');
+      AppLogger.warning(' Todo初期化エラー: $e');
       // エラー時は空のマップで初期化
-      print('⚠️ エラー発生のため空のリストで開始');
+      AppLogger.warning(' エラー発生のため空のリストで開始');
       state = AsyncValue.data({});
     }
   }
@@ -91,26 +92,26 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // Nostr初期化を最大10秒待つ
     int attempts = 0;
     while (!_ref.read(nostrInitializedProvider) && attempts < 10) {
-      print('⏳ Waiting for Nostr initialization... (attempt ${attempts + 1}/10)');
+      AppLogger.debug(' Waiting for Nostr initialization... (attempt ${attempts + 1}/10)');
       await Future.delayed(const Duration(seconds: 1));
       attempts++;
     }
     
     if (!_ref.read(nostrInitializedProvider)) {
-      print('⚠️ Nostr not initialized after 10 seconds - skipping background sync');
+      AppLogger.warning(' Nostr not initialized after 10 seconds - skipping background sync');
       return;
     }
     
-    print('✅ Nostr initialized, proceeding with background sync');
+    AppLogger.info(' Nostr initialized, proceeding with background sync');
 
     try {
-      print('🔄 Starting background Nostr sync...');
+      AppLogger.info(' Starting background Nostr sync...');
       
       // タイムアウト付きで実行（60秒）
       await Future.delayed(Duration.zero).timeout(
         const Duration(seconds: 60),
         onTimeout: () async {
-          print('⏱️ Background sync timeout - continuing with local data');
+          AppLogger.debug(' Background sync timeout - continuing with local data');
           _ref.read(syncStatusProvider.notifier).syncError(
             'バックグラウンド同期がタイムアウトしました',
             shouldRetry: false,
@@ -120,59 +121,59 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       ).then((_) async {
         // マイグレーション完了チェック（一度だけ実行）
         final migrationCompleted = await localStorageService.isMigrationCompleted();
-        print('📋 Migration status check: completed=$migrationCompleted');
+        AppLogger.debug(' Migration status check: completed=$migrationCompleted');
         
         if (!migrationCompleted) {
-          print('🔍 Checking data status...');
+          AppLogger.debug(' Checking data status...');
           
           // まずKind 30001（新形式）をチェック
           _ref.read(syncStatusProvider.notifier).updateMessage('データ読み込み中...');
-          print('🔍 Step 1: Checking Kind 30001 existence...');
+          AppLogger.debug(' Step 1: Checking Kind 30001 existence...');
           final hasNewData = await checkKind30001Exists();
-          print('🔍 Step 1 result: hasNewData=$hasNewData');
+          AppLogger.debug(' Step 1 result: hasNewData=$hasNewData');
           
           if (hasNewData) {
             // Kind 30001にデータがある = マイグレーション済み
-            print('✅ Found Kind 30001 data. Migration already completed on another device.');
-            print('📥 Loading data from Kind 30001...');
-            print('⏭️  SKIPPING migration - Kind 30001 found!');
+            AppLogger.info(' Found Kind 30001 data. Migration already completed on another device.');
+            AppLogger.debug(' Loading data from Kind 30001...');
+            AppLogger.debug('  SKIPPING migration - Kind 30001 found!');
             
             // Kind 30001から同期（この後のsyncFromNostr()で実行される）
             await localStorageService.setMigrationCompleted();
-            print('✅ Migration flag set to completed');
+            AppLogger.info(' Migration flag set to completed');
           } else {
             // Kind 30001がない → Kind 30078をチェック
-            print('🔍 No Kind 30001 found. Checking for old Kind 30078 events...');
-            print('🔍 Step 2: Checking Kind 30078 existence...');
+            AppLogger.debug(' No Kind 30001 found. Checking for old Kind 30078 events...');
+            AppLogger.debug(' Step 2: Checking Kind 30078 existence...');
             final needsMigration = await checkMigrationNeeded();
-            print('🔍 Step 2 result: needsMigration=$needsMigration');
+            AppLogger.debug(' Step 2 result: needsMigration=$needsMigration');
             
             if (needsMigration) {
-              print('📦 Found old Kind 30078 TODO events. Starting migration...');
-              print('⚠️  MIGRATION WILL START - THIS WILL TRIGGER AMBER DECRYPTION');
+              AppLogger.debug(' Found old Kind 30078 TODO events. Starting migration...');
+              AppLogger.warning('  MIGRATION WILL START - THIS WILL TRIGGER AMBER DECRYPTION');
               _ref.read(syncStatusProvider.notifier).updateMessage('データ移行中...');
               
               // マイグレーション実行（Kind 30078 → Kind 30001）
               await migrateFromKind30078ToKind30001();
-              print('✅ Migration completed successfully');
+              AppLogger.info(' Migration completed successfully');
             } else {
-              print('✅ No old events found. Marking migration as completed.');
+              AppLogger.info(' No old events found. Marking migration as completed.');
               // 旧イベントがない場合はマイグレーション完了として記録
               await localStorageService.setMigrationCompleted();
-              print('✅ Migration flag set to completed (no data)');
+              AppLogger.info(' Migration flag set to completed (no data)');
             }
           }
         } else {
-          print('✅ Migration already completed (cached)');
+          AppLogger.info(' Migration already completed (cached)');
         }
         
         _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
         await syncFromNostr();
-        print('✅ Background sync completed');
+        AppLogger.info(' Background sync completed');
       });
     } catch (e, stackTrace) {
-      print('⚠️ バックグラウンド同期失敗: $e');
-      print('スタックトレース: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      AppLogger.warning(' バックグラウンド同期失敗: $e');
+      AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
       
       // エラー状態を更新（ローカルデータは保持）
       _ref.read(syncStatusProvider.notifier).syncError(
@@ -198,10 +199,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   Future<void> addTodo(String title, DateTime? date, {String? customListId}) async {
     if (title.trim().isEmpty) return;
 
-    print('🆕 addTodo called: "$title" for date: $date, customListId: $customListId');
-    print('📍 Stack trace location: addTodo');
+    AppLogger.debug(' addTodo called: "$title" for date: $date, customListId: $customListId');
+    AppLogger.debug('📍 Stack trace location: addTodo');
     if (customListId != null) {
-      print('🎯 IMPORTANT: This todo is being added to custom list: $customListId');
+      AppLogger.debug(' IMPORTANT: This todo is being added to custom list: $customListId');
     }
 
     await state.whenData((todos) async {
@@ -213,13 +214,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final autoRecurrence = parseResult.pattern;
       
       if (autoRecurrence != null) {
-        print('🔄 自動検出: ${autoRecurrence.description}');
-        print('📝 クリーンタイトル: "$cleanTitle"');
+        AppLogger.info(' 自動検出: ${autoRecurrence.description}');
+        AppLogger.debug(' クリーンタイトル: "$cleanTitle"');
       }
       
       // URLを検出してメタデータを取得（バックグラウンド）
       final detectedUrl = LinkPreviewService.extractUrl(cleanTitle);
-      print('🔗 URL detected: $detectedUrl');
+      AppLogger.debug(' URL detected: $detectedUrl');
       
       // URLが検出された場合、即座にタイトルから削除
       String finalTitle = cleanTitle;
@@ -249,7 +250,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           imageUrl: null,
         );
         
-        print('📝 Title after URL removal: "$finalTitle" (domain: $domainName)');
+        AppLogger.debug(' Title after URL removal: "$finalTitle" (domain: $domainName)');
       }
       
       final newTodo = Todo(
@@ -266,12 +267,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         needsSync: true, // 同期が必要
       );
       
-      print('📦 Created new Todo object:');
-      print('   - id: ${newTodo.id}');
-      print('   - title: ${newTodo.title}');
-      print('   - date: ${newTodo.date}');
-      print('   - customListId: ${newTodo.customListId}');
-      print('   - order: ${newTodo.order}');
+      AppLogger.debug(' Created new Todo object:');
+      AppLogger.debug('   - id: ${newTodo.id}');
+      AppLogger.debug('   - title: ${newTodo.title}');
+      AppLogger.debug('   - date: ${newTodo.date}');
+      AppLogger.debug('   - customListId: ${newTodo.customListId}');
+      AppLogger.debug('   - order: ${newTodo.order}');
 
       final list = List<Todo>.from(todos[date] ?? []);
       list.add(newTodo);
@@ -290,9 +291,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
 
       // ローカルストレージに保存（awaitする - これは速い）
-      print('💾 Saving to local storage...');
+      AppLogger.debug(' Saving to local storage...');
       await _saveAllTodosToLocal();
-      print('✅ Local save complete');
+      AppLogger.info(' Local save complete');
 
       // URLメタデータ取得（非同期・バックグラウンド）
       if (detectedUrl != null) {
@@ -300,7 +301,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
 
       // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
-      print('🚀 Starting background Nostr sync (non-blocking)...');
+      AppLogger.debug(' Starting background Nostr sync (non-blocking)...');
       _updateUnsyncedCount(); // 未同期カウントを更新
       _syncToNostrBackground();
     }).value;
@@ -313,11 +314,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     String url,
   ) async {
     try {
-      print('🔗 Fetching link preview for: $url');
+      AppLogger.debug(' Fetching link preview for: $url');
       final linkPreview = await LinkPreviewService.fetchLinkPreview(url);
       
       if (linkPreview != null) {
-        print('✅ Link preview fetched, updating todo...');
+        AppLogger.info(' Link preview fetched, updating todo...');
         
         // Todoを更新（リンクプレビューのみ更新、タイトルは既に処理済み）
         state.whenData((todos) async {
@@ -327,7 +328,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           if (index != -1) {
             final currentTodo = list[index];
             
-            print('📝 Updating link preview for: "${currentTodo.title}"');
+            AppLogger.debug(' Updating link preview for: "${currentTodo.title}"');
             
             list[index] = currentTodo.copyWith(
               linkPreview: linkPreview,
@@ -350,7 +351,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         });
       } else {
         // リンクプレビューの取得に失敗した場合、一時的なプレビューを削除
-        print('⚠️ Failed to fetch link preview metadata, removing placeholder...');
+        AppLogger.warning(' Failed to fetch link preview metadata, removing placeholder...');
         state.whenData((todos) async {
           final list = List<Todo>.from(todos[date] ?? []);
           final index = list.indexWhere((t) => t.id == todoId);
@@ -374,7 +375,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         });
       }
     } catch (e) {
-      print('⚠️ Failed to fetch link preview: $e');
+      AppLogger.warning(' Failed to fetch link preview: $e');
       // エラーの場合も一時的なプレビューを削除
       state.whenData((todos) async {
         final list = List<Todo>.from(todos[date] ?? []);
@@ -519,7 +520,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       if (index != -1) {
         // URLを検出してメタデータを取得（バックグラウンド）
         final detectedUrl = LinkPreviewService.extractUrl(newTitle.trim());
-        print('🔗 URL detected in update: $detectedUrl');
+        AppLogger.debug(' URL detected in update: $detectedUrl');
         
         // URLが検出された場合、即座にタイトルから削除
         String finalTitle = newTitle.trim();
@@ -549,7 +550,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             imageUrl: null,
           );
           
-          print('📝 Title after URL removal (update): "$finalTitle" (domain: $domainName)');
+          AppLogger.debug(' Title after URL removal (update): "$finalTitle" (domain: $domainName)');
         }
         
         final updatedTodo = list[index].copyWith(
@@ -668,7 +669,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     
     if (nextDate == null) {
       // 繰り返し終了
-      print('🔄 リカーリングタスク終了: ${originalTodo.title}');
+      AppLogger.info(' リカーリングタスク終了: ${originalTodo.title}');
       return;
     }
 
@@ -680,7 +681,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     );
 
     if (alreadyExists) {
-      print('ℹ️ 次回のリカーリングタスクは既に存在します');
+      AppLogger.debug(' 次回のリカーリングタスクは既に存在します');
       return;
     }
 
@@ -705,7 +706,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     todos[nextDate] = list;
 
-    print('🔄 次回のリカーリングタスクを生成: ${newTodo.title} (${nextDate})');
+    AppLogger.info(' 次回のリカーリングタスクを生成: ${newTodo.title} (${nextDate})');
 
     // 状態を更新（この時点でUIに反映）
     state = AsyncValue.data(Map.from(todos));
@@ -728,13 +729,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       return;
     }
 
-    print('📅 将来のインスタンスを生成開始: ${originalTodo.title}');
-    print('📅 元のタスクの日付: ${originalTodo.date}');
+    AppLogger.debug(' 将来のインスタンスを生成開始: ${originalTodo.title}');
+    AppLogger.debug(' 元のタスクの日付: ${originalTodo.date}');
     
     // 元のタスクが含まれているか確認
     final originalDateTasks = todos[originalTodo.date] ?? [];
     final originalTaskExists = originalDateTasks.any((t) => t.id == originalTodo.id);
-    print('📅 元のタスクが存在: $originalTaskExists (${originalDateTasks.length}件のタスク)');
+    AppLogger.debug(' 元のタスクが存在: $originalTaskExists (${originalDateTasks.length}件のタスク)');
 
     DateTime? currentDate = originalTodo.date;
     int generatedCount = 0;
@@ -748,20 +749,20 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // 削除後に元のタスクがまだ存在するか確認
     final afterRemoveTasks = todos[originalTodo.date] ?? [];
     final originalTaskStillExists = afterRemoveTasks.any((t) => t.id == originalTodo.id);
-    print('📅 削除後の元のタスク存在: $originalTaskStillExists (${afterRemoveTasks.length}件のタスク)');
+    AppLogger.debug(' 削除後の元のタスク存在: $originalTaskStillExists (${afterRemoveTasks.length}件のタスク)');
 
     // 7日以内の将来のインスタンスを生成
     while (generatedCount < maxInstances) {
       final nextDate = originalTodo.recurrence!.calculateNextDate(currentDate!);
       
       if (nextDate == null) {
-        print('🔄 繰り返し終了');
+        AppLogger.info(' 繰り返し終了');
         break; // 繰り返し終了
       }
 
       // 7日以内の日付のみ生成
       if (nextDate.isAfter(sevenDaysLater)) {
-        print('📅 7日以内の範囲を超えたため終了');
+        AppLogger.debug(' 7日以内の範囲を超えたため終了');
         break;
       }
 
@@ -793,18 +794,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         todos[nextDate] = list;
 
         generatedCount++;
-        print('✅ インスタンス生成: ${nextDate.month}/${nextDate.day}');
+        AppLogger.info(' インスタンス生成: ${nextDate.month}/${nextDate.day}');
       }
 
       currentDate = nextDate;
     }
 
-    print('📅 合計${generatedCount}個のインスタンスを生成しました');
+    AppLogger.debug(' 合計${generatedCount}個のインスタンスを生成しました');
     
     // 最終的に元のタスクが含まれているか確認
     final finalTasks = todos[originalTodo.date] ?? [];
     final finalTaskExists = finalTasks.any((t) => t.id == originalTodo.id);
-    print('📅 最終的な元のタスク存在: $finalTaskExists (${finalTasks.length}件のタスク)');
+    AppLogger.debug(' 最終的な元のタスク存在: $finalTaskExists (${finalTasks.length}件のタスク)');
 
     // 状態を更新
     state = AsyncValue.data(Map.from(todos));
@@ -815,7 +816,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     String parentId,
     Map<DateTime?, List<Todo>> todos,
   ) async {
-    print('🗑️ 子インスタンスを削除: $parentId');
+    AppLogger.debug(' 子インスタンスを削除: $parentId');
     
     int removedCount = 0;
     for (final date in todos.keys) {
@@ -830,7 +831,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
     }
 
-    print('🗑️ ${removedCount}個の子インスタンスを削除しました');
+    AppLogger.debug(' ${removedCount}個の子インスタンスを削除しました');
 
     if (removedCount > 0) {
       state = AsyncValue.data(Map.from(todos));
@@ -874,7 +875,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: list,
       });
 
-      print('🗑️ リカーリングタスクのインスタンスを削除: ${todo.title} (${date})');
+      AppLogger.debug(' リカーリングタスクのインスタンスを削除: ${todo.title} (${date})');
 
       // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
@@ -895,7 +896,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // 親タスクのIDを特定
       final parentId = todo.parentRecurringId ?? todo.id;
       
-      print('🗑️ すべてのリカーリングインスタンスを削除: parentId=$parentId');
+      AppLogger.debug(' すべてのリカーリングインスタンスを削除: parentId=$parentId');
       
       // すべての日付から関連するタスクを削除
       int deletedCount = 0;
@@ -917,7 +918,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
 
-      print('🗑️ 合計${deletedCount}個のリカーリングインスタンスを削除しました');
+      AppLogger.debug(' 合計${deletedCount}個のリカーリングインスタンスを削除しました');
 
       state = AsyncValue.data(updatedTodos);
 
@@ -1013,28 +1014,28 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   /// バックグラウンドでNostr同期（awaitしない、UIをブロックしない）
   void _syncToNostrBackground() {
-    print('🚀 _syncToNostrBackground called (non-blocking)');
+    AppLogger.debug(' _syncToNostrBackground called (non-blocking)');
     
     final isInitialized = _ref.read(nostrInitializedProvider);
     if (!isInitialized) {
-      print('⚠️ Nostr未初期化のため、バックグラウンド同期をスキップ');
+      AppLogger.warning(' Nostr未初期化のため、バックグラウンド同期をスキップ');
       return;
     }
 
     // awaitせずに実行（Fire and forget）
     Future.microtask(() async {
       try {
-        print('🔄 Starting background sync to Nostr...');
+        AppLogger.info(' Starting background sync to Nostr...');
         await _syncAllTodosToNostr();
         
         // 同期成功後、needsSyncフラグをクリア
         await _clearNeedsSyncFlags();
         
-        print('✅ Background sync completed successfully');
+        AppLogger.info(' Background sync completed successfully');
         _ref.read(syncStatusProvider.notifier).syncSuccess();
       } catch (e, stackTrace) {
-        print('❌ Background sync failed: $e');
-        print('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+        AppLogger.error(' Background sync failed: $e');
+        AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
         // エラーは記録するが、UIには影響しない
         _ref.read(syncStatusProvider.notifier).syncError(
           'バックグラウンド同期エラー: ${e.toString()}',
@@ -1091,7 +1092,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           date: list,
         });
         
-        print('✅ Updated eventId for todo "${list[index].title}": $eventId');
+        AppLogger.info(' Updated eventId for todo "${list[index].title}": $eventId');
       }
     }).value;
     
@@ -1142,14 +1143,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         state = AsyncValue.data(updatedTodos);
         await _saveAllTodosToLocal();
         _updateUnsyncedCount(); // 未同期カウントを更新
-        print('✅ Cleared needsSync flags for all todos');
+        AppLogger.info(' Cleared needsSync flags for all todos');
       }
     });
   }
 
   /// 自動バッチ同期タイマーを開始（30秒ごと）
   void _startBatchSyncTimer() {
-    print('⏱️ Starting batch sync timer (every 30 seconds)');
+    AppLogger.debug(' Starting batch sync timer (every 30 seconds)');
     
     // 既存のタイマーをキャンセル
     _batchSyncTimer?.cancel();
@@ -1165,12 +1166,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final unsyncedTodos = _getUnsyncedTodos();
     
     if (unsyncedTodos.isEmpty) {
-      print('✅ No unsynced todos - skipping batch sync');
+      AppLogger.info(' No unsynced todos - skipping batch sync');
       return;
     }
 
-    print('🔄 Batch sync: ${unsyncedTodos.length} unsynced todos found');
-    print('📤 Syncing to Nostr...');
+    AppLogger.info(' Batch sync: ${unsyncedTodos.length} unsynced todos found');
+    AppLogger.debug(' Syncing to Nostr...');
     
     // バックグラウンドで同期
     _syncToNostrBackground();
@@ -1179,7 +1180,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// Notifierがdisposeされたときにタイマーをキャンセル
   @override
   void dispose() {
-    print('🛑 Disposing TodosNotifier, cancelling batch sync timer');
+    AppLogger.debug(' Disposing TodosNotifier, cancelling batch sync timer');
     _batchSyncTimer?.cancel();
     super.dispose();
   }
@@ -1187,13 +1188,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 全TODOリストをNostrに同期（新実装 - Kind 30001）
   /// すべてのTodo操作後に呼び出される
   Future<void> _syncAllTodosToNostr() async {
-    print('🔄 _syncAllTodosToNostr called');
+    AppLogger.info(' _syncAllTodosToNostr called');
     
     final isInitialized = _ref.read(nostrInitializedProvider);
-    print('🔍 Nostr initialized in _syncAllTodosToNostr: $isInitialized');
+    AppLogger.debug(' Nostr initialized in _syncAllTodosToNostr: $isInitialized');
     
     if (!isInitialized) {
-      print('⚠️ Nostr未初期化のため同期をスキップ');
+      AppLogger.warning(' Nostr未初期化のため同期をスキップ');
       return;
     }
 
@@ -1201,12 +1202,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // そのため、loading/error状態の場合は同期をスキップ
     final stateValue = state;
     if (!stateValue.hasValue) {
-      print('⚠️ State is not ready (loading or error), skipping sync');
+      AppLogger.warning(' State is not ready (loading or error), skipping sync');
       throw Exception('State is not ready for sync');
     }
 
     await state.whenData((todos) async {  // ← awaitを追加！
-      print('🎯 _syncAllTodosToNostr: state.whenData callback STARTED');
+      AppLogger.debug(' _syncAllTodosToNostr: state.whenData callback STARTED');
       
       // 全TODOをフラット化
       final allTodos = <Todo>[];
@@ -1214,26 +1215,26 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         allTodos.addAll(dateGroup);
       }
 
-      print('📦 Total todos to sync: ${allTodos.length}');
+      AppLogger.debug(' Total todos to sync: ${allTodos.length}');
       
       // カスタムリストに属するTodoをログ出力
       final customListTodos = allTodos.where((t) => t.customListId != null).toList();
       if (customListTodos.isNotEmpty) {
-        print('🎯 Found ${customListTodos.length} todos with customListId:');
+        AppLogger.debug(' Found ${customListTodos.length} todos with customListId:');
         for (final todo in customListTodos) {
-          print('   - "${todo.title}" → customListId: ${todo.customListId}');
+          AppLogger.debug('   - "${todo.title}" → customListId: ${todo.customListId}');
         }
       }
 
       final isAmberMode = _ref.read(isAmberModeProvider);
       final nostrService = _ref.read(nostrServiceProvider);
       
-      print('🔐 Amber mode: $isAmberMode');
+      AppLogger.debug('🔐 Amber mode: $isAmberMode');
 
       try {
         if (isAmberMode) {
           // Amberモード: リストごとに分割 → JSON → Amber暗号化 → 未署名イベント → Amber署名 → リレー送信
-          print('🔐 Amberモードでリストごとに同期します（バックグラウンド処理）');
+          AppLogger.debug('🔐 Amberモードでリストごとに同期します（バックグラウンド処理）');
           
           // カスタムリスト情報を取得（UUIDから名前ベースIDへの変換用）
           final customListsAsync = _ref.read(customListsProvider);
@@ -1263,10 +1264,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             groupedTodos[listKey]!.add(todo);
           }
           
-          print('📦 Grouped todos into ${groupedTodos.length} lists');
+          AppLogger.debug(' Grouped todos into ${groupedTodos.length} lists');
           for (final entry in groupedTodos.entries) {
             final todoTitles = entry.value.map((t) => t.title).take(3).join(', ');
-            print('  - List "${entry.key}": ${entry.value.length} todos (${todoTitles}${entry.value.length > 3 ? '...' : ''})');
+            AppLogger.debug('  - List "${entry.key}": ${entry.value.length} todos (${todoTitles}${entry.value.length > 3 ? '...' : ''})');
           }
           
           // 2. 公開鍵取得
@@ -1275,27 +1276,27 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // 公開鍵がnullの場合、Rust側から復元を試みる
           if (publicKey == null) {
-            print('⚠️ Public key (hex) is null, attempting to restore from storage...');
+            AppLogger.warning(' Public key (hex) is null, attempting to restore from storage...');
             try {
               publicKey = await nostrService.getPublicKey();
               if (publicKey != null) {
-                print('✅ Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...');
+                AppLogger.info(' Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...');
                 _ref.read(publicKeyProvider.notifier).state = publicKey;
                 
                 // npub形式にも変換して設定
                 try {
                   npub = await nostrService.hexToNpub(publicKey);
                   _ref.read(nostrPublicKeyProvider.notifier).state = npub;
-                  print('✅ Public key (npub) also restored: ${npub.substring(0, 16)}...');
+                  AppLogger.info(' Public key (npub) also restored: ${npub.substring(0, 16)}...');
                 } catch (e) {
-                  print('❌ Failed to convert hex to npub: $e');
+                  AppLogger.error(' Failed to convert hex to npub: $e');
                 }
               } else {
-                print('❌ Failed to restore public key - no key found in storage');
+                AppLogger.error(' Failed to restore public key - no key found in storage');
                 throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
               }
             } catch (e) {
-              print('❌ Failed to restore public key: $e');
+              AppLogger.error(' Failed to restore public key: $e');
               throw Exception('公開鍵が設定されていません: $e');
             }
           }
@@ -1303,10 +1304,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           if (npub == null) {
             final hasPublicKey = await nostrService.hasPublicKey();
             final isUsingAmber = localStorageService.isUsingAmber();
-            print('❌ npub形式の公開鍵がnullです');
-            print('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
-            print('   - Amberモード: $isUsingAmber');
-            print('   - 公開鍵ファイル存在: $hasPublicKey');
+            AppLogger.error(' npub形式の公開鍵がnullです');
+            AppLogger.debug('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
+            AppLogger.debug('   - Amberモード: $isUsingAmber');
+            AppLogger.debug('   - 公開鍵ファイル存在: $hasPublicKey');
             throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
           
@@ -1320,7 +1321,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
                 ? null 
                 : customListNames[listId]; // 名前ベースIDから名前を取得
             
-            print('🔐 Processing list "$listId" (${listTodos.length} todos)');
+            AppLogger.debug(' Processing list "$listId" (${listTodos.length} todos)');
             
             // リストのTodoをJSONに変換
             final todosJson = jsonEncode(listTodos.map((todo) => {
@@ -1339,10 +1340,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               'needs_sync': todo.needsSync,
             }).toList());
             
-            print('📝 List "$listId" JSON (${todosJson.length} bytes, ${listTodos.length}件)');
+            AppLogger.debug(' List "$listId" JSON (${todosJson.length} bytes, ${listTodos.length}件)');
             
             // AmberでNIP-44暗号化
-            print('🔐 Amberで暗号化中（リスト: $listId）...');
+            AppLogger.debug('🔐 Amberで暗号化中（リスト: $listId）...');
             
             String encryptedContent;
             try {
@@ -1352,12 +1353,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
                 pubkey: publicKey,
                 npub: npub,
               );
-              print('✅ 暗号化完了（バックグラウンド） (${encryptedContent.length} bytes)');
+              AppLogger.info(' 暗号化完了（バックグラウンド） (${encryptedContent.length} bytes)');
             } on PlatformException catch (e) {
               // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-              print('⚠️ ContentProvider暗号化失敗 (${e.code}), UI経由で再試行します...');
+              AppLogger.warning(' ContentProvider暗号化失敗 (${e.code}), UI経由で再試行します...');
               encryptedContent = await amberService.encryptNip44(todosJson, publicKey);
-              print('✅ 暗号化完了（UI経由） (${encryptedContent.length} bytes)');
+              AppLogger.info(' 暗号化完了（UI経由） (${encryptedContent.length} bytes)');
             }
             
             // 暗号化済みcontentで未署名イベントを作成（Kind 30001）
@@ -1366,10 +1367,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               listId: listId == 'default' ? null : listId,
               listTitle: listTitle,
             );
-            print('📄 未署名イベント作成完了（リスト: $listId）');
+            AppLogger.debug('📄 未署名イベント作成完了（リスト: $listId）');
             
             // Amberで署名
-            print('✍️ Amberで署名中（リスト: $listId）...');
+            AppLogger.debug('✍️ Amberで署名中（リスト: $listId）...');
             
             String signedEvent;
             try {
@@ -1378,19 +1379,19 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
                 event: unsignedEvent,
                 npub: npub,
               );
-              print('✅ 署名完了（バックグラウンド）');
+              AppLogger.info(' 署名完了（バックグラウンド）');
             } on PlatformException catch (e) {
               // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-              print('⚠️ ContentProvider署名失敗 (${e.code}), UI経由で再試行します...');
+              AppLogger.warning(' ContentProvider署名失敗 (${e.code}), UI経由で再試行します...');
               signedEvent = await amberService.signEventWithTimeout(unsignedEvent);
-              print('✅ 署名完了（UI経由）');
+              AppLogger.info(' 署名完了（UI経由）');
             }
             
             // リレーに送信
-            print('📤 リレーに送信中（リスト: $listId）...');
+            AppLogger.debug(' リレーに送信中（リスト: $listId）...');
             final sendResult = await nostrService.sendSignedEvent(signedEvent);
-            print('✅ 送信完了: ${sendResult.eventId}');
-            print('🎯 List "$listId" event ID: ${sendResult.eventId}');
+            AppLogger.info(' 送信完了: ${sendResult.eventId}');
+            AppLogger.debug(' List "$listId" event ID: ${sendResult.eventId}');
             
             // このリストの各TodoのeventIdとcustomListIdを更新
             for (final todo in listTodos) {
@@ -1399,71 +1400,71 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               // 名前ベースIDに更新（UUIDベースの場合のマイグレーション）
               if (todo.customListId != null && todo.customListId != listId) {
                 await _updateTodoCustomListIdInState(todo.id, todo.date, listId);
-                print('🔄 Migrated customListId: ${todo.customListId} -> $listId for "${todo.title}"');
+                AppLogger.info(' Migrated customListId: ${todo.customListId} -> $listId for "${todo.title}"');
               }
             }
-            print('✅ Updated eventId for ${listTodos.length} todos in list "$listId"');
+            AppLogger.info(' Updated eventId for ${listTodos.length} todos in list "$listId"');
           }
           
-          print('✅ すべてのリストの送信完了');
+          AppLogger.info(' すべてのリストの送信完了');
           
         } else {
           // 通常モード: 秘密鍵で署名（Rust側でNIP-44暗号化）
-          print('🔄 通常モードで全TODOリストを同期します');
-          print('🔄 Calling nostrService.createTodoListOnNostr with ${allTodos.length} todos...');
+          AppLogger.info(' 通常モードで全TODOリストを同期します');
+          AppLogger.info(' Calling nostrService.createTodoListOnNostr with ${allTodos.length} todos...');
           
           try {
             final sendResult = await nostrService.createTodoListOnNostr(allTodos);
-            print('✅✅✅ TODOリスト送信完了: ${sendResult.eventId} (${allTodos.length}件)');
+            AppLogger.info('✅✅ TODOリスト送信完了: ${sendResult.eventId} (${allTodos.length}件)');
             
             // 全TodoのeventIdを更新
             for (final todo in allTodos) {
               await _updateTodoEventIdInState(todo.id, todo.date, sendResult.eventId);
             }
-            print('✅ Updated eventId for ${allTodos.length} todos');
+            AppLogger.info(' Updated eventId for ${allTodos.length} todos');
           } catch (e) {
-            print('❌❌❌ createTodoListOnNostr failed: $e');
+            AppLogger.error('❌❌ createTodoListOnNostr failed: $e');
             rethrow;
           }
         }
       } catch (e, stackTrace) {
-        print('❌ TODOリスト同期失敗: $e');
-        print('スタックトレース: $stackTrace');
+        AppLogger.error(' TODOリスト同期失敗: $e');
+        AppLogger.debug('スタックトレース: $stackTrace');
         rethrow;
       }
       
-      print('🎯 _syncAllTodosToNostr: state.whenData callback COMPLETED successfully');
+      AppLogger.debug(' _syncAllTodosToNostr: state.whenData callback COMPLETED successfully');
     }).value;  // ← .value追加で確実に完了を待つ
     
-    print('🎯 _syncAllTodosToNostr: method COMPLETED');
+    AppLogger.debug(' _syncAllTodosToNostr: method COMPLETED');
   }
 
 
   /// Nostrへの同期処理（リトライ機能付き）
   /// Amberモード時はAmber署名フローを使用
   Future<void> _syncToNostr(Future<void> Function() syncFunction) async {
-    print('📡 _syncToNostr called');
+    AppLogger.debug('📡 _syncToNostr called');
     
     final isInitialized = _ref.read(nostrInitializedProvider);
-    print('🔍 Nostr initialized in _syncToNostr: $isInitialized');
+    AppLogger.debug(' Nostr initialized in _syncToNostr: $isInitialized');
     
     if (!isInitialized) {
       // Nostr未初期化の場合はスキップ（ローカル保存は完了している）
-      print('⚠️ Nostr未初期化のため_syncToNostrをスキップ');
-      print('ℹ️ ローカル保存は完了しています。Nostr接続後に同期されます。');
+      AppLogger.warning(' Nostr未初期化のため_syncToNostrをスキップ');
+      AppLogger.debug(' ローカル保存は完了しています。Nostr接続後に同期されます。');
       return;
     }
 
     // Amberモードの場合は専用フローを使用
     // （syncFunctionはAmberモード用に最適化されている前提）
     if (_ref.read(isAmberModeProvider)) {
-      print('🔐 Amberモードで同期します');
+      AppLogger.debug('🔐 Amberモードで同期します');
       // Amberモードの場合はリトライなし（ユーザー操作が必要なため）
-      print('📊 Calling startSync()');
+      AppLogger.debug(' Calling startSync()');
       _ref.read(syncStatusProvider.notifier).startSync();
       
       try {
-        print('🚀 Executing syncFunction() (Amber mode)...');
+        AppLogger.debug(' Executing syncFunction() (Amber mode)...');
         // タイムアウト付きで同期実行（30秒）
         await syncFunction().timeout(
           const Duration(seconds: 30),
@@ -1471,26 +1472,26 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             throw Exception('同期がタイムアウトしました（30秒）');
           },
         );
-        print('📊 Calling syncSuccess()');
+        AppLogger.debug(' Calling syncSuccess()');
         _ref.read(syncStatusProvider.notifier).syncSuccess();
-        print('✅ Amber同期成功');
+        AppLogger.info(' Amber同期成功');
       } catch (e) {
-        print('📊 Calling syncError()');
+        AppLogger.debug(' Calling syncError()');
         _ref.read(syncStatusProvider.notifier).syncError(
           e.toString(),
           shouldRetry: false,
         );
-        print('❌ Amber同期失敗: $e');
+        AppLogger.error(' Amber同期失敗: $e');
         // エラーを再スローせず、ローカルデータは保持
       }
-      print('🎯 _syncToNostr: Amber mode COMPLETED');
+      AppLogger.debug(' _syncToNostr: Amber mode COMPLETED');
       return;
     }
 
     // 通常モード: 秘密鍵で署名
-    print('🔑 通常モードで同期します');
+    AppLogger.debug('🔑 通常モードで同期します');
     // 同期開始
-    print('📊 Calling startSync()');
+    AppLogger.debug(' Calling startSync()');
     _ref.read(syncStatusProvider.notifier).startSync();
 
     const maxRetries = 3;
@@ -1499,7 +1500,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     for (int attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        print('🚀 Executing syncFunction() (attempt ${attempt + 1}/${maxRetries + 1})...');
+        AppLogger.debug(' Executing syncFunction() (attempt ${attempt + 1}/${maxRetries + 1})...');
         // タイムアウト付きで同期実行
         await syncFunction().timeout(
           timeout,
@@ -1509,10 +1510,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         );
         
         // 成功
-        print('📊 Calling syncSuccess()');
+        AppLogger.debug(' Calling syncSuccess()');
         _ref.read(syncStatusProvider.notifier).syncSuccess();
-        print('✅ Nostr同期成功');
-        print('🎯 _syncToNostr: Normal mode COMPLETED successfully');
+        AppLogger.info(' Nostr同期成功');
+        AppLogger.debug(' _syncToNostr: Normal mode COMPLETED successfully');
         return;
         
       } catch (e) {
@@ -1520,18 +1521,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         
         if (isLastAttempt) {
           // 最終試行でも失敗
-          print('📊 Calling syncError() (final attempt)');
+          AppLogger.debug(' Calling syncError() (final attempt)');
           _ref.read(syncStatusProvider.notifier).syncError(
             e.toString(),
             shouldRetry: false,
           );
-          print('❌ Nostr同期失敗（最終試行）: $e');
-          print('🎯 _syncToNostr: Normal mode COMPLETED with error');
+          AppLogger.error(' Nostr同期失敗（最終試行）: $e');
+          AppLogger.debug(' _syncToNostr: Normal mode COMPLETED with error');
           // エラーを再スローせず、ローカルデータは保持
         } else {
           // リトライする
-          print('⚠️ Nostr同期エラー（${attempt + 1}/${maxRetries + 1}回目）: $e');
-          print('🔄 ${retryDelay.inSeconds}秒後にリトライします...');
+          AppLogger.warning(' Nostr同期エラー（${attempt + 1}/${maxRetries + 1}回目）: $e');
+          AppLogger.info(' ${retryDelay.inSeconds}秒後にリトライします...');
           
           await Future.delayed(retryDelay);
         }
@@ -1552,7 +1553,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       try {
         await localStorageService.saveTodos(allTodos);
       } catch (e) {
-        print('⚠️ ローカル保存エラー: $e');
+        AppLogger.warning(' ローカル保存エラー: $e');
       }
     });
   }
@@ -1561,7 +1562,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 手動で全Todoリストをリレーに送信（バックアップ手段）
   /// UIから呼び出される公開メソッド
   Future<void> manualSyncToNostr() async {
-    print('🔄 Manual sync to Nostr triggered');
+    AppLogger.info(' Manual sync to Nostr triggered');
     _ref.read(syncStatusProvider.notifier).startSync();
     
     try {
@@ -1571,10 +1572,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       await _clearNeedsSyncFlags();
       
       _ref.read(syncStatusProvider.notifier).syncSuccess();
-      print('✅ Manual sync completed successfully');
+      AppLogger.info(' Manual sync completed successfully');
     } catch (e, stackTrace) {
-      print('❌ Manual sync failed: $e');
-      print('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      AppLogger.error(' Manual sync failed: $e');
+      AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
       
       _ref.read(syncStatusProvider.notifier).syncError(
         '手動同期エラー: ${e.toString()}',
@@ -1593,7 +1594,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// Nostrからすべてのtodoを同期（Kind 30001 - Todoリスト全体を取得）
   Future<void> syncFromNostr() async {
     if (!_ref.read(nostrInitializedProvider)) {
-      print('⚠️ Nostr未初期化のため同期をスキップ');
+      AppLogger.warning(' Nostr未初期化のため同期をスキップ');
       return;
     }
 
@@ -1607,36 +1608,36 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       await Future(() async {
         if (isAmberMode) {
           // Amberモード: すべてのTodoリストイベント（Kind 30001）を取得 → Amberで復号化
-          print('🔐 Amberモードですべてのリストを同期します（Kind 30001、復号化あり、バックグラウンド処理）');
+          AppLogger.debug('🔐 Amberモードですべてのリストを同期します（Kind 30001、復号化あり、バックグラウンド処理）');
           
           final encryptedEvents = await nostrService.fetchAllEncryptedTodoLists();
           
           if (encryptedEvents.isEmpty) {
-            print('⚠️ Todoリストイベントが見つかりません（Kind 30001）');
+            AppLogger.warning(' Todoリストイベントが見つかりません（Kind 30001）');
             
             // ローカルデータの有無をチェック
             final hasLocalData = await state.whenData((localTodos) {
               final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
               if (localTodoCount > 0) {
-                print('ℹ️ リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
+                AppLogger.debug(' リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
                 return true;
               }
               return false;
             }).value ?? false;
             
             if (hasLocalData) {
-              print('✅ ローカルデータを保持（リモートは空/Amber）');
+              AppLogger.info(' ローカルデータを保持（リモートは空/Amber）');
               _ref.read(syncStatusProvider.notifier).syncSuccess();
               return; // ここで関数を抜ける
             }
             
             // ローカルデータもない場合は空状態に
-            print('ℹ️ ローカルもリモートもデータがありません');
+            AppLogger.debug(' ローカルもリモートもデータがありません');
             _ref.read(syncStatusProvider.notifier).syncSuccess();
             return;
           }
           
-          print('📥 ${encryptedEvents.length}件のTodoリストイベントを取得');
+          AppLogger.debug(' ${encryptedEvents.length}件のTodoリストイベントを取得');
           
           // カスタムリスト名を抽出
           final List<String> nostrListNames = [];
@@ -1650,7 +1651,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               // titleからリスト名を取得（重複チェック）
               if (!nostrListNames.contains(event.title!)) {
                 nostrListNames.add(event.title!);
-                print('📋 [Sync] Found custom list: "${event.title}" (d tag: $listId)');
+                AppLogger.debug(' [Sync] Found custom list: "${event.title}" (d tag: $listId)');
               }
             }
           }
@@ -1666,27 +1667,27 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // 公開鍵がnullの場合、Rust側から復元を試みる
           if (publicKey == null) {
-            print('⚠️ Public key (hex) is null, attempting to restore from storage...');
+            AppLogger.warning(' Public key (hex) is null, attempting to restore from storage...');
             try {
               publicKey = await nostrService.getPublicKey();
               if (publicKey != null) {
-                print('✅ Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...');
+                AppLogger.info(' Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...');
                 _ref.read(publicKeyProvider.notifier).state = publicKey;
                 
                 // npub形式にも変換して設定
                 try {
                   npub = await nostrService.hexToNpub(publicKey);
                   _ref.read(nostrPublicKeyProvider.notifier).state = npub;
-                  print('✅ Public key (npub) also restored: ${npub.substring(0, 16)}...');
+                  AppLogger.info(' Public key (npub) also restored: ${npub.substring(0, 16)}...');
                 } catch (e) {
-                  print('❌ Failed to convert hex to npub: $e');
+                  AppLogger.error(' Failed to convert hex to npub: $e');
                 }
               } else {
-                print('❌ Failed to restore public key - no key found in storage');
+                AppLogger.error(' Failed to restore public key - no key found in storage');
                 throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
               }
             } catch (e) {
-              print('❌ Failed to restore public key: $e');
+              AppLogger.error(' Failed to restore public key: $e');
               throw Exception('公開鍵が設定されていません: $e');
             }
           }
@@ -1694,20 +1695,20 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           if (npub == null) {
             final hasPublicKey = await nostrService.hasPublicKey();
             final isUsingAmber = localStorageService.isUsingAmber();
-            print('❌ npub形式の公開鍵がnullです');
-            print('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
-            print('   - Amberモード: $isUsingAmber');
-            print('   - 公開鍵ファイル存在: $hasPublicKey');
+            AppLogger.error(' npub形式の公開鍵がnullです');
+            AppLogger.debug('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
+            AppLogger.debug('   - Amberモード: $isUsingAmber');
+            AppLogger.debug('   - 公開鍵ファイル存在: $hasPublicKey');
             throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
           
-          print('🔑 公開鍵: ${publicKey.substring(0, 16)}...');
+          AppLogger.debug(' 公開鍵: ${publicKey.substring(0, 16)}...');
           
           // すべてのリストを復号化してマージ
           final allSyncedTodos = <Todo>[];
           
           for (final encryptedEvent in encryptedEvents) {
-            print('🔓 リストを復号化中 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId})');
+            AppLogger.debug(' リストを復号化中 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId})');
             
             // Amberで復号化
             String decryptedJson;
@@ -1718,15 +1719,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
                 pubkey: publicKey,
                 npub: npub,
               );
-              print('✅ 復号化完了（バックグラウンド）');
+              AppLogger.info(' 復号化完了（バックグラウンド）');
             } on PlatformException catch (e) {
               // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-              print('⚠️ ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...');
+              AppLogger.warning(' ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...');
               decryptedJson = await amberService.decryptNip44(
                 encryptedEvent.encryptedContent,
                 publicKey,
               );
-              print('✅ 復号化完了（UI経由）');
+              AppLogger.info(' 復号化完了（UI経由）');
             }
             
             // JSONをパース（Todoリスト配列）
@@ -1757,21 +1758,21 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               );
             }).toList();
             
-            print('✅ リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})');
+            AppLogger.info(' リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})');
             allSyncedTodos.addAll(syncedTodos);
           }
           
-          print('✅ すべてのリスト復号化完了: 合計${allSyncedTodos.length}件のTodo');
+          AppLogger.info(' すべてのリスト復号化完了: 合計${allSyncedTodos.length}件のTodo');
           
           // 状態を更新
           _updateStateWithSyncedTodos(allSyncedTodos);
           
         } else {
           // 通常モード: Rust側で復号化済みのTodoリストを取得（Kind 30001）
-          print('🔄 通常モードで同期します（Kind 30001）');
+          AppLogger.info(' 通常モードで同期します（Kind 30001）');
           
           // ステップ1: メタデータを取得してカスタムリストを同期
-          print('📋 ステップ1: カスタムリストのメタデータを取得します');
+          AppLogger.debug(' ステップ1: カスタムリストのメタデータを取得します');
           final metadata = await nostrService.fetchAllTodoListMetadata();
           
           // カスタムリスト名を抽出（デフォルトリストは除外）
@@ -1786,30 +1787,30 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               // titleからリスト名を取得（重複チェック）
               if (!nostrListNames.contains(meta.title!)) {
                 nostrListNames.add(meta.title!);
-                print('📋 [Sync] Found custom list: "${meta.title}" (d tag: $listId)');
+                AppLogger.debug(' [Sync] Found custom list: "${meta.title}" (d tag: $listId)');
               }
             }
           }
           
           // カスタムリストを同期（名前ベース）
           if (nostrListNames.isNotEmpty) {
-            print('🔄 ${nostrListNames.length}件のカスタムリストを同期します');
+            AppLogger.info(' ${nostrListNames.length}件のカスタムリストを同期します');
             await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
           } else {
-            print('ℹ️ カスタムリストが見つかりませんでした');
+            AppLogger.debug(' カスタムリストが見つかりませんでした');
           }
           
           // ステップ2: Todoデータを取得
-          print('📋 ステップ2: Todoデータを取得します');
+          AppLogger.debug(' ステップ2: Todoデータを取得します');
           final syncedTodos = await nostrService.syncTodoListFromNostr();
-          print('📥 ${syncedTodos.length}件のTodoを取得しました');
+          AppLogger.debug(' ${syncedTodos.length}件のTodoを取得しました');
           
           // イベントが見つからない場合（空リスト）はローカルデータを保持
           if (syncedTodos.isEmpty) {
             final hasLocalData = await state.whenData((localTodos) {
               final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
               if (localTodoCount > 0) {
-                print('ℹ️ リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
+                AppLogger.debug(' リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
                 return true; // ローカルデータがある
               }
               return false;
@@ -1817,7 +1818,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             
             // ローカルデータがある場合は同期をスキップ
             if (hasLocalData) {
-              print('✅ ローカルデータを保持（リモートは空）');
+              AppLogger.info(' ローカルデータを保持（リモートは空）');
               _ref.read(syncStatusProvider.notifier).syncSuccess();
               return; // ここで関数を抜ける
             }
@@ -1825,17 +1826,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // Nostrから取得したデータのneedsSyncフラグを強制的にfalseにする
           final cleanedTodos = syncedTodos.map((todo) => todo.copyWith(needsSync: false)).toList();
-          print('✅ needsSyncフラグをクリア: ${cleanedTodos.length}件');
+          AppLogger.info(' needsSyncフラグをクリア: ${cleanedTodos.length}件');
           
           _updateStateWithSyncedTodos(cleanedTodos);
         }
         
         _ref.read(syncStatusProvider.notifier).syncSuccess();
-        print('✅ Nostr同期成功');
+        AppLogger.info(' Nostr同期成功');
       }).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          print('⏱️ syncFromNostr タイムアウト（30秒）');
+          AppLogger.debug(' syncFromNostr タイムアウト（30秒）');
           throw Exception('データ同期がタイムアウトしました（30秒）');
         },
       );
@@ -1845,8 +1846,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         e.toString(),
         shouldRetry: false,
       );
-      print('❌ Nostr同期失敗: $e');
-      print('スタックトレース: ${stackTrace.toString().split('\n').take(5).join('\n')}');
+      AppLogger.error(' Nostr同期失敗: $e');
+      AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(5).join('\n')}');
       
       // 3秒後にエラーをクリア（ローカルデータで継続使用可能にする）
       Future.delayed(const Duration(seconds: 3), () {
@@ -1865,7 +1866,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 3. ローカルのみに存在 → ローカルを保持
   /// 4. リモートのみに存在 → リモートを採用
   void _updateStateWithSyncedTodos(List<Todo> syncedTodos) {
-    print('🔄 Starting merge: ${syncedTodos.length} remote todos');
+    AppLogger.info(' Starting merge: ${syncedTodos.length} remote todos');
     
     state.whenData((localTodos) {
       // ローカルの全タスクをフラット化してMapに変換
@@ -1878,7 +1879,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
       
-      print('📦 Local todos: $localTotalCount');
+      AppLogger.debug(' Local todos: $localTotalCount');
       
       // マージ結果を格納
       final mergedTodos = <String, Todo>{};
@@ -1893,7 +1894,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         if (localTodo == null) {
           // ローカルに存在しない → リモートを採用
           mergedTodos[remoteTodo.id] = remoteTodo;
-          print('📥 Remote only: "${remoteTodo.title}" (${remoteTodo.id.substring(0, 8)}...)');
+          AppLogger.debug(' Remote only: "${remoteTodo.title}" (${remoteTodo.id.substring(0, 8)}...)');
         } else {
           // 両方に存在 → 競合解決
           conflictCount++;
@@ -1902,9 +1903,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           if (localTodo.needsSync) {
             mergedTodos[remoteTodo.id] = localTodo;
             localWinsCount++;
-            print('⚡ Conflict resolved (needsSync): Local wins - "${localTodo.title}"');
-            print('   Local updated: ${localTodo.updatedAt.toIso8601String()}');
-            print('   Remote updated: ${remoteTodo.updatedAt.toIso8601String()}');
+            AppLogger.debug(' Conflict resolved (needsSync): Local wins - "${localTodo.title}"');
+            AppLogger.debug('   Local updated: ${localTodo.updatedAt.toIso8601String()}');
+            AppLogger.debug('   Remote updated: ${remoteTodo.updatedAt.toIso8601String()}');
             continue;
           }
           
@@ -1919,9 +1920,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             
             // タイトルが異なる場合は競合を警告
             if (localTodo.title != remoteTodo.title) {
-              print('🔀 Conflict resolved: Remote wins - "${remoteTodo.title}"');
-              print('   Local: "${localTodo.title}" (${localUpdated.toIso8601String()})');
-              print('   Remote: "${remoteTodo.title}" (${remoteUpdated.toIso8601String()})');
+              AppLogger.debug('🔀 Conflict resolved: Remote wins - "${remoteTodo.title}"');
+              AppLogger.debug('   Local: "${localTodo.title}" (${localUpdated.toIso8601String()})');
+              AppLogger.debug('   Remote: "${remoteTodo.title}" (${remoteUpdated.toIso8601String()})');
             }
           } else if (localUpdated.isAfter(remoteUpdated)) {
             // ローカルの方が新しい → ローカルを採用
@@ -1931,9 +1932,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             
             // タイトルが異なる場合は競合を警告
             if (localTodo.title != remoteTodo.title) {
-              print('🔀 Conflict resolved: Local wins - "${localTodo.title}" (will resync)');
-              print('   Local: "${localTodo.title}" (${localUpdated.toIso8601String()})');
-              print('   Remote: "${remoteTodo.title}" (${remoteUpdated.toIso8601String()})');
+              AppLogger.debug(' Conflict resolved: Local wins - "${localTodo.title}" (will resync)');
+              AppLogger.debug('   Local: "${localTodo.title}" (${localUpdated.toIso8601String()})');
+              AppLogger.debug('   Remote: "${remoteTodo.title}" (${remoteUpdated.toIso8601String()})');
             }
           } else {
             // 同じタイムスタンプ → リモートを優先（デフォルト動作）
@@ -1941,9 +1942,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             remoteWinsCount++;
             
             if (localTodo.title != remoteTodo.title || localTodo.completed != remoteTodo.completed) {
-              print('⚠️ Same timestamp but different content: Remote wins - "${remoteTodo.title}"');
-              print('   Local: "${localTodo.title}" (completed: ${localTodo.completed})');
-              print('   Remote: "${remoteTodo.title}" (completed: ${remoteTodo.completed})');
+              AppLogger.warning(' Same timestamp but different content: Remote wins - "${remoteTodo.title}"');
+              AppLogger.debug('   Local: "${localTodo.title}" (completed: ${localTodo.completed})');
+              AppLogger.debug('   Remote: "${remoteTodo.title}" (completed: ${remoteTodo.completed})');
             }
           }
         }
@@ -1962,7 +1963,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             // ローカルを保持してリレーに送信する
             mergedTodos[localTodo.id] = localTodo;
             localOnlyCount++;
-            print('📤 Local only (new): "${localTodo.title}" (${localTodo.id.substring(0, 8)}...) - will sync');
+            AppLogger.debug(' Local only (new): "${localTodo.title}" (${localTodo.id.substring(0, 8)}...) - will sync');
           } else {
             // ケース2: needsSyncがfalse → 他のデバイスで削除された可能性
             // ただし、ローカルが最近更新されている場合は保持する
@@ -1973,11 +1974,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               // 24時間以内の更新 → ローカルを保持（削除ではなく、同期のタイミング差の可能性）
               mergedTodos[localTodo.id] = localTodo.copyWith(needsSync: true);
               localOnlyCount++;
-              print('📤 Local only (recent update): "${localTodo.title}" - will resync (updated ${hoursSinceUpdate}h ago)');
+              AppLogger.debug(' Local only (recent update): "${localTodo.title}" - will resync (updated ${hoursSinceUpdate}h ago)');
             } else {
               // 24時間以上前の更新 → 他のデバイスで削除されたと判断
               deletedByRemoteCount++;
-              print('🗑️  Deleted by remote: "${localTodo.title}" (${localTodo.id.substring(0, 8)}...) - removing locally');
+              AppLogger.debug('  Deleted by remote: "${localTodo.title}" (${localTodo.id.substring(0, 8)}...) - removing locally');
               // mergedTodosに追加しない = ローカルから削除
             }
           }
@@ -1985,13 +1986,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       
       // マージ結果のサマリーを出力
-      print('✅ Merge completed:');
-      print('   Total merged: ${mergedTodos.length}');
-      print('   Conflicts: $conflictCount');
-      print('   Local wins: $localWinsCount');
-      print('   Remote wins: $remoteWinsCount');
-      print('   Local only: $localOnlyCount');
-      print('   Deleted by remote: $deletedByRemoteCount');
+      AppLogger.info(' Merge completed:');
+      AppLogger.debug('   Total merged: ${mergedTodos.length}');
+      AppLogger.debug('   Conflicts: $conflictCount');
+      AppLogger.debug('   Local wins: $localWinsCount');
+      AppLogger.debug('   Remote wins: $remoteWinsCount');
+      AppLogger.debug('   Local only: $localOnlyCount');
+      AppLogger.debug('   Deleted by remote: $deletedByRemoteCount');
       
       // ステップ3: 日付ごとにグループ化
       final grouped = <DateTime?, List<Todo>>{};
@@ -2013,7 +2014,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // ローカルが新しいタスクがある場合、自動的に再同期
       if (localWinsCount > 0 || localOnlyCount > 0) {
-        print('🔄 Scheduling resync due to local changes');
+        AppLogger.info(' Scheduling resync due to local changes');
         _updateUnsyncedCount();
       }
     });
@@ -2031,7 +2032,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 
   /// ⚠️ 注意: dタグが`todo-`で始まるイベントは自動的に除外されます（Rust側でフィルタリング済み）
   Future<void> migrateFromKind30078ToKind30001() async {
-    print('🔄 Starting migration from Kind 30078 to Kind 30001...');
+    AppLogger.info(' Starting migration from Kind 30078 to Kind 30001...');
     
     _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.checking;
     _ref.read(syncStatusProvider.notifier).updateMessage('データ移行準備中...');
@@ -2041,7 +2042,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final isAmberMode = _ref.read(isAmberModeProvider);
       
       // 1. 既存のKind 30078イベントを取得
-      print('📥 Fetching existing Kind 30078 events...');
+      AppLogger.debug(' Fetching existing Kind 30078 events...');
       _ref.read(syncStatusProvider.notifier).updateMessage('旧データ取得中...');
       
       List<Todo> oldTodos;
@@ -2050,12 +2051,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         final encryptedTodos = await nostrService.fetchEncryptedTodos();
         
         if (encryptedTodos.isEmpty) {
-          print('✅ No Kind 30078 events found. Migration not needed.');
+          AppLogger.info(' No Kind 30078 events found. Migration not needed.');
           _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.notNeeded;
           return;
         }
         
-        print('📥 Found ${encryptedTodos.length} encrypted Kind 30078 events');
+        AppLogger.debug(' Found ${encryptedTodos.length} encrypted Kind 30078 events');
         
         // Amberで復号化
         oldTodos = [];
@@ -2089,7 +2090,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
                   : null,
             ));
           } catch (e) {
-            print('⚠️ Failed to decrypt/parse event ${encryptedTodo.eventId}: $e');
+            AppLogger.warning(' Failed to decrypt/parse event ${encryptedTodo.eventId}: $e');
           }
         }
       } else {
@@ -2097,12 +2098,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         throw Exception('旧実装（Kind 30078）は削除されました。マイグレーション機能は利用できません。');
       }
       
-      print('📦 Found ${oldTodos.length} todos in Kind 30078 format');
+      AppLogger.debug(' Found ${oldTodos.length} todos in Kind 30078 format');
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.needed;
       
       // 2. Kind 30001形式で再送信
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.inProgress;
-      print('📤 Migrating todos to Kind 30001 format...');
+      AppLogger.debug(' Migrating todos to Kind 30001 format...');
       _ref.read(syncStatusProvider.notifier).updateMessage('新形式に変換中...');
       
       // 一時的に状態を更新（UIに反映）
@@ -2116,7 +2117,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // Kind 30001形式で送信
       await _syncAllTodosToNostr();
       
-      print('✅ Migration to Kind 30001 completed');
+      AppLogger.info(' Migration to Kind 30001 completed');
       
       // 3. 古いKind 30078イベントを削除
       final oldEventIds = oldTodos
@@ -2126,23 +2127,23 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           .toList();
       
       if (oldEventIds.isNotEmpty) {
-        print('🗑️ Deleting ${oldEventIds.length} old Kind 30078 events...');
+        AppLogger.debug(' Deleting ${oldEventIds.length} old Kind 30078 events...');
         _ref.read(syncStatusProvider.notifier).updateMessage('旧データ削除中...');
         try {
           await nostrService.deleteEvents(
             oldEventIds,
             reason: 'Migrated to Kind 30001 (NIP-51 Bookmark List)',
           );
-          print('✅ Old events deleted successfully');
+          AppLogger.info(' Old events deleted successfully');
         } catch (e) {
-          print('⚠️ Failed to delete old events: $e');
+          AppLogger.warning(' Failed to delete old events: $e');
           // 削除失敗してもマイグレーションは成功とみなす
         }
       }
       
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
       _ref.read(syncStatusProvider.notifier).updateMessage('データ移行完了');
-      print('🎉 Migration completed successfully!');
+      AppLogger.debug('🎉 Migration completed successfully!');
       
       // マイグレーション完了フラグをローカルに保存
       await localStorageService.setMigrationCompleted();
@@ -2153,8 +2154,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
     } catch (e, stackTrace) {
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.failed;
-      print('❌ Migration failed: $e');
-      print('スタックトレース: ${stackTrace.toString().split('\n').take(5).join('\n')}');
+      AppLogger.error(' Migration failed: $e');
+      AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(5).join('\n')}');
       rethrow;
     }
   }
@@ -2165,43 +2166,43 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 
   /// ⚠️ このメソッドは復号化せずにイベントの存在のみをチェックします
   Future<bool> checkKind30001Exists() async {
-    print('🔍 checkKind30001Exists() called');
+    AppLogger.debug(' checkKind30001Exists() called');
     try {
       final nostrService = _ref.read(nostrServiceProvider);
       final isAmberMode = _ref.read(isAmberModeProvider);
-      print('🔍 Mode: ${isAmberMode ? "Amber" : "Normal"}');
+      AppLogger.debug(' Mode: ${isAmberMode ? "Amber" : "Normal"}');
       
       if (isAmberMode) {
         // Amberモード: 暗号化されたTodoリストイベントを取得
         // ⚠️ 復号化はしない！イベントの存在だけチェック
-        print('🔍 Fetching encrypted Kind 30001 event (NO DECRYPTION)...');
+        AppLogger.debug(' Fetching encrypted Kind 30001 event (NO DECRYPTION)...');
         final encryptedEvent = await nostrService.fetchEncryptedTodoList();
         
         if (encryptedEvent != null) {
-          print('✅ Found Kind 30001 event (Amber mode) - Event ID: ${encryptedEvent.eventId}');
-          print('✅ This means migration is already done. NO NEED TO DECRYPT OLD EVENTS!');
+          AppLogger.info(' Found Kind 30001 event (Amber mode) - Event ID: ${encryptedEvent.eventId}');
+          AppLogger.info(' This means migration is already done. NO NEED TO DECRYPT OLD EVENTS!');
           return true;
         } else {
-          print('ℹ️ No Kind 30001 event found (Amber mode)');
+          AppLogger.debug(' No Kind 30001 event found (Amber mode)');
         }
       } else {
         // 通常モード: Rust側で復号化済みのTodoリストを取得
-        print('🔍 Fetching Kind 30001 todos (normal mode)...');
+        AppLogger.debug(' Fetching Kind 30001 todos (normal mode)...');
         final todos = await nostrService.syncTodoListFromNostr();
         
         if (todos.isNotEmpty) {
-          print('✅ Found Kind 30001 with ${todos.length} todos (normal mode)');
+          AppLogger.info(' Found Kind 30001 with ${todos.length} todos (normal mode)');
           return true;
         } else {
-          print('ℹ️ No Kind 30001 todos found (normal mode)');
+          AppLogger.debug(' No Kind 30001 todos found (normal mode)');
         }
       }
       
-      print('ℹ️ No Kind 30001 found - will check Kind 30078');
+      AppLogger.debug(' No Kind 30001 found - will check Kind 30078');
       return false;
     } catch (e, stackTrace) {
-      print('⚠️ Failed to check Kind 30001: $e');
-      print('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      AppLogger.warning(' Failed to check Kind 30001: $e');
+      AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
       return false;
     }
   }
@@ -2214,7 +2215,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // ローカルストレージでマイグレーション完了済みかチェック
     final completed = await localStorageService.isMigrationCompleted();
     if (completed) {
-      print('✅ Migration already completed (cached)');
+      AppLogger.info(' Migration already completed (cached)');
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
       return false;
     }
@@ -2230,19 +2231,19 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         
         // Kind 30078のTODOイベント（d="todo-*"）が存在する場合のみマイグレーション必要
         if (encryptedTodos.isNotEmpty) {
-          print('📦 Found ${encryptedTodos.length} old Kind 30078 TODO events (Amber mode)');
+          AppLogger.debug(' Found ${encryptedTodos.length} old Kind 30078 TODO events (Amber mode)');
           return true;
         }
       } else {
         // 旧実装（Kind 30078）は削除されました
-        print('⚠️ 旧実装（Kind 30078）は削除されました。マイグレーションチェックをスキップします。');
+        AppLogger.warning(' 旧実装（Kind 30078）は削除されました。マイグレーションチェックをスキップします。');
         return false;
       }
       
-      print('✅ No old Kind 30078 TODO events found');
+      AppLogger.info(' No old Kind 30078 TODO events found');
       return false;
     } catch (e) {
-      print('⚠️ Failed to check migration: $e');
+      AppLogger.warning(' Failed to check migration: $e');
       return false;
     }
   }

@@ -8,6 +8,7 @@ import '../../providers/relay_status_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../services/local_storage_service.dart';
+import '../../services/logger_service.dart';
 
 class SecretKeyManagementScreen extends ConsumerStatefulWidget {
   const SecretKeyManagementScreen({super.key});
@@ -493,9 +494,9 @@ class _SecretKeyManagementScreenState
       // 新実装（Kind 30001）: Nostrから全Todoリストを同期
       await todoNotifier.syncFromNostr();
       
-      print('✅ Auto sync completed');
+      AppLogger.debug('✅ Auto sync completed');
     } catch (e) {
-      print('❌ Auto sync failed: $e');
+      AppLogger.debug('❌ Auto sync failed: $e');
       // エラーは表示しない（バックグラウンド同期のため）
     }
   }
@@ -542,24 +543,24 @@ class _SecretKeyManagementScreenState
     });
 
     try {
-      print('🗑️ Starting complete data deletion...');
+      AppLogger.debug('🗑️ Starting complete data deletion...');
 
       final nostrService = ref.read(nostrServiceProvider);
 
       // 1. Rust側の暗号化された鍵を削除
       await nostrService.deleteSecretKey();
-      print('✅ Secret key deleted');
+      AppLogger.debug('✅ Secret key deleted');
 
       // 2. アプリ内の全データを削除（Todo + 設定）
       await localStorageService.clearAllData();
-      print('✅ All local data deleted');
+      AppLogger.debug('✅ All local data deleted');
 
       // 3. すべてのProviderをリセット
       ref.invalidate(todosProvider);
       ref.read(nostrInitializedProvider.notifier).state = false;
       ref.read(publicKeyProvider.notifier).state = null;
       ref.invalidate(relayStatusProvider);
-      print('✅ All providers reset');
+      AppLogger.debug('✅ All providers reset');
 
       // 4. 入力フィールドをクリアし、暗号化フラグをリセット
       _secretKeyController.clear();
@@ -567,7 +568,7 @@ class _SecretKeyManagementScreenState
         _hasEncryptedKey = false;
       });
 
-      print('✅ Logout and data deletion completed');
+      AppLogger.debug('✅ Logout and data deletion completed');
 
       // 5. オンボーディング画面に遷移（mounted チェック）
       if (!mounted) return;
@@ -575,7 +576,7 @@ class _SecretKeyManagementScreenState
       // GoRouterでオンボーディング画面に遷移
       context.go('/onboarding');
     } catch (e) {
-      print('❌ Logout failed: $e');
+      AppLogger.debug('❌ Logout failed: $e');
 
       if (!mounted) return;
 
@@ -623,11 +624,11 @@ class _SecretKeyManagementScreenState
     final isAmberMode = ref.watch(isAmberModeProvider);
     
     // デバッグログ: ログアウトボタン表示条件を確認
-    print('🔍 SecretKeyManagementScreen build:');
-    print('  isNostrInitialized: $isNostrInitialized');
-    print('  publicKeyHex: ${publicKeyHex?.substring(0, 16) ?? 'null'}');
-    print('  isAmberMode: $isAmberMode');
-    print('  ログアウトボタン表示: ${isNostrInitialized}');
+    AppLogger.debug('🔍 SecretKeyManagementScreen build:');
+    AppLogger.debug('  isNostrInitialized: $isNostrInitialized');
+    AppLogger.debug('  publicKeyHex: ${publicKeyHex?.substring(0, 16) ?? 'null'}');
+    AppLogger.debug('  isAmberMode: $isAmberMode');
+    AppLogger.debug('  ログアウトボタン表示: ${isNostrInitialized}');
 
     return Scaffold(
       appBar: AppBar(

@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/logger_service.dart';
 import '../models/custom_list.dart';
+import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
+import '../services/logger_service.dart';
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -29,7 +32,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         state = AsyncValue.data(sortedLists);
       }
     } catch (e) {
-      print('⚠️ CustomList初期化エラー: $e');
+      AppLogger.warning(' CustomList初期化エラー: $e');
       state = AsyncValue.data([]);
     }
   }
@@ -78,7 +81,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       // 同じIDのリストが既に存在するかチェック
       if (lists.any((list) => list.id == listId)) {
-        print('⚠️ List with ID "$listId" already exists');
+        AppLogger.warning(' List with ID "$listId" already exists');
         return;
       }
       
@@ -90,7 +93,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         updatedAt: now,
       );
 
-      print('✅ Creating new list: "$normalizedName" with ID: "$listId"');
+      AppLogger.info(' Creating new list: "$normalizedName" with ID: "$listId"');
 
       final updatedLists = [...lists, newList];
       state = AsyncValue.data(updatedLists);
@@ -177,7 +180,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         final exists = updatedLists.any((list) => list.id == listId);
         
         if (!exists) {
-          print('✨ [CustomLists] Adding synced list from Nostr: "$listName" (ID: $listId)');
+          AppLogger.debug(' [CustomLists] Adding synced list from Nostr: "$listName" (ID: $listId)');
           
           final newList = CustomList(
             id: listId, // 名前から生成した決定的なID
@@ -190,7 +193,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           updatedLists.add(newList);
           hasChanges = true;
         } else {
-          print('ℹ️ [CustomLists] List "$listName" (ID: $listId) already exists, skipping');
+          AppLogger.debug(' [CustomLists] List "$listName" (ID: $listId) already exists, skipping');
         }
       }
       
@@ -203,9 +206,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         // ローカルストレージに保存
         await localStorageService.saveCustomLists(updatedLists);
         
-        print('✅ [CustomLists] Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
+        AppLogger.info(' [CustomLists] Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
       } else {
-        print('ℹ️ [CustomLists] No new lists to sync from Nostr');
+        AppLogger.debug(' [CustomLists] No new lists to sync from Nostr');
       }
     }).value;
   }
