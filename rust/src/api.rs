@@ -76,6 +76,9 @@ pub struct AppSettings {
     /// プロキシURL（通常は socks5://127.0.0.1:9050）
     #[serde(default = "default_proxy_url")]
     pub proxy_url: String,
+    /// カスタムリストの順番（リストIDの配列）
+    #[serde(default)]
+    pub custom_list_order: Vec<String>,
     /// 最終更新日時
     pub updated_at: String,
 }

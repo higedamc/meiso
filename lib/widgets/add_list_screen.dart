@@ -14,6 +14,7 @@ class AddListScreen extends ConsumerStatefulWidget {
 class _AddListScreenState extends ConsumerState<AddListScreen> {
   late TextEditingController _controller;
   late FocusNode _focusNode;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -86,23 +87,48 @@ class _AddListScreenState extends ConsumerState<AddListScreen> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  hintText: 'リスト名を入力...',
-                  hintStyle: TextStyle(
-                    color: isDark
-                        ? AppTheme.darkTextSecondary.withOpacity(0.5)
-                        : AppTheme.lightTextSecondary.withOpacity(0.5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'リスト名を入力（英数字、スペース、ハイフンのみ）',
+                      hintStyle: TextStyle(
+                        color: isDark
+                            ? AppTheme.darkTextSecondary.withOpacity(0.5)
+                            : AppTheme.lightTextSecondary.withOpacity(0.5),
+                      ),
+                    ),
+                    maxLines: null,
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _save(),
+                    onChanged: (_) {
+                      // 入力時にエラーをクリア
+                      if (_errorMessage != null) {
+                        setState(() {
+                          _errorMessage = null;
+                        });
+                      }
+                    },
                   ),
-                ),
-                maxLines: null,
-                textCapitalization: TextCapitalization.characters,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _save(),
+                  // エラーメッセージ
+                  if (_errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -157,7 +183,23 @@ class _AddListScreenState extends ConsumerState<AddListScreen> {
   /// リストを保存
   void _save() {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    
+    // 空文字チェック
+    if (text.isEmpty) {
+      setState(() {
+        _errorMessage = 'リスト名を入力してください';
+      });
+      return;
+    }
+
+    // 英数字、スペース、ハイフンのみ許可
+    final validPattern = RegExp(r'^[a-zA-Z0-9\s-]+$');
+    if (!validPattern.hasMatch(text)) {
+      setState(() {
+        _errorMessage = '英数字、スペース、ハイフンのみ使用できます';
+      });
+      return;
+    }
 
     // リストを追加
     ref.read(customListsProvider.notifier).addList(text);
