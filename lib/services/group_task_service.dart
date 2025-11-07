@@ -1,6 +1,6 @@
 import '../models/todo.dart';
 import '../models/custom_list.dart';
-import '../rust/api/api.dart' as rust_api;
+import '../bridge_generated.dart/api.dart' as rust_api;
 import 'logger_service.dart';
 
 /// グループタスク管理サービス
@@ -182,9 +182,9 @@ class GroupTaskService {
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           isGroup: true,
-          groupMembers: groupList.members,
+          groupMembers: List<String>.from(groupList.members),
         );
-      }).toList();
+      }).toList().cast<CustomList>();
       
       AppLogger.info('✅ Synced ${customLists.length} group lists');
       

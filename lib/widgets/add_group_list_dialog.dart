@@ -24,7 +24,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     super.initState();
     // 自分の公開鍵をデフォルトで追加
     Future.microtask(() {
-      final ownPubkey = ref.read(nostrKeysProvider).value?.publicKeyHex;
+      final ownPubkey = ref.read(nostrPublicKeyProvider);
       if (ownPubkey != null && mounted) {
         setState(() {
           _members.add(ownPubkey);

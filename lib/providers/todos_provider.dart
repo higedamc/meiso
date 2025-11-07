@@ -14,6 +14,7 @@ import '../services/link_preview_service.dart';
 import '../services/recurrence_parser.dart';
 import '../services/widget_service.dart';
 import '../services/group_task_service.dart';
+import '../bridge_generated.dart/api.dart' as rust_api;
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
@@ -2461,7 +2462,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // グループリストを取得
       final groupLists = await groupTaskService.fetchMyGroupTaskLists();
-      final groupList = groupLists.where((g) => g.groupId == groupId).firstOrNull;
+      final groupList = groupLists.cast<dynamic>().where((g) => g.groupId == groupId).firstOrNull as rust_api.GroupTodoList?;
       
       if (groupList == null) {
         AppLogger.warning('⚠️ Group not found: $groupId');
