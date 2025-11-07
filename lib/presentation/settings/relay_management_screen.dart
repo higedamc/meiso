@@ -84,7 +84,6 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     }
 
     // Nostrに明示的に保存（Kind 10002）
-    final l10n = AppLocalizations.of(context)!;
     try {
       await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
       setState(() {
@@ -100,6 +99,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
   }
 
   Future<void> _removeRelay(String url) async {
+    final l10n = AppLocalizations.of(context)!;
     ref.read(relayStatusProvider.notifier).removeRelay(url);
 
     // AppSettingsにも反映（ローカルのみ）
@@ -115,7 +115,6 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     }
 
     // Nostrに明示的に保存（Kind 10002）
-    final l10n = AppLocalizations.of(context)!;
     try {
       // リレーが空の場合でも保存を試みる（削除を反映するため）
       if (updatedRelays.isNotEmpty) {
@@ -137,6 +136,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
   Future<void> _syncFromNostr() async {
     if (_isSyncing) return;
     
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _isSyncing = true;
       _errorMessage = null;
@@ -151,7 +151,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
       
       if (remoteRelays.isEmpty) {
         setState(() {
-          _successMessage = 'Nostr上にリレーリストが見つかりませんでした';
+          _successMessage = l10n.noRelayListOnNostr;
           _isSyncing = false;
         });
         return;
@@ -165,7 +165,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
       
       if (isSame) {
         setState(() {
-          _successMessage = 'リレーリストは既に最新です（${remoteRelays.length}件）';
+          _successMessage = l10n.relaySyncSuccess(remoteRelays.length);
           _isSyncing = false;
         });
         AppLogger.debug('✅ リレーリストは既に同期済み');
@@ -192,7 +192,6 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
         AppLogger.debug('⚠️ Nostrクライアントの更新に失敗: $e');
       }
       
-      final l10n = AppLocalizations.of(context)!;
       setState(() {
         _successMessage = l10n.relaySyncSuccess(remoteRelays.length);
         _isSyncing = false;
@@ -201,7 +200,6 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
       
     } catch (e) {
       AppLogger.debug('❌ リレーリスト同期失敗: $e');
-      final l10n = AppLocalizations.of(context)!;
       setState(() {
         _errorMessage = l10n.relaySyncError(e.toString());
         _isSyncing = false;
