@@ -220,50 +220,59 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// Nostrから同期されたカスタムリストを反映
   /// listNameのListを受け取り、ローカルにないリストを追加
   Future<void> syncListsFromNostr(List<String> nostrListNames) async {
-    await state.whenData((currentLists) async {
-      final updatedLists = List<CustomList>.from(currentLists);
-      final now = DateTime.now();
-      bool hasChanges = false;
+    final currentState = state;
+    
+    // AsyncValueが data でない場合は処理できない
+    if (currentState is! AsyncData<List<CustomList>>) {
+      AppLogger.warning(' [CustomLists] Cannot sync - state is not AsyncData');
+      return;
+    }
+    
+    final currentLists = currentState.value;
+    final updatedLists = List<CustomList>.from(currentLists);
+    final now = DateTime.now();
+    bool hasChanges = false;
+    
+    for (final listName in nostrListNames) {
+      // 名前から決定的なIDを生成
+      final listId = CustomListHelpers.generateIdFromName(listName);
       
-      for (final listName in nostrListNames) {
-        // 名前から決定的なIDを生成
-        final listId = CustomListHelpers.generateIdFromName(listName);
-        
-        // すでに存在するか確認（IDで）
-        final exists = updatedLists.any((list) => list.id == listId);
-        
-        if (!exists) {
-          AppLogger.debug(' [CustomLists] Adding synced list from Nostr: "$listName" (ID: $listId)');
-          
-          final newList = CustomList(
-            id: listId, // 名前から生成した決定的なID
-            name: listName.toUpperCase(),
-            order: _getNextOrder(updatedLists),
-            createdAt: now,
-            updatedAt: now,
-          );
-          
-          updatedLists.add(newList);
-          hasChanges = true;
-        } else {
-          AppLogger.debug(' [CustomLists] List "$listName" (ID: $listId) already exists, skipping');
-        }
-      }
+      // すでに存在するか確認（IDで）
+      final exists = updatedLists.any((list) => list.id == listId);
       
-      if (hasChanges) {
-        // AppSettingsから順番を復元
-        await _applySavedListOrder(updatedLists);
+      if (!exists) {
+        AppLogger.debug(' [CustomLists] Adding synced list from Nostr: "$listName" (ID: $listId)');
         
-        state = AsyncValue.data(updatedLists);
+        final newList = CustomList(
+          id: listId, // 名前から生成した決定的なID
+          name: listName.toUpperCase(),
+          order: _getNextOrder(updatedLists),
+          createdAt: now,
+          updatedAt: now,
+        );
         
-        // ローカルストレージに保存
-        await localStorageService.saveCustomLists(updatedLists);
-        
-        AppLogger.info(' [CustomLists] Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
+        updatedLists.add(newList);
+        hasChanges = true;
       } else {
-        AppLogger.debug(' [CustomLists] No new lists to sync from Nostr');
+        AppLogger.debug(' [CustomLists] List "$listName" (ID: $listId) already exists, skipping');
       }
-    }).value;
+    }
+    
+    if (hasChanges) {
+      // AppSettingsから順番を復元
+      await _applySavedListOrder(updatedLists);
+      
+      // ローカルストレージに保存
+      await localStorageService.saveCustomLists(updatedLists);
+      
+      // 状態を更新（UIに確実に通知）
+      state = AsyncValue.data(updatedLists);
+      
+      AppLogger.info(' [CustomLists] ✅ Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
+      AppLogger.info(' [CustomLists] 📱 UI updated with ${updatedLists.length} total lists');
+    } else {
+      AppLogger.debug(' [CustomLists] No new lists to sync from Nostr');
+    }
     
     // Nostr同期後、リストが空の場合はデフォルトリストを作成
     await createDefaultListsIfEmpty();
@@ -462,43 +471,54 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         return;
       }
       
-      await state.whenData((currentLists) async {
-        final updatedLists = List<CustomList>.from(currentLists);
-        bool hasChanges = false;
+      final currentState = state;
+      
+      // AsyncValueが data でない場合は処理できない
+      if (currentState is! AsyncData<List<CustomList>>) {
+        AppLogger.warning(' [CustomLists] Cannot sync groups - state is not AsyncData');
+        return;
+      }
+      
+      final currentLists = currentState.value;
+      final updatedLists = List<CustomList>.from(currentLists);
+      bool hasChanges = false;
+      
+      for (final groupList in groupLists) {
+        // 既に存在するか確認（IDで）
+        final existingIndex = updatedLists.indexWhere((l) => l.id == groupList.id);
         
-        for (final groupList in groupLists) {
-          // 既に存在するか確認（IDで）
-          final existingIndex = updatedLists.indexWhere((l) => l.id == groupList.id);
-          
-          if (existingIndex == -1) {
-            // 新しいグループリストを追加
-            AppLogger.debug('📥 Adding synced group list: "${groupList.name}"');
-            updatedLists.add(groupList);
+        if (existingIndex == -1) {
+          // 新しいグループリストを追加
+          AppLogger.debug('📥 Adding synced group list: "${groupList.name}"');
+          updatedLists.add(groupList);
+          hasChanges = true;
+        } else {
+          // 既存のグループリストを更新（メンバーが変更されている可能性）
+          final existing = updatedLists[existingIndex];
+          if (existing.groupMembers.length != groupList.groupMembers.length ||
+              !existing.groupMembers.every((m) => groupList.groupMembers.contains(m))) {
+            AppLogger.debug('🔄 Updating group list members: "${groupList.name}"');
+            updatedLists[existingIndex] = groupList.copyWith(
+              order: existing.order, // 既存の順番を維持
+            );
             hasChanges = true;
-          } else {
-            // 既存のグループリストを更新（メンバーが変更されている可能性）
-            final existing = updatedLists[existingIndex];
-            if (existing.groupMembers.length != groupList.groupMembers.length ||
-                !existing.groupMembers.every((m) => groupList.groupMembers.contains(m))) {
-              AppLogger.debug('🔄 Updating group list members: "${groupList.name}"');
-              updatedLists[existingIndex] = groupList.copyWith(
-                order: existing.order, // 既存の順番を維持
-              );
-              hasChanges = true;
-            }
           }
         }
+      }
+      
+      if (hasChanges) {
+        // ローカルストレージに保存
+        await localStorageService.saveCustomLists(updatedLists);
         
-        if (hasChanges) {
-          await localStorageService.saveCustomLists(updatedLists);
-          state = AsyncValue.data(updatedLists);
-          
-          // AppSettingsのcustomListOrderも更新
-          await _updateCustomListOrderInSettings(updatedLists);
-          
-          AppLogger.info('✅ Synced ${groupLists.length} group lists from Nostr');
-        }
-      }).value;
+        // 状態を更新（UIに確実に通知）
+        state = AsyncValue.data(updatedLists);
+        
+        // AppSettingsのcustomListOrderも更新
+        await _updateCustomListOrderInSettings(updatedLists);
+        
+        AppLogger.info('✅ Synced ${groupLists.length} group lists from Nostr');
+        AppLogger.info('📱 UI updated with ${updatedLists.length} total lists (including ${groupLists.length} groups)');
+      }
     } catch (e, st) {
       AppLogger.error('❌ Failed to sync group lists from Nostr: $e', error: e, stackTrace: st);
     }
