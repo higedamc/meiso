@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/calendar_provider.dart';
 import '../../providers/date_provider.dart';
+import '../../providers/app_settings_provider.dart';
+import '../../providers/custom_lists_provider.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
 import '../../widgets/expandable_calendar.dart';
+import '../../widgets/expandable_custom_list_modal.dart';
 import '../../widgets/todo_edit_screen.dart';
 import '../settings/settings_screen.dart';
 import '../someday/someday_screen.dart';
+import '../list_detail/list_detail_screen.dart';
 
 /// Meisoのメイン画面
 /// 1日分を全画面表示し、スワイプで日付移動
@@ -105,9 +109,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _showSomeday() {
-    setState(() {
-      _showingSomeday = true;
-    });
+    // モーダルが既に表示されている場合は、最後に見たカスタムリストに直接ジャンプ
+    final isModalVisible = ref.read(customListModalVisibleProvider);
+    
+    if (isModalVisible) {
+      // 最後に見ていたカスタムリストを取得
+      final appSettings = ref.read(appSettingsProvider);
+      appSettings.whenData((settings) {
+        final lastViewedListId = settings.lastViewedCustomListId;
+        
+        if (lastViewedListId != null) {
+          // カスタムリストを取得
+          final customListsAsync = ref.read(customListsProvider);
+          customListsAsync.whenData((customLists) {
+            final targetList = customLists.firstWhere(
+              (list) => list.id == lastViewedListId,
+              orElse: () => customLists.first,
+            );
+            
+            // モーダルを閉じる
+            ref.read(customListModalVisibleProvider.notifier).state = false;
+            
+            // リスト詳細画面に遷移
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ListDetailScreen(
+                  customList: targetList,
+                ),
+              ),
+            );
+          });
+        } else {
+          // 最後に見たリストがない場合は、モーダルを閉じる
+          ref.read(customListModalVisibleProvider.notifier).state = false;
+        }
+      });
+    } else {
+      // モーダルを表示
+      ref.read(customListModalVisibleProvider.notifier).state = true;
+      
+      // カレンダーは閉じる
+      ref.read(calendarVisibleProvider.notifier).state = false;
+    }
   }
 
   void _onDateTabTap(int index) {
@@ -184,6 +228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       builder: (context, ref, child) {
         final dates = ref.watch(dateListProvider);
         final isCalendarVisible = ref.watch(calendarVisibleProvider);
+        final isCustomListModalVisible = ref.watch(customListModalVisibleProvider);
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -201,6 +246,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             });
                           },
                         )
+                      : isCustomListModalVisible
+                      ? ExpandableCustomListModal(
+                          isVisible: isCustomListModalVisible,
+                          onListSelected: () {
+                            // リストが選択されたらモーダルを閉じる
+                            ref.read(customListModalVisibleProvider.notifier).state = false;
+                          },
+                        )
                       : PageView.builder(
                           controller: _pageController,
                           onPageChanged: _onPageChanged,
@@ -214,30 +267,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                 ),
 
-                // 日付タブバー（SOMEDAY表示時は非表示）
-                if (!_showingSomeday)
+                // 日付タブバー（SOMEDAY表示時、モーダル表示時は非表示）
+                if (!_showingSomeday && !isCustomListModalVisible)
                   DateTabBar(
                     dates: dates,
                     currentIndex: _currentPageIndex,
                     onDateTap: _onDateTabTap,
                   ),
 
-                // カレンダー（TODAYボタンタップで展開）
-                if (!_showingSomeday)
+                // カレンダー（TODAYボタンタップで展開、モーダル表示時は非表示）
+                if (!_showingSomeday && !isCustomListModalVisible)
                   ExpandableCalendar(
                     isVisible: isCalendarVisible,
                     onDaySelected: (selectedDay) => 
                         _onCalendarDaySelected(dates, selectedDay),
                   ),
 
-                // 底部ナビゲーション（SOMEDAY表示時は非表示）
+                // 底部ナビゲーション（SOMEDAY表示時は非表示、モーダル表示時は表示）
                 if (!_showingSomeday)
                   BottomNavigation(
-                    onTodayTap: () => _jumpToToday(dates),
+                    onTodayTap: () {
+                      // カスタムリストモーダルを閉じる
+                      ref.read(customListModalVisibleProvider.notifier).state = false;
+                      _jumpToToday(dates);
+                    },
                     onAddTap: () => _showAddTodoDialog(context, ref),
                     onSomedayTap: _showSomeday,
                     onSomedayLongPress: _openSettings,
-                    isSomedayActive: _showingSomeday,
+                    isSomedayActive: isCustomListModalVisible,
                   ),
               ],
             ),
