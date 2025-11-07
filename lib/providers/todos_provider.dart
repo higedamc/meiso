@@ -14,8 +14,6 @@ import '../services/link_preview_service.dart';
 import '../services/recurrence_parser.dart';
 import '../services/widget_service.dart';
 import '../services/group_task_service.dart';
-import '../bridge_generated.dart/api.dart' as rust_api;
-import '../bridge_generated.dart/group_tasks.dart';
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
