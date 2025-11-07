@@ -43,6 +43,10 @@ class RecurrenceParser {
     final monthlyResult = _parseMonthlyPattern(trimmedTitle, title, date);
     if (monthlyResult != null) return monthlyResult;
     
+    // 5. "every N years" / "every year"
+    final yearlyResult = _parseYearlyPattern(trimmedTitle, title, date);
+    if (yearlyResult != null) return yearlyResult;
+    
     // パターンにマッチしない場合
     return RecurrenceParseResult(
       pattern: null,
@@ -50,7 +54,7 @@ class RecurrenceParser {
     );
   }
   
-  /// "every N days" / "every day" / "everyday" パターンをパース
+  /// "every N days" / "every day" / "everyday" / "every other day" / "every weekday" パターンをパース
   static RecurrenceParseResult? _parseDailyPattern(String lowerTitle, String originalTitle) {
     // "everyday" (1単語)
     final everydayRegex = RegExp(r'\beveryday\b');
@@ -60,6 +64,39 @@ class RecurrenceParser {
         pattern: const RecurrencePattern(
           type: RecurrenceType.daily,
           interval: 1,
+        ),
+        cleanTitle: cleanTitle,
+      );
+    }
+    
+    // "every other day" (2日ごと)
+    final everyOtherDayRegex = RegExp(r'\bevery\s+other\s+day\b');
+    if (everyOtherDayRegex.hasMatch(lowerTitle)) {
+      final cleanTitle = originalTitle.replaceAll(
+        RegExp(r'\bevery\s+other\s+day\b', caseSensitive: false),
+        '',
+      ).trim();
+      return RecurrenceParseResult(
+        pattern: const RecurrencePattern(
+          type: RecurrenceType.daily,
+          interval: 2,
+        ),
+        cleanTitle: cleanTitle,
+      );
+    }
+    
+    // "every weekday" (月〜金)
+    final everyWeekdayRegex = RegExp(r'\bevery\s+weekday\b');
+    if (everyWeekdayRegex.hasMatch(lowerTitle)) {
+      final cleanTitle = originalTitle.replaceAll(
+        RegExp(r'\bevery\s+weekday\b', caseSensitive: false),
+        '',
+      ).trim();
+      return RecurrenceParseResult(
+        pattern: const RecurrencePattern(
+          type: RecurrenceType.weekly,
+          interval: 1,
+          weekdays: [1, 2, 3, 4, 5], // 月〜金
         ),
         cleanTitle: cleanTitle,
       );
@@ -102,12 +139,34 @@ class RecurrenceParser {
     return null;
   }
   
-  /// "every N weeks" / "every week" パターンをパース
+  /// "every N weeks" / "every week" / "every other week" パターンをパース
   static RecurrenceParseResult? _parseWeeklyPattern(
     String lowerTitle,
     String originalTitle,
     DateTime? date,
   ) {
+    // "every other week" (2週間ごと)
+    final everyOtherWeekRegex = RegExp(r'\bevery\s+other\s+week\b');
+    if (everyOtherWeekRegex.hasMatch(lowerTitle)) {
+      final cleanTitle = originalTitle.replaceAll(
+        RegExp(r'\bevery\s+other\s+week\b', caseSensitive: false),
+        '',
+      ).trim();
+      
+      // 今日の曜日を使用
+      final targetDate = date ?? DateTime.now();
+      final weekday = targetDate.weekday;
+      
+      return RecurrenceParseResult(
+        pattern: RecurrencePattern(
+          type: RecurrenceType.weekly,
+          interval: 2,
+          weekdays: [weekday],
+        ),
+        cleanTitle: cleanTitle,
+      );
+    }
+    
     // "every N weeks"
     final everyNWeeksRegex = RegExp(r'\bevery\s+(\d+)\s+weeks?\b');
     final matchN = everyNWeeksRegex.firstMatch(lowerTitle);
@@ -249,6 +308,61 @@ class RecurrenceParser {
       return RecurrenceParseResult(
         pattern: RecurrencePattern(
           type: RecurrenceType.monthly,
+          interval: 1,
+          dayOfMonth: dayOfMonth,
+        ),
+        cleanTitle: cleanTitle,
+      );
+    }
+    
+    return null;
+  }
+  
+  /// "every N years" / "every year" パターンをパース
+  static RecurrenceParseResult? _parseYearlyPattern(
+    String lowerTitle,
+    String originalTitle,
+    DateTime? date,
+  ) {
+    // "every N years"
+    final everyNYearsRegex = RegExp(r'\bevery\s+(\d+)\s+years?\b');
+    final matchN = everyNYearsRegex.firstMatch(lowerTitle);
+    if (matchN != null) {
+      final interval = int.parse(matchN.group(1)!);
+      final cleanTitle = originalTitle.replaceAll(
+        RegExp(r'\bevery\s+\d+\s+years?\b', caseSensitive: false),
+        '',
+      ).trim();
+      
+      // 今日の日付を使用
+      final targetDate = date ?? DateTime.now();
+      final dayOfMonth = targetDate.day;
+      
+      return RecurrenceParseResult(
+        pattern: RecurrencePattern(
+          type: RecurrenceType.yearly,
+          interval: interval,
+          dayOfMonth: dayOfMonth,
+        ),
+        cleanTitle: cleanTitle,
+      );
+    }
+    
+    // "every year"
+    final everyYearRegex = RegExp(r'\bevery\s+year\b');
+    if (everyYearRegex.hasMatch(lowerTitle)) {
+      final cleanTitle = originalTitle.replaceAll(
+        RegExp(r'\bevery\s+year\b', caseSensitive: false),
+        '',
+      ).trim();
+      
+      // 今日の日付を使用
+      final targetDate = date ?? DateTime.now();
+      final dayOfMonth = targetDate.day;
+      
+      return RecurrenceParseResult(
+        pattern: RecurrencePattern(
+          type: RecurrenceType.yearly,
           interval: 1,
           dayOfMonth: dayOfMonth,
         ),

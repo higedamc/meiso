@@ -34,5 +34,6 @@ const _$RecurrenceTypeEnumMap = {
   RecurrenceType.daily: 'daily',
   RecurrenceType.weekly: 'weekly',
   RecurrenceType.monthly: 'monthly',
+  RecurrenceType.yearly: 'yearly',
   RecurrenceType.custom: 'custom',
 };

@@ -42,6 +42,9 @@ enum RecurrenceType {
   /// 毎月
   monthly,
   
+  /// 毎年
+  yearly,
+  
   /// カスタム（将来拡張用）
   custom,
 }
@@ -55,6 +58,8 @@ extension RecurrenceTypeExtension on RecurrenceType {
         return '毎週';
       case RecurrenceType.monthly:
         return '毎月';
+      case RecurrenceType.yearly:
+        return '毎年';
       case RecurrenceType.custom:
         return 'カスタム';
     }
@@ -128,6 +133,21 @@ extension RecurrencePatternExtension on RecurrencePattern {
         
         return DateTime(targetYear, targetMonth, targetDay);
         
+      case RecurrenceType.yearly:
+        if (dayOfMonth == null) {
+          return null;
+        }
+        
+        // 年を追加
+        final targetYear = currentDate.year + interval;
+        final targetMonth = currentDate.month;
+        
+        // その月の最終日を取得（うるう年対応）
+        final lastDayOfMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+        final targetDay = dayOfMonth! > lastDayOfMonth ? lastDayOfMonth : dayOfMonth!;
+        
+        return DateTime(targetYear, targetMonth, targetDay);
+        
       case RecurrenceType.custom:
         // カスタムは今後実装
         return null;
@@ -176,6 +196,18 @@ extension RecurrencePatternExtension on RecurrencePattern {
           buffer.write('毎月');
         } else {
           buffer.write('$intervalヶ月ごと');
+        }
+        
+        if (dayOfMonth != null) {
+          buffer.write(' ${dayOfMonth}日');
+        }
+        break;
+        
+      case RecurrenceType.yearly:
+        if (interval == 1) {
+          buffer.write('毎年');
+        } else {
+          buffer.write('$interval年ごと');
         }
         
         if (dayOfMonth != null) {

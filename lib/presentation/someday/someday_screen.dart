@@ -99,6 +99,7 @@ class SomedayScreen extends ConsumerWidget {
               _getListTodoCount(list.id, todos),
               isDark,
               key: ValueKey(list.id),
+              showDragHandle: true, // ドラッグハンドルを表示
               onTap: () {
                 // リスト詳細画面に遷移
                 Navigator.push(
@@ -172,6 +173,7 @@ class SomedayScreen extends ConsumerWidget {
     bool isDark, {
     Key? key,
     required VoidCallback onTap,
+    bool showDragHandle = false,
   }) {
     return InkWell(
       key: key,
@@ -188,6 +190,17 @@ class SomedayScreen extends ConsumerWidget {
         ),
         child: Row(
           children: [
+            // ドラッグハンドル（カスタムリストのみ表示）
+            if (showDragHandle) ...[
+              Icon(
+                Icons.drag_handle,
+                size: 20,
+                color: isDark
+                    ? AppTheme.darkTextSecondary.withOpacity(0.5)
+                    : AppTheme.lightTextSecondary.withOpacity(0.5),
+              ),
+              const SizedBox(width: 12),
+            ],
             // リスト名
             Expanded(
               child: Text(
