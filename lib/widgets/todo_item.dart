@@ -1,27 +1,17 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
 import 'package:flutter/material.dart';
-import '../services/logger_service.dart';
 import 'package:flutter/services.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/logger_service.dart';
 import '../app_theme.dart';
-import '../services/logger_service.dart';
 import '../models/todo.dart';
-import '../services/logger_service.dart';
 import '../models/link_preview.dart';
-import '../services/logger_service.dart';
 import '../providers/todos_provider.dart';
-import '../services/logger_service.dart';
 import '../providers/nostr_provider.dart';
+import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
-import '../services/logger_service.dart';
 import 'circular_checkbox.dart';
-import '../services/logger_service.dart';
 
 /// リカーリングタスク削除オプション
 enum RecurringDeleteOption {
@@ -517,13 +507,31 @@ class TodoItem extends StatelessWidget {
               }
             }
           },
-          onDismissed: (direction) {
+          onDismissed: (direction) async {
             if (direction == DismissDirection.endToStart) {
               // 左スワイプの場合のみ削除
               // 削除前にTodoを保持（元に戻す用）
               final deletedTodo = todo;
               
-              ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
+              // グループリストかどうかを確認
+              bool isGroupList = false;
+              if (todo.customListId != null) {
+                final customListsAsync = ref.read(customListsProvider);
+                final customLists = customListsAsync.whenOrNull(data: (lists) => lists) ?? [];
+                final customList = customLists.where((l) => l.id == todo.customListId).firstOrNull;
+                isGroupList = customList?.isGroup ?? false;
+              }
+              
+              if (isGroupList) {
+                // グループタスクの削除
+                ref.read(todosProvider.notifier).deleteTodoFromGroup(
+                  groupId: todo.customListId!,
+                  todoId: todo.id,
+                );
+              } else {
+                // 通常のタスクの削除
+                ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
+              }
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

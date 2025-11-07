@@ -2210,3 +2210,240 @@ pub fn is_cache_valid(cache_info: CachedEventInfo) -> bool {
     cache_info.is_valid()
 }
 
+// ========================================
+// グループタスク管理API（マルチパーティ暗号化）
+// ========================================
+
+use crate::group_tasks::{GroupTodoList, GroupTodoData};
+
+/// グループタスクリストを暗号化（マルチパーティ暗号化）
+/// 
+/// # Parameters
+/// - `tasks`: グループタスクのリスト
+/// - `group_id`: グループID（UUID）
+/// - `group_name`: グループ名
+/// - `member_pubkeys`: メンバーの公開鍵リスト（hex形式）
+pub fn encrypt_group_task_list(
+    tasks: Vec<GroupTodoData>,
+    group_id: String,
+    group_name: String,
+    member_pubkeys: Vec<String>,
+) -> Result<GroupTodoList> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート（Amberモードでは未対応）
+        let keys = client.keys.as_ref()
+            .context("Secret key required for group task encryption")?;
+        
+        crate::group_tasks::encrypt_group_tasks(
+            tasks,
+            group_id,
+            group_name,
+            member_pubkeys,
+            keys,
+        )
+    })
+}
+
+/// グループタスクリストを復号化
+/// 
+/// # Parameters
+/// - `group_list`: 暗号化されたグループタスクリスト
+pub fn decrypt_group_task_list(
+    group_list: GroupTodoList,
+) -> Result<Vec<GroupTodoData>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート（Amberモードでは未対応）
+        let keys = client.keys.as_ref()
+            .context("Secret key required for group task decryption")?;
+        
+        crate::group_tasks::decrypt_group_tasks(
+            &group_list,
+            keys,
+        )
+    })
+}
+
+/// グループにメンバーを追加
+/// 
+/// # Parameters
+/// - `group_list`: 既存のグループタスクリスト
+/// - `new_member_pubkey`: 追加するメンバーの公開鍵（hex形式）
+pub fn add_member_to_group_task_list(
+    mut group_list: GroupTodoList,
+    new_member_pubkey: String,
+) -> Result<GroupTodoList> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート
+        let keys = client.keys.as_ref()
+            .context("Secret key required for adding member")?;
+        
+        crate::group_tasks::add_member_to_group(
+            &mut group_list,
+            new_member_pubkey,
+            keys,
+        )?;
+        
+        Ok(group_list)
+    })
+}
+
+/// グループからメンバーを削除（Forward Secrecy: 全体を再暗号化）
+/// 
+/// # Parameters
+/// - `group_list`: 既存のグループタスクリスト
+/// - `member_to_remove`: 削除するメンバーの公開鍵（hex形式）
+pub fn remove_member_from_group_task_list(
+    group_list: GroupTodoList,
+    member_to_remove: String,
+) -> Result<GroupTodoList> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート
+        let keys = client.keys.as_ref()
+            .context("Secret key required for removing member")?;
+        
+        crate::group_tasks::remove_member_from_group(
+            &group_list,
+            member_to_remove,
+            keys,
+        )
+    })
+}
+
+/// グループタスクリストをNostrに保存（Kind 30001 - NIP-51）
+/// 
+/// # Parameters
+/// - `group_list`: 暗号化されたグループタスクリスト
+pub fn save_group_task_list_to_nostr(
+    group_list: GroupTodoList,
+) -> Result<EventSendResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート
+        let keys = client.keys.as_ref()
+            .context("Secret key required for saving group task list")?;
+        
+        // GroupTodoListをJSON文字列に変換
+        let group_list_json = serde_json::to_string(&group_list)?;
+        
+        // NIP-44で自己暗号化（グループメタデータのみ）
+        let public_key = keys.public_key();
+        let encrypted_content = nip44::encrypt(
+            keys.secret_key(),
+            &public_key,
+            &group_list_json,
+            nip44::Version::V2,
+        )?;
+        
+        // d tag（グループ識別子）
+        let d_tag_value = format!("meiso-group-{}", group_list.group_id);
+        
+        let d_tag = Tag::custom(
+            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+            vec![d_tag_value.clone()],
+        );
+        
+        let title_tag = Tag::custom(
+            TagKind::Custom(std::borrow::Cow::Borrowed("title")),
+            vec![group_list.group_name.clone()],
+        );
+        
+        // メンバータグを追加（検索可能にする）
+        let mut tags = vec![d_tag, title_tag];
+        for member_pubkey in &group_list.members {
+            tags.push(Tag::custom(
+                TagKind::Custom(std::borrow::Cow::Borrowed("member")),
+                vec![member_pubkey.clone()],
+            ));
+        }
+        
+        let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
+            .tags(tags)
+            .sign(keys)
+            .await?;
+        
+        println!("📤 Sending group task list event (d='{}', {} members)", d_tag_value, group_list.members.len());
+        
+        // リレーに送信
+        client.send_event_with_result(event).await
+    })
+}
+
+/// 自分がメンバーになっているグループタスクリストを取得
+pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート
+        let keys = client.keys.as_ref()
+            .context("Secret key required for fetching group task lists")?;
+        
+        // 自分がメンバータグに含まれるKind 30001イベントを検索
+        // Note: Nostr-SDKの制限により、カスタムタグでの検索は直接サポートされない
+        // 代わりに、すべてのKind 30001イベントを取得して、メンバータグでフィルタリング
+        let filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(keys.public_key()); // 自分が作成したグループのみ
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        if events.is_empty() {
+            println!("⚠️ No group task lists found");
+            return Ok(Vec::new());
+        }
+        
+        println!("📥 Found {} group task list events", events.len());
+        
+        let mut group_lists = Vec::new();
+        
+        for event in events {
+            // d タグを取得してグループリストか確認
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            // meiso-group-* のみを処理
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-group-") {
+                    // NIP-44で復号化
+                    match nip44::decrypt(
+                        keys.secret_key(),
+                        &keys.public_key(),
+                        &event.content,
+                    ) {
+                        Ok(decrypted) => {
+                            match serde_json::from_str::<GroupTodoList>(&decrypted) {
+                                Ok(group_list) => {
+                                    println!("✅ Decrypted group: {}", group_list.group_name);
+                                    group_lists.push(group_list);
+                                }
+                                Err(e) => {
+                                    eprintln!("❌ Failed to parse group task list JSON from {:?}: {}", d_tag, e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Failed to decrypt group task list {:?}: {}", d_tag, e);
+                        }
+                    }
+                }
+            }
+        }
+        
+        println!("✅ Total group task lists fetched: {}", group_lists.len());
+        Ok(group_lists)
+    })
+}
+

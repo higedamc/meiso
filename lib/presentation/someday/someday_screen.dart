@@ -8,6 +8,7 @@ import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/add_list_screen.dart';
+import '../../widgets/add_group_list_dialog.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
 
@@ -100,6 +101,7 @@ class SomedayScreen extends ConsumerWidget {
               isDark,
               key: ValueKey(list.id),
               showDragHandle: true, // ドラッグハンドルを表示
+              isGroup: list.isGroup, // グループリストフラグ
               onTap: () {
                 // リスト詳細画面に遷移
                 Navigator.push(
@@ -174,6 +176,7 @@ class SomedayScreen extends ConsumerWidget {
     Key? key,
     required VoidCallback onTap,
     bool showDragHandle = false,
+    bool isGroup = false,
   }) {
     return InkWell(
       key: key,
@@ -200,6 +203,15 @@ class SomedayScreen extends ConsumerWidget {
                     : AppTheme.lightTextSecondary.withOpacity(0.5),
               ),
               const SizedBox(width: 12),
+            ],
+            // グループアイコン（グループリストの場合）
+            if (isGroup) ...[
+              Icon(
+                Icons.group,
+                size: 18,
+                color: AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 8),
             ],
             // リスト名
             Expanded(
@@ -296,13 +308,59 @@ class SomedayScreen extends ConsumerWidget {
     return count;
   }
 
-  /// リスト追加画面を表示
+  /// リスト追加画面を表示（通常リストorグループリスト）
   void _showAddListScreen(BuildContext context, WidgetRef ref) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddListScreen(),
-        fullscreenDialog: true,
-      ),
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          title: Text(
+            'ADD LIST',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              letterSpacing: 1.2,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 通常のカスタムリスト
+              ListTile(
+                leading: const Icon(Icons.list_alt),
+                title: const Text('Personal List'),
+                subtitle: const Text('個人用のタスクリスト'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AddListScreen(),
+                      fullscreenDialog: true,
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              // グループリスト
+              ListTile(
+                leading: const Icon(Icons.group),
+                title: const Text('Group List'),
+                subtitle: const Text('共有可能なグループタスクリスト'),
+                onTap: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (context) => const AddGroupListDialog(),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
