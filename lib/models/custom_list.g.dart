@@ -13,6 +13,12 @@ _$CustomListImpl _$$CustomListImplFromJson(Map<String, dynamic> json) =>
       order: (json['order'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      isGroup: json['isGroup'] as bool? ?? false,
+      groupMembers:
+          (json['groupMembers'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
@@ -22,4 +28,6 @@ Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
       'order': instance.order,
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
+      'isGroup': instance.isGroup,
+      'groupMembers': instance.groupMembers,
     };

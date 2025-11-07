@@ -13,6 +13,7 @@ import '../services/amber_service.dart';
 import '../services/link_preview_service.dart';
 import '../services/recurrence_parser.dart';
 import '../services/widget_service.dart';
+import '../services/group_task_service.dart';
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
@@ -2446,6 +2447,235 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     } catch (e) {
       AppLogger.warning(' Failed to check migration: $e');
       return false;
+    }
+  }
+  
+  // ========================================
+  // グループタスク管理（マルチパーティ暗号化）
+  // ========================================
+  
+  /// グループタスクを同期（復号化してローカルに追加）
+  Future<void> syncGroupTodos(String groupId) async {
+    try {
+      AppLogger.info('🔄 Syncing group todos for group: $groupId');
+      
+      // グループリストを取得
+      final groupLists = await groupTaskService.fetchMyGroupTaskLists();
+      final groupList = groupLists.where((g) => g.groupId == groupId).firstOrNull;
+      
+      if (groupList == null) {
+        AppLogger.warning('⚠️ Group not found: $groupId');
+        return;
+      }
+      
+      // グループタスクを復号化
+      final groupTodos = await groupTaskService.decryptGroupTaskList(
+        groupList: groupList,
+      );
+      
+      AppLogger.info('✅ Decrypted ${groupTodos.length} todos from group');
+      
+      // 既存のグループタスクを削除
+      await state.whenData((todos) async {
+        final updated = Map<DateTime?, List<Todo>>.from(todos);
+        
+        // グループIDが一致するタスクを削除
+        for (final dateKey in updated.keys) {
+          updated[dateKey] = updated[dateKey]!
+              .where((t) => t.customListId != groupId)
+              .toList();
+        }
+        
+        // 新しいグループタスクを追加
+        for (final todo in groupTodos) {
+          final dateKey = todo.date;
+          updated[dateKey] ??= [];
+          updated[dateKey]!.add(todo);
+        }
+        
+        // ローカルストレージに保存
+        final allTodos = <Todo>[];
+        for (final dateGroup in updated.values) {
+          allTodos.addAll(dateGroup);
+        }
+        await localStorageService.saveTodos(allTodos);
+        
+        state = AsyncValue.data(updated);
+        
+        AppLogger.info('✅ Group todos synced to local storage');
+      }).value;
+      
+    } catch (e, st) {
+      AppLogger.error('❌ Failed to sync group todos: $e', error: e, stackTrace: st);
+    }
+  }
+  
+  /// グループにタスクを追加（楽観的UI更新）
+  Future<void> addTodoToGroup({
+    required String groupId,
+    required String title,
+    DateTime? date,
+  }) async {
+    final uuid = const Uuid();
+    final now = DateTime.now();
+    
+    final newTodo = Todo(
+      id: uuid.v4(),
+      title: title,
+      completed: false,
+      date: date,
+      order: 0, // 先頭に追加
+      createdAt: now,
+      updatedAt: now,
+      customListId: groupId,
+      needsSync: true,
+    );
+    
+    // 楽観的UI更新
+    await state.whenData((todos) async {
+      final updated = Map<DateTime?, List<Todo>>.from(todos);
+      
+      // 既存のタスクのorderを1つずつ増やす
+      if (updated.containsKey(date)) {
+        updated[date] = updated[date]!.map((t) {
+          if (t.customListId == groupId && !t.completed) {
+            return t.copyWith(order: t.order + 1);
+          }
+          return t;
+        }).toList();
+      } else {
+        updated[date] = [];
+      }
+      
+      // 新しいタスクを追加
+      updated[date]!.insert(0, newTodo);
+      
+      state = AsyncValue.data(updated);
+      
+      // ローカルストレージに保存
+      final allTodos = <Todo>[];
+      for (final dateGroup in updated.values) {
+        allTodos.addAll(dateGroup);
+      }
+      await localStorageService.saveTodos(allTodos);
+      
+      AppLogger.info('✅ [Group] Todo added to local storage (optimistic)');
+      
+      // バックグラウンドでグループタスクを暗号化してNostrに同期
+      _syncGroupToNostr(groupId);
+    }).value;
+  }
+  
+  /// グループのタスクを更新（楽観的UI更新）
+  Future<void> updateTodoInGroup({
+    required String groupId,
+    required Todo updatedTodo,
+  }) async {
+    await state.whenData((todos) async {
+      final updated = Map<DateTime?, List<Todo>>.from(todos);
+      
+      // 既存のタスクを更新
+      for (final dateKey in updated.keys) {
+        updated[dateKey] = updated[dateKey]!.map((t) {
+          if (t.id == updatedTodo.id) {
+            return updatedTodo.copyWith(
+              updatedAt: DateTime.now(),
+              needsSync: true,
+            );
+          }
+          return t;
+        }).toList();
+      }
+      
+      state = AsyncValue.data(updated);
+      
+      // ローカルストレージに保存
+      final allTodos = <Todo>[];
+      for (final dateGroup in updated.values) {
+        allTodos.addAll(dateGroup);
+      }
+      await localStorageService.saveTodos(allTodos);
+      
+      AppLogger.info('✅ [Group] Todo updated in local storage (optimistic)');
+      
+      // バックグラウンドでグループタスクを暗号化してNostrに同期
+      _syncGroupToNostr(groupId);
+    }).value;
+  }
+  
+  /// グループからタスクを削除（楽観的UI更新）
+  Future<void> deleteTodoFromGroup({
+    required String groupId,
+    required String todoId,
+  }) async {
+    await state.whenData((todos) async {
+      final updated = Map<DateTime?, List<Todo>>.from(todos);
+      
+      // タスクを削除
+      for (final dateKey in updated.keys) {
+        updated[dateKey] = updated[dateKey]!
+            .where((t) => t.id != todoId)
+            .toList();
+      }
+      
+      state = AsyncValue.data(updated);
+      
+      // ローカルストレージに保存
+      final allTodos = <Todo>[];
+      for (final dateGroup in updated.values) {
+        allTodos.addAll(dateGroup);
+      }
+      await localStorageService.saveTodos(allTodos);
+      
+      AppLogger.info('✅ [Group] Todo deleted from local storage (optimistic)');
+      
+      // バックグラウンドでグループタスクを暗号化してNostrに同期
+      _syncGroupToNostr(groupId);
+    }).value;
+  }
+  
+  /// グループタスクをNostrに同期（バックグラウンド）
+  Future<void> _syncGroupToNostr(String groupId) async {
+    try {
+      AppLogger.info('📤 Syncing group tasks to Nostr: $groupId');
+      
+      // グループリスト情報を取得
+      final customListsAsync = _ref.read(customListsProvider);
+      final customLists = customListsAsync.whenOrNull(data: (lists) => lists) ?? [];
+      final groupList = customLists.where((l) => l.id == groupId && l.isGroup).firstOrNull;
+      
+      if (groupList == null) {
+        AppLogger.warning('⚠️ Group list not found: $groupId');
+        return;
+      }
+      
+      // グループのタスクを取得
+      final todos = await state.whenData((todos) {
+        final groupTodos = <Todo>[];
+        for (final dateGroup in todos.values) {
+          for (final todo in dateGroup) {
+            if (todo.customListId == groupId) {
+              groupTodos.add(todo);
+            }
+          }
+        }
+        return groupTodos;
+      }).value ?? [];
+      
+      if (todos.isEmpty) {
+        AppLogger.info('ℹ️ No todos to sync for group: $groupId');
+        return;
+      }
+      
+      // グループタスクリストを暗号化してNostrに保存
+      await groupTaskService.createGroupTaskList(
+        tasks: todos,
+        customList: groupList,
+      );
+      
+      AppLogger.info('✅ Group tasks synced to Nostr: ${todos.length} tasks');
+    } catch (e, st) {
+      AppLogger.error('❌ Failed to sync group to Nostr: $e', error: e, stackTrace: st);
     }
   }
 }

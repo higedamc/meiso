@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../services/logger_service.dart';
 import '../models/custom_list.dart';
 import '../services/local_storage_service.dart';
+import '../services/group_task_service.dart';
 import 'app_settings_provider.dart';
 
 /// カスタムリストを管理するProvider
@@ -313,6 +315,192 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       AppLogger.warning(' [CustomLists] 順番復元エラー: $e');
       // エラー時は現在のorder順にソート
       lists.sort((a, b) => a.order.compareTo(b.order));
+    }
+  }
+  
+  // ========================================
+  // グループリスト管理機能
+  // ========================================
+  
+  /// グループリストを作成
+  /// 
+  /// [name]: グループ名
+  /// [memberPubkeys]: メンバーの公開鍵リスト（hex形式）
+  Future<CustomList?> createGroupList({
+    required String name,
+    required List<String> memberPubkeys,
+  }) async {
+    if (name.trim().isEmpty) return null;
+    if (memberPubkeys.isEmpty) {
+      AppLogger.warning('⚠️ Cannot create group list without members');
+      return null;
+    }
+    
+    try {
+      final lists = await state.whenData((lists) => lists).value ?? [];
+      
+      final now = DateTime.now();
+      final normalizedName = name.trim().toUpperCase();
+      
+      // グループIDを生成
+      const uuid = Uuid();
+      final groupId = uuid.v4();
+      
+      final newGroupList = CustomList(
+        id: groupId,
+        name: normalizedName,
+        order: _getNextOrder(lists),
+        createdAt: now,
+        updatedAt: now,
+        isGroup: true,
+        groupMembers: memberPubkeys,
+      );
+      
+      // ローカルに追加
+      final updatedLists = [...lists, newGroupList];
+      await localStorageService.saveCustomLists(updatedLists);
+      state = AsyncValue.data(updatedLists);
+      
+      // AppSettingsのcustomListOrderも更新
+      await _updateCustomListOrderInSettings(updatedLists);
+      
+      AppLogger.info('✅ [CustomLists] Created group list: "$normalizedName" with ${memberPubkeys.length} members');
+      
+      return newGroupList;
+    } catch (e, st) {
+      AppLogger.error('❌ Failed to create group list: $e', error: e, stackTrace: st);
+      return null;
+    }
+  }
+  
+  /// グループリストにメンバーを追加
+  Future<void> addMemberToGroupList({
+    required String groupId,
+    required String memberPubkey,
+  }) async {
+    await state.whenData((lists) async {
+      final listIndex = lists.indexWhere((l) => l.id == groupId && l.isGroup);
+      if (listIndex == -1) {
+        AppLogger.warning('⚠️ Group list not found: $groupId');
+        return;
+      }
+      
+      final groupList = lists[listIndex];
+      
+      // 既にメンバーの場合はスキップ
+      if (groupList.groupMembers.contains(memberPubkey)) {
+        AppLogger.info('ℹ️ Member already exists in group: $groupId');
+        return;
+      }
+      
+      // メンバーを追加
+      final updatedMembers = [...groupList.groupMembers, memberPubkey];
+      final updatedList = groupList.copyWith(
+        groupMembers: updatedMembers,
+        updatedAt: DateTime.now(),
+      );
+      
+      final updatedLists = [...lists];
+      updatedLists[listIndex] = updatedList;
+      
+      await localStorageService.saveCustomLists(updatedLists);
+      state = AsyncValue.data(updatedLists);
+      
+      AppLogger.info('✅ Added member to group list: ${groupList.name}');
+    }).value;
+  }
+  
+  /// グループリストからメンバーを削除
+  Future<void> removeMemberFromGroupList({
+    required String groupId,
+    required String memberPubkey,
+  }) async {
+    await state.whenData((lists) async {
+      final listIndex = lists.indexWhere((l) => l.id == groupId && l.isGroup);
+      if (listIndex == -1) {
+        AppLogger.warning('⚠️ Group list not found: $groupId');
+        return;
+      }
+      
+      final groupList = lists[listIndex];
+      
+      // メンバーを削除
+      final updatedMembers = groupList.groupMembers
+          .where((pubkey) => pubkey != memberPubkey)
+          .toList();
+      
+      if (updatedMembers.isEmpty) {
+        AppLogger.warning('⚠️ Cannot remove last member from group');
+        return;
+      }
+      
+      final updatedList = groupList.copyWith(
+        groupMembers: updatedMembers,
+        updatedAt: DateTime.now(),
+      );
+      
+      final updatedLists = [...lists];
+      updatedLists[listIndex] = updatedList;
+      
+      await localStorageService.saveCustomLists(updatedLists);
+      state = AsyncValue.data(updatedLists);
+      
+      AppLogger.info('✅ Removed member from group list: ${groupList.name}');
+    }).value;
+  }
+  
+  /// Nostrからグループリストを同期
+  Future<void> syncGroupListsFromNostr() async {
+    try {
+      AppLogger.info('🔄 Syncing group lists from Nostr...');
+      
+      // Nostrからグループリストを取得
+      final groupLists = await groupTaskService.syncGroupLists();
+      
+      if (groupLists.isEmpty) {
+        AppLogger.info('ℹ️ No group lists found on Nostr');
+        return;
+      }
+      
+      await state.whenData((currentLists) async {
+        final updatedLists = List<CustomList>.from(currentLists);
+        bool hasChanges = false;
+        
+        for (final groupList in groupLists) {
+          // 既に存在するか確認（IDで）
+          final existingIndex = updatedLists.indexWhere((l) => l.id == groupList.id);
+          
+          if (existingIndex == -1) {
+            // 新しいグループリストを追加
+            AppLogger.debug('📥 Adding synced group list: "${groupList.name}"');
+            updatedLists.add(groupList);
+            hasChanges = true;
+          } else {
+            // 既存のグループリストを更新（メンバーが変更されている可能性）
+            final existing = updatedLists[existingIndex];
+            if (existing.groupMembers.length != groupList.groupMembers.length ||
+                !existing.groupMembers.every((m) => groupList.groupMembers.contains(m))) {
+              AppLogger.debug('🔄 Updating group list members: "${groupList.name}"');
+              updatedLists[existingIndex] = groupList.copyWith(
+                order: existing.order, // 既存の順番を維持
+              );
+              hasChanges = true;
+            }
+          }
+        }
+        
+        if (hasChanges) {
+          await localStorageService.saveCustomLists(updatedLists);
+          state = AsyncValue.data(updatedLists);
+          
+          // AppSettingsのcustomListOrderも更新
+          await _updateCustomListOrderInSettings(updatedLists);
+          
+          AppLogger.info('✅ Synced ${groupLists.length} group lists from Nostr');
+        }
+      }).value;
+    } catch (e, st) {
+      AppLogger.error('❌ Failed to sync group lists from Nostr: $e', error: e, stackTrace: st);
     }
   }
 }

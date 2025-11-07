@@ -21,6 +21,12 @@ class CustomList with _$CustomList {
     
     /// 更新日時
     required DateTime updatedAt,
+    
+    /// グループリストかどうか（マルチパーティ暗号化使用）
+    @Default(false) bool isGroup,
+    
+    /// グループメンバーの公開鍵リスト（hex形式）
+    @Default([]) List<String> groupMembers,
   }) = _CustomList;
 
   factory CustomList.fromJson(Map<String, dynamic> json) =>

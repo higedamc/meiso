@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 
 pub mod api;
 pub mod key_store;
+pub mod group_tasks;
 
 /// 複数のNostrクライアントを管理（client_id -> MeisoNostrClient）
 pub static NOSTR_CLIENTS: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, api::MeisoNostrClient>>>> =
