@@ -28,11 +28,13 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
     super.initState();
     
     // グループリストの場合、初期化時にグループタスクを同期
-    if (widget.customList.isGroup) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(todosProvider.notifier).syncGroupTodos(widget.customList.id);
-      });
-    }
+    // 注意: 楽観的UI更新を使用しているため、頻繁な同期は避ける
+    // タスクが表示されない場合のみ、手動で同期する
+    // if (widget.customList.isGroup) {
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     ref.read(todosProvider.notifier).syncGroupTodos(widget.customList.id);
+    //   });
+    // }
   }
   
   @override
