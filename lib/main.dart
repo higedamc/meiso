@@ -258,6 +258,28 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             Locale('es'), // Spanish
           ],
           locale: locale,
+          // Android 13+の「App languages」設定を優先的に反映
+          localeListResolutionCallback: (systemLocales, supportedLocales) {
+            // ユーザーが手動で言語を設定している場合はそれを優先
+            if (locale != null) {
+              return locale;
+            }
+            
+            // システムのロケールリスト（App languages設定を含む）から
+            // サポートしている言語を探す
+            if (systemLocales != null) {
+              for (final systemLocale in systemLocales) {
+                for (final supportedLocale in supportedLocales) {
+                  if (systemLocale.languageCode == supportedLocale.languageCode) {
+                    return supportedLocale;
+                  }
+                }
+              }
+            }
+            
+            // マッチする言語がない場合は英語をデフォルトとする
+            return const Locale('en');
+          },
         );
       },
       loading: () {
@@ -280,6 +302,23 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             Locale('es'), // Spanish
           ],
           locale: locale,
+          localeListResolutionCallback: (systemLocales, supportedLocales) {
+            if (locale != null) {
+              return locale;
+            }
+            
+            if (systemLocales != null) {
+              for (final systemLocale in systemLocales) {
+                for (final supportedLocale in supportedLocales) {
+                  if (systemLocale.languageCode == supportedLocale.languageCode) {
+                    return supportedLocale;
+                  }
+                }
+              }
+            }
+            
+            return const Locale('en');
+          },
         );
       },
       error: (error, stack) {
@@ -302,6 +341,23 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             Locale('es'), // Spanish
           ],
           locale: locale,
+          localeListResolutionCallback: (systemLocales, supportedLocales) {
+            if (locale != null) {
+              return locale;
+            }
+            
+            if (systemLocales != null) {
+              for (final systemLocale in systemLocales) {
+                for (final supportedLocale in supportedLocales) {
+                  if (systemLocale.languageCode == supportedLocale.languageCode) {
+                    return supportedLocale;
+                  }
+                }
+              }
+            }
+            
+            return const Locale('en');
+          },
         );
       },
     );
