@@ -1,19 +1,12 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
 import 'package:flutter/services.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import '../models/app_settings.dart';
 import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
-import '../services/logger_service.dart';
 import '../services/amber_service.dart';
-import '../services/logger_service.dart';
 import 'nostr_provider.dart';
-import '../services/logger_service.dart';
 import '../bridge_generated.dart/api.dart' as bridge;
-import '../services/logger_service.dart';
 
 /// アプリ設定を管理するProvider
 final appSettingsProvider =
@@ -225,6 +218,13 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
     });
   }
 
+  /// 最後に見ていたカスタムリストIDを更新
+  Future<void> setLastViewedCustomListId(String? listId) async {
+    state.whenData((settings) async {
+      await updateSettings(settings.copyWith(lastViewedCustomListId: listId));
+    });
+  }
+
   /// Nostrに設定を同期
   Future<void> _syncToNostr(AppSettings settings) async {
     if (!_ref.read(nostrInitializedProvider)) {
@@ -248,6 +248,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'relays': settings.relays,
           'tor_enabled': settings.torEnabled,
           'proxy_url': settings.proxyUrl,
+          'custom_list_order': settings.customListOrder,
+          'last_viewed_custom_list_id': settings.lastViewedCustomListId,
           'updated_at': settings.updatedAt.toIso8601String(),
         });
         
@@ -340,6 +342,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           torEnabled: settings.torEnabled,
           proxyUrl: settings.proxyUrl,
           customListOrder: settings.customListOrder,
+          lastViewedCustomListId: settings.lastViewedCustomListId,
           updatedAt: settings.updatedAt.toIso8601String(),
         );
         
@@ -453,6 +456,10 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           relays: syncedRelays,
           torEnabled: settingsMap['tor_enabled'] as bool? ?? false,
           proxyUrl: settingsMap['proxy_url'] as String? ?? 'socks5://127.0.0.1:9050',
+          customListOrder: settingsMap['custom_list_order'] != null 
+              ? List<String>.from(settingsMap['custom_list_order'] as List)
+              : [],
+          lastViewedCustomListId: settingsMap['last_viewed_custom_list_id'] as String?,
           updatedAt: DateTime.parse(settingsMap['updated_at'] as String),
         );
         
@@ -490,6 +497,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           relays: syncedRelays,
           torEnabled: bridgeSettings.torEnabled,
           proxyUrl: bridgeSettings.proxyUrl,
+          customListOrder: bridgeSettings.customListOrder,
+          lastViewedCustomListId: bridgeSettings.lastViewedCustomListId,
           updatedAt: DateTime.parse(bridgeSettings.updatedAt),
         );
         

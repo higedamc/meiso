@@ -24,6 +24,7 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      lastViewedCustomListId: json['lastViewedCustomListId'] as String?,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
 
@@ -37,5 +38,6 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'torEnabled': instance.torEnabled,
       'proxyUrl': instance.proxyUrl,
       'customListOrder': instance.customListOrder,
+      'lastViewedCustomListId': instance.lastViewedCustomListId,
       'updatedAt': instance.updatedAt.toIso8601String(),
     };

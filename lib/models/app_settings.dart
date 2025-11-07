@@ -31,6 +31,9 @@ class AppSettings with _$AppSettings {
     /// カスタムリストの順番（リストIDの配列）
     @Default([]) List<String> customListOrder,
     
+    /// 最後に見ていたカスタムリストID
+    String? lastViewedCustomListId,
+    
     /// 最終更新日時
     required DateTime updatedAt,
   }) = _AppSettings;
@@ -49,6 +52,7 @@ class AppSettings with _$AppSettings {
       torEnabled: false, // デフォルトはTor無効
       proxyUrl: 'socks5://127.0.0.1:9050', // Orbotのデフォルトプロキシ
       customListOrder: [], // デフォルトは空
+      lastViewedCustomListId: null, // デフォルトはなし
       updatedAt: DateTime.now(),
     );
   }

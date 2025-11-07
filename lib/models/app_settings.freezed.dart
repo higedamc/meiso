@@ -45,6 +45,9 @@ mixin _$AppSettings {
   /// カスタムリストの順番（リストIDの配列）
   List<String> get customListOrder => throw _privateConstructorUsedError;
 
+  /// 最後に見ていたカスタムリストID
+  String? get lastViewedCustomListId => throw _privateConstructorUsedError;
+
   /// 最終更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -74,6 +77,7 @@ abstract class $AppSettingsCopyWith<$Res> {
     bool torEnabled,
     String proxyUrl,
     List<String> customListOrder,
+    String? lastViewedCustomListId,
     DateTime updatedAt,
   });
 }
@@ -101,6 +105,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? torEnabled = null,
     Object? proxyUrl = null,
     Object? customListOrder = null,
+    Object? lastViewedCustomListId = freezed,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -137,6 +142,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
                 ? _value.customListOrder
                 : customListOrder // ignore: cast_nullable_to_non_nullable
                       as List<String>,
+            lastViewedCustomListId: freezed == lastViewedCustomListId
+                ? _value.lastViewedCustomListId
+                : lastViewedCustomListId // ignore: cast_nullable_to_non_nullable
+                      as String?,
             updatedAt: null == updatedAt
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -165,6 +174,7 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     bool torEnabled,
     String proxyUrl,
     List<String> customListOrder,
+    String? lastViewedCustomListId,
     DateTime updatedAt,
   });
 }
@@ -191,6 +201,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? torEnabled = null,
     Object? proxyUrl = null,
     Object? customListOrder = null,
+    Object? lastViewedCustomListId = freezed,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -227,6 +238,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             ? _value.customListOrder
             : customListOrder // ignore: cast_nullable_to_non_nullable
                   as List<String>,
+        lastViewedCustomListId: freezed == lastViewedCustomListId
+            ? _value.lastViewedCustomListId
+            : lastViewedCustomListId // ignore: cast_nullable_to_non_nullable
+                  as String?,
         updatedAt: null == updatedAt
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -248,6 +263,7 @@ class _$AppSettingsImpl implements _AppSettings {
     this.torEnabled = false,
     this.proxyUrl = 'socks5://127.0.0.1:9050',
     this.customListOrder = const [],
+    this.lastViewedCustomListId,
     required this.updatedAt,
   });
 
@@ -294,13 +310,17 @@ class _$AppSettingsImpl implements _AppSettings {
   @JsonKey()
   final List<String> customListOrder;
 
+  /// 最後に見ていたカスタムリストID
+  @override
+  final String? lastViewedCustomListId;
+
   /// 最終更新日時
   @override
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torEnabled: $torEnabled, proxyUrl: $proxyUrl, customListOrder: $customListOrder, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torEnabled: $torEnabled, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, updatedAt: $updatedAt)';
   }
 
   @override
@@ -325,6 +345,8 @@ class _$AppSettingsImpl implements _AppSettings {
               other.customListOrder,
               customListOrder,
             ) &&
+            (identical(other.lastViewedCustomListId, lastViewedCustomListId) ||
+                other.lastViewedCustomListId == lastViewedCustomListId) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt));
   }
@@ -341,6 +363,7 @@ class _$AppSettingsImpl implements _AppSettings {
     torEnabled,
     proxyUrl,
     const DeepCollectionEquality().hash(customListOrder),
+    lastViewedCustomListId,
     updatedAt,
   );
 
@@ -368,6 +391,7 @@ abstract class _AppSettings implements AppSettings {
     final bool torEnabled,
     final String proxyUrl,
     final List<String> customListOrder,
+    final String? lastViewedCustomListId,
     required final DateTime updatedAt,
   }) = _$AppSettingsImpl;
 
@@ -405,6 +429,10 @@ abstract class _AppSettings implements AppSettings {
   /// カスタムリストの順番（リストIDの配列）
   @override
   List<String> get customListOrder;
+
+  /// 最後に見ていたカスタムリストID
+  @override
+  String? get lastViewedCustomListId;
 
   /// 最終更新日時
   @override

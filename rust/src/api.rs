@@ -79,6 +79,9 @@ pub struct AppSettings {
     /// カスタムリストの順番（リストIDの配列）
     #[serde(default)]
     pub custom_list_order: Vec<String>,
+    /// 最後に見ていたカスタムリストID
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_viewed_custom_list_id: Option<String>,
     /// 最終更新日時
     pub updated_at: String,
 }
