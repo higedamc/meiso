@@ -1,0 +1,128 @@
+{
+  "@@locale": "es",
+  
+  "appTitle": "Meiso",
+  
+  "onboardingWelcomeTitle": "Bienvenido a Meiso",
+  
+  "onboardingWelcomeDescription": "Aplicación de tareas simple y hermosa\nSincroniza con Nostr, gestiona tareas en cualquier lugar",
+  
+  "onboardingNostrSyncTitle": "Sincronizar con Nostr",
+  
+  "onboardingNostrSyncDescription": "Sincroniza tus tareas a través de la red Nostr\nMantente actualizado automáticamente en múltiples dispositivos",
+  
+  "onboardingSmartDateTitle": "Entrada de Fecha Inteligente",
+  
+  "onboardingSmartDateDescription": "Escribe \"tomorrow\" para crear una tarea para mañana\nEscribe \"every day\" para crear tareas recurrentes fácilmente",
+  
+  "onboardingPrivacyTitle": "Privacidad Primero",
+  
+  "onboardingPrivacyDescription": "Sin servidor central. Todos los datos están bajo tu control\nAlmacenado de forma segura en la red descentralizada de Nostr",
+  
+  "onboardingGetStartedTitle": "Comencemos",
+  
+  "onboardingGetStartedDescription": "Inicia sesión con Amber o\ngenera una nueva clave secreta para comenzar",
+  
+  "skipButton": "Saltar",
+  
+  "nextButton": "Siguiente",
+  
+  "startButton": "Iniciar",
+  
+  "settingsTitle": "Configuración",
+  
+  "nostrConnected": "Nostr Conectado",
+  
+  "nostrConnectedAmber": "Nostr Conectado (Amber)",
+  
+  "nostrDisconnected": "Nostr Desconectado",
+  
+  "relaysConnectedCount": "Relays: {count}/{total} conectados",
+  
+  "secretKeyManagement": "Gestión de Clave Secreta",
+  
+  "secretKeyConfigured": "Configurado",
+  
+  "secretKeyNotConfigured": "No Configurado",
+  
+  "relayServerManagement": "Gestión de Servidores Relay",
+  
+  "relayCountRegistered": "{count} registrados",
+  
+  "appSettings": "Configuración de la Aplicación",
+  
+  "appSettingsSubtitle": "Tema, Calendario, Notificaciones, Tor",
+  
+  "debugLogs": "Registros de Depuración",
+  
+  "debugLogsSubtitle": "Ver historial de registros",
+  
+  "amberModeTitle": "Modo Amber",
+  
+  "amberModeInfo": "✅ Conectado con modo Amber\n\n🔒 Características de seguridad:\n• Firmar tareas con Amber al crear/editar\n• Proteger contenido con cifrado NIP-44\n• Clave secreta almacenada cifrada con ncryptsec en Amber\n\n⚡ Optimización de descifrado:\nSe requiere aprobación al sincronizar tareas.\nPara evitar aprobar cada vez, recomendamos\nconfigurar \"Permitir siempre la aplicación Meiso\" en Amber.\n\n📝 Cómo configurar:\n1. Abrir la aplicación Amber\n2. Seleccionar \"Meiso\" de la lista de aplicaciones\n3. Configurar \"NIP-44 Decrypt\" para permitir siempre",
+  
+  "autoSyncInfoTitle": "Acerca de la Sincronización Automática",
+  
+  "autoSyncInfo": "• La creación, edición y eliminación de tareas se sincronizan automáticamente con Nostr\n• Los últimos datos se obtienen automáticamente al iniciar la aplicación\n• Siempre se sincroniza en segundo plano cuando el relay está conectado\n• Ya no se necesita el botón de sincronización manual",
+  
+  "versionInfo": "Versión {version} ({buildNumber})",
+  
+  "todayLabel": "HOY",
+  
+  "tomorrowLabel": "MAÑANA",
+  
+  "somedayLabel": "ALGÚN DÍA",
+  
+  "addTaskPlaceholder": "Agregar una tarea...",
+  
+  "editTaskTitle": "Editar Tarea",
+  
+  "taskTitlePlaceholder": "Título de la tarea",
+  
+  "saveButton": "Guardar",
+  
+  "cancelButton": "Cancelar",
+  
+  "deleteButton": "Eliminar",
+  
+  "undoButton": "Deshacer",
+  
+  "taskDeleted": "Tarea eliminada",
+  
+  "languageSettings": "Idioma",
+  
+  "languageSystem": "Predeterminado del Sistema",
+  
+  "languageEnglish": "English",
+  
+  "languageJapanese": "日本語",
+  
+  "languageSpanish": "Español",
+  
+  "darkMode": "Modo Oscuro",
+  
+  "darkModeEnabled": "Habilitado",
+  
+  "darkModeDisabled": "Deshabilitado",
+  
+  "torSettings": "Tor (Orbot)",
+  
+  "torEnabled": "Habilitado",
+  
+  "torDisabled": "Deshabilitado",
+  
+  "mondayShort": "Lun",
+  
+  "tuesdayShort": "Mar",
+  
+  "wednesdayShort": "Mié",
+  
+  "thursdayShort": "Jue",
+  
+  "fridayShort": "Vie",
+  
+  "saturdayShort": "Sáb",
+  
+  "sundayShort": "Dom"
+}
+

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../models/app_settings.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/proxy_status_provider.dart';
+import '../../providers/locale_provider.dart';
 
 class AppSettingsDetailScreen extends ConsumerWidget {
   const AppSettingsDetailScreen({super.key});
@@ -176,6 +178,75 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     );
   }
 
+  /// 言語選択ダイアログ
+  Future<void> _showLanguageDialog(
+      BuildContext context, WidgetRef ref, Locale? currentLocale) async {
+    final selected = await showDialog<Locale?>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('言語を選択'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, null),
+            child: Row(
+              children: [
+                if (currentLocale == null)
+                  const Icon(Icons.check, size: 20)
+                else
+                  const SizedBox(width: 20),
+                const SizedBox(width: 8),
+                const Text('システムのデフォルト'),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, const Locale('en')),
+            child: Row(
+              children: [
+                if (currentLocale?.languageCode == 'en')
+                  const Icon(Icons.check, size: 20)
+                else
+                  const SizedBox(width: 20),
+                const SizedBox(width: 8),
+                const Text('English'),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, const Locale('ja')),
+            child: Row(
+              children: [
+                if (currentLocale?.languageCode == 'ja')
+                  const Icon(Icons.check, size: 20)
+                else
+                  const SizedBox(width: 20),
+                const SizedBox(width: 8),
+                const Text('日本語'),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, const Locale('es')),
+            child: Row(
+              children: [
+                if (currentLocale?.languageCode == 'es')
+                  const Icon(Icons.check, size: 20)
+                else
+                  const SizedBox(width: 20),
+                const SizedBox(width: 8),
+                const Text('Español'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (selected != null || selected == null && currentLocale != null) {
+      await ref.read(localeProvider.notifier).setLocale(selected);
+    }
+  }
+
   /// プロキシURL編集ダイアログ
   Future<void> _showProxyUrlDialog(
       BuildContext context, WidgetRef ref, String currentProxyUrl) async {
@@ -313,10 +384,26 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     }
   }
 
+  /// ロケールの表示名を取得
+  String _getLocaleName(Locale? locale) {
+    if (locale == null) return 'システムのデフォルト';
+    switch (locale.languageCode) {
+      case 'en':
+        return 'English';
+      case 'ja':
+        return '日本語';
+      case 'es':
+        return 'Español';
+      default:
+        return locale.languageCode;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appSettingsAsync = ref.watch(appSettingsProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
+    final currentLocale = ref.watch(localeProvider);
 
     // Tor有効時に自動的にプロキシテストを実行
     ref.listen<AsyncValue<AppSettings>>(appSettingsProvider, (previous, next) {
@@ -383,6 +470,17 @@ class AppSettingsDetailScreen extends ConsumerWidget {
             appSettingsAsync.when(
               data: (settings) => Column(
                 children: [
+                  // 言語設定
+                  ListTile(
+                    leading: Icon(Icons.language, color: Colors.purple.shade700),
+                    title: const Text('言語'),
+                    subtitle: Text(_getLocaleName(currentLocale)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => _showLanguageDialog(context, ref, currentLocale),
+                  ),
+
+                  const Divider(height: 1),
+
                   // ダークモード設定
                   SwitchListTile(
                     title: const Text('ダークモード'),

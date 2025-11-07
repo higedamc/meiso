@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:talker_flutter/talker_flutter.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
@@ -14,6 +15,7 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final publicKeyHex = ref.watch(publicKeyProvider);
     final publicKeyNpubAsync = ref.watch(publicKeyNpubProvider);
@@ -27,7 +29,7 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('設定'),
+        title: Text(l10n.settingsTitle),
         elevation: 0,
       ),
       body: ListView(
@@ -49,8 +51,8 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Text(
                   isNostrInitialized
-                      ? (isAmberMode ? 'Nostr接続中 (Amber)' : 'Nostr接続中')
-                      : 'Nostr未接続',
+                      ? (isAmberMode ? l10n.nostrConnectedAmber : l10n.nostrConnected)
+                      : l10n.nostrDisconnected,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -84,7 +86,7 @@ class SettingsScreen extends ConsumerWidget {
                 if (isNostrInitialized) ...[
                   const SizedBox(height: 4),
                   Text(
-                    'リレー: $connectedRelaysCount/${relayStatuses.length} 接続中',
+                    l10n.relaysConnectedCount(connectedRelaysCount, relayStatuses.length),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Colors.grey.shade600,
                         ),
@@ -100,8 +102,8 @@ class SettingsScreen extends ConsumerWidget {
           _buildSettingTile(
             context,
             icon: Icons.vpn_key,
-            title: '秘密鍵管理',
-            subtitle: isNostrInitialized ? '設定済み' : '未設定',
+            title: l10n.secretKeyManagement,
+            subtitle: isNostrInitialized ? l10n.secretKeyConfigured : l10n.secretKeyNotConfigured,
             onTap: () => context.push('/settings/secret-key'),
           ),
 
@@ -110,8 +112,8 @@ class SettingsScreen extends ConsumerWidget {
           _buildSettingTile(
             context,
             icon: Icons.dns,
-            title: 'リレーサーバー管理',
-            subtitle: '${relayStatuses.length}件登録済み',
+            title: l10n.relayServerManagement,
+            subtitle: l10n.relayCountRegistered(relayStatuses.length),
             onTap: () => context.push('/settings/relays'),
           ),
 
@@ -120,8 +122,8 @@ class SettingsScreen extends ConsumerWidget {
           _buildSettingTile(
             context,
             icon: Icons.settings_applications,
-            title: 'アプリ設定',
-            subtitle: 'テーマ、カレンダー、通知、Tor',
+            title: l10n.appSettings,
+            subtitle: l10n.appSettingsSubtitle,
             onTap: () => context.push('/settings/app'),
           ),
 
@@ -131,8 +133,8 @@ class SettingsScreen extends ConsumerWidget {
             _buildSettingTile(
               context,
               icon: Icons.bug_report,
-              title: 'デバッグログ',
-              subtitle: 'ログ履歴を表示',
+              title: l10n.debugLogs,
+              subtitle: l10n.debugLogsSubtitle,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -156,12 +158,12 @@ class SettingsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                        Row(
                         children: [
                           Icon(Icons.security, color: AppTheme.primaryPurple),
                           const SizedBox(width: 8),
                           Text(
-                            'Amberモード',
+                            l10n.amberModeTitle,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppTheme.darkPurple,
@@ -171,19 +173,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '✅ Amberモードで接続中\n\n'
-                        '🔒 セキュリティ機能:\n'
-                        '• Todoの作成・編集時にAmberで署名\n'
-                        '• NIP-44暗号化でコンテンツを保護\n'
-                        '• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n'
-                        '⚡ 復号化の最適化:\n'
-                        'Todoの同期時に復号化の承認が必要です。\n'
-                        '毎回承認するのを避けるために、Amberアプリで\n'
-                        '「Meisoアプリを常に許可」を設定することを推奨します。\n\n'
-                        '📝 設定方法:\n'
-                        '1. Amberアプリを開く\n'
-                        '2. アプリ一覧から「Meiso」を選択\n'
-                        '3. 「NIP-44 Decrypt」を常に許可に設定',
+                        l10n.amberModeInfo,
                         style: TextStyle(
                           fontSize: 12,
                           color: AppTheme.darkPurple,
@@ -211,7 +201,7 @@ class SettingsScreen extends ConsumerWidget {
                         Icon(Icons.info, color: AppTheme.primaryPurple),
                         const SizedBox(width: 8),
                         Text(
-                          '自動同期について',
+                          l10n.autoSyncInfoTitle,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppTheme.darkPurple,
@@ -221,10 +211,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '• タスクの作成・編集・削除は自動的にNostrに同期されます\n'
-                      '• アプリ起動時に最新のデータが自動取得されます\n'
-                      '• リレー接続中は常にバックグラウンドで同期します\n'
-                      '• 手動同期ボタンは不要になりました',
+                      l10n.autoSyncInfo,
                       style: TextStyle(
                         fontSize: 12,
                         color: AppTheme.darkPurple,
@@ -248,7 +235,7 @@ class SettingsScreen extends ConsumerWidget {
                   child: Column(
                     children: [
                       Text(
-                        'Version ${info.version} (${info.buildNumber})',
+                        l10n.versionInfo(info.version, info.buildNumber),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.grey.shade600,
                             ),

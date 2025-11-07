@@ -14,6 +14,7 @@ class LocalStorageService {
   static const String _useAmberKey = 'use_amber';
   static const String _appSettingsKey = 'app_settings';
   static const String _recurringTasksTipsDismissedKey = 'recurring_tasks_tips_dismissed';
+  static const String _languageKey = 'language';
   
   Box<Map>? _todosBox;
   Box? _settingsBox;
@@ -295,6 +296,32 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.put(_recurringTasksTipsDismissedKey, true);
+  }
+  
+  // === 言語設定関連 ===
+  
+  /// 言語設定を保存
+  Future<void> setLanguage(String languageCode) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_languageKey, languageCode);
+  }
+  
+  /// 言語設定を取得
+  String? getLanguage() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    return _settingsBox!.get(_languageKey) as String?;
+  }
+  
+  /// 言語設定をクリア（システムデフォルトに戻す）
+  Future<void> clearLanguage() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_languageKey);
   }
 }
 

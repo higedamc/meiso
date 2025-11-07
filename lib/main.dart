@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'app_theme.dart';
 import 'presentation/home/home_screen.dart';
 import 'presentation/onboarding/onboarding_screen.dart';
@@ -18,6 +20,7 @@ import 'providers/app_settings_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/todos_provider.dart';
+import 'providers/locale_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -230,6 +233,8 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
   Widget build(BuildContext context) {
     // アプリ設定を監視してダークモード切り替え
     final appSettingsAsync = ref.watch(appSettingsProvider);
+    // ロケール設定を監視
+    final locale = ref.watch(localeProvider);
     
     return appSettingsAsync.when(
       data: (settings) {
@@ -240,6 +245,19 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
           debugShowCheckedModeBanner: false,
           routerConfig: _router,
+          // 多言語対応
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en'), // English
+            Locale('ja'), // Japanese
+            Locale('es'), // Spanish
+          ],
+          locale: locale,
         );
       },
       loading: () {
@@ -249,6 +267,19 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           theme: AppTheme.lightTheme,
           debugShowCheckedModeBanner: false,
           routerConfig: _router,
+          // 多言語対応
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en'), // English
+            Locale('ja'), // Japanese
+            Locale('es'), // Spanish
+          ],
+          locale: locale,
         );
       },
       error: (error, stack) {
@@ -258,6 +289,19 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           theme: AppTheme.lightTheme,
           debugShowCheckedModeBanner: false,
           routerConfig: _router,
+          // 多言語対応
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en'), // English
+            Locale('ja'), // Japanese
+            Locale('es'), // Spanish
+          ],
+          locale: locale,
         );
       },
     );

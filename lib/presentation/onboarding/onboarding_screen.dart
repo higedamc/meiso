@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 /// オンボーディングスクリーン
 /// 初回起動時にアプリの使い方を説明
@@ -33,37 +34,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    
     // ページの内容を定義
     // ローカルの実際のLottieアニメーションを使用
     final pages = [
-      const _OnboardingPage(
+      _OnboardingPage(
         lottieUrl: 'assets/lottie/checklist.json',
-        title: 'Meisoへようこそ',
-        description: 'シンプルで美しいToDoアプリ\nNostrで同期して、どこでもタスク管理',
+        title: l10n.onboardingWelcomeTitle,
+        description: l10n.onboardingWelcomeDescription,
         fallbackIcon: Icons.check_circle_outline,
       ),
-      const _OnboardingPage(
+      _OnboardingPage(
         lottieUrl: 'assets/lottie/sync.json',
-        title: 'Nostrで同期',
-        description: 'あなたのタスクをNostrネットワークで同期\n複数デバイスで自動的に最新状態を保ちます',
+        title: l10n.onboardingNostrSyncTitle,
+        description: l10n.onboardingNostrSyncDescription,
         fallbackIcon: Icons.cloud_sync,
       ),
-      const _OnboardingPage(
+      _OnboardingPage(
         lottieUrl: 'assets/lottie/calendar.json',
-        title: 'スマートな日付入力',
-        description: 'タスクに "tomorrow" と入力すれば明日のタスクに\n"every day" で繰り返しタスクも簡単に作成',
+        title: l10n.onboardingSmartDateTitle,
+        description: l10n.onboardingSmartDateDescription,
         fallbackIcon: Icons.edit_calendar_outlined,
       ),
-      const _OnboardingPage(
+      _OnboardingPage(
         lottieUrl: 'assets/lottie/privacy.json',
-        title: 'プライバシー第一',
-        description: '中央サーバーなし。すべてのデータはあなたの管理下に\nNostrの分散型ネットワークで安全に保管',
+        title: l10n.onboardingPrivacyTitle,
+        description: l10n.onboardingPrivacyDescription,
         fallbackIcon: Icons.privacy_tip_outlined,
       ),
-      const _OnboardingPage(
+      _OnboardingPage(
         lottieUrl: 'assets/lottie/rocket.json',
-        title: 'さあ、始めましょう',
-        description: 'Amberでログインするか、\n新しい秘密鍵を生成してスタート',
+        title: l10n.onboardingGetStartedTitle,
+        description: l10n.onboardingGetStartedDescription,
         fallbackIcon: Icons.rocket_launch,
       ),
     ];
@@ -94,9 +97,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
                     ),
-                    child: const Text(
-                      'スキップ',
-                      style: TextStyle(
+                    child: Text(
+                      l10n.skipButton,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -158,7 +161,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          _currentPage == pages.length - 1 ? 'スタート' : '次へ',
+                          _currentPage == pages.length - 1 ? l10n.startButton : l10n.nextButton,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
