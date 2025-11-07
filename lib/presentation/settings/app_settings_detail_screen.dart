@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../models/app_settings.dart';
 import '../../providers/app_settings_provider.dart';
@@ -12,23 +12,34 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   const AppSettingsDetailScreen({super.key});
 
   /// 曜日名を取得
-  String _getWeekDayName(int day) {
-    const days = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+  String _getWeekDayName(BuildContext context, int day) {
+    final l10n = AppLocalizations.of(context)!;
+    final days = [
+      l10n.sunday,
+      l10n.monday,
+      l10n.tuesday,
+      l10n.wednesday,
+      l10n.thursday,
+      l10n.friday,
+      l10n.saturday,
+    ];
     return days[day % 7];
   }
 
   /// 週の開始曜日選択ダイアログ
   Future<void> _showWeekStartDayDialog(
       BuildContext context, WidgetRef ref, int currentDay) async {
+    final l10n = AppLocalizations.of(context)!;
+    
     final selected = await showDialog<int>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('週の開始曜日を選択'),
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(l10n.selectWeekStartDay),
         children: List.generate(7, (index) {
           return SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, index),
+            onPressed: () => Navigator.pop(dialogContext, index),
             child: Text(
-              _getWeekDayName(index),
+              _getWeekDayName(context, index),
               style: TextStyle(
                 fontWeight:
                     index == currentDay ? FontWeight.bold : FontWeight.normal,
@@ -47,15 +58,17 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   /// カレンダー表示形式選択ダイアログ
   Future<void> _showCalendarViewDialog(
       BuildContext context, WidgetRef ref, String currentView) async {
+    final l10n = AppLocalizations.of(context)!;
+    
     final selected = await showDialog<String>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('カレンダー表示を選択'),
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(l10n.selectCalendarView),
         children: [
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, 'week'),
+            onPressed: () => Navigator.pop(dialogContext, 'week'),
             child: Text(
-              '週表示',
+              l10n.weekView,
               style: TextStyle(
                 fontWeight: currentView == 'week'
                     ? FontWeight.bold
@@ -64,9 +77,9 @@ class AppSettingsDetailScreen extends ConsumerWidget {
             ),
           ),
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, 'month'),
+            onPressed: () => Navigator.pop(dialogContext, 'month'),
             child: Text(
-              '月表示',
+              l10n.monthView,
               style: TextStyle(
                 fontWeight: currentView == 'month'
                     ? FontWeight.bold
@@ -85,6 +98,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
   /// プロキシ接続状態インジケーターを構築
   Widget _buildProxyStatusIndicator(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final proxyStatus = ref.watch(proxyStatusProvider);
     
     // 状態に応じた色とアイコン、メッセージを設定
@@ -96,22 +110,22 @@ class AppSettingsDetailScreen extends ConsumerWidget {
       case ProxyConnectionStatus.unknown:
         statusColor = Colors.grey;
         statusIcon = Icons.help_outline;
-        statusText = '未テスト';
+        statusText = l10n.untested;
         break;
       case ProxyConnectionStatus.testing:
         statusColor = Colors.orange;
         statusIcon = Icons.sync;
-        statusText = 'テスト中...';
+        statusText = l10n.testing;
         break;
       case ProxyConnectionStatus.connected:
         statusColor = Colors.green;
         statusIcon = Icons.check_circle;
-        statusText = '接続成功';
+        statusText = l10n.connectionSuccess;
         break;
       case ProxyConnectionStatus.failed:
         statusColor = Colors.red;
         statusIcon = Icons.error;
-        statusText = '接続失敗（Orbotを起動してください）';
+        statusText = l10n.connectionFailed;
         break;
     }
     
@@ -135,9 +149,9 @@ class AppSettingsDetailScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'プロキシ接続状態',
-                  style: TextStyle(
+                Text(
+                  l10n.proxyConnectionStatus,
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -159,7 +173,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                 await ref.read(proxyStatusProvider.notifier).testProxyConnection();
               },
               icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('テスト'),
+              label: Text(l10n.testButton),
               style: ElevatedButton.styleFrom(
                 backgroundColor: statusColor,
                 foregroundColor: Colors.white,
@@ -181,13 +195,15 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   /// 言語選択ダイアログ
   Future<void> _showLanguageDialog(
       BuildContext context, WidgetRef ref, Locale? currentLocale) async {
+    final l10n = AppLocalizations.of(context)!;
+    
     final selected = await showDialog<Locale?>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('言語を選択'),
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(l10n.languageSelection),
         children: [
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, null),
+            onPressed: () => Navigator.pop(dialogContext, null),
             child: Row(
               children: [
                 if (currentLocale == null)
@@ -195,12 +211,12 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                 else
                   const SizedBox(width: 20),
                 const SizedBox(width: 8),
-                const Text('システムのデフォルト'),
+                Text(l10n.languageSystem),
               ],
             ),
           ),
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, const Locale('en')),
+            onPressed: () => Navigator.pop(dialogContext, const Locale('en')),
             child: Row(
               children: [
                 if (currentLocale?.languageCode == 'en')
@@ -208,12 +224,12 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                 else
                   const SizedBox(width: 20),
                 const SizedBox(width: 8),
-                const Text('English'),
+                Text(l10n.languageEnglish),
               ],
             ),
           ),
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, const Locale('ja')),
+            onPressed: () => Navigator.pop(dialogContext, const Locale('ja')),
             child: Row(
               children: [
                 if (currentLocale?.languageCode == 'ja')
@@ -221,12 +237,12 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                 else
                   const SizedBox(width: 20),
                 const SizedBox(width: 8),
-                const Text('日本語'),
+                Text(l10n.languageJapanese),
               ],
             ),
           ),
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, const Locale('es')),
+            onPressed: () => Navigator.pop(dialogContext, const Locale('es')),
             child: Row(
               children: [
                 if (currentLocale?.languageCode == 'es')
@@ -234,7 +250,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                 else
                   const SizedBox(width: 20),
                 const SizedBox(width: 8),
-                const Text('Español'),
+                Text(l10n.languageSpanish),
               ],
             ),
           ),
@@ -250,6 +266,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   /// プロキシURL編集ダイアログ
   Future<void> _showProxyUrlDialog(
       BuildContext context, WidgetRef ref, String currentProxyUrl) async {
+    final l10n = AppLocalizations.of(context)!;
+    
     // 現在のプロキシURLをパース
     String host = '127.0.0.1';
     String port = '9050';
@@ -272,100 +290,101 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
     final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('プロキシ設定'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'SOCKS5プロキシのアドレスとポートを設定してください',
-                  style: TextStyle(fontSize: 12),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: hostController,
-                  decoration: const InputDecoration(
-                    labelText: 'ホスト',
-                    hintText: '127.0.0.1',
-                    border: OutlineInputBorder(),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) {
+          final dialogL10n = AppLocalizations.of(dialogContext)!;
+          return AlertDialog(
+            title: Text(dialogL10n.proxySettings),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    dialogL10n.proxySettingsDescription,
+                    style: const TextStyle(fontSize: 12),
                   ),
-                  keyboardType: TextInputType.text,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: portController,
-                  decoration: const InputDecoration(
-                    labelText: 'ポート',
-                    hintText: '9050',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: hostController,
+                    decoration: InputDecoration(
+                      labelText: dialogL10n.host,
+                      hintText: '127.0.0.1',
+                      border: const OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.text,
                   ),
-                  keyboardType: TextInputType.number,
-                ),
-                if (errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: portController,
+                    decoration: InputDecoration(
+                      labelText: dialogL10n.port,
+                      hintText: '9050',
+                      border: const OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      errorMessage!,
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Text(
-                    errorMessage!,
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontSize: 12,
-                    ),
+                    dialogL10n.commonSettings,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                 ],
-                const SizedBox(height: 12),
-                const Text(
-                  '一般的な設定:\n'
-                  '• Orbot: 127.0.0.1:9050\n'
-                  '• カスタムプロキシ: ホストとポートを入力',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ),
-            TextButton(
-              onPressed: () {
-                final enteredHost = hostController.text.trim();
-                final enteredPort = portController.text.trim();
-                
-                // バリデーション
-                if (enteredHost.isEmpty) {
-                  setState(() {
-                    errorMessage = 'ホストを入力してください';
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(dialogL10n.cancelButton),
+              ),
+              TextButton(
+                onPressed: () {
+                  final enteredHost = hostController.text.trim();
+                  final enteredPort = portController.text.trim();
+                  
+                  // バリデーション
+                  if (enteredHost.isEmpty) {
+                    setState(() {
+                      errorMessage = dialogL10n.hostRequired;
+                    });
+                    return;
+                  }
+                  
+                  if (enteredPort.isEmpty) {
+                    setState(() {
+                      errorMessage = dialogL10n.portRequired;
+                    });
+                    return;
+                  }
+                  
+                  final portNum = int.tryParse(enteredPort);
+                  if (portNum == null || portNum < 1 || portNum > 65535) {
+                    setState(() {
+                      errorMessage = dialogL10n.portRangeError;
+                    });
+                    return;
+                  }
+                  
+                  Navigator.pop(dialogContext, {
+                    'host': enteredHost,
+                    'port': enteredPort,
                   });
-                  return;
-                }
-                
-                if (enteredPort.isEmpty) {
-                  setState(() {
-                    errorMessage = 'ポートを入力してください';
-                  });
-                  return;
-                }
-                
-                final portNum = int.tryParse(enteredPort);
-                if (portNum == null || portNum < 1 || portNum > 65535) {
-                  setState(() {
-                    errorMessage = 'ポート番号は 1-65535 の範囲で入力してください';
-                  });
-                  return;
-                }
-                
-                Navigator.pop(context, {
-                  'host': enteredHost,
-                  'port': enteredPort,
-                });
-              },
-              child: const Text('保存'),
-            ),
-          ],
-        ),
+                },
+                child: Text(dialogL10n.saveButton),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -374,9 +393,10 @@ class AppSettingsDetailScreen extends ConsumerWidget {
       await ref.read(appSettingsProvider.notifier).setProxyUrl(newProxyUrl);
       
       if (context.mounted) {
+        final snackbarL10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('プロキシURLを更新しました: $newProxyUrl'),
+            content: Text(snackbarL10n.proxyUrlUpdated(newProxyUrl)),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -385,15 +405,16 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   }
 
   /// ロケールの表示名を取得
-  String _getLocaleName(Locale? locale) {
-    if (locale == null) return 'システムのデフォルト';
+  String _getLocaleName(BuildContext context, Locale? locale) {
+    final l10n = AppLocalizations.of(context)!;
+    if (locale == null) return l10n.languageSystem;
     switch (locale.languageCode) {
       case 'en':
-        return 'English';
+        return l10n.languageEnglish;
       case 'ja':
-        return '日本語';
+        return l10n.languageJapanese;
       case 'es':
-        return 'Español';
+        return l10n.languageSpanish;
       default:
         return locale.languageCode;
     }
@@ -401,6 +422,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final appSettingsAsync = ref.watch(appSettingsProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final currentLocale = ref.watch(localeProvider);
@@ -426,7 +448,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('アプリ設定'),
+        title: Text(l10n.appSettingsTitle),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -452,8 +474,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       isNostrInitialized
-                          ? 'Nostrリレーに自動同期（NIP-78 Kind 30078）'
-                          : 'ローカル保存のみ（Nostr未接続）',
+                          ? l10n.nostrAutoSync
+                          : l10n.localStorageOnly,
                       style: TextStyle(
                         fontSize: 12,
                         color: isNostrInitialized
@@ -473,8 +495,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                   // 言語設定
                   ListTile(
                     leading: Icon(Icons.language, color: Colors.purple.shade700),
-                    title: const Text('言語'),
-                    subtitle: Text(_getLocaleName(currentLocale)),
+                    title: Text(l10n.languageSettings),
+                    subtitle: Text(_getLocaleName(context, currentLocale)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => _showLanguageDialog(context, ref, currentLocale),
                   ),
@@ -483,8 +505,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
                   // ダークモード設定
                   SwitchListTile(
-                    title: const Text('ダークモード'),
-                    subtitle: const Text('アプリのテーマを変更'),
+                    title: Text(l10n.darkMode),
+                    subtitle: Text(settings.darkMode ? l10n.darkModeEnabled : l10n.darkModeDisabled),
                     value: settings.darkMode,
                     onChanged: (value) async {
                       await ref
@@ -503,8 +525,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                   ListTile(
                     leading:
                         Icon(Icons.calendar_today, color: Colors.purple.shade700),
-                    title: const Text('週の開始曜日'),
-                    subtitle: Text(_getWeekDayName(settings.weekStartDay)),
+                    title: Text(l10n.weekStartDay),
+                    subtitle: Text(_getWeekDayName(context, settings.weekStartDay)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => _showWeekStartDayDialog(
                         context, ref, settings.weekStartDay),
@@ -516,9 +538,9 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                   ListTile(
                     leading:
                         Icon(Icons.view_week, color: Colors.purple.shade700),
-                    title: const Text('カレンダー表示'),
+                    title: Text(l10n.calendarView),
                     subtitle: Text(
-                        settings.calendarView == 'week' ? '週表示' : '月表示'),
+                        settings.calendarView == 'week' ? l10n.weekView : l10n.monthView),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => _showCalendarViewDialog(
                         context, ref, settings.calendarView),
@@ -528,8 +550,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
                   // 通知設定
                   SwitchListTile(
-                    title: const Text('通知'),
-                    subtitle: const Text('リマインダー通知を有効化'),
+                    title: Text(l10n.notifications),
+                    subtitle: Text(l10n.notificationsSubtitle),
                     value: settings.notificationsEnabled,
                     onChanged: (value) async {
                       await ref
@@ -548,11 +570,11 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
                   // Tor設定（Orbot経由）
                   SwitchListTile(
-                    title: const Text('Tor経由で接続 (Orbot)'),
+                    title: Text(l10n.torConnection),
                     subtitle: Text(
                       settings.torEnabled 
-                        ? 'Orbotプロキシ経由で接続中 (${settings.proxyUrl})'
-                        : 'Orbot未使用（直接接続）',
+                        ? l10n.torEnabledSubtitle(settings.proxyUrl)
+                        : l10n.torDisabledSubtitle,
                       style: const TextStyle(fontSize: 12),
                     ),
                     value: settings.torEnabled,
@@ -560,12 +582,13 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       await ref.read(appSettingsProvider.notifier).toggleTor();
                       
                       if (context.mounted) {
+                        final snackbarL10n = AppLocalizations.of(context)!;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
                               value
-                                ? 'Torを有効にしました。次回接続時から適用されます。\nOrbotアプリを起動してください。'
-                                : 'Torを無効にしました。次回接続時から適用されます。',
+                                ? snackbarL10n.torEnabledMessage
+                                : snackbarL10n.torDisabledMessage,
                             ),
                             duration: const Duration(seconds: 4),
                           ),
@@ -582,7 +605,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                   if (settings.torEnabled) ...[
                     ListTile(
                       leading: Icon(Icons.settings_ethernet, color: Colors.purple.shade700),
-                      title: const Text('プロキシアドレスとポート'),
+                      title: Text(l10n.proxyAddress),
                       subtitle: Text(
                         settings.proxyUrl,
                         style: const TextStyle(fontSize: 12),
@@ -613,7 +636,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                                 Icon(Icons.info, color: AppTheme.primaryPurple),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'アプリ設定について',
+                                  l10n.appSettingsInfo,
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: AppTheme.darkPurple,
@@ -623,15 +646,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '• アプリ設定はローカルに保存されます\n'
-                              '• Nostr接続中の場合、設定は自動的に同期されます\n'
-                              '• 複数デバイスで同じ設定を共有できます（NIP-78）\n'
-                              '• 設定変更は即座に反映されます\n\n'
-                              '🛡️ Tor設定について:\n'
-                              '• Torを有効にすると、Orbotプロキシ経由でリレーに接続します\n'
-                              '• Orbotアプリが起動している必要があります\n'
-                              '• プライバシーとセキュリティが向上しますが、接続速度は遅くなります\n'
-                              '• 設定変更後、再接続が必要です',
+                              l10n.appSettingsInfoText,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: AppTheme.darkPurple,
@@ -653,7 +668,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
               error: (error, stack) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('エラー: $error'),
+                  child: Text('${l10n.error}: $error'),
                 ),
               ),
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
@@ -30,6 +31,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -69,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // タイトル
                 Text(
-                  'ログイン方法を選択',
+                  l10n.loginMethodTitle,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -81,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // 説明
                 Text(
-                  'Nostrアカウントでログインして、\nタスクを同期しましょう',
+                  l10n.loginMethodDescription,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: Colors.white.withOpacity(0.9),
                         height: 1.6,
@@ -97,9 +100,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     return ElevatedButton.icon(
                       onPressed: () => _loginWithAmber(context, ref),
                       icon: const Icon(Icons.android, size: 24),
-                      label: const Text(
-                        'Amberでログイン',
-                        style: TextStyle(
+                      label: Text(
+                        l10n.loginWithAmber,
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -132,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
-                        'または',
+                        l10n.or,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontWeight: FontWeight.w600,
@@ -156,9 +159,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     return OutlinedButton.icon(
                       onPressed: () => _generateNewKey(context, ref),
                       icon: const Icon(Icons.add_circle_outline, size: 24),
-                      label: const Text(
-                        '新しい秘密鍵を生成',
-                        style: TextStyle(
+                      label: Text(
+                        l10n.generateNewKey,
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -202,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          '秘密鍵は安全に保管されます。\nAmberを使用すると、より安全に管理できます。',
+                          l10n.keyStorageNote,
                           style: TextStyle(
                             color: Colors.grey.shade800,
                             fontSize: 12,
@@ -223,6 +226,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Amberでログイン
   Future<void> _loginWithAmber(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
+    
     try {
       // Amberがインストールされているか確認
       final isInstalled = await _amberService.isAmberInstalled();
@@ -233,18 +238,16 @@ class _LoginScreenState extends State<LoginScreen> {
         final shouldInstall = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Amberが必要です'),
-            content: const Text(
-              'Amberアプリがインストールされていません。\nGoogle Playからインストールしますか？',
-            ),
+            title: Text(l10n.amberRequired),
+            content: Text(l10n.amberNotInstalled),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('キャンセル'),
+                child: Text(l10n.cancelButton),
               ),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('インストール'),
+                child: Text(l10n.install),
               ),
             ],
           ),
@@ -330,6 +333,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppLogger.error('Error during Amber login', error: e, stackTrace: stackTrace, tag: 'AMBER');
             
             if (!context.mounted) return;
+            final l10n = AppLocalizations.of(context)!;
             
             // エラー時のみローディングダイアログを閉じる
             SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -344,12 +348,12 @@ class _LoginScreenState extends State<LoginScreen> {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('エラー'),
-                  content: Text('ログイン処理中にエラーが発生しました\n$e'),
+                  title: Text(l10n.error),
+                  content: Text(l10n.loginProcessError(e.toString())),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('OK'),
+                      child: Text(l10n.ok),
                     ),
                   ],
                 ),
@@ -360,6 +364,7 @@ class _LoginScreenState extends State<LoginScreen> {
           AppLogger.warning('No public key received from Amber', tag: 'AMBER');
           
           if (!context.mounted) return;
+          final l10n = AppLocalizations.of(context)!;
           
           // エラー時のみローディングダイアログを閉じる
           SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -374,12 +379,12 @@ class _LoginScreenState extends State<LoginScreen> {
             showDialog(
               context: context,
               builder: (context) => AlertDialog(
-                title: const Text('エラー'),
-                content: const Text('Amberから公開鍵を取得できませんでした'),
+                title: Text(l10n.error),
+                content: Text(l10n.noPublicKeyReceived),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('OK'),
+                    child: Text(l10n.ok),
                   ),
                 ],
               ),
@@ -390,6 +395,7 @@ class _LoginScreenState extends State<LoginScreen> {
         AppLogger.error('Failed to get public key from Amber', error: e, tag: 'AMBER');
         
         if (!context.mounted) return;
+        final l10n = AppLocalizations.of(context)!;
         
         // エラー時のみローディングダイアログを閉じる
         SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -404,12 +410,12 @@ class _LoginScreenState extends State<LoginScreen> {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('エラー'),
-              content: Text('Amberとの連携に失敗しました\n$e'),
+              title: Text(l10n.error),
+              content: Text(l10n.amberConnectionFailed(e.toString())),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('OK'),
+                  child: Text(l10n.ok),
                 ),
               ],
             ),
@@ -419,17 +425,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
     } catch (e) {
       if (!context.mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       
       // エラーダイアログ表示
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('エラー'),
-          content: Text('Amberとの連携に失敗しました\n$e'),
+          title: Text(l10n.error),
+          content: Text(l10n.amberConnectionFailed(e.toString())),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text(l10n.ok),
             ),
           ],
         ),
@@ -439,6 +446,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// 新しい秘密鍵を生成
   Future<void> _generateNewKey(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
+    
     try {
       // パスワード入力ダイアログ
       final passwordController = TextEditingController();
@@ -449,72 +458,75 @@ class _LoginScreenState extends State<LoginScreen> {
       final password = await showDialog<String>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('パスワードを設定'),
-          content: AutofillGroup(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    '秘密鍵を暗号化するためのパスワードを設定してください。',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: passwordController,
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.newPassword],
-                    decoration: const InputDecoration(
-                      labelText: 'パスワード',
-                      border: OutlineInputBorder(),
+        builder: (context) {
+          final dialogL10n = AppLocalizations.of(context)!;
+          return AlertDialog(
+            title: Text(dialogL10n.setPassword),
+            content: AutofillGroup(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      dialogL10n.setPasswordDescription,
+                      style: const TextStyle(fontSize: 14),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'パスワードを入力してください';
-                      }
-                      if (value.length < 8) {
-                        return '8文字以上で入力してください';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: confirmPasswordController,
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.newPassword],
-                    decoration: const InputDecoration(
-                      labelText: 'パスワード（確認）',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: passwordController,
+                      obscureText: true,
+                      autofillHints: const [AutofillHints.newPassword],
+                      decoration: InputDecoration(
+                        labelText: dialogL10n.password,
+                        border: const OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return dialogL10n.passwordRequired;
+                        }
+                        if (value.length < 8) {
+                          return dialogL10n.passwordMinLength;
+                        }
+                        return null;
+                      },
                     ),
-                    validator: (value) {
-                      if (value != passwordController.text) {
-                        return 'パスワードが一致しません';
-                      }
-                      return null;
-                    },
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: confirmPasswordController,
+                      obscureText: true,
+                      autofillHints: const [AutofillHints.newPassword],
+                      decoration: InputDecoration(
+                        labelText: dialogL10n.passwordConfirm,
+                        border: const OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value != passwordController.text) {
+                          return dialogL10n.passwordMismatch;
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(null),
-              child: const Text('キャンセル'),
-            ),
-            TextButton(
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  Navigator.of(context).pop(passwordController.text);
-                }
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(null),
+                child: Text(dialogL10n.cancelButton),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    Navigator.of(context).pop(passwordController.text);
+                  }
+                },
+                child: Text(dialogL10n.ok),
+              ),
+            ],
+          );
+        },
       );
       
       if (password == null) return; // キャンセルされた
@@ -577,133 +589,137 @@ class _LoginScreenState extends State<LoginScreen> {
       await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('秘密鍵が生成されました'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '以下の秘密鍵を安全な場所にバックアップしてください。',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  '秘密鍵 (nsec):',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+        builder: (context) {
+          final dialogL10n = AppLocalizations.of(context)!;
+          return AlertDialog(
+            title: Text(dialogL10n.secretKeyGenerated),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    dialogL10n.backupSecretKey,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: SelectableText(
-                    keypair.privateKeyNsec,
+                  const SizedBox(height: 16),
+                  Text(
+                    dialogL10n.secretKeyNsec,
                     style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  '公開鍵 (npub):',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryPurple.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.primaryPurple.withOpacity(0.3)),
-                  ),
-                  child: SelectableText(
-                    keypair.publicKeyNpub,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11,
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        color: Colors.red.shade700,
-                        size: 20,
+                    child: SelectableText(
+                      keypair.privateKeyNsec,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'この秘密鍵を失うと、アカウントにアクセスできなくなります。必ずバックアップしてください。',
-                          style: TextStyle(
-                            color: Colors.red.shade900,
-                            fontSize: 12,
-                            height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    dialogL10n.publicKeyNpub,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryPurple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.primaryPurple.withOpacity(0.3)),
+                    ),
+                    child: SelectableText(
+                      keypair.publicKeyNpub,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.red.shade700,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            dialogL10n.secretKeyWarning,
+                            style: TextStyle(
+                              color: Colors.red.shade900,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                AppLogger.debug('Navigating to home screen after key backup...', tag: 'ROUTER');
-                
-                // GoRouter で画面遷移
-                context.go('/');
-                
-                AppLogger.debug('GoRouter navigation triggered', tag: 'ROUTER');
-              },
-              child: const Text(
-                'バックアップしました',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                ],
               ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  AppLogger.debug('Navigating to home screen after key backup...', tag: 'ROUTER');
+                  
+                  // GoRouter で画面遷移
+                  context.go('/');
+                  
+                  AppLogger.debug('GoRouter navigation triggered', tag: 'ROUTER');
+                },
+                child: Text(
+                  dialogL10n.backupCompleted,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          );
+        },
       );
     } catch (e, stackTrace) {
       AppLogger.error('Failed to generate keypair', error: e, stackTrace: stackTrace, tag: 'KEYPAIR');
 
       if (!context.mounted) return;
+      final errorL10n = AppLocalizations.of(context)!;
       Navigator.of(context).pop(); // ローディング閉じる
 
       // エラーダイアログ表示
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('エラー'),
-          content: Text('秘密鍵の生成に失敗しました\n\n$e'),
+          title: Text(errorL10n.error),
+          content: Text(errorL10n.keypairGenerationFailed(e.toString())),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text(errorL10n.ok),
             ),
           ],
         ),

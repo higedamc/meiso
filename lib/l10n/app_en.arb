@@ -330,6 +330,381 @@
   "sundayShort": "Sun",
   "@sundayShort": {
     "description": "Short name for Sunday"
+  },
+  
+  "loginMethodTitle": "Choose Login Method",
+  "@loginMethodTitle": {
+    "description": "Title for login method selection"
+  },
+  
+  "loginMethodDescription": "Log in with Nostr account\nto sync your tasks",
+  "@loginMethodDescription": {
+    "description": "Description for login method"
+  },
+  
+  "loginWithAmber": "Login with Amber",
+  "@loginWithAmber": {
+    "description": "Button to login with Amber"
+  },
+  
+  "or": "or",
+  "@or": {
+    "description": "Separator text"
+  },
+  
+  "generateNewKey": "Generate New Key",
+  "@generateNewKey": {
+    "description": "Button to generate new secret key"
+  },
+  
+  "keyStorageNote": "Keys are stored securely.\nAmber provides enhanced security.",
+  "@keyStorageNote": {
+    "description": "Note about key storage"
+  },
+  
+  "amberRequired": "Amber Required",
+  "@amberRequired": {
+    "description": "Dialog title when Amber is not installed"
+  },
+  
+  "amberNotInstalled": "Amber app is not installed.\nWould you like to install it from Google Play?",
+  "@amberNotInstalled": {
+    "description": "Message when Amber is not installed"
+  },
+  
+  "install": "Install",
+  "@install": {
+    "description": "Button to install"
+  },
+  
+  "error": "Error",
+  "@error": {
+    "description": "Error dialog title"
+  },
+  
+  "loginProcessError": "An error occurred during login process\n{error}",
+  "@loginProcessError": {
+    "description": "Error message during login",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "ok": "OK",
+  "@ok": {
+    "description": "OK button"
+  },
+  
+  "noPublicKeyReceived": "Failed to retrieve public key from Amber",
+  "@noPublicKeyReceived": {
+    "description": "Error when no public key received"
+  },
+  
+  "amberConnectionFailed": "Failed to connect with Amber\n{error}",
+  "@amberConnectionFailed": {
+    "description": "Error when Amber connection fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "setPassword": "Set Password",
+  "@setPassword": {
+    "description": "Dialog title for setting password"
+  },
+  
+  "setPasswordDescription": "Please set a password to encrypt your secret key.",
+  "@setPasswordDescription": {
+    "description": "Description for password setting"
+  },
+  
+  "password": "Password",
+  "@password": {
+    "description": "Password field label"
+  },
+  
+  "passwordConfirm": "Password (Confirm)",
+  "@passwordConfirm": {
+    "description": "Password confirmation field label"
+  },
+  
+  "passwordRequired": "Please enter a password",
+  "@passwordRequired": {
+    "description": "Validation error for empty password"
+  },
+  
+  "passwordMinLength": "Password must be at least 8 characters",
+  "@passwordMinLength": {
+    "description": "Validation error for short password"
+  },
+  
+  "passwordMismatch": "Passwords do not match",
+  "@passwordMismatch": {
+    "description": "Validation error for mismatched passwords"
+  },
+  
+  "secretKeyGenerated": "Secret Key Generated",
+  "@secretKeyGenerated": {
+    "description": "Dialog title when key is generated"
+  },
+  
+  "backupSecretKey": "Please backup your secret key to a safe location.",
+  "@backupSecretKey": {
+    "description": "Instruction to backup secret key"
+  },
+  
+  "secretKeyNsec": "Secret Key (nsec):",
+  "@secretKeyNsec": {
+    "description": "Label for secret key in nsec format"
+  },
+  
+  "publicKeyNpub": "Public Key (npub):",
+  "@publicKeyNpub": {
+    "description": "Label for public key in npub format"
+  },
+  
+  "secretKeyWarning": "If you lose this secret key, you will lose access to your account. Please backup it.",
+  "@secretKeyWarning": {
+    "description": "Warning about losing secret key"
+  },
+  
+  "backupCompleted": "Backup Completed",
+  "@backupCompleted": {
+    "description": "Button text after backing up key"
+  },
+  
+  "keypairGenerationFailed": "Failed to generate keypair\n\n{error}",
+  "@keypairGenerationFailed": {
+    "description": "Error when keypair generation fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "sunday": "Sunday",
+  "@sunday": {
+    "description": "Full name for Sunday"
+  },
+  
+  "monday": "Monday",
+  "@monday": {
+    "description": "Full name for Monday"
+  },
+  
+  "tuesday": "Tuesday",
+  "@tuesday": {
+    "description": "Full name for Tuesday"
+  },
+  
+  "wednesday": "Wednesday",
+  "@wednesday": {
+    "description": "Full name for Wednesday"
+  },
+  
+  "thursday": "Thursday",
+  "@thursday": {
+    "description": "Full name for Thursday"
+  },
+  
+  "friday": "Friday",
+  "@friday": {
+    "description": "Full name for Friday"
+  },
+  
+  "saturday": "Saturday",
+  "@saturday": {
+    "description": "Full name for Saturday"
+  },
+  
+  "weekStartDay": "Week Start Day",
+  "@weekStartDay": {
+    "description": "Setting for week start day"
+  },
+  
+  "selectWeekStartDay": "Select Week Start Day",
+  "@selectWeekStartDay": {
+    "description": "Dialog title for selecting week start day"
+  },
+  
+  "calendarView": "Calendar View",
+  "@calendarView": {
+    "description": "Setting for calendar view"
+  },
+  
+  "selectCalendarView": "Select Calendar View",
+  "@selectCalendarView": {
+    "description": "Dialog title for selecting calendar view"
+  },
+  
+  "weekView": "Week View",
+  "@weekView": {
+    "description": "Week view option"
+  },
+  
+  "monthView": "Month View",
+  "@monthView": {
+    "description": "Month view option"
+  },
+  
+  "notifications": "Notifications",
+  "@notifications": {
+    "description": "Notifications setting"
+  },
+  
+  "notificationsSubtitle": "Enable reminder notifications",
+  "@notificationsSubtitle": {
+    "description": "Subtitle for notifications setting"
+  },
+  
+  "torConnection": "Connect via Tor (Orbot)",
+  "@torConnection": {
+    "description": "Setting for Tor connection"
+  },
+  
+  "torEnabledSubtitle": "Connecting via Orbot proxy ({proxyUrl})",
+  "@torEnabledSubtitle": {
+    "description": "Subtitle when Tor is enabled",
+    "placeholders": {
+      "proxyUrl": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "torDisabledSubtitle": "Not using Orbot (Direct connection)",
+  "@torDisabledSubtitle": {
+    "description": "Subtitle when Tor is disabled"
+  },
+  
+  "torEnabledMessage": "Tor enabled. Will apply from next connection.\nPlease start Orbot app.",
+  "@torEnabledMessage": {
+    "description": "Message when Tor is enabled"
+  },
+  
+  "torDisabledMessage": "Tor disabled. Will apply from next connection.",
+  "@torDisabledMessage": {
+    "description": "Message when Tor is disabled"
+  },
+  
+  "proxyAddress": "Proxy Address and Port",
+  "@proxyAddress": {
+    "description": "Setting for proxy address"
+  },
+  
+  "proxySettings": "Proxy Settings",
+  "@proxySettings": {
+    "description": "Dialog title for proxy settings"
+  },
+  
+  "proxySettingsDescription": "Configure SOCKS5 proxy address and port",
+  "@proxySettingsDescription": {
+    "description": "Description for proxy settings"
+  },
+  
+  "host": "Host",
+  "@host": {
+    "description": "Host field label"
+  },
+  
+  "port": "Port",
+  "@port": {
+    "description": "Port field label"
+  },
+  
+  "hostRequired": "Please enter host",
+  "@hostRequired": {
+    "description": "Validation error for empty host"
+  },
+  
+  "portRequired": "Please enter port",
+  "@portRequired": {
+    "description": "Validation error for empty port"
+  },
+  
+  "portRangeError": "Port number must be between 1-65535",
+  "@portRangeError": {
+    "description": "Validation error for invalid port range"
+  },
+  
+  "proxyUrlUpdated": "Proxy URL updated: {url}",
+  "@proxyUrlUpdated": {
+    "description": "Message when proxy URL is updated",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "commonSettings": "Common settings:\n• Orbot: 127.0.0.1:9050\n• Custom proxy: Enter host and port",
+  "@commonSettings": {
+    "description": "Common proxy settings examples"
+  },
+  
+  "proxyConnectionStatus": "Proxy Connection Status",
+  "@proxyConnectionStatus": {
+    "description": "Label for proxy connection status"
+  },
+  
+  "testButton": "Test",
+  "@testButton": {
+    "description": "Button to test connection"
+  },
+  
+  "untested": "Untested",
+  "@untested": {
+    "description": "Status when not tested"
+  },
+  
+  "testing": "Testing...",
+  "@testing": {
+    "description": "Status when testing"
+  },
+  
+  "connectionSuccess": "Connection Success",
+  "@connectionSuccess": {
+    "description": "Status when connection succeeds"
+  },
+  
+  "connectionFailed": "Connection Failed (Please start Orbot)",
+  "@connectionFailed": {
+    "description": "Status when connection fails"
+  },
+  
+  "appSettingsTitle": "App Settings",
+  "@appSettingsTitle": {
+    "description": "Title for app settings screen"
+  },
+  
+  "appSettingsInfo": "About App Settings",
+  "@appSettingsInfo": {
+    "description": "Title for app settings info"
+  },
+  
+  "appSettingsInfoText": "• App settings are stored locally\n• If Nostr is connected, settings sync automatically\n• You can share the same settings across multiple devices (NIP-78)\n• Changes are applied immediately\n\n🛡️ About Tor settings:\n• When Tor is enabled, connects to relays via Orbot proxy\n• Orbot app must be running\n• Privacy and security improve, but connection speed decreases\n• Reconnection required after changing settings",
+  "@appSettingsInfoText": {
+    "description": "Information about app settings"
+  },
+  
+  "nostrAutoSync": "Auto sync to Nostr relay (NIP-78 Kind 30078)",
+  "@nostrAutoSync": {
+    "description": "Status when Nostr auto sync is enabled"
+  },
+  
+  "localStorageOnly": "Local storage only (Nostr not connected)",
+  "@localStorageOnly": {
+    "description": "Status when using local storage only"
+  },
+  
+  "languageSelection": "Select Language",
+  "@languageSelection": {
+    "description": "Dialog title for language selection"
   }
 }
 

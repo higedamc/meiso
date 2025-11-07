@@ -206,4 +206,228 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get sundayShort => '日';
+
+  @override
+  String get loginMethodTitle => 'ログイン方法を選択';
+
+  @override
+  String get loginMethodDescription => 'Nostrアカウントでログインして、\nタスクを同期しましょう';
+
+  @override
+  String get loginWithAmber => 'Amberでログイン';
+
+  @override
+  String get or => 'または';
+
+  @override
+  String get generateNewKey => '新しい秘密鍵を生成';
+
+  @override
+  String get keyStorageNote => '秘密鍵は安全に保管されます。\nAmberを使用すると、より安全に管理できます。';
+
+  @override
+  String get amberRequired => 'Amberが必要です';
+
+  @override
+  String get amberNotInstalled =>
+      'Amberアプリがインストールされていません。\nGoogle Playからインストールしますか？';
+
+  @override
+  String get install => 'インストール';
+
+  @override
+  String get error => 'エラー';
+
+  @override
+  String loginProcessError(String error) {
+    return 'ログイン処理中にエラーが発生しました\n$error';
+  }
+
+  @override
+  String get ok => 'OK';
+
+  @override
+  String get noPublicKeyReceived => 'Amberから公開鍵を取得できませんでした';
+
+  @override
+  String amberConnectionFailed(String error) {
+    return 'Amberとの連携に失敗しました\n$error';
+  }
+
+  @override
+  String get setPassword => 'パスワードを設定';
+
+  @override
+  String get setPasswordDescription => '秘密鍵を暗号化するためのパスワードを設定してください。';
+
+  @override
+  String get password => 'パスワード';
+
+  @override
+  String get passwordConfirm => 'パスワード（確認）';
+
+  @override
+  String get passwordRequired => 'パスワードを入力してください';
+
+  @override
+  String get passwordMinLength => '8文字以上で入力してください';
+
+  @override
+  String get passwordMismatch => 'パスワードが一致しません';
+
+  @override
+  String get secretKeyGenerated => '秘密鍵が生成されました';
+
+  @override
+  String get backupSecretKey => '以下の秘密鍵を安全な場所にバックアップしてください。';
+
+  @override
+  String get secretKeyNsec => '秘密鍵 (nsec):';
+
+  @override
+  String get publicKeyNpub => '公開鍵 (npub):';
+
+  @override
+  String get secretKeyWarning => 'この秘密鍵を失うと、アカウントにアクセスできなくなります。必ずバックアップしてください。';
+
+  @override
+  String get backupCompleted => 'バックアップしました';
+
+  @override
+  String keypairGenerationFailed(String error) {
+    return '秘密鍵の生成に失敗しました\n\n$error';
+  }
+
+  @override
+  String get sunday => '日曜日';
+
+  @override
+  String get monday => '月曜日';
+
+  @override
+  String get tuesday => '火曜日';
+
+  @override
+  String get wednesday => '水曜日';
+
+  @override
+  String get thursday => '木曜日';
+
+  @override
+  String get friday => '金曜日';
+
+  @override
+  String get saturday => '土曜日';
+
+  @override
+  String get weekStartDay => '週の開始曜日';
+
+  @override
+  String get selectWeekStartDay => '週の開始曜日を選択';
+
+  @override
+  String get calendarView => 'カレンダー表示';
+
+  @override
+  String get selectCalendarView => 'カレンダー表示を選択';
+
+  @override
+  String get weekView => '週表示';
+
+  @override
+  String get monthView => '月表示';
+
+  @override
+  String get notifications => '通知';
+
+  @override
+  String get notificationsSubtitle => 'リマインダー通知を有効化';
+
+  @override
+  String get torConnection => 'Tor経由で接続 (Orbot)';
+
+  @override
+  String torEnabledSubtitle(String proxyUrl) {
+    return 'Orbotプロキシ経由で接続中 ($proxyUrl)';
+  }
+
+  @override
+  String get torDisabledSubtitle => 'Orbot未使用（直接接続）';
+
+  @override
+  String get torEnabledMessage =>
+      'Torを有効にしました。次回接続時から適用されます。\nOrbotアプリを起動してください。';
+
+  @override
+  String get torDisabledMessage => 'Torを無効にしました。次回接続時から適用されます。';
+
+  @override
+  String get proxyAddress => 'プロキシアドレスとポート';
+
+  @override
+  String get proxySettings => 'プロキシ設定';
+
+  @override
+  String get proxySettingsDescription => 'SOCKS5プロキシのアドレスとポートを設定してください';
+
+  @override
+  String get host => 'ホスト';
+
+  @override
+  String get port => 'ポート';
+
+  @override
+  String get hostRequired => 'ホストを入力してください';
+
+  @override
+  String get portRequired => 'ポートを入力してください';
+
+  @override
+  String get portRangeError => 'ポート番号は 1-65535 の範囲で入力してください';
+
+  @override
+  String proxyUrlUpdated(String url) {
+    return 'プロキシURLを更新しました: $url';
+  }
+
+  @override
+  String get commonSettings =>
+      '一般的な設定:\n• Orbot: 127.0.0.1:9050\n• カスタムプロキシ: ホストとポートを入力';
+
+  @override
+  String get proxyConnectionStatus => 'プロキシ接続状態';
+
+  @override
+  String get testButton => 'テスト';
+
+  @override
+  String get untested => '未テスト';
+
+  @override
+  String get testing => 'テスト中...';
+
+  @override
+  String get connectionSuccess => '接続成功';
+
+  @override
+  String get connectionFailed => '接続失敗（Orbotを起動してください）';
+
+  @override
+  String get appSettingsTitle => 'アプリ設定';
+
+  @override
+  String get appSettingsInfo => 'アプリ設定について';
+
+  @override
+  String get appSettingsInfoText =>
+      '• アプリ設定はローカルに保存されます\n• Nostr接続中の場合、設定は自動的に同期されます\n• 複数デバイスで同じ設定を共有できます（NIP-78）\n• 設定変更は即座に反映されます\n\n🛡️ Tor設定について:\n• Torを有効にすると、Orbotプロキシ経由でリレーに接続します\n• Orbotアプリが起動している必要があります\n• プライバシーとセキュリティが向上しますが、接続速度は遅くなります\n• 設定変更後、再接続が必要です';
+
+  @override
+  String get nostrAutoSync => 'Nostrリレーに自動同期（NIP-78 Kind 30078）';
+
+  @override
+  String get localStorageOnly => 'ローカル保存のみ（Nostr未接続）';
+
+  @override
+  String get languageSelection => '言語を選択';
 }

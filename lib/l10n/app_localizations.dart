@@ -471,6 +471,426 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sun'**
   String get sundayShort;
+
+  /// Title for login method selection
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Login Method'**
+  String get loginMethodTitle;
+
+  /// Description for login method
+  ///
+  /// In en, this message translates to:
+  /// **'Log in with Nostr account\nto sync your tasks'**
+  String get loginMethodDescription;
+
+  /// Button to login with Amber
+  ///
+  /// In en, this message translates to:
+  /// **'Login with Amber'**
+  String get loginWithAmber;
+
+  /// Separator text
+  ///
+  /// In en, this message translates to:
+  /// **'or'**
+  String get or;
+
+  /// Button to generate new secret key
+  ///
+  /// In en, this message translates to:
+  /// **'Generate New Key'**
+  String get generateNewKey;
+
+  /// Note about key storage
+  ///
+  /// In en, this message translates to:
+  /// **'Keys are stored securely.\nAmber provides enhanced security.'**
+  String get keyStorageNote;
+
+  /// Dialog title when Amber is not installed
+  ///
+  /// In en, this message translates to:
+  /// **'Amber Required'**
+  String get amberRequired;
+
+  /// Message when Amber is not installed
+  ///
+  /// In en, this message translates to:
+  /// **'Amber app is not installed.\nWould you like to install it from Google Play?'**
+  String get amberNotInstalled;
+
+  /// Button to install
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get install;
+
+  /// Error dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get error;
+
+  /// Error message during login
+  ///
+  /// In en, this message translates to:
+  /// **'An error occurred during login process\n{error}'**
+  String loginProcessError(String error);
+
+  /// OK button
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get ok;
+
+  /// Error when no public key received
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to retrieve public key from Amber'**
+  String get noPublicKeyReceived;
+
+  /// Error when Amber connection fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to connect with Amber\n{error}'**
+  String amberConnectionFailed(String error);
+
+  /// Dialog title for setting password
+  ///
+  /// In en, this message translates to:
+  /// **'Set Password'**
+  String get setPassword;
+
+  /// Description for password setting
+  ///
+  /// In en, this message translates to:
+  /// **'Please set a password to encrypt your secret key.'**
+  String get setPasswordDescription;
+
+  /// Password field label
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get password;
+
+  /// Password confirmation field label
+  ///
+  /// In en, this message translates to:
+  /// **'Password (Confirm)'**
+  String get passwordConfirm;
+
+  /// Validation error for empty password
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a password'**
+  String get passwordRequired;
+
+  /// Validation error for short password
+  ///
+  /// In en, this message translates to:
+  /// **'Password must be at least 8 characters'**
+  String get passwordMinLength;
+
+  /// Validation error for mismatched passwords
+  ///
+  /// In en, this message translates to:
+  /// **'Passwords do not match'**
+  String get passwordMismatch;
+
+  /// Dialog title when key is generated
+  ///
+  /// In en, this message translates to:
+  /// **'Secret Key Generated'**
+  String get secretKeyGenerated;
+
+  /// Instruction to backup secret key
+  ///
+  /// In en, this message translates to:
+  /// **'Please backup your secret key to a safe location.'**
+  String get backupSecretKey;
+
+  /// Label for secret key in nsec format
+  ///
+  /// In en, this message translates to:
+  /// **'Secret Key (nsec):'**
+  String get secretKeyNsec;
+
+  /// Label for public key in npub format
+  ///
+  /// In en, this message translates to:
+  /// **'Public Key (npub):'**
+  String get publicKeyNpub;
+
+  /// Warning about losing secret key
+  ///
+  /// In en, this message translates to:
+  /// **'If you lose this secret key, you will lose access to your account. Please backup it.'**
+  String get secretKeyWarning;
+
+  /// Button text after backing up key
+  ///
+  /// In en, this message translates to:
+  /// **'Backup Completed'**
+  String get backupCompleted;
+
+  /// Error when keypair generation fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to generate keypair\n\n{error}'**
+  String keypairGenerationFailed(String error);
+
+  /// Full name for Sunday
+  ///
+  /// In en, this message translates to:
+  /// **'Sunday'**
+  String get sunday;
+
+  /// Full name for Monday
+  ///
+  /// In en, this message translates to:
+  /// **'Monday'**
+  String get monday;
+
+  /// Full name for Tuesday
+  ///
+  /// In en, this message translates to:
+  /// **'Tuesday'**
+  String get tuesday;
+
+  /// Full name for Wednesday
+  ///
+  /// In en, this message translates to:
+  /// **'Wednesday'**
+  String get wednesday;
+
+  /// Full name for Thursday
+  ///
+  /// In en, this message translates to:
+  /// **'Thursday'**
+  String get thursday;
+
+  /// Full name for Friday
+  ///
+  /// In en, this message translates to:
+  /// **'Friday'**
+  String get friday;
+
+  /// Full name for Saturday
+  ///
+  /// In en, this message translates to:
+  /// **'Saturday'**
+  String get saturday;
+
+  /// Setting for week start day
+  ///
+  /// In en, this message translates to:
+  /// **'Week Start Day'**
+  String get weekStartDay;
+
+  /// Dialog title for selecting week start day
+  ///
+  /// In en, this message translates to:
+  /// **'Select Week Start Day'**
+  String get selectWeekStartDay;
+
+  /// Setting for calendar view
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar View'**
+  String get calendarView;
+
+  /// Dialog title for selecting calendar view
+  ///
+  /// In en, this message translates to:
+  /// **'Select Calendar View'**
+  String get selectCalendarView;
+
+  /// Week view option
+  ///
+  /// In en, this message translates to:
+  /// **'Week View'**
+  String get weekView;
+
+  /// Month view option
+  ///
+  /// In en, this message translates to:
+  /// **'Month View'**
+  String get monthView;
+
+  /// Notifications setting
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notifications;
+
+  /// Subtitle for notifications setting
+  ///
+  /// In en, this message translates to:
+  /// **'Enable reminder notifications'**
+  String get notificationsSubtitle;
+
+  /// Setting for Tor connection
+  ///
+  /// In en, this message translates to:
+  /// **'Connect via Tor (Orbot)'**
+  String get torConnection;
+
+  /// Subtitle when Tor is enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting via Orbot proxy ({proxyUrl})'**
+  String torEnabledSubtitle(String proxyUrl);
+
+  /// Subtitle when Tor is disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Not using Orbot (Direct connection)'**
+  String get torDisabledSubtitle;
+
+  /// Message when Tor is enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Tor enabled. Will apply from next connection.\nPlease start Orbot app.'**
+  String get torEnabledMessage;
+
+  /// Message when Tor is disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Tor disabled. Will apply from next connection.'**
+  String get torDisabledMessage;
+
+  /// Setting for proxy address
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy Address and Port'**
+  String get proxyAddress;
+
+  /// Dialog title for proxy settings
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy Settings'**
+  String get proxySettings;
+
+  /// Description for proxy settings
+  ///
+  /// In en, this message translates to:
+  /// **'Configure SOCKS5 proxy address and port'**
+  String get proxySettingsDescription;
+
+  /// Host field label
+  ///
+  /// In en, this message translates to:
+  /// **'Host'**
+  String get host;
+
+  /// Port field label
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get port;
+
+  /// Validation error for empty host
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter host'**
+  String get hostRequired;
+
+  /// Validation error for empty port
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter port'**
+  String get portRequired;
+
+  /// Validation error for invalid port range
+  ///
+  /// In en, this message translates to:
+  /// **'Port number must be between 1-65535'**
+  String get portRangeError;
+
+  /// Message when proxy URL is updated
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy URL updated: {url}'**
+  String proxyUrlUpdated(String url);
+
+  /// Common proxy settings examples
+  ///
+  /// In en, this message translates to:
+  /// **'Common settings:\n• Orbot: 127.0.0.1:9050\n• Custom proxy: Enter host and port'**
+  String get commonSettings;
+
+  /// Label for proxy connection status
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy Connection Status'**
+  String get proxyConnectionStatus;
+
+  /// Button to test connection
+  ///
+  /// In en, this message translates to:
+  /// **'Test'**
+  String get testButton;
+
+  /// Status when not tested
+  ///
+  /// In en, this message translates to:
+  /// **'Untested'**
+  String get untested;
+
+  /// Status when testing
+  ///
+  /// In en, this message translates to:
+  /// **'Testing...'**
+  String get testing;
+
+  /// Status when connection succeeds
+  ///
+  /// In en, this message translates to:
+  /// **'Connection Success'**
+  String get connectionSuccess;
+
+  /// Status when connection fails
+  ///
+  /// In en, this message translates to:
+  /// **'Connection Failed (Please start Orbot)'**
+  String get connectionFailed;
+
+  /// Title for app settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'App Settings'**
+  String get appSettingsTitle;
+
+  /// Title for app settings info
+  ///
+  /// In en, this message translates to:
+  /// **'About App Settings'**
+  String get appSettingsInfo;
+
+  /// Information about app settings
+  ///
+  /// In en, this message translates to:
+  /// **'• App settings are stored locally\n• If Nostr is connected, settings sync automatically\n• You can share the same settings across multiple devices (NIP-78)\n• Changes are applied immediately\n\n🛡️ About Tor settings:\n• When Tor is enabled, connects to relays via Orbot proxy\n• Orbot app must be running\n• Privacy and security improve, but connection speed decreases\n• Reconnection required after changing settings'**
+  String get appSettingsInfoText;
+
+  /// Status when Nostr auto sync is enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Auto sync to Nostr relay (NIP-78 Kind 30078)'**
+  String get nostrAutoSync;
+
+  /// Status when using local storage only
+  ///
+  /// In en, this message translates to:
+  /// **'Local storage only (Nostr not connected)'**
+  String get localStorageOnly;
+
+  /// Dialog title for language selection
+  ///
+  /// In en, this message translates to:
+  /// **'Select Language'**
+  String get languageSelection;
 }
 
 class _AppLocalizationsDelegate

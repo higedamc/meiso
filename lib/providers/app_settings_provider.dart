@@ -339,6 +339,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           relays: settings.relays,
           torEnabled: settings.torEnabled,
           proxyUrl: settings.proxyUrl,
+          customListOrder: settings.customListOrder,
           updatedAt: settings.updatedAt.toIso8601String(),
         );
         

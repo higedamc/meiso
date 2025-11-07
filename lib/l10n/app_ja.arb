@@ -123,6 +123,146 @@
   
   "saturdayShort": "土",
   
-  "sundayShort": "日"
+  "sundayShort": "日",
+  
+  "loginMethodTitle": "ログイン方法を選択",
+  
+  "loginMethodDescription": "Nostrアカウントでログインして、\nタスクを同期しましょう",
+  
+  "loginWithAmber": "Amberでログイン",
+  
+  "or": "または",
+  
+  "generateNewKey": "新しい秘密鍵を生成",
+  
+  "keyStorageNote": "秘密鍵は安全に保管されます。\nAmberを使用すると、より安全に管理できます。",
+  
+  "amberRequired": "Amberが必要です",
+  
+  "amberNotInstalled": "Amberアプリがインストールされていません。\nGoogle Playからインストールしますか？",
+  
+  "install": "インストール",
+  
+  "error": "エラー",
+  
+  "loginProcessError": "ログイン処理中にエラーが発生しました\n{error}",
+  
+  "ok": "OK",
+  
+  "noPublicKeyReceived": "Amberから公開鍵を取得できませんでした",
+  
+  "amberConnectionFailed": "Amberとの連携に失敗しました\n{error}",
+  
+  "setPassword": "パスワードを設定",
+  
+  "setPasswordDescription": "秘密鍵を暗号化するためのパスワードを設定してください。",
+  
+  "password": "パスワード",
+  
+  "passwordConfirm": "パスワード（確認）",
+  
+  "passwordRequired": "パスワードを入力してください",
+  
+  "passwordMinLength": "8文字以上で入力してください",
+  
+  "passwordMismatch": "パスワードが一致しません",
+  
+  "secretKeyGenerated": "秘密鍵が生成されました",
+  
+  "backupSecretKey": "以下の秘密鍵を安全な場所にバックアップしてください。",
+  
+  "secretKeyNsec": "秘密鍵 (nsec):",
+  
+  "publicKeyNpub": "公開鍵 (npub):",
+  
+  "secretKeyWarning": "この秘密鍵を失うと、アカウントにアクセスできなくなります。必ずバックアップしてください。",
+  
+  "backupCompleted": "バックアップしました",
+  
+  "keypairGenerationFailed": "秘密鍵の生成に失敗しました\n\n{error}",
+  
+  "sunday": "日曜日",
+  
+  "monday": "月曜日",
+  
+  "tuesday": "火曜日",
+  
+  "wednesday": "水曜日",
+  
+  "thursday": "木曜日",
+  
+  "friday": "金曜日",
+  
+  "saturday": "土曜日",
+  
+  "weekStartDay": "週の開始曜日",
+  
+  "selectWeekStartDay": "週の開始曜日を選択",
+  
+  "calendarView": "カレンダー表示",
+  
+  "selectCalendarView": "カレンダー表示を選択",
+  
+  "weekView": "週表示",
+  
+  "monthView": "月表示",
+  
+  "notifications": "通知",
+  
+  "notificationsSubtitle": "リマインダー通知を有効化",
+  
+  "torConnection": "Tor経由で接続 (Orbot)",
+  
+  "torEnabledSubtitle": "Orbotプロキシ経由で接続中 ({proxyUrl})",
+  
+  "torDisabledSubtitle": "Orbot未使用（直接接続）",
+  
+  "torEnabledMessage": "Torを有効にしました。次回接続時から適用されます。\nOrbotアプリを起動してください。",
+  
+  "torDisabledMessage": "Torを無効にしました。次回接続時から適用されます。",
+  
+  "proxyAddress": "プロキシアドレスとポート",
+  
+  "proxySettings": "プロキシ設定",
+  
+  "proxySettingsDescription": "SOCKS5プロキシのアドレスとポートを設定してください",
+  
+  "host": "ホスト",
+  
+  "port": "ポート",
+  
+  "hostRequired": "ホストを入力してください",
+  
+  "portRequired": "ポートを入力してください",
+  
+  "portRangeError": "ポート番号は 1-65535 の範囲で入力してください",
+  
+  "proxyUrlUpdated": "プロキシURLを更新しました: {url}",
+  
+  "commonSettings": "一般的な設定:\n• Orbot: 127.0.0.1:9050\n• カスタムプロキシ: ホストとポートを入力",
+  
+  "proxyConnectionStatus": "プロキシ接続状態",
+  
+  "testButton": "テスト",
+  
+  "untested": "未テスト",
+  
+  "testing": "テスト中...",
+  
+  "connectionSuccess": "接続成功",
+  
+  "connectionFailed": "接続失敗（Orbotを起動してください）",
+  
+  "appSettingsTitle": "アプリ設定",
+  
+  "appSettingsInfo": "アプリ設定について",
+  
+  "appSettingsInfoText": "• アプリ設定はローカルに保存されます\n• Nostr接続中の場合、設定は自動的に同期されます\n• 複数デバイスで同じ設定を共有できます（NIP-78）\n• 設定変更は即座に反映されます\n\n🛡️ Tor設定について:\n• Torを有効にすると、Orbotプロキシ経由でリレーに接続します\n• Orbotアプリが起動している必要があります\n• プライバシーとセキュリティが向上しますが、接続速度は遅くなります\n• 設定変更後、再接続が必要です",
+  
+  "nostrAutoSync": "Nostrリレーに自動同期（NIP-78 Kind 30078）",
+  
+  "localStorageOnly": "ローカル保存のみ（Nostr未接続）",
+  
+  "languageSelection": "言語を選択"
 }
 

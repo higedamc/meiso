@@ -206,4 +206,235 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get sundayShort => 'Dom';
+
+  @override
+  String get loginMethodTitle => 'Choose Login Method';
+
+  @override
+  String get loginMethodDescription =>
+      'Log in with Nostr account\nto sync your tasks';
+
+  @override
+  String get loginWithAmber => 'Login with Amber';
+
+  @override
+  String get or => 'or';
+
+  @override
+  String get generateNewKey => 'Generate New Key';
+
+  @override
+  String get keyStorageNote =>
+      'Keys are stored securely.\nAmber provides enhanced security.';
+
+  @override
+  String get amberRequired => 'Amber Required';
+
+  @override
+  String get amberNotInstalled =>
+      'Amber app is not installed.\nWould you like to install it from Google Play?';
+
+  @override
+  String get install => 'Install';
+
+  @override
+  String get error => 'Error';
+
+  @override
+  String loginProcessError(String error) {
+    return 'An error occurred during login process\n$error';
+  }
+
+  @override
+  String get ok => 'OK';
+
+  @override
+  String get noPublicKeyReceived => 'Failed to retrieve public key from Amber';
+
+  @override
+  String amberConnectionFailed(String error) {
+    return 'Failed to connect with Amber\n$error';
+  }
+
+  @override
+  String get setPassword => 'Set Password';
+
+  @override
+  String get setPasswordDescription =>
+      'Please set a password to encrypt your secret key.';
+
+  @override
+  String get password => 'Password';
+
+  @override
+  String get passwordConfirm => 'Password (Confirm)';
+
+  @override
+  String get passwordRequired => 'Please enter a password';
+
+  @override
+  String get passwordMinLength => 'Password must be at least 8 characters';
+
+  @override
+  String get passwordMismatch => 'Passwords do not match';
+
+  @override
+  String get secretKeyGenerated => 'Secret Key Generated';
+
+  @override
+  String get backupSecretKey =>
+      'Please backup your secret key to a safe location.';
+
+  @override
+  String get secretKeyNsec => 'Secret Key (nsec):';
+
+  @override
+  String get publicKeyNpub => 'Public Key (npub):';
+
+  @override
+  String get secretKeyWarning =>
+      'If you lose this secret key, you will lose access to your account. Please backup it.';
+
+  @override
+  String get backupCompleted => 'Backup Completed';
+
+  @override
+  String keypairGenerationFailed(String error) {
+    return 'Failed to generate keypair\n\n$error';
+  }
+
+  @override
+  String get sunday => 'Sunday';
+
+  @override
+  String get monday => 'Monday';
+
+  @override
+  String get tuesday => 'Tuesday';
+
+  @override
+  String get wednesday => 'Wednesday';
+
+  @override
+  String get thursday => 'Thursday';
+
+  @override
+  String get friday => 'Friday';
+
+  @override
+  String get saturday => 'Saturday';
+
+  @override
+  String get weekStartDay => 'Week Start Day';
+
+  @override
+  String get selectWeekStartDay => 'Select Week Start Day';
+
+  @override
+  String get calendarView => 'Calendar View';
+
+  @override
+  String get selectCalendarView => 'Select Calendar View';
+
+  @override
+  String get weekView => 'Week View';
+
+  @override
+  String get monthView => 'Month View';
+
+  @override
+  String get notifications => 'Notifications';
+
+  @override
+  String get notificationsSubtitle => 'Enable reminder notifications';
+
+  @override
+  String get torConnection => 'Connect via Tor (Orbot)';
+
+  @override
+  String torEnabledSubtitle(String proxyUrl) {
+    return 'Connecting via Orbot proxy ($proxyUrl)';
+  }
+
+  @override
+  String get torDisabledSubtitle => 'Not using Orbot (Direct connection)';
+
+  @override
+  String get torEnabledMessage =>
+      'Tor enabled. Will apply from next connection.\nPlease start Orbot app.';
+
+  @override
+  String get torDisabledMessage =>
+      'Tor disabled. Will apply from next connection.';
+
+  @override
+  String get proxyAddress => 'Proxy Address and Port';
+
+  @override
+  String get proxySettings => 'Proxy Settings';
+
+  @override
+  String get proxySettingsDescription =>
+      'Configure SOCKS5 proxy address and port';
+
+  @override
+  String get host => 'Host';
+
+  @override
+  String get port => 'Port';
+
+  @override
+  String get hostRequired => 'Please enter host';
+
+  @override
+  String get portRequired => 'Please enter port';
+
+  @override
+  String get portRangeError => 'Port number must be between 1-65535';
+
+  @override
+  String proxyUrlUpdated(String url) {
+    return 'Proxy URL updated: $url';
+  }
+
+  @override
+  String get commonSettings =>
+      'Common settings:\n• Orbot: 127.0.0.1:9050\n• Custom proxy: Enter host and port';
+
+  @override
+  String get proxyConnectionStatus => 'Proxy Connection Status';
+
+  @override
+  String get testButton => 'Test';
+
+  @override
+  String get untested => 'Untested';
+
+  @override
+  String get testing => 'Testing...';
+
+  @override
+  String get connectionSuccess => 'Connection Success';
+
+  @override
+  String get connectionFailed => 'Connection Failed (Please start Orbot)';
+
+  @override
+  String get appSettingsTitle => 'App Settings';
+
+  @override
+  String get appSettingsInfo => 'About App Settings';
+
+  @override
+  String get appSettingsInfoText =>
+      '• App settings are stored locally\n• If Nostr is connected, settings sync automatically\n• You can share the same settings across multiple devices (NIP-78)\n• Changes are applied immediately\n\n🛡️ About Tor settings:\n• When Tor is enabled, connects to relays via Orbot proxy\n• Orbot app must be running\n• Privacy and security improve, but connection speed decreases\n• Reconnection required after changing settings';
+
+  @override
+  String get nostrAutoSync => 'Auto sync to Nostr relay (NIP-78 Kind 30078)';
+
+  @override
+  String get localStorageOnly => 'Local storage only (Nostr not connected)';
+
+  @override
+  String get languageSelection => 'Select Language';
 }
