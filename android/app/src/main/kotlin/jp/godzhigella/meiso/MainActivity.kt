@@ -10,8 +10,10 @@ import io.flutter.plugin.common.EventChannel
 class MainActivity : FlutterActivity() {
     private val AMBER_CHANNEL = "jp.godzhigella.meiso/amber"
     private val AMBER_EVENT_CHANNEL = "jp.godzhigella.meiso/amber_events"
+    private val WIDGET_CHANNEL = "jp.godzhigella.meiso/widget"
     private var amberMethodChannel: MethodChannel? = null
     private var amberEventChannel: EventChannel? = null
+    private var widgetMethodChannel: MethodChannel? = null
     private var eventSink: EventChannel.EventSink? = null
     private var pendingResult: MethodChannel.Result? = null
     private var bufferedResponse: Map<String, Any?>? = null
@@ -53,6 +55,12 @@ class MainActivity : FlutterActivity() {
         amberEventChannel = EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             AMBER_EVENT_CHANNEL
+        )
+        
+        // Widget用MethodChannel設定
+        widgetMethodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            WIDGET_CHANNEL
         )
         
         amberEventChannel?.setStreamHandler(object : EventChannel.StreamHandler {
@@ -395,6 +403,31 @@ class MainActivity : FlutterActivity() {
                     } catch (e: Exception) {
                         android.util.Log.e("MainActivity", "Failed to decrypt via ContentProvider", e)
                         result.error("AMBER_ERROR", "Failed to decrypt: ${e.message}", null)
+                    }
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+        
+        // Widget用MethodChannel設定
+        widgetMethodChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "updateWidget" -> {
+                    // Widgetを更新
+                    val todosJson = call.argument<String>("todosJson")
+                    if (todosJson == null) {
+                        result.error("INVALID_ARGUMENT", "todosJson parameter is required", null)
+                        return@setMethodCallHandler
+                    }
+                    
+                    try {
+                        TodoWidgetProvider.updateWidgets(this, todosJson)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "Failed to update widget", e)
+                        result.error("WIDGET_ERROR", "Failed to update widget: ${e.message}", null)
                     }
                 }
                 else -> {

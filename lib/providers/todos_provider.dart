@@ -12,6 +12,7 @@ import '../services/logger_service.dart';
 import '../services/amber_service.dart';
 import '../services/link_preview_service.dart';
 import '../services/recurrence_parser.dart';
+import '../services/widget_service.dart';
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
@@ -294,6 +295,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.debug(' Saving to local storage...');
       await _saveAllTodosToLocal();
       AppLogger.info(' Local save complete');
+      
+      // Widgetを更新
+      await _updateWidget();
 
       // URLメタデータ取得（非同期・バックグラウンド）
       if (detectedUrl != null) {
@@ -438,6 +442,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
+        
+        // Widgetを更新
+        await _updateWidget();
 
         // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
         _updateUnsyncedCount();
@@ -468,6 +475,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
+        
+        // Widgetを更新
+        await _updateWidget();
 
         // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
         _updateUnsyncedCount();
@@ -496,6 +506,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
+        
+        // Widgetを更新
+        await _updateWidget();
 
         // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
         _updateUnsyncedCount();
@@ -578,6 +591,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
+        
+        // Widgetを更新
+        await _updateWidget();
 
         // URLメタデータ取得（非同期・バックグラウンド）
         if (detectedUrl != null) {
@@ -611,6 +627,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
+        
+        // Widgetを更新
+        await _updateWidget();
 
         // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
         _updateUnsyncedCount();
@@ -647,6 +666,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // ローカルストレージに保存（awaitする）
         await _saveAllTodosToLocal();
+        
+        // Widgetを更新
+        await _updateWidget();
 
         // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
         _updateUnsyncedCount();
@@ -851,6 +873,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
+      
+      // Widgetを更新
+      await _updateWidget();
 
       // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
       // 削除後の全TODOリストを送信（Replaceable eventなので古いイベントは自動的に置き換わる）
@@ -879,6 +904,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
+      
+      // Widgetを更新
+      await _updateWidget();
 
       // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
       _updateUnsyncedCount();
@@ -963,6 +991,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
+      
+      // Widgetを更新
+      await _updateWidget();
 
       // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
       _updateUnsyncedCount();
@@ -998,6 +1029,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
+      
+      // Widgetを更新
+      await _updateWidget();
 
       // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
       _updateUnsyncedCount();
@@ -1557,6 +1591,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
     });
   }
+  
+  /// Widgetを更新
+  Future<void> _updateWidget() async {
+    state.whenData((todos) async {
+      try {
+        await WidgetService.updateWidget(todos);
+      } catch (e) {
+        // Widget更新の失敗はログに残すのみ
+        AppLogger.warning(' Widget更新エラー: $e');
+      }
+    });
+  }
 
 
   /// 手動で全Todoリストをリレーに送信（バックアップ手段）
@@ -2011,6 +2057,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // ローカルストレージに保存
       _saveAllTodosToLocal();
+      
+      // Widgetを更新
+      _updateWidget();
       
       // ローカルが新しいタスクがある場合、自動的に再同期
       if (localWinsCount > 0 || localOnlyCount > 0) {
