@@ -1,0 +1,128 @@
+{
+  "@@locale": "ja",
+  
+  "appTitle": "Meiso",
+  
+  "onboardingWelcomeTitle": "Meisoへようこそ",
+  
+  "onboardingWelcomeDescription": "シンプルで美しいToDoアプリ\nNostrで同期して、どこでもタスク管理",
+  
+  "onboardingNostrSyncTitle": "Nostrで同期",
+  
+  "onboardingNostrSyncDescription": "あなたのタスクをNostrネットワークで同期\n複数デバイスで自動的に最新状態を保ちます",
+  
+  "onboardingSmartDateTitle": "スマートな日付入力",
+  
+  "onboardingSmartDateDescription": "タスクに \"tomorrow\" と入力すれば明日のタスクに\n\"every day\" で繰り返しタスクも簡単に作成",
+  
+  "onboardingPrivacyTitle": "プライバシー第一",
+  
+  "onboardingPrivacyDescription": "中央サーバーなし。すべてのデータはあなたの管理下に\nNostrの分散型ネットワークで安全に保管",
+  
+  "onboardingGetStartedTitle": "さあ、始めましょう",
+  
+  "onboardingGetStartedDescription": "Amberでログインするか、\n新しい秘密鍵を生成してスタート",
+  
+  "skipButton": "スキップ",
+  
+  "nextButton": "次へ",
+  
+  "startButton": "スタート",
+  
+  "settingsTitle": "設定",
+  
+  "nostrConnected": "Nostr接続中",
+  
+  "nostrConnectedAmber": "Nostr接続中 (Amber)",
+  
+  "nostrDisconnected": "Nostr未接続",
+  
+  "relaysConnectedCount": "リレー: {count}/{total} 接続中",
+  
+  "secretKeyManagement": "秘密鍵管理",
+  
+  "secretKeyConfigured": "設定済み",
+  
+  "secretKeyNotConfigured": "未設定",
+  
+  "relayServerManagement": "リレーサーバー管理",
+  
+  "relayCountRegistered": "{count}件登録済み",
+  
+  "appSettings": "アプリ設定",
+  
+  "appSettingsSubtitle": "テーマ、カレンダー、通知、Tor",
+  
+  "debugLogs": "デバッグログ",
+  
+  "debugLogsSubtitle": "ログ履歴を表示",
+  
+  "amberModeTitle": "Amberモード",
+  
+  "amberModeInfo": "✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• Todoの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ 復号化の最適化:\nTodoの同期時に復号化の承認が必要です。\n毎回承認するのを避けるために、Amberアプリで\n「Meisoアプリを常に許可」を設定することを推奨します。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. アプリ一覧から「Meiso」を選択\n3. 「NIP-44 Decrypt」を常に許可に設定",
+  
+  "autoSyncInfoTitle": "自動同期について",
+  
+  "autoSyncInfo": "• タスクの作成・編集・削除は自動的にNostrに同期されます\n• アプリ起動時に最新のデータが自動取得されます\n• リレー接続中は常にバックグラウンドで同期します\n• 手動同期ボタンは不要になりました",
+  
+  "versionInfo": "Version {version} ({buildNumber})",
+  
+  "todayLabel": "TODAY",
+  
+  "tomorrowLabel": "TOMORROW",
+  
+  "somedayLabel": "SOMEDAY",
+  
+  "addTaskPlaceholder": "タスクを追加...",
+  
+  "editTaskTitle": "タスクを編集",
+  
+  "taskTitlePlaceholder": "タスクのタイトル",
+  
+  "saveButton": "保存",
+  
+  "cancelButton": "キャンセル",
+  
+  "deleteButton": "削除",
+  
+  "undoButton": "元に戻す",
+  
+  "taskDeleted": "タスクを削除しました",
+  
+  "languageSettings": "言語",
+  
+  "languageSystem": "システムのデフォルト",
+  
+  "languageEnglish": "English",
+  
+  "languageJapanese": "日本語",
+  
+  "languageSpanish": "Español",
+  
+  "darkMode": "ダークモード",
+  
+  "darkModeEnabled": "有効",
+  
+  "darkModeDisabled": "無効",
+  
+  "torSettings": "Tor (Orbot)",
+  
+  "torEnabled": "有効",
+  
+  "torDisabled": "無効",
+  
+  "mondayShort": "月",
+  
+  "tuesdayShort": "火",
+  
+  "wednesdayShort": "水",
+  
+  "thursdayShort": "木",
+  
+  "fridayShort": "金",
+  
+  "saturdayShort": "土",
+  
+  "sundayShort": "日"
+}
+

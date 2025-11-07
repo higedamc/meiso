@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # State Management
   flutter_riverpod: ^2.6.1
@@ -40,7 +42,7 @@ dependencies:
   
   # Utils
   uuid: ^4.5.1
-  intl: ^0.19.0
+  intl: ^0.20.2
   
   # Local Storage
   hive: ^2.2.3
@@ -107,6 +109,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  
+  # Enable generation of localized messages
+  generate: true
 
   # To add assets to your application, add an assets section, like this:
   assets:

@@ -1,0 +1,335 @@
+{
+  "@@locale": "en",
+  
+  "appTitle": "Meiso",
+  "@appTitle": {
+    "description": "The application title"
+  },
+  
+  "onboardingWelcomeTitle": "Welcome to Meiso",
+  "@onboardingWelcomeTitle": {
+    "description": "Title for the first onboarding page"
+  },
+  
+  "onboardingWelcomeDescription": "Simple and beautiful To-Do app\nSync with Nostr, manage tasks everywhere",
+  "@onboardingWelcomeDescription": {
+    "description": "Description for the first onboarding page"
+  },
+  
+  "onboardingNostrSyncTitle": "Sync with Nostr",
+  "@onboardingNostrSyncTitle": {
+    "description": "Title for the Nostr sync onboarding page"
+  },
+  
+  "onboardingNostrSyncDescription": "Sync your tasks via Nostr network\nAutomatically stay up-to-date across multiple devices",
+  "@onboardingNostrSyncDescription": {
+    "description": "Description for the Nostr sync onboarding page"
+  },
+  
+  "onboardingSmartDateTitle": "Smart Date Input",
+  "@onboardingSmartDateTitle": {
+    "description": "Title for the smart date input onboarding page"
+  },
+  
+  "onboardingSmartDateDescription": "Type \"tomorrow\" to create a task for tomorrow\nType \"every day\" to create recurring tasks easily",
+  "@onboardingSmartDateDescription": {
+    "description": "Description for the smart date input onboarding page"
+  },
+  
+  "onboardingPrivacyTitle": "Privacy First",
+  "@onboardingPrivacyTitle": {
+    "description": "Title for the privacy onboarding page"
+  },
+  
+  "onboardingPrivacyDescription": "No central server. All data is under your control\nSecurely stored on Nostr's decentralized network",
+  "@onboardingPrivacyDescription": {
+    "description": "Description for the privacy onboarding page"
+  },
+  
+  "onboardingGetStartedTitle": "Let's Get Started",
+  "@onboardingGetStartedTitle": {
+    "description": "Title for the final onboarding page"
+  },
+  
+  "onboardingGetStartedDescription": "Log in with Amber or\ngenerate a new secret key to start",
+  "@onboardingGetStartedDescription": {
+    "description": "Description for the final onboarding page"
+  },
+  
+  "skipButton": "Skip",
+  "@skipButton": {
+    "description": "Button to skip onboarding"
+  },
+  
+  "nextButton": "Next",
+  "@nextButton": {
+    "description": "Button to go to next page"
+  },
+  
+  "startButton": "Start",
+  "@startButton": {
+    "description": "Button to start using the app"
+  },
+  
+  "settingsTitle": "Settings",
+  "@settingsTitle": {
+    "description": "Title for settings screen"
+  },
+  
+  "nostrConnected": "Nostr Connected",
+  "@nostrConnected": {
+    "description": "Status text when Nostr is connected"
+  },
+  
+  "nostrConnectedAmber": "Nostr Connected (Amber)",
+  "@nostrConnectedAmber": {
+    "description": "Status text when Nostr is connected via Amber"
+  },
+  
+  "nostrDisconnected": "Nostr Disconnected",
+  "@nostrDisconnected": {
+    "description": "Status text when Nostr is disconnected"
+  },
+  
+  "relaysConnectedCount": "Relays: {count}/{total} connected",
+  "@relaysConnectedCount": {
+    "description": "Shows how many relays are connected",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  
+  "secretKeyManagement": "Secret Key Management",
+  "@secretKeyManagement": {
+    "description": "Menu item for secret key management"
+  },
+  
+  "secretKeyConfigured": "Configured",
+  "@secretKeyConfigured": {
+    "description": "Status when secret key is configured"
+  },
+  
+  "secretKeyNotConfigured": "Not Configured",
+  "@secretKeyNotConfigured": {
+    "description": "Status when secret key is not configured"
+  },
+  
+  "relayServerManagement": "Relay Server Management",
+  "@relayServerManagement": {
+    "description": "Menu item for relay management"
+  },
+  
+  "relayCountRegistered": "{count} registered",
+  "@relayCountRegistered": {
+    "description": "Shows how many relays are registered",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  
+  "appSettings": "App Settings",
+  "@appSettings": {
+    "description": "Menu item for app settings"
+  },
+  
+  "appSettingsSubtitle": "Theme, Calendar, Notifications, Tor",
+  "@appSettingsSubtitle": {
+    "description": "Subtitle for app settings"
+  },
+  
+  "debugLogs": "Debug Logs",
+  "@debugLogs": {
+    "description": "Menu item for debug logs"
+  },
+  
+  "debugLogsSubtitle": "View log history",
+  "@debugLogsSubtitle": {
+    "description": "Subtitle for debug logs"
+  },
+  
+  "amberModeTitle": "Amber Mode",
+  "@amberModeTitle": {
+    "description": "Title for Amber mode info card"
+  },
+  
+  "amberModeInfo": "✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign todos with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing todos.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow",
+  "@amberModeInfo": {
+    "description": "Information about Amber mode"
+  },
+  
+  "autoSyncInfoTitle": "About Auto Sync",
+  "@autoSyncInfoTitle": {
+    "description": "Title for auto sync info card"
+  },
+  
+  "autoSyncInfo": "• Task creation, editing, and deletion are automatically synced to Nostr\n• Latest data is automatically fetched on app startup\n• Always syncs in the background when relay is connected\n• Manual sync button is no longer needed",
+  "@autoSyncInfo": {
+    "description": "Information about auto sync"
+  },
+  
+  "versionInfo": "Version {version} ({buildNumber})",
+  "@versionInfo": {
+    "description": "Version information text",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "buildNumber": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "todayLabel": "TODAY",
+  "@todayLabel": {
+    "description": "Label for today's tasks"
+  },
+  
+  "tomorrowLabel": "TOMORROW",
+  "@tomorrowLabel": {
+    "description": "Label for tomorrow's tasks"
+  },
+  
+  "somedayLabel": "SOMEDAY",
+  "@somedayLabel": {
+    "description": "Label for someday tasks"
+  },
+  
+  "addTaskPlaceholder": "Add a task...",
+  "@addTaskPlaceholder": {
+    "description": "Placeholder text for adding a task"
+  },
+  
+  "editTaskTitle": "Edit Task",
+  "@editTaskTitle": {
+    "description": "Title for edit task dialog"
+  },
+  
+  "taskTitlePlaceholder": "Task title",
+  "@taskTitlePlaceholder": {
+    "description": "Placeholder for task title input"
+  },
+  
+  "saveButton": "Save",
+  "@saveButton": {
+    "description": "Button to save changes"
+  },
+  
+  "cancelButton": "Cancel",
+  "@cancelButton": {
+    "description": "Button to cancel action"
+  },
+  
+  "deleteButton": "Delete",
+  "@deleteButton": {
+    "description": "Button to delete item"
+  },
+  
+  "undoButton": "Undo",
+  "@undoButton": {
+    "description": "Button to undo action"
+  },
+  
+  "taskDeleted": "Task deleted",
+  "@taskDeleted": {
+    "description": "Message when task is deleted"
+  },
+  
+  "languageSettings": "Language",
+  "@languageSettings": {
+    "description": "Language settings menu item"
+  },
+  
+  "languageSystem": "System Default",
+  "@languageSystem": {
+    "description": "Option to use system language"
+  },
+  
+  "languageEnglish": "English",
+  "@languageEnglish": {
+    "description": "English language option"
+  },
+  
+  "languageJapanese": "日本語",
+  "@languageJapanese": {
+    "description": "Japanese language option"
+  },
+  
+  "languageSpanish": "Español",
+  "@languageSpanish": {
+    "description": "Spanish language option"
+  },
+  
+  "darkMode": "Dark Mode",
+  "@darkMode": {
+    "description": "Dark mode setting"
+  },
+  
+  "darkModeEnabled": "Enabled",
+  "@darkModeEnabled": {
+    "description": "Dark mode is enabled"
+  },
+  
+  "darkModeDisabled": "Disabled",
+  "@darkModeDisabled": {
+    "description": "Dark mode is disabled"
+  },
+  
+  "torSettings": "Tor (Orbot)",
+  "@torSettings": {
+    "description": "Tor settings"
+  },
+  
+  "torEnabled": "Enabled",
+  "@torEnabled": {
+    "description": "Tor is enabled"
+  },
+  
+  "torDisabled": "Disabled",
+  "@torDisabled": {
+    "description": "Tor is disabled"
+  },
+  
+  "mondayShort": "Mon",
+  "@mondayShort": {
+    "description": "Short name for Monday"
+  },
+  
+  "tuesdayShort": "Tue",
+  "@tuesdayShort": {
+    "description": "Short name for Tuesday"
+  },
+  
+  "wednesdayShort": "Wed",
+  "@wednesdayShort": {
+    "description": "Short name for Wednesday"
+  },
+  
+  "thursdayShort": "Thu",
+  "@thursdayShort": {
+    "description": "Short name for Thursday"
+  },
+  
+  "fridayShort": "Fri",
+  "@fridayShort": {
+    "description": "Short name for Friday"
+  },
+  
+  "saturdayShort": "Sat",
+  "@saturdayShort": {
+    "description": "Short name for Saturday"
+  },
+  
+  "sundayShort": "Sun",
+  "@sundayShort": {
+    "description": "Short name for Sunday"
+  }
+}
+
