@@ -28,12 +28,11 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         AppLogger.info(' [CustomLists] No local lists found. Waiting for Nostr sync...');
         state = AsyncValue.data([]);
       } else {
-        // order順にソート
-        final sortedLists = List<CustomList>.from(localLists)
-          ..sort((a, b) => a.order.compareTo(b.order));
+        // AppSettingsから保存された順番を適用
+        await _applySavedListOrder(localLists);
         
-        AppLogger.info(' [CustomLists] Loaded ${sortedLists.length} lists from local storage');
-        state = AsyncValue.data(sortedLists);
+        AppLogger.info(' [CustomLists] Loaded ${localLists.length} lists from local storage');
+        state = AsyncValue.data(localLists);
       }
     } catch (e) {
       AppLogger.warning(' CustomList初期化エラー: $e');
@@ -80,6 +79,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       // 状態に反映
       state = AsyncValue.data(initialLists);
       
+      // AppSettingsのcustomListOrderも更新
+      await _updateCustomListOrderInSettings(initialLists);
+      
       AppLogger.info(' [CustomLists] Created ${initialLists.length} default lists');
     }).value;
   }
@@ -116,6 +118,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
       // ローカルストレージに保存
       await localStorageService.saveCustomLists(updatedLists);
+      
+      // AppSettingsのcustomListOrderも更新
+      await _updateCustomListOrderInSettings(updatedLists);
     }).value;
   }
 
@@ -133,6 +138,10 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
       // ローカルストレージに保存
       await localStorageService.saveCustomLists(updatedLists);
+      
+      // リスト名が変更された場合、IDも変わる可能性があるため、
+      // customListOrderも更新（ただし現在はIDは不変なので、実質影響なし）
+      await _updateCustomListOrderInSettings(updatedLists);
     }).value;
   }
 
@@ -144,6 +153,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
       // ローカルストレージに保存
       await localStorageService.saveCustomLists(updatedLists);
+      
+      // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
+      await _updateCustomListOrderInSettings(updatedLists);
     }).value;
   }
 
