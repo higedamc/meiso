@@ -705,6 +705,251 @@
   "languageSelection": "Select Language",
   "@languageSelection": {
     "description": "Dialog title for language selection"
+  },
+  
+  "syncingWithCount": "Syncing ({count})",
+  "@syncingWithCount": {
+    "description": "Syncing status with pending count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  
+  "syncing": "Syncing",
+  "@syncing": {
+    "description": "Syncing status"
+  },
+  
+  "syncCompleted": "Sync Completed",
+  "@syncCompleted": {
+    "description": "Sync completed status"
+  },
+  
+  "syncError": "Sync Error",
+  "@syncError": {
+    "description": "Sync error status"
+  },
+  
+  "timeout": "Timeout",
+  "@timeout": {
+    "description": "Timeout error"
+  },
+  
+  "connectionError": "Connection Error",
+  "@connectionError": {
+    "description": "Connection error"
+  },
+  
+  "errorRetry": "Error (Retry {count})",
+  "@errorRetry": {
+    "description": "Error with retry count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  
+  "waiting": "Waiting",
+  "@waiting": {
+    "description": "Waiting status"
+  },
+  
+  "justNow": "Just now",
+  "@justNow": {
+    "description": "Time indicator for recent sync"
+  },
+  
+  "minutesAgo": "{minutes} min ago",
+  "@minutesAgo": {
+    "description": "Minutes ago time indicator",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  
+  "hoursAgo": "{hours} hr ago",
+  "@hoursAgo": {
+    "description": "Hours ago time indicator",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  
+  "secretKeyManagementTitle": "Secret Key Management",
+  "@secretKeyManagementTitle": {
+    "description": "Title for secret key management screen"
+  },
+  
+  "enterPassword": "Enter Password",
+  "@enterPassword": {
+    "description": "Dialog title for password entry"
+  },
+  
+  "enterPasswordToDecrypt": "Enter password to decrypt secret key.",
+  "@enterPasswordToDecrypt": {
+    "description": "Message for password entry"
+  },
+  
+  "enterPasswordToEncrypt": "Enter password to encrypt secret key.",
+  "@enterPasswordToEncrypt": {
+    "description": "Message for password encryption"
+  },
+  
+  "secretKeyEncrypted": "Secret key encrypted and saved ({format})",
+  "@secretKeyEncrypted": {
+    "description": "Success message for key encryption",
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "formatUnknown": "Unknown format",
+  "@formatUnknown": {
+    "description": "Unknown key format"
+  },
+  
+  "connectedToRelay": "Connected to relay",
+  "@connectedToRelay": {
+    "description": "Success message for relay connection"
+  },
+  
+  "connectedToRelayViaTor": "Connected to relay (via Tor)",
+  "@connectedToRelayViaTor": {
+    "description": "Success message for relay connection via Tor"
+  },
+  
+  "invalidSecretKeyFormat": "Invalid secret key format. Please enter nsec or hex format.",
+  "@invalidSecretKeyFormat": {
+    "description": "Error for invalid key format"
+  },
+  
+  "encrypted": "🔒 Encrypted",
+  "@encrypted": {
+    "description": "Placeholder for encrypted key"
+  },
+  
+  "relayManagementTitle": "Relay Server Management",
+  "@relayManagementTitle": {
+    "description": "Title for relay management screen"
+  },
+  
+  "relayUrlError": "Relay URL must start with wss:// or ws://",
+  "@relayUrlError": {
+    "description": "Error for invalid relay URL"
+  },
+  
+  "relayAddedAndSaved": "Relay added and immediately saved to Nostr",
+  "@relayAddedAndSaved": {
+    "description": "Success message for relay addition"
+  },
+  
+  "relayAddedButSaveFailed": "Relay added but failed to save to Nostr: {error}",
+  "@relayAddedButSaveFailed": {
+    "description": "Error message for relay save failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "relayRemovedAndSaved": "Relay removed and immediately saved to Nostr",
+  "@relayRemovedAndSaved": {
+    "description": "Success message for relay removal"
+  },
+  
+  "relayRemovedButSaveFailed": "Relay removed but failed to save to Nostr: {error}",
+  "@relayRemovedButSaveFailed": {
+    "description": "Error message for relay removal save failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "noRelayListOnNostr": "No relay list found on Nostr",
+  "@noRelayListOnNostr": {
+    "description": "Message when no relay list on Nostr"
+  },
+  
+  "relaySyncSuccess": "Successfully synced {count} relays from Nostr",
+  "@relaySyncSuccess": {
+    "description": "Success message for relay sync",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  
+  "relaySyncError": "Failed to sync from Nostr: {error}",
+  "@relaySyncError": {
+    "description": "Error message for relay sync failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "syncFromNostr": "Sync from Nostr",
+  "@syncFromNostr": {
+    "description": "Button text to sync from Nostr"
+  },
+  
+  "addRelay": "Add Relay",
+  "@addRelay": {
+    "description": "Button text to add relay"
+  },
+  
+  "relayUrl": "Relay URL",
+  "@relayUrl": {
+    "description": "Label for relay URL input"
+  },
+  
+  "connected": "Connected",
+  "@connected": {
+    "description": "Status for connected relay"
+  },
+  
+  "connecting": "Connecting",
+  "@connecting": {
+    "description": "Status for connecting relay"
+  },
+  
+  "disconnected": "Disconnected",
+  "@disconnected": {
+    "description": "Status for disconnected relay"
+  },
+  
+  "cryptographyTitle": "Cryptography Details",
+  "@cryptographyTitle": {
+    "description": "Title for cryptography details screen"
+  },
+  
+  "logout": "Logout",
+  "@logout": {
+    "description": "Logout button"
+  },
+  
+  "logoutConfirm": "Are you sure you want to logout?",
+  "@logoutConfirm": {
+    "description": "Logout confirmation message"
+  },
+  
+  "logoutDescription": "Encrypted secret key will be deleted.\nPlease save your secret key before logout.",
+  "@logoutDescription": {
+    "description": "Logout warning description"
   }
 }
 

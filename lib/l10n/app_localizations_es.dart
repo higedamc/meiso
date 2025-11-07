@@ -437,4 +437,145 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get languageSelection => 'Select Language';
+
+  @override
+  String syncingWithCount(int count) {
+    return 'Syncing ($count)';
+  }
+
+  @override
+  String get syncing => 'Syncing';
+
+  @override
+  String get syncCompleted => 'Sync Completed';
+
+  @override
+  String get syncError => 'Sync Error';
+
+  @override
+  String get timeout => 'Timeout';
+
+  @override
+  String get connectionError => 'Connection Error';
+
+  @override
+  String errorRetry(int count) {
+    return 'Error (Retry $count)';
+  }
+
+  @override
+  String get waiting => 'Waiting';
+
+  @override
+  String get justNow => 'Just now';
+
+  @override
+  String minutesAgo(int minutes) {
+    return '$minutes min ago';
+  }
+
+  @override
+  String hoursAgo(int hours) {
+    return '$hours hr ago';
+  }
+
+  @override
+  String get secretKeyManagementTitle => 'Secret Key Management';
+
+  @override
+  String get enterPassword => 'Enter Password';
+
+  @override
+  String get enterPasswordToDecrypt => 'Enter password to decrypt secret key.';
+
+  @override
+  String get enterPasswordToEncrypt => 'Enter password to encrypt secret key.';
+
+  @override
+  String secretKeyEncrypted(String format) {
+    return 'Secret key encrypted and saved ($format)';
+  }
+
+  @override
+  String get formatUnknown => 'Unknown format';
+
+  @override
+  String get connectedToRelay => 'Connected to relay';
+
+  @override
+  String get connectedToRelayViaTor => 'Connected to relay (via Tor)';
+
+  @override
+  String get invalidSecretKeyFormat =>
+      'Invalid secret key format. Please enter nsec or hex format.';
+
+  @override
+  String get encrypted => '🔒 Encrypted';
+
+  @override
+  String get relayManagementTitle => 'Relay Server Management';
+
+  @override
+  String get relayUrlError => 'Relay URL must start with wss:// or ws://';
+
+  @override
+  String get relayAddedAndSaved => 'Relay added and immediately saved to Nostr';
+
+  @override
+  String relayAddedButSaveFailed(String error) {
+    return 'Relay added but failed to save to Nostr: $error';
+  }
+
+  @override
+  String get relayRemovedAndSaved =>
+      'Relay removed and immediately saved to Nostr';
+
+  @override
+  String relayRemovedButSaveFailed(String error) {
+    return 'Relay removed but failed to save to Nostr: $error';
+  }
+
+  @override
+  String get noRelayListOnNostr => 'No relay list found on Nostr';
+
+  @override
+  String relaySyncSuccess(int count) {
+    return 'Successfully synced $count relays from Nostr';
+  }
+
+  @override
+  String relaySyncError(String error) {
+    return 'Failed to sync from Nostr: $error';
+  }
+
+  @override
+  String get syncFromNostr => 'Sync from Nostr';
+
+  @override
+  String get addRelay => 'Add Relay';
+
+  @override
+  String get relayUrl => 'Relay URL';
+
+  @override
+  String get connected => 'Connected';
+
+  @override
+  String get connecting => 'Connecting';
+
+  @override
+  String get disconnected => 'Disconnected';
+
+  @override
+  String get cryptographyTitle => 'Cryptography Details';
+
+  @override
+  String get logout => 'Logout';
+
+  @override
+  String get logoutConfirm => 'Are you sure you want to logout?';
+
+  @override
+  String get logoutDescription =>
+      'Encrypted secret key will be deleted.\nPlease save your secret key before logout.';
 }
