@@ -1,6 +1,7 @@
 import '../models/todo.dart';
 import '../models/custom_list.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
+import '../bridge_generated.dart/group_tasks.dart';
 import 'logger_service.dart';
 
 /// グループタスク管理サービス
@@ -15,8 +16,8 @@ class GroupTaskService {
     try {
       AppLogger.info('🔐 Creating group task list: ${customList.name} with ${customList.groupMembers.length} members');
       
-      // Todoデータを rust_api.GroupTodoData に変換
-      final groupTasks = tasks.map((todo) => rust_api.GroupTodoData(
+      // Todoデータを GroupTodoData に変換
+      final groupTasks = tasks.map((todo) => GroupTodoData(
         id: todo.id,
         title: todo.title,
         completed: todo.completed,
@@ -53,7 +54,7 @@ class GroupTaskService {
   }
   
   /// 自分がメンバーになっているグループタスクリストを取得
-  Future<List<rust_api.GroupTodoList>> fetchMyGroupTaskLists() async {
+  Future<List<GroupTodoList>> fetchMyGroupTaskLists() async {
     try {
       AppLogger.info('📥 Fetching my group task lists...');
       
@@ -70,7 +71,7 @@ class GroupTaskService {
   
   /// グループタスクリストを復号化
   Future<List<Todo>> decryptGroupTaskList({
-    required rust_api.GroupTodoList groupList,
+    required GroupTodoList groupList,
   }) async {
     try {
       AppLogger.info('🔓 Decrypting group task list: ${groupList.groupName}');
@@ -113,7 +114,7 @@ class GroupTaskService {
   
   /// グループにメンバーを追加
   Future<void> addMemberToGroup({
-    required rust_api.GroupTodoList groupList,
+    required GroupTodoList groupList,
     required String newMemberPubkey,
   }) async {
     try {
@@ -141,7 +142,7 @@ class GroupTaskService {
   
   /// グループからメンバーを削除（Forward Secrecy: 新しいAES鍵で再暗号化）
   Future<void> removeMemberFromGroup({
-    required rust_api.GroupTodoList groupList,
+    required GroupTodoList groupList,
     required String memberToRemove,
   }) async {
     try {
@@ -182,9 +183,9 @@ class GroupTaskService {
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           isGroup: true,
-          groupMembers: List<String>.from(groupList.members),
+          groupMembers: groupList.members,
         );
-      }).toList().cast<CustomList>();
+      }).toList();
       
       AppLogger.info('✅ Synced ${customLists.length} group lists');
       
