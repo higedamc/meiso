@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
@@ -58,9 +59,10 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final url = _newRelayController.text.trim();
     if (url.isEmpty) return;
 
+    final l10n = AppLocalizations.of(context)!;
     if (!url.startsWith('wss://') && !url.startsWith('ws://')) {
       setState(() {
-        _errorMessage = 'リレーURLは wss:// または ws:// で始まる必要があります';
+        _errorMessage = l10n.relayUrlError;
         _successMessage = null;
       });
       return;
@@ -82,15 +84,16 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     }
 
     // Nostrに明示的に保存（Kind 10002）
+    final l10n = AppLocalizations.of(context)!;
     try {
       await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
       setState(() {
-        _successMessage = 'リレーを追加し、即座にNostrに保存しました';
+        _successMessage = l10n.relayAddedAndSaved;
         _errorMessage = null;
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'リレーは追加されましたが、Nostrへの保存に失敗しました: $e';
+        _errorMessage = l10n.relayAddedButSaveFailed(e.toString());
         _successMessage = null;
       });
     }
@@ -112,18 +115,19 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     }
 
     // Nostrに明示的に保存（Kind 10002）
+    final l10n = AppLocalizations.of(context)!;
     try {
       // リレーが空の場合でも保存を試みる（削除を反映するため）
       if (updatedRelays.isNotEmpty) {
         await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
       }
       setState(() {
-        _successMessage = 'リレーを削除し、即座にNostrに保存しました';
+        _successMessage = l10n.relayRemovedAndSaved;
         _errorMessage = null;
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'リレーは削除されましたが、Nostrへの保存に失敗しました: $e';
+        _errorMessage = l10n.relayRemovedButSaveFailed(e.toString());
         _successMessage = null;
       });
     }
@@ -188,16 +192,18 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
         AppLogger.debug('⚠️ Nostrクライアントの更新に失敗: $e');
       }
       
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
-        _successMessage = 'Nostrから${remoteRelays.length}件のリレーを同期しました（変更あり）';
+        _successMessage = l10n.relaySyncSuccess(remoteRelays.length);
         _isSyncing = false;
       });
       AppLogger.debug('✅ リレーリスト同期完了: ${remoteRelays.length}件');
       
     } catch (e) {
       AppLogger.debug('❌ リレーリスト同期失敗: $e');
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
-        _errorMessage = 'リレーリストの同期に失敗しました: $e';
+        _errorMessage = l10n.relaySyncError(e.toString());
         _isSyncing = false;
       });
     }
@@ -215,6 +221,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final relayStatuses = ref.watch(relayStatusProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final appSettingsAsync = ref.watch(appSettingsProvider);
@@ -227,7 +234,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('リレーサーバー管理'),
+        title: Text(l10n.relayManagementTitle),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -295,7 +302,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
             // リレー追加
             Text(
-              'リレーを追加',
+              l10n.addRelay,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
@@ -304,9 +311,9 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                 Expanded(
                   child: TextField(
                     controller: _newRelayController,
-                    decoration: const InputDecoration(
-                      hintText: 'wss://relay.example.com',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: l10n.relayUrl,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                 ),
@@ -314,7 +321,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                 IconButton(
                   onPressed: _addRelay,
                   icon: const Icon(Icons.add_circle),
-                  tooltip: 'リレーを追加',
+                  tooltip: l10n.addRelay,
                 ),
               ],
             ),
@@ -340,7 +347,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                           ),
                         )
                       : const Icon(Icons.cloud_download, size: 18),
-                  label: Text(_isSyncing ? '同期中...' : 'Nostrから同期'),
+                  label: Text(_isSyncing ? l10n.syncing : l10n.syncFromNostr),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryPurple,
                     foregroundColor: Colors.white,

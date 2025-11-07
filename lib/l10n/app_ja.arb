@@ -263,6 +263,86 @@
   
   "localStorageOnly": "ローカル保存のみ（Nostr未接続）",
   
-  "languageSelection": "言語を選択"
+  "languageSelection": "言語を選択",
+  
+  "syncingWithCount": "同期中 ({count})",
+  
+  "syncing": "同期中",
+  
+  "syncCompleted": "同期完了",
+  
+  "syncError": "同期エラー",
+  
+  "timeout": "タイムアウト",
+  
+  "connectionError": "接続エラー",
+  
+  "errorRetry": "エラー (リトライ{count}回)",
+  
+  "waiting": "待機中",
+  
+  "justNow": "たった今",
+  
+  "minutesAgo": "{minutes}分前",
+  
+  "hoursAgo": "{hours}時間前",
+  
+  "secretKeyManagementTitle": "秘密鍵管理",
+  
+  "enterPassword": "パスワードを入力",
+  
+  "enterPasswordToDecrypt": "秘密鍵を復号化するためのパスワードを入力してください。",
+  
+  "enterPasswordToEncrypt": "秘密鍵を暗号化するためのパスワードを入力してください。",
+  
+  "secretKeyEncrypted": "秘密鍵を暗号化保存しました（{format}）",
+  
+  "formatUnknown": "フォーマット不明",
+  
+  "connectedToRelay": "リレーに接続しました",
+  
+  "connectedToRelayViaTor": "リレーに接続しました (Tor経由)",
+  
+  "invalidSecretKeyFormat": "秘密鍵のフォーマットが正しくありません。nsecまたはhex形式で入力してください。",
+  
+  "encrypted": "🔒 暗号化されています",
+  
+  "relayManagementTitle": "リレーサーバー管理",
+  
+  "relayUrlError": "リレーURLは wss:// または ws:// で始まる必要があります",
+  
+  "relayAddedAndSaved": "リレーを追加し、即座にNostrに保存しました",
+  
+  "relayAddedButSaveFailed": "リレーは追加されましたが、Nostrへの保存に失敗しました: {error}",
+  
+  "relayRemovedAndSaved": "リレーを削除し、即座にNostrに保存しました",
+  
+  "relayRemovedButSaveFailed": "リレーは削除されましたが、Nostrへの保存に失敗しました: {error}",
+  
+  "noRelayListOnNostr": "Nostr上にリレーリストが見つかりませんでした",
+  
+  "relaySyncSuccess": "Nostrから{count}件のリレーを同期しました",
+  
+  "relaySyncError": "Nostrからの同期に失敗しました: {error}",
+  
+  "syncFromNostr": "Nostrから同期",
+  
+  "addRelay": "リレーを追加",
+  
+  "relayUrl": "リレーURL",
+  
+  "connected": "接続済み",
+  
+  "connecting": "接続中",
+  
+  "disconnected": "未接続",
+  
+  "cryptographyTitle": "暗号技術の詳細",
+  
+  "logout": "ログアウト",
+  
+  "logoutConfirm": "本当にログアウトしますか？",
+  
+  "logoutDescription": "暗号化された秘密鍵が削除されます。\nログアウト前に秘密鍵を保存してください。"
 }
 

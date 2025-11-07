@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
@@ -27,11 +28,19 @@ class _SecretKeyManagementScreenState
   String? _successMessage;
   String? _detectedKeyFormat; // 検出されたフォーマット (nsec/hex)
   bool _hasEncryptedKey = false; // 暗号化された秘密鍵が存在するか
-  static const String _encryptedPlaceholder = '🔒 暗号化されています';
+  late final String _encryptedPlaceholder;
 
   @override
   void initState() {
     super.initState();
+    // Initialize placeholder after context is available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _encryptedPlaceholder = AppLocalizations.of(context)!.encrypted;
+        });
+      }
+    });
     // テキスト変更時にフォーマットを自動検出
     _secretKeyController.addListener(_detectKeyFormat);
     // 暗号化された秘密鍵の存在チェック
@@ -71,48 +80,51 @@ class _SecretKeyManagementScreenState
     return showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(message, style: const TextStyle(fontSize: 14)),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: passwordController,
-                obscureText: true,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'パスワード',
-                  border: OutlineInputBorder(),
+      builder: (dialogContext) {
+        final dialogL10n = AppLocalizations.of(dialogContext)!;
+        return AlertDialog(
+          title: Text(title),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(message, style: const TextStyle(fontSize: 14)),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: passwordController,
+                  obscureText: true,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: dialogL10n.password,
+                    border: const OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return dialogL10n.passwordRequired;
+                    }
+                    return null;
+                  },
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'パスワードを入力してください';
-                  }
-                  return null;
-                },
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(null),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.of(context).pop(passwordController.text);
-              }
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: Text(dialogL10n.cancelButton),
+            ),
+            TextButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(dialogContext).pop(passwordController.text);
+                }
+              },
+              child: Text(dialogL10n.ok),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -221,9 +233,10 @@ class _SecretKeyManagementScreenState
     // 暗号化された秘密鍵が存在し、フィールドが暗号化プレースホルダーの場合
     if (_hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder) {
       // パスワード入力ダイアログを表示
+      final l10n = AppLocalizations.of(context)!;
       final password = await _showPasswordDialog(
-        'パスワードを入力',
-        '秘密鍵を復号するためのパスワードを入力してください。',
+        l10n.enterPassword,
+        l10n.enterPasswordToDecrypt,
       );
 
       if (password == null || password.isEmpty) return;
@@ -403,9 +416,10 @@ class _SecretKeyManagementScreenState
     }
 
     // パスワード入力
+    final l10n = AppLocalizations.of(context)!;
     final password = await _showPasswordDialog(
-      'パスワードを設定',
-      '秘密鍵を暗号化するためのパスワードを設定してください。\n（8文字以上推奨）',
+      l10n.setPassword,
+      l10n.enterPasswordToEncrypt,
     );
 
     if (password == null || password.isEmpty) return;
@@ -427,8 +441,8 @@ class _SecretKeyManagementScreenState
         _hasEncryptedKey = true;
         _secretKeyController.text = _encryptedPlaceholder;
         _obscureSecretKey = true;
-        _successMessage =
-            '秘密鍵を暗号化保存しました（${_detectedKeyFormat ?? 'フォーマット不明'}）';
+        final l10n = AppLocalizations.of(context)!;
+        _successMessage = l10n.secretKeyEncrypted(_detectedKeyFormat ?? l10n.formatUnknown);
       });
 
       // 自動的にリレーに接続（secretKeyを使用）
@@ -474,7 +488,8 @@ class _SecretKeyManagementScreenState
       }
 
       setState(() {
-        _successMessage = 'リレーに接続しました${proxyUrl != null ? " (Tor経由)" : ""}';
+        final l10n = AppLocalizations.of(context)!;
+        _successMessage = proxyUrl != null ? l10n.connectedToRelayViaTor : l10n.connectedToRelay;
       });
       
       // 自動同期を実行
@@ -504,34 +519,29 @@ class _SecretKeyManagementScreenState
   /// ログアウト処理（全データ削除）
   Future<void> _logout() async {
     // 確認ダイアログを表示
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ログアウト'),
-        content: const Text(
-          'ログアウトしますか？\n\n'
-          '⚠️ 警告:\n'
-          '• アプリ内の全データが削除されます\n'
-          '• 全てのTodoが削除されます\n'
-          '• 暗号化された秘密鍵が削除されます\n'
-          '• 設定情報が削除されます\n\n'
-          '秘密鍵とパスワードを記録していないと、'
-          '再ログインできなくなります。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
+      builder: (dialogContext) {
+        final dialogL10n = AppLocalizations.of(dialogContext)!;
+        return AlertDialog(
+          title: Text(dialogL10n.logout),
+          content: Text('${dialogL10n.logoutConfirm}\n\n${dialogL10n.logoutDescription}'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(dialogL10n.cancelButton),
             ),
-            child: const Text('全て削除してログアウト'),
-          ),
-        ],
-      ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: Text(dialogL10n.logout),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed != true) return;
@@ -632,7 +642,7 @@ class _SecretKeyManagementScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('秘密鍵管理'),
+        title: Text(AppLocalizations.of(context)!.secretKeyManagementTitle),
         elevation: 0,
       ),
       body: _isLoading

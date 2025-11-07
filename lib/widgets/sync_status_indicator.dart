@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../providers/sync_status_provider.dart';
 
 /// 同期ステータスインジケーター
@@ -88,7 +89,7 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _getStatusText(syncStatus),
+                        _getStatusText(context, syncStatus),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -97,7 +98,7 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
                       ),
                       if (syncStatus.lastSyncTime != null)
                         Text(
-                          _formatSyncTime(syncStatus.lastSyncTime!),
+                          _formatSyncTime(context, syncStatus.lastSyncTime!),
                           style: TextStyle(
                             fontSize: 9,
                             color: _getTextColor(syncStatus.state).withValues(alpha: 0.7),
@@ -150,7 +151,9 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
   }
 
   /// ステータステキスト
-  String _getStatusText(SyncStatus status) {
+  String _getStatusText(BuildContext context, SyncStatus status) {
+    final l10n = AppLocalizations.of(context)!;
+    
     // カスタムメッセージがあればそれを優先
     if (status.message != null && status.message!.isNotEmpty) {
       return status.message!;
@@ -159,40 +162,41 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
     switch (status.state) {
       case SyncState.syncing:
         if (status.pendingItems > 0) {
-          return '同期中 (${status.pendingItems})';
+          return l10n.syncingWithCount(status.pendingItems);
         }
-        return '同期中';
+        return l10n.syncing;
       case SyncState.success:
-        return '同期完了';
+        return l10n.syncCompleted;
       case SyncState.error:
         // エラーメッセージを短縮表示
-        final errorMsg = status.errorMessage ?? '同期エラー';
-        if (errorMsg.contains('タイムアウト')) {
-          return 'タイムアウト';
+        final errorMsg = status.errorMessage ?? l10n.syncError;
+        if (errorMsg.contains('タイムアウト') || errorMsg.contains('timeout')) {
+          return l10n.timeout;
         } else if (errorMsg.contains('failed') || errorMsg.contains('失敗')) {
-          return '接続エラー';
+          return l10n.connectionError;
         } else if (status.retryCount > 0) {
-          return 'エラー (リトライ${status.retryCount}回)';
+          return l10n.errorRetry(status.retryCount);
         }
-        return '同期エラー';
+        return l10n.syncError;
       case SyncState.idle:
-        return '待機中';
+        return l10n.waiting;
       case SyncState.notInitialized:
         return '';
     }
   }
 
   /// 最終同期時刻をフォーマット
-  String _formatSyncTime(DateTime time) {
+  String _formatSyncTime(BuildContext context, DateTime time) {
+    final l10n = AppLocalizations.of(context)!;
     final now = DateTime.now();
     final difference = now.difference(time);
 
     if (difference.inSeconds < 60) {
-      return 'たった今';
+      return l10n.justNow;
     } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}分前';
+      return l10n.minutesAgo(difference.inMinutes);
     } else if (difference.inHours < 24) {
-      return '${difference.inHours}時間前';
+      return l10n.hoursAgo(difference.inHours);
     } else {
       return DateFormat('MM/dd HH:mm').format(time);
     }

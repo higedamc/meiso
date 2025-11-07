@@ -891,6 +891,246 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select Language'**
   String get languageSelection;
+
+  /// Syncing status with pending count
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing ({count})'**
+  String syncingWithCount(int count);
+
+  /// Syncing status
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing'**
+  String get syncing;
+
+  /// Sync completed status
+  ///
+  /// In en, this message translates to:
+  /// **'Sync Completed'**
+  String get syncCompleted;
+
+  /// Sync error status
+  ///
+  /// In en, this message translates to:
+  /// **'Sync Error'**
+  String get syncError;
+
+  /// Timeout error
+  ///
+  /// In en, this message translates to:
+  /// **'Timeout'**
+  String get timeout;
+
+  /// Connection error
+  ///
+  /// In en, this message translates to:
+  /// **'Connection Error'**
+  String get connectionError;
+
+  /// Error with retry count
+  ///
+  /// In en, this message translates to:
+  /// **'Error (Retry {count})'**
+  String errorRetry(int count);
+
+  /// Waiting status
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting'**
+  String get waiting;
+
+  /// Time indicator for recent sync
+  ///
+  /// In en, this message translates to:
+  /// **'Just now'**
+  String get justNow;
+
+  /// Minutes ago time indicator
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min ago'**
+  String minutesAgo(int minutes);
+
+  /// Hours ago time indicator
+  ///
+  /// In en, this message translates to:
+  /// **'{hours} hr ago'**
+  String hoursAgo(int hours);
+
+  /// Title for secret key management screen
+  ///
+  /// In en, this message translates to:
+  /// **'Secret Key Management'**
+  String get secretKeyManagementTitle;
+
+  /// Dialog title for password entry
+  ///
+  /// In en, this message translates to:
+  /// **'Enter Password'**
+  String get enterPassword;
+
+  /// Message for password entry
+  ///
+  /// In en, this message translates to:
+  /// **'Enter password to decrypt secret key.'**
+  String get enterPasswordToDecrypt;
+
+  /// Message for password encryption
+  ///
+  /// In en, this message translates to:
+  /// **'Enter password to encrypt secret key.'**
+  String get enterPasswordToEncrypt;
+
+  /// Success message for key encryption
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key encrypted and saved ({format})'**
+  String secretKeyEncrypted(String format);
+
+  /// Unknown key format
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown format'**
+  String get formatUnknown;
+
+  /// Success message for relay connection
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to relay'**
+  String get connectedToRelay;
+
+  /// Success message for relay connection via Tor
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to relay (via Tor)'**
+  String get connectedToRelayViaTor;
+
+  /// Error for invalid key format
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid secret key format. Please enter nsec or hex format.'**
+  String get invalidSecretKeyFormat;
+
+  /// Placeholder for encrypted key
+  ///
+  /// In en, this message translates to:
+  /// **'🔒 Encrypted'**
+  String get encrypted;
+
+  /// Title for relay management screen
+  ///
+  /// In en, this message translates to:
+  /// **'Relay Server Management'**
+  String get relayManagementTitle;
+
+  /// Error for invalid relay URL
+  ///
+  /// In en, this message translates to:
+  /// **'Relay URL must start with wss:// or ws://'**
+  String get relayUrlError;
+
+  /// Success message for relay addition
+  ///
+  /// In en, this message translates to:
+  /// **'Relay added and immediately saved to Nostr'**
+  String get relayAddedAndSaved;
+
+  /// Error message for relay save failure
+  ///
+  /// In en, this message translates to:
+  /// **'Relay added but failed to save to Nostr: {error}'**
+  String relayAddedButSaveFailed(String error);
+
+  /// Success message for relay removal
+  ///
+  /// In en, this message translates to:
+  /// **'Relay removed and immediately saved to Nostr'**
+  String get relayRemovedAndSaved;
+
+  /// Error message for relay removal save failure
+  ///
+  /// In en, this message translates to:
+  /// **'Relay removed but failed to save to Nostr: {error}'**
+  String relayRemovedButSaveFailed(String error);
+
+  /// Message when no relay list on Nostr
+  ///
+  /// In en, this message translates to:
+  /// **'No relay list found on Nostr'**
+  String get noRelayListOnNostr;
+
+  /// Success message for relay sync
+  ///
+  /// In en, this message translates to:
+  /// **'Successfully synced {count} relays from Nostr'**
+  String relaySyncSuccess(int count);
+
+  /// Error message for relay sync failure
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to sync from Nostr: {error}'**
+  String relaySyncError(String error);
+
+  /// Button text to sync from Nostr
+  ///
+  /// In en, this message translates to:
+  /// **'Sync from Nostr'**
+  String get syncFromNostr;
+
+  /// Button text to add relay
+  ///
+  /// In en, this message translates to:
+  /// **'Add Relay'**
+  String get addRelay;
+
+  /// Label for relay URL input
+  ///
+  /// In en, this message translates to:
+  /// **'Relay URL'**
+  String get relayUrl;
+
+  /// Status for connected relay
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get connected;
+
+  /// Status for connecting relay
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting'**
+  String get connecting;
+
+  /// Status for disconnected relay
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get disconnected;
+
+  /// Title for cryptography details screen
+  ///
+  /// In en, this message translates to:
+  /// **'Cryptography Details'**
+  String get cryptographyTitle;
+
+  /// Logout button
+  ///
+  /// In en, this message translates to:
+  /// **'Logout'**
+  String get logout;
+
+  /// Logout confirmation message
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to logout?'**
+  String get logoutConfirm;
+
+  /// Logout warning description
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted secret key will be deleted.\nPlease save your secret key before logout.'**
+  String get logoutDescription;
 }
 
 class _AppLocalizationsDelegate

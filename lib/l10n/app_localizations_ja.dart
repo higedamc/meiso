@@ -430,4 +430,143 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get languageSelection => '言語を選択';
+
+  @override
+  String syncingWithCount(int count) {
+    return '同期中 ($count)';
+  }
+
+  @override
+  String get syncing => '同期中';
+
+  @override
+  String get syncCompleted => '同期完了';
+
+  @override
+  String get syncError => '同期エラー';
+
+  @override
+  String get timeout => 'タイムアウト';
+
+  @override
+  String get connectionError => '接続エラー';
+
+  @override
+  String errorRetry(int count) {
+    return 'エラー (リトライ$count回)';
+  }
+
+  @override
+  String get waiting => '待機中';
+
+  @override
+  String get justNow => 'たった今';
+
+  @override
+  String minutesAgo(int minutes) {
+    return '$minutes分前';
+  }
+
+  @override
+  String hoursAgo(int hours) {
+    return '$hours時間前';
+  }
+
+  @override
+  String get secretKeyManagementTitle => '秘密鍵管理';
+
+  @override
+  String get enterPassword => 'パスワードを入力';
+
+  @override
+  String get enterPasswordToDecrypt => '秘密鍵を復号化するためのパスワードを入力してください。';
+
+  @override
+  String get enterPasswordToEncrypt => '秘密鍵を暗号化するためのパスワードを入力してください。';
+
+  @override
+  String secretKeyEncrypted(String format) {
+    return '秘密鍵を暗号化保存しました（$format）';
+  }
+
+  @override
+  String get formatUnknown => 'フォーマット不明';
+
+  @override
+  String get connectedToRelay => 'リレーに接続しました';
+
+  @override
+  String get connectedToRelayViaTor => 'リレーに接続しました (Tor経由)';
+
+  @override
+  String get invalidSecretKeyFormat =>
+      '秘密鍵のフォーマットが正しくありません。nsecまたはhex形式で入力してください。';
+
+  @override
+  String get encrypted => '🔒 暗号化されています';
+
+  @override
+  String get relayManagementTitle => 'リレーサーバー管理';
+
+  @override
+  String get relayUrlError => 'リレーURLは wss:// または ws:// で始まる必要があります';
+
+  @override
+  String get relayAddedAndSaved => 'リレーを追加し、即座にNostrに保存しました';
+
+  @override
+  String relayAddedButSaveFailed(String error) {
+    return 'リレーは追加されましたが、Nostrへの保存に失敗しました: $error';
+  }
+
+  @override
+  String get relayRemovedAndSaved => 'リレーを削除し、即座にNostrに保存しました';
+
+  @override
+  String relayRemovedButSaveFailed(String error) {
+    return 'リレーは削除されましたが、Nostrへの保存に失敗しました: $error';
+  }
+
+  @override
+  String get noRelayListOnNostr => 'Nostr上にリレーリストが見つかりませんでした';
+
+  @override
+  String relaySyncSuccess(int count) {
+    return 'Nostrから$count件のリレーを同期しました';
+  }
+
+  @override
+  String relaySyncError(String error) {
+    return 'Nostrからの同期に失敗しました: $error';
+  }
+
+  @override
+  String get syncFromNostr => 'Nostrから同期';
+
+  @override
+  String get addRelay => 'リレーを追加';
+
+  @override
+  String get relayUrl => 'リレーURL';
+
+  @override
+  String get connected => '接続済み';
+
+  @override
+  String get connecting => '接続中';
+
+  @override
+  String get disconnected => '未接続';
+
+  @override
+  String get cryptographyTitle => '暗号技術の詳細';
+
+  @override
+  String get logout => 'ログアウト';
+
+  @override
+  String get logoutConfirm => '本当にログアウトしますか？';
+
+  @override
+  String get logoutDescription => '暗号化された秘密鍵が削除されます。\nログアウト前に秘密鍵を保存してください。';
 }

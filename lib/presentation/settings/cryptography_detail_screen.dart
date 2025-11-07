@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../services/logger_service.dart';
 
@@ -30,9 +31,9 @@ class CryptographyDetailScreen extends StatelessWidget {
             pinned: true,
             backgroundColor: AppTheme.primaryPurple,
             flexibleSpace: FlexibleSpaceBar(
-              title: const Text(
-                '暗号技術の詳細',
-                style: TextStyle(
+              title: Text(
+                AppLocalizations.of(context)!.cryptographyTitle,
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
