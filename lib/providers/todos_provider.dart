@@ -1855,6 +1855,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
           AppLogger.info(' [Sync] カスタムリスト同期完了');
           
+          // グループリストを同期
+          AppLogger.info(' [Sync] 2.5/3: グループリストを同期中...');
+          await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
+          AppLogger.info(' [Sync] グループリスト同期完了');
+          
           final amberService = _ref.read(amberServiceProvider);
           var publicKey = _ref.read(publicKeyProvider);
           var npub = _ref.read(nostrPublicKeyProvider);
