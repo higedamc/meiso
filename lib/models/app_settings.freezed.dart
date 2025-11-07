@@ -42,6 +42,9 @@ mixin _$AppSettings {
   /// プロキシURL（通常は socks5://127.0.0.1:9050）
   String get proxyUrl => throw _privateConstructorUsedError;
 
+  /// カスタムリストの順番（リストIDの配列）
+  List<String> get customListOrder => throw _privateConstructorUsedError;
+
   /// 最終更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -70,6 +73,7 @@ abstract class $AppSettingsCopyWith<$Res> {
     List<String> relays,
     bool torEnabled,
     String proxyUrl,
+    List<String> customListOrder,
     DateTime updatedAt,
   });
 }
@@ -96,6 +100,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? relays = null,
     Object? torEnabled = null,
     Object? proxyUrl = null,
+    Object? customListOrder = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -128,6 +133,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
                 ? _value.proxyUrl
                 : proxyUrl // ignore: cast_nullable_to_non_nullable
                       as String,
+            customListOrder: null == customListOrder
+                ? _value.customListOrder
+                : customListOrder // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
             updatedAt: null == updatedAt
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -155,6 +164,7 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     List<String> relays,
     bool torEnabled,
     String proxyUrl,
+    List<String> customListOrder,
     DateTime updatedAt,
   });
 }
@@ -180,6 +190,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? relays = null,
     Object? torEnabled = null,
     Object? proxyUrl = null,
+    Object? customListOrder = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -212,6 +223,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             ? _value.proxyUrl
             : proxyUrl // ignore: cast_nullable_to_non_nullable
                   as String,
+        customListOrder: null == customListOrder
+            ? _value.customListOrder
+            : customListOrder // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
         updatedAt: null == updatedAt
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -232,6 +247,7 @@ class _$AppSettingsImpl implements _AppSettings {
     this.relays = const [],
     this.torEnabled = false,
     this.proxyUrl = 'socks5://127.0.0.1:9050',
+    this.customListOrder = const [],
     required this.updatedAt,
   });
 
@@ -273,13 +289,18 @@ class _$AppSettingsImpl implements _AppSettings {
   @JsonKey()
   final String proxyUrl;
 
+  /// カスタムリストの順番（リストIDの配列）
+  @override
+  @JsonKey()
+  final List<String> customListOrder;
+
   /// 最終更新日時
   @override
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torEnabled: $torEnabled, proxyUrl: $proxyUrl, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torEnabled: $torEnabled, proxyUrl: $proxyUrl, customListOrder: $customListOrder, updatedAt: $updatedAt)';
   }
 
   @override
@@ -300,6 +321,10 @@ class _$AppSettingsImpl implements _AppSettings {
                 other.torEnabled == torEnabled) &&
             (identical(other.proxyUrl, proxyUrl) ||
                 other.proxyUrl == proxyUrl) &&
+            const DeepCollectionEquality().equals(
+              other.customListOrder,
+              customListOrder,
+            ) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt));
   }
@@ -315,6 +340,7 @@ class _$AppSettingsImpl implements _AppSettings {
     const DeepCollectionEquality().hash(relays),
     torEnabled,
     proxyUrl,
+    const DeepCollectionEquality().hash(customListOrder),
     updatedAt,
   );
 
@@ -341,6 +367,7 @@ abstract class _AppSettings implements AppSettings {
     final List<String> relays,
     final bool torEnabled,
     final String proxyUrl,
+    final List<String> customListOrder,
     required final DateTime updatedAt,
   }) = _$AppSettingsImpl;
 
@@ -374,6 +401,10 @@ abstract class _AppSettings implements AppSettings {
   /// プロキシURL（通常は socks5://127.0.0.1:9050）
   @override
   String get proxyUrl;
+
+  /// カスタムリストの順番（リストIDの配列）
+  @override
+  List<String> get customListOrder;
 
   /// 最終更新日時
   @override

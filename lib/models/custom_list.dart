@@ -35,14 +35,27 @@ extension CustomListHelpers on CustomList {
   /// - "BRAIN DUMP" → "brain-dump"
   /// - "Grocery List" → "grocery-list"  
   /// - "TO BUY!!!" → "to-buy"
+  /// 
+  /// ⚠️ 日本語や特殊文字は削除されます：
+  /// - "買い物リスト" → "" (空文字列)
+  /// - "Groceryリスト" → "grocery"
+  /// 
+  /// 空文字列になった場合は、"unnamed-list"を返します
   static String generateIdFromName(String name) {
-    return name
+    final id = name
         .toLowerCase()
         .trim()
-        .replaceAll(RegExp(r'[^\w\s-]'), '') // 特殊文字を削除
+        .replaceAll(RegExp(r'[^\w\s-]'), '') // 特殊文字を削除（日本語も削除される）
         .replaceAll(RegExp(r'\s+'), '-')     // スペースをハイフンに
         .replaceAll(RegExp(r'-+'), '-')      // 連続するハイフンを1つに
         .replaceAll(RegExp(r'^-|-$'), '');   // 先頭・末尾のハイフンを削除
+    
+    // 空文字列の場合はフォールバック
+    if (id.isEmpty) {
+      return 'unnamed-list';
+    }
+    
+    return id;
   }
 }
 

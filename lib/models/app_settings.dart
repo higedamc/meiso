@@ -28,6 +28,9 @@ class AppSettings with _$AppSettings {
     /// プロキシURL（通常は socks5://127.0.0.1:9050）
     @Default('socks5://127.0.0.1:9050') String proxyUrl,
     
+    /// カスタムリストの順番（リストIDの配列）
+    @Default([]) List<String> customListOrder,
+    
     /// 最終更新日時
     required DateTime updatedAt,
   }) = _AppSettings;
@@ -45,6 +48,7 @@ class AppSettings with _$AppSettings {
       relays: [], // デフォルトは空（初回起動時にdefaultRelaysが適用される）
       torEnabled: false, // デフォルトはTor無効
       proxyUrl: 'socks5://127.0.0.1:9050', // Orbotのデフォルトプロキシ
+      customListOrder: [], // デフォルトは空
       updatedAt: DateTime.now(),
     );
   }

@@ -1,20 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/logger_service.dart';
 import '../models/custom_list.dart';
-import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
-import '../services/logger_service.dart';
+import 'app_settings_provider.dart';
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
     StateNotifierProvider<CustomListsNotifier, AsyncValue<List<CustomList>>>(
-  (ref) => CustomListsNotifier(),
+  (ref) => CustomListsNotifier(ref),
 );
 
 class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
-  CustomListsNotifier() : super(const AsyncValue.loading()) {
+  CustomListsNotifier(this._ref) : super(const AsyncValue.loading()) {
     _initialize();
   }
+  
+  final Ref _ref;
 
   Future<void> _initialize() async {
     try {
@@ -22,13 +23,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       final localLists = await localStorageService.loadCustomLists();
       
       if (localLists.isEmpty) {
-        // 初回起動時のみダミーデータを作成
-        await _createInitialLists();
+        // ローカルにリストがない場合は、まず空の状態にする
+        // Nostrからの同期を待ってから、必要に応じてデフォルトリストを作成
+        AppLogger.info(' [CustomLists] No local lists found. Waiting for Nostr sync...');
+        state = AsyncValue.data([]);
       } else {
         // order順にソート
         final sortedLists = List<CustomList>.from(localLists)
           ..sort((a, b) => a.order.compareTo(b.order));
         
+        AppLogger.info(' [CustomLists] Loaded ${sortedLists.length} lists from local storage');
         state = AsyncValue.data(sortedLists);
       }
     } catch (e) {
@@ -37,35 +41,47 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     }
   }
 
-  /// 初回起動時のダミーデータを作成
-  Future<void> _createInitialLists() async {
-    final now = DateTime.now();
-    
-    final initialListNames = [
-      'BRAIN DUMP',
-      'GROCERY',
-      'WISHLIST',
-      'NOSTR',
-      'WORK',
-    ];
-    
-    final initialLists = initialListNames.asMap().entries.map((entry) {
-      final index = entry.key;
-      final name = entry.value;
-      return CustomList(
-        id: CustomListHelpers.generateIdFromName(name), // 名前ベースのID
-        name: name,
-        order: index,
-        createdAt: now,
-        updatedAt: now,
-      );
-    }).toList();
-    
-    // ローカルストレージに保存
-    await localStorageService.saveCustomLists(initialLists);
-    
-    // 状態に反映
-    state = AsyncValue.data(initialLists);
+  /// 初回起動時のデフォルトリストを作成（Nostr同期後にリストが空の場合のみ）
+  Future<void> createDefaultListsIfEmpty() async {
+    await state.whenData((lists) async {
+      // 既にリストがある場合は何もしない
+      if (lists.isNotEmpty) {
+        AppLogger.debug(' [CustomLists] Lists already exist, skipping default creation');
+        return;
+      }
+      
+      AppLogger.info(' [CustomLists] Creating default lists (no lists found after Nostr sync)');
+      
+      final now = DateTime.now();
+      
+      final initialListNames = [
+        'BRAIN DUMP',
+        'GROCERY',
+        'WISHLIST',
+        'NOSTR',
+        'WORK',
+      ];
+      
+      final initialLists = initialListNames.asMap().entries.map((entry) {
+        final index = entry.key;
+        final name = entry.value;
+        return CustomList(
+          id: CustomListHelpers.generateIdFromName(name), // 名前ベースのID
+          name: name,
+          order: index,
+          createdAt: now,
+          updatedAt: now,
+        );
+      }).toList();
+      
+      // ローカルストレージに保存
+      await localStorageService.saveCustomLists(initialLists);
+      
+      // 状態に反映
+      state = AsyncValue.data(initialLists);
+      
+      AppLogger.info(' [CustomLists] Created ${initialLists.length} default lists');
+    }).value;
   }
 
   /// 新しいリストを追加
@@ -155,7 +171,30 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
       // ローカルストレージに保存
       await localStorageService.saveCustomLists(updatedLists);
+      
+      // AppSettingsのcustomListOrderも更新
+      await _updateCustomListOrderInSettings(updatedLists);
     }).value;
+  }
+  
+  /// AppSettingsのcustomListOrderを更新
+  Future<void> _updateCustomListOrderInSettings(List<CustomList> lists) async {
+    try {
+      final listOrder = lists.map((list) => list.id).toList();
+      final settingsAsync = _ref.read(appSettingsProvider);
+      
+      await settingsAsync.whenData((currentSettings) async {
+        final updatedSettings = currentSettings.copyWith(
+          customListOrder: listOrder,
+          updatedAt: DateTime.now(),
+        );
+        
+        await _ref.read(appSettingsProvider.notifier).updateSettings(updatedSettings);
+        AppLogger.info(' [CustomLists] リスト順をAppSettingsに同期しました');
+      }).value;
+    } catch (e) {
+      AppLogger.warning(' [CustomLists] AppSettings更新エラー: $e');
+    }
   }
 
   /// 次のorder値を取得
@@ -198,8 +237,8 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       }
       
       if (hasChanges) {
-        // order順にソート
-        updatedLists.sort((a, b) => a.order.compareTo(b.order));
+        // AppSettingsから順番を復元
+        await _applySavedListOrder(updatedLists);
         
         state = AsyncValue.data(updatedLists);
         
@@ -211,6 +250,58 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         AppLogger.debug(' [CustomLists] No new lists to sync from Nostr');
       }
     }).value;
+    
+    // Nostr同期後、リストが空の場合はデフォルトリストを作成
+    await createDefaultListsIfEmpty();
+  }
+  
+  /// AppSettingsから保存された順番を適用
+  Future<void> _applySavedListOrder(List<CustomList> lists) async {
+    try {
+      final settingsAsync = _ref.read(appSettingsProvider);
+      
+      await settingsAsync.whenData((settings) async {
+        final savedOrder = settings.customListOrder;
+        
+        if (savedOrder.isEmpty) {
+          // 保存された順番がない場合は、現在のorder順にソート
+          lists.sort((a, b) => a.order.compareTo(b.order));
+          AppLogger.debug(' [CustomLists] 保存された順番なし。現在のorder順を使用');
+          return;
+        }
+        
+        AppLogger.info(' [CustomLists] AppSettingsから順番を復元: ${savedOrder.length}件');
+        
+        // 保存された順番に従って並び替え
+        final Map<String, CustomList> listMap = {for (var list in lists) list.id: list};
+        final reorderedLists = <CustomList>[];
+        
+        // 保存された順番に従ってリストを追加
+        for (final listId in savedOrder) {
+          if (listMap.containsKey(listId)) {
+            reorderedLists.add(listMap[listId]!);
+            listMap.remove(listId);
+          }
+        }
+        
+        // 保存された順番にないリストを末尾に追加
+        reorderedLists.addAll(listMap.values);
+        
+        // orderを再計算
+        for (var i = 0; i < reorderedLists.length; i++) {
+          reorderedLists[i] = reorderedLists[i].copyWith(order: i);
+        }
+        
+        lists.clear();
+        lists.addAll(reorderedLists);
+        
+        AppLogger.info(' [CustomLists] リスト順を復元しました');
+      }).value;
+    } catch (e) {
+      AppLogger.warning(' [CustomLists] 順番復元エラー: $e');
+      // エラー時は現在のorder順にソート
+      lists.sort((a, b) => a.order.compareTo(b.order));
+    }
   }
 }
 

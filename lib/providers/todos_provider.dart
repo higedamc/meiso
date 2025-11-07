@@ -15,6 +15,7 @@ import '../services/recurrence_parser.dart';
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
+import 'app_settings_provider.dart';
 
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
@@ -48,13 +49,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // ローカルストレージから読み込み
       final localTodos = await localStorageService.loadTodos();
       
-      if (localTodos.isEmpty) {
-        // 初回起動時は空のリストから始める
-        // （リレーサーバーからデータを同期する）
-        AppLogger.debug(' 初回起動: 空のリストで開始');
-        state = AsyncValue.data({});
-      } else {
-        // ローカルデータをグループ化して状態に設定
+      final hasLocalData = localTodos.isNotEmpty;
+      
+      if (hasLocalData) {
+        // ローカルデータがある場合：即座に表示
         final Map<DateTime?, List<Todo>> grouped = {};
         for (final todo in localTodos) {
           grouped[todo.date] ??= [];
@@ -66,12 +64,19 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
         }
         
-        AppLogger.debug(' ローカルから${localTodos.length}件のタスクを読み込み');
+        AppLogger.info(' [Todos] ローカルから${localTodos.length}件のタスクを読み込み');
         state = AsyncValue.data(grouped);
+        
+        // バックグラウンドで同期
+        _backgroundSync();
+      } else {
+        // ローカルデータがない場合：空の状態にしてNostr同期を優先
+        AppLogger.info(' [Todos] ローカルデータなし。Nostr同期を優先します');
+        state = AsyncValue.data({});
+        
+        // 即座にNostr同期（遅延なし）
+        _prioritySync();
       }
-      
-      // Nostr同期は非同期で実行（初期化をブロックしない）
-      _backgroundSync();
       
       // 自動バッチ同期タイマーを開始（30秒ごと）
       _startBatchSyncTimer();
@@ -81,6 +86,97 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // エラー時は空のマップで初期化
       AppLogger.warning(' エラー発生のため空のリストで開始');
       state = AsyncValue.data({});
+    }
+  }
+  
+  /// 優先同期（遅延なし、初回ログイン時用）
+  Future<void> _prioritySync() async {
+    // Nostr初期化を最大10秒待つ
+    int attempts = 0;
+    while (!_ref.read(nostrInitializedProvider) && attempts < 10) {
+      AppLogger.debug(' [Todos] Nostr初期化待機中... (${attempts + 1}/10)');
+      await Future.delayed(const Duration(seconds: 1));
+      attempts++;
+    }
+    
+    if (!_ref.read(nostrInitializedProvider)) {
+      AppLogger.warning(' [Todos] Nostr初期化タイムアウト（10秒）');
+      return;
+    }
+    
+    AppLogger.info(' [Todos] Nostr初期化完了。優先同期を開始');
+
+    try {
+      // タイムアウト付きで同期実行（60秒）
+      await Future.delayed(Duration.zero).timeout(
+        const Duration(seconds: 60),
+        onTimeout: () async {
+          AppLogger.warning(' [Todos] 優先同期タイムアウト（60秒）');
+          _ref.read(syncStatusProvider.notifier).syncError(
+            '同期がタイムアウトしました',
+            shouldRetry: false,
+          );
+          return;
+        },
+      ).then((_) async {
+        // マイグレーション完了チェック（一度だけ実行）
+        final migrationCompleted = await localStorageService.isMigrationCompleted();
+        AppLogger.debug(' [Todos] マイグレーションステータス: $migrationCompleted');
+        
+        if (!migrationCompleted) {
+          AppLogger.debug(' [Todos] データステータスを確認中...');
+          
+          // まずKind 30001（新形式）をチェック
+          _ref.read(syncStatusProvider.notifier).updateMessage('データ読み込み中...');
+          AppLogger.debug(' [Todos] Kind 30001の存在確認...');
+          final hasNewData = await checkKind30001Exists();
+          AppLogger.debug(' [Todos] Kind 30001: $hasNewData');
+          
+          if (hasNewData) {
+            // Kind 30001にデータがある = マイグレーション済み
+            AppLogger.info(' [Todos] Kind 30001データ検出。マイグレーション済み');
+            AppLogger.debug(' [Todos] Kind 30001からデータをロード中...');
+            AppLogger.debug(' [Todos] マイグレーションスキップ - Kind 30001が存在');
+            
+            // Kind 30001から同期（この後のsyncFromNostr()で実行される）
+            await localStorageService.setMigrationCompleted();
+            AppLogger.info(' [Todos] マイグレーション完了フラグを設定');
+          } else {
+            // Kind 30001がない → Kind 30078をチェック
+            AppLogger.debug(' [Todos] Kind 30001なし。Kind 30078をチェック...');
+            AppLogger.debug(' [Todos] Kind 30078の存在確認...');
+            final needsMigration = await checkMigrationNeeded();
+            AppLogger.debug(' [Todos] Kind 30078: $needsMigration');
+            
+            if (needsMigration) {
+              AppLogger.debug(' [Todos] 旧Kind 30078データ検出。マイグレーション開始...');
+              AppLogger.warning(' [Todos] マイグレーション実行 - Amber復号化が必要');
+              _ref.read(syncStatusProvider.notifier).updateMessage('データ移行中...');
+              
+              // マイグレーション実行（Kind 30078 → Kind 30001）
+              await migrateFromKind30078ToKind30001();
+              AppLogger.info(' [Todos] マイグレーション完了');
+            } else {
+              AppLogger.info(' [Todos] 旧データなし。マイグレーション不要');
+              // 旧イベントがない場合はマイグレーション完了として記録
+              await localStorageService.setMigrationCompleted();
+              AppLogger.info(' [Todos] マイグレーション完了フラグを設定（データなし）');
+            }
+          }
+        } else {
+          AppLogger.info(' [Todos] マイグレーション済み（キャッシュ）');
+        }
+        
+        _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
+        await syncFromNostr();
+        AppLogger.info(' [Todos] 優先同期完了');
+      });
+    } catch (e, stackTrace) {
+      AppLogger.error(' [Todos] 優先同期エラー', error: e, stackTrace: stackTrace);
+      _ref.read(syncStatusProvider.notifier).syncError(
+        '同期エラー: ${e.toString()}',
+        shouldRetry: false,
+      );
     }
   }
   
@@ -655,7 +751,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }).value;
   }
 
-  /// リカーリングタスクの次回インスタンスを生成
+  /// リカーリングタスクの次回インスタンスを生成（30日分）
   Future<void> _createNextRecurringTask(
     Todo originalTodo,
     Map<DateTime?, List<Todo>> todos,
@@ -664,49 +760,88 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       return;
     }
 
-    // 次回の日付を計算
-    final nextDate = originalTodo.recurrence!.calculateNextDate(originalTodo.date!);
+    AppLogger.debug(' リカーリングタスク完了: ${originalTodo.title}');
+    AppLogger.debug(' 将来のインスタンスを再生成します（30日分）');
+
+    // 親タスクのIDを特定（このタスクが子インスタンスの場合は親IDを使用）
+    final parentId = originalTodo.parentRecurringId ?? originalTodo.id;
     
-    if (nextDate == null) {
-      // 繰り返し終了
-      AppLogger.info(' リカーリングタスク終了: ${originalTodo.title}');
-      return;
+    // このリカーリングタスクの親となるタスクを探す
+    Todo? parentTask;
+    for (final dateGroup in todos.values) {
+      for (final task in dateGroup) {
+        if (task.id == parentId) {
+          parentTask = task;
+          break;
+        }
+      }
+      if (parentTask != null) break;
+    }
+    
+    // 親タスクが見つからない場合は、完了したタスク自身を使用
+    parentTask ??= originalTodo;
+
+    AppLogger.debug(' 親タスクID: ${parentTask.id}');
+    AppLogger.debug(' 元のタスクの日付: ${parentTask.date}');
+    
+    DateTime? currentDate = originalTodo.date; // 完了したタスクの日付から開始
+    int generatedCount = 0;
+    const maxInstances = 50; // 最大50個まで生成（無限ループ防止）
+    final now = DateTime.now();
+    final thirtyDaysLater = now.add(const Duration(days: 30));
+
+    // 30日以内の将来のインスタンスを生成
+    while (generatedCount < maxInstances) {
+      final nextDate = parentTask.recurrence!.calculateNextDate(currentDate!);
+      
+      if (nextDate == null) {
+        AppLogger.info(' 繰り返し終了');
+        break; // 繰り返し終了
+      }
+
+      // 30日以内の日付のみ生成
+      if (nextDate.isAfter(thirtyDaysLater)) {
+        AppLogger.debug(' 30日以内の範囲を超えたため終了');
+        break;
+      }
+
+      // 既に同じタイトルのタスクが存在するかチェック
+      final existingTasks = todos[nextDate] ?? [];
+      final alreadyExists = existingTasks.any((t) => 
+        t.parentRecurringId == parentId ||
+        (t.title == parentTask!.title && t.recurrence != null && t.id != parentId && !t.completed)
+      );
+
+      if (!alreadyExists) {
+        // 新しいインスタンスを生成
+        final newTodo = Todo(
+          id: _uuid.v4(),
+          title: parentTask.title,
+          completed: false,
+          date: nextDate,
+          order: _getNextOrder(todos, nextDate),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          recurrence: parentTask.recurrence,
+          parentRecurringId: parentId,
+          linkPreview: parentTask.linkPreview,
+          needsSync: true, // 同期が必要
+        );
+
+        final list = List<Todo>.from(todos[nextDate] ?? []);
+        list.add(newTodo);
+        todos[nextDate] = list;
+
+        generatedCount++;
+        AppLogger.info(' インスタンス生成: ${nextDate.month}/${nextDate.day}');
+      } else {
+        AppLogger.debug(' インスタンス既存: ${nextDate.month}/${nextDate.day}');
+      }
+
+      currentDate = nextDate;
     }
 
-    // 既に次回のタスクが存在するかチェック
-    final existingTasks = todos[nextDate] ?? [];
-    final alreadyExists = existingTasks.any((t) => 
-      t.parentRecurringId == originalTodo.id ||
-      (t.title == originalTodo.title && t.recurrence != null)
-    );
-
-    if (alreadyExists) {
-      AppLogger.debug(' 次回のリカーリングタスクは既に存在します');
-      return;
-    }
-
-    // 新しいタスクを生成
-    final newTodo = Todo(
-      id: _uuid.v4(),
-      title: originalTodo.title,
-      completed: false,
-      date: nextDate,
-      order: _getNextOrder(todos, nextDate),
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      recurrence: originalTodo.recurrence, // 繰り返しパターンを継承
-      parentRecurringId: originalTodo.id, // 元のタスクIDを記録
-      linkPreview: originalTodo.linkPreview,
-      needsSync: true, // 同期が必要
-    );
-
-    // 状態に追加
-    final list = List<Todo>.from(todos[nextDate] ?? []);
-    list.add(newTodo);
-
-    todos[nextDate] = list;
-
-    AppLogger.info(' 次回のリカーリングタスクを生成: ${newTodo.title} (${nextDate})');
+    AppLogger.debug(' 合計${generatedCount}個のインスタンスを生成しました');
 
     // 状態を更新（この時点でUIに反映）
     state = AsyncValue.data(Map.from(todos));
@@ -720,7 +855,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     });
   }
 
-  /// リカーリングタスクの将来のインスタンスを事前生成（7日分）
+  /// リカーリングタスクの将来のインスタンスを事前生成（30日分）
   Future<void> _generateFutureInstances(
     Todo originalTodo,
     Map<DateTime?, List<Todo>> todos,
@@ -739,9 +874,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     DateTime? currentDate = originalTodo.date;
     int generatedCount = 0;
-    const maxInstances = 10; // 最大10個まで生成（無限ループ防止）
+    const maxInstances = 50; // 最大50個まで生成（無限ループ防止）
     final now = DateTime.now();
-    final sevenDaysLater = now.add(const Duration(days: 7));
+    final thirtyDaysLater = now.add(const Duration(days: 30));
 
     // 既存の子インスタンスを削除
     await _removeChildInstances(originalTodo.id, todos);
@@ -751,7 +886,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final originalTaskStillExists = afterRemoveTasks.any((t) => t.id == originalTodo.id);
     AppLogger.debug(' 削除後の元のタスク存在: $originalTaskStillExists (${afterRemoveTasks.length}件のタスク)');
 
-    // 7日以内の将来のインスタンスを生成
+    // 30日以内の将来のインスタンスを生成
     while (generatedCount < maxInstances) {
       final nextDate = originalTodo.recurrence!.calculateNextDate(currentDate!);
       
@@ -760,9 +895,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         break; // 繰り返し終了
       }
 
-      // 7日以内の日付のみ生成
-      if (nextDate.isAfter(sevenDaysLater)) {
-        AppLogger.debug(' 7日以内の範囲を超えたため終了');
+      // 30日以内の日付のみ生成
+      if (nextDate.isAfter(thirtyDaysLater)) {
+        AppLogger.debug(' 30日以内の範囲を超えたため終了');
         break;
       }
 
@@ -1604,6 +1739,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     _ref.read(syncStatusProvider.notifier).startSync();
 
     try {
+      // 最優先: AppSettings（リレーリスト含む）を同期
+      AppLogger.info(' [Sync] 1/3: AppSettings（リレーリスト含む）を同期中...');
+      try {
+        await _ref.read(appSettingsProvider.notifier).syncFromNostr();
+        AppLogger.info(' [Sync] AppSettings同期完了');
+      } catch (e) {
+        AppLogger.warning(' [Sync] AppSettings同期エラー（続行します）: $e');
+      }
+      
       // タイムアウト付きで同期実行（30秒）
       await Future(() async {
         if (isAmberMode) {
@@ -1657,9 +1801,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           }
           
           // カスタムリストを同期（名前ベース）
-          if (nostrListNames.isNotEmpty) {
-            await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
-          }
+          // nostrListNamesが空の場合でも呼び出し、デフォルトリストを作成
+          AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
+          await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
+          AppLogger.info(' [Sync] カスタムリスト同期完了');
           
           final amberService = _ref.read(amberServiceProvider);
           var publicKey = _ref.read(publicKeyProvider);
@@ -1762,10 +1907,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             allSyncedTodos.addAll(syncedTodos);
           }
           
+          AppLogger.info(' [Sync] 3/3: Todoを同期中...');
           AppLogger.info(' すべてのリスト復号化完了: 合計${allSyncedTodos.length}件のTodo');
           
           // 状態を更新
           _updateStateWithSyncedTodos(allSyncedTodos);
+          AppLogger.info(' [Sync] Todo同期完了');
           
         } else {
           // 通常モード: Rust側で復号化済みのTodoリストを取得（Kind 30001）
@@ -1793,17 +1940,22 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           }
           
           // カスタムリストを同期（名前ベース）
+          // nostrListNamesが空の場合でも呼び出し、デフォルトリストを作成
+          AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
           if (nostrListNames.isNotEmpty) {
             AppLogger.info(' ${nostrListNames.length}件のカスタムリストを同期します');
-            await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
           } else {
             AppLogger.debug(' カスタムリストが見つかりませんでした');
           }
+          await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
+          AppLogger.info(' [Sync] カスタムリスト同期完了');
           
           // ステップ2: Todoデータを取得
+          AppLogger.info(' [Sync] 3/3: Todoを同期中...');
           AppLogger.debug(' ステップ2: Todoデータを取得します');
           final syncedTodos = await nostrService.syncTodoListFromNostr();
           AppLogger.debug(' ${syncedTodos.length}件のTodoを取得しました');
+          AppLogger.info(' [Sync] Todo同期完了');
           
           // イベントが見つからない場合（空リスト）はローカルデータを保持
           if (syncedTodos.isEmpty) {
