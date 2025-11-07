@@ -1,23 +1,15 @@
 import 'package:flutter/material.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import 'package:intl/intl.dart';
-import '../services/logger_service.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/logger_service.dart';
 import '../app_theme.dart';
-import '../services/logger_service.dart';
 import '../models/todo.dart';
-import '../services/logger_service.dart';
 import '../models/link_preview.dart';
-import '../services/logger_service.dart';
 import '../models/recurrence_pattern.dart';
-import '../services/logger_service.dart';
 import '../providers/todos_provider.dart';
-import '../services/logger_service.dart';
 import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
+import '../services/local_storage_service.dart';
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -42,6 +34,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
   late TextEditingController _controller;
   late FocusNode _focusNode;
   RecurrencePattern? _recurrence;
+  bool _showRecurringTasksTips = false;
 
   bool get isEditing => widget.todo != null;
 
@@ -51,6 +44,11 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     _controller = TextEditingController(text: widget.todo?.title ?? '');
     _focusNode = FocusNode();
     _recurrence = widget.todo?.recurrence;
+    
+    // Recurring Tasks Tipsを表示するか確認（新規作成時のみ）
+    if (!isEditing) {
+      _showRecurringTasksTips = !localStorageService.hasSeenRecurringTasksTips();
+    }
 
     // 次のフレームでフォーカス
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -140,6 +138,10 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                       onSubmitted: (_) => _save(),
                     ),
                   ),
+                  
+                  // Recurring Tasks Tips（初回のみ表示）
+                  if (_showRecurringTasksTips)
+                    _buildRecurringTasksTips(),
                   
                   // リンクカード（編集時のみ、linkPreviewがある場合）
                   if (isEditing)
@@ -516,6 +518,82 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     if (mounted) {
       Navigator.pop(context);
     }
+  }
+
+  /// Recurring Tasks Tipsウィジェット
+  Widget _buildRecurringTasksTips() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F0), // 薄いベージュ
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // タイトル
+          const Text(
+            'RECURRING TASKS',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1F2937),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // 説明文
+          const Text(
+            'To make a task repeat, add "every day" "every week" "every other week" "every month" or "every year" to the end of a task.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF4B5563),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Got itボタン
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _showRecurringTasksTips = false;
+                });
+                localStorageService.markRecurringTasksTipsAsSeen();
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Got it',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF3B82F6), // 青色
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.check,
+                    size: 18,
+                    color: Color(0xFF3B82F6), // 青色
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// リンクカードウィジェット（×ボタン付き）

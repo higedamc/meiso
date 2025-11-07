@@ -51,7 +51,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       const _OnboardingPage(
         lottieUrl: 'assets/lottie/calendar.json',
         title: 'スマートな日付入力',
-        description: 'タスクに "tomorrow" と入力すれば明日のタスクに\n"everyday" で毎日繰り返すタスクを作成\nTeuxDeuxスタイルの自然な入力をサポート',
+        description: 'タスクに "tomorrow" と入力すれば明日のタスクに\n"every day" で繰り返しタスクも簡単に作成',
         fallbackIcon: Icons.edit_calendar_outlined,
       ),
       const _OnboardingPage(

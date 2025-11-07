@@ -1,11 +1,8 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../services/logger_service.dart';
 import '../models/todo.dart';
-import '../services/logger_service.dart';
 import '../models/app_settings.dart';
-import '../services/logger_service.dart';
 import '../models/custom_list.dart';
-import '../services/logger_service.dart';
 
 /// ローカルストレージサービス（Hive使用）
 /// Todoをローカルに永続化し、オフラインファーストを実現
@@ -16,6 +13,7 @@ class LocalStorageService {
   static const String _onboardingCompletedKey = 'onboarding_completed';
   static const String _useAmberKey = 'use_amber';
   static const String _appSettingsKey = 'app_settings';
+  static const String _recurringTasksTipsDismissedKey = 'recurring_tasks_tips_dismissed';
   
   Box<Map>? _todosBox;
   Box? _settingsBox;
@@ -279,6 +277,24 @@ class LocalStorageService {
       AppLogger.warning(' アプリ設定復元エラー: $e');
       return null;
     }
+  }
+  
+  // === Recurring Tasks Tips関連 ===
+  
+  /// Recurring Tasks Tipsが表示済みかチェック
+  bool hasSeenRecurringTasksTips() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    return _settingsBox!.get(_recurringTasksTipsDismissedKey, defaultValue: false) as bool;
+  }
+  
+  /// Recurring Tasks Tipsを表示済みとしてマーク
+  Future<void> markRecurringTasksTipsAsSeen() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_recurringTasksTipsDismissedKey, true);
   }
 }
 
