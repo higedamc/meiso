@@ -15,36 +15,31 @@ class AppLocalizationsEs extends AppLocalizations {
   String get onboardingWelcomeTitle => 'Bienvenido a Meiso';
 
   @override
-  String get onboardingWelcomeDescription =>
-      'Aplicación de tareas simple y hermosa\nSincroniza con Nostr, gestiona tareas en cualquier lugar';
+  String get onboardingWelcomeDescription => 'Aplicación de tareas simple y hermosa\nSincroniza con Nostr, gestiona tareas en cualquier lugar';
 
   @override
   String get onboardingNostrSyncTitle => 'Sincronizar con Nostr';
 
   @override
-  String get onboardingNostrSyncDescription =>
-      'Sincroniza tus tareas a través de la red Nostr\nMantente actualizado automáticamente en múltiples dispositivos';
+  String get onboardingNostrSyncDescription => 'Sincroniza tus tareas a través de la red Nostr\nMantente actualizado automáticamente en múltiples dispositivos';
 
   @override
   String get onboardingSmartDateTitle => 'Entrada de Fecha Inteligente';
 
   @override
-  String get onboardingSmartDateDescription =>
-      'Escribe \"tomorrow\" para crear una tarea para mañana\nEscribe \"every day\" para crear tareas recurrentes fácilmente';
+  String get onboardingSmartDateDescription => 'Escribe \"tomorrow\" para crear una tarea para mañana\nEscribe \"every day\" para crear tareas recurrentes fácilmente';
 
   @override
   String get onboardingPrivacyTitle => 'Privacidad Primero';
 
   @override
-  String get onboardingPrivacyDescription =>
-      'Sin servidor central. Todos los datos están bajo tu control\nAlmacenado de forma segura en la red descentralizada de Nostr';
+  String get onboardingPrivacyDescription => 'Sin servidor central. Todos los datos están bajo tu control\nAlmacenado de forma segura en la red descentralizada de Nostr';
 
   @override
   String get onboardingGetStartedTitle => 'Comencemos';
 
   @override
-  String get onboardingGetStartedDescription =>
-      'Inicia sesión con Amber o\ngenera una nueva clave secreta para comenzar';
+  String get onboardingGetStartedDescription => 'Inicia sesión con Amber o\ngenera una nueva clave secreta para comenzar';
 
   @override
   String get skipButton => 'Saltar';
@@ -105,15 +100,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get amberModeTitle => 'Modo Amber';
 
   @override
-  String get amberModeInfo =>
-      '✅ Conectado con modo Amber\n\n🔒 Características de seguridad:\n• Firmar tareas con Amber al crear/editar\n• Proteger contenido con cifrado NIP-44\n• Clave secreta almacenada cifrada con ncryptsec en Amber\n\n⚡ Optimización de descifrado:\nSe requiere aprobación al sincronizar tareas.\nPara evitar aprobar cada vez, recomendamos\nconfigurar \"Permitir siempre la aplicación Meiso\" en Amber.\n\n📝 Cómo configurar:\n1. Abrir la aplicación Amber\n2. Seleccionar \"Meiso\" de la lista de aplicaciones\n3. Configurar \"NIP-44 Decrypt\" para permitir siempre';
+  String get amberModeInfo => '✅ Conectado con modo Amber\n\n🔒 Características de seguridad:\n• Firmar tareas con Amber al crear/editar\n• Proteger contenido con cifrado NIP-44\n• Clave secreta almacenada cifrada con ncryptsec en Amber\n\n⚡ Optimización de descifrado:\nSe requiere aprobación al sincronizar tareas.\nPara evitar aprobar cada vez, recomendamos\nconfigurar \"Permitir siempre la aplicación Meiso\" en Amber.\n\n📝 Cómo configurar:\n1. Abrir la aplicación Amber\n2. Seleccionar \"Meiso\" de la lista de aplicaciones\n3. Configurar \"NIP-44 Decrypt\" para permitir siempre';
 
   @override
   String get autoSyncInfoTitle => 'Acerca de la Sincronización Automática';
 
   @override
-  String get autoSyncInfo =>
-      '• La creación, edición y eliminación de tareas se sincronizan automáticamente con Nostr\n• Los últimos datos se obtienen automáticamente al iniciar la aplicación\n• Siempre se sincroniza en segundo plano cuando el relay está conectado\n• Ya no se necesita el botón de sincronización manual';
+  String get autoSyncInfo => '• La creación, edición y eliminación de tareas se sincronizan automáticamente con Nostr\n• Los últimos datos se obtienen automáticamente al iniciar la aplicación\n• Siempre se sincroniza en segundo plano cuando el relay está conectado\n• Ya no se necesita el botón de sincronización manual';
 
   @override
   String versionInfo(String version, String buildNumber) {
@@ -211,8 +204,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get loginMethodTitle => 'Choose Login Method';
 
   @override
-  String get loginMethodDescription =>
-      'Log in with Nostr account\nto sync your tasks';
+  String get loginMethodDescription => 'Log in with Nostr account\nto sync your tasks';
 
   @override
   String get loginWithAmber => 'Login with Amber';
@@ -224,15 +216,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get generateNewKey => 'Generate New Key';
 
   @override
-  String get keyStorageNote =>
-      'Keys are stored securely.\nAmber provides enhanced security.';
+  String get keyStorageNote => 'Keys are stored securely.\nAmber provides enhanced security.';
 
   @override
   String get amberRequired => 'Amber Required';
 
   @override
-  String get amberNotInstalled =>
-      'Amber app is not installed.\nWould you like to install it from Google Play?';
+  String get amberNotInstalled => 'Amber app is not installed.\nWould you like to install it from Google Play?';
 
   @override
   String get install => 'Install';
@@ -260,8 +250,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get setPassword => 'Set Password';
 
   @override
-  String get setPasswordDescription =>
-      'Please set a password to encrypt your secret key.';
+  String get setPasswordDescription => 'Please set a password to encrypt your secret key.';
 
   @override
   String get password => 'Password';
@@ -282,8 +271,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get secretKeyGenerated => 'Secret Key Generated';
 
   @override
-  String get backupSecretKey =>
-      'Please backup your secret key to a safe location.';
+  String get backupSecretKey => 'Please backup your secret key to a safe location.';
 
   @override
   String get secretKeyNsec => 'Secret Key (nsec):';
@@ -292,8 +280,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get publicKeyNpub => 'Public Key (npub):';
 
   @override
-  String get secretKeyWarning =>
-      'If you lose this secret key, you will lose access to your account. Please backup it.';
+  String get secretKeyWarning => 'If you lose this secret key, you will lose access to your account. Please backup it.';
 
   @override
   String get backupCompleted => 'Backup Completed';
@@ -360,12 +347,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get torDisabledSubtitle => 'Not using Orbot (Direct connection)';
 
   @override
-  String get torEnabledMessage =>
-      'Tor enabled. Will apply from next connection.\nPlease start Orbot app.';
+  String get torEnabledMessage => 'Tor enabled. Will apply from next connection.\nPlease start Orbot app.';
 
   @override
-  String get torDisabledMessage =>
-      'Tor disabled. Will apply from next connection.';
+  String get torDisabledMessage => 'Tor disabled. Will apply from next connection.';
 
   @override
   String get proxyAddress => 'Proxy Address and Port';
@@ -374,8 +359,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get proxySettings => 'Proxy Settings';
 
   @override
-  String get proxySettingsDescription =>
-      'Configure SOCKS5 proxy address and port';
+  String get proxySettingsDescription => 'Configure SOCKS5 proxy address and port';
 
   @override
   String get host => 'Host';
@@ -398,8 +382,7 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get commonSettings =>
-      'Common settings:\n• Orbot: 127.0.0.1:9050\n• Custom proxy: Enter host and port';
+  String get commonSettings => 'Common settings:\n• Orbot: 127.0.0.1:9050\n• Custom proxy: Enter host and port';
 
   @override
   String get proxyConnectionStatus => 'Proxy Connection Status';
@@ -426,8 +409,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get appSettingsInfo => 'About App Settings';
 
   @override
-  String get appSettingsInfoText =>
-      '• App settings are stored locally\n• If Nostr is connected, settings sync automatically\n• You can share the same settings across multiple devices (NIP-78)\n• Changes are applied immediately\n\n🛡️ About Tor settings:\n• When Tor is enabled, connects to relays via Orbot proxy\n• Orbot app must be running\n• Privacy and security improve, but connection speed decreases\n• Reconnection required after changing settings';
+  String get appSettingsInfoText => '• App settings are stored locally\n• If Nostr is connected, settings sync automatically\n• You can share the same settings across multiple devices (NIP-78)\n• Changes are applied immediately\n\n🛡️ About Tor settings:\n• When Tor is enabled, connects to relays via Orbot proxy\n• Orbot app must be running\n• Privacy and security improve, but connection speed decreases\n• Reconnection required after changing settings';
 
   @override
   String get nostrAutoSync => 'Auto sync to Nostr relay (NIP-78 Kind 30078)';
@@ -506,8 +488,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get connectedToRelayViaTor => 'Connected to relay (via Tor)';
 
   @override
-  String get invalidSecretKeyFormat =>
-      'Invalid secret key format. Please enter nsec or hex format.';
+  String get invalidSecretKeyFormat => 'Invalid secret key format. Please enter nsec or hex format.';
 
   @override
   String get encrypted => '🔒 Encrypted';
@@ -527,8 +508,7 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get relayRemovedAndSaved =>
-      'Relay removed and immediately saved to Nostr';
+  String get relayRemovedAndSaved => 'Relay removed and immediately saved to Nostr';
 
   @override
   String relayRemovedButSaveFailed(String error) {
@@ -576,6 +556,5 @@ class AppLocalizationsEs extends AppLocalizations {
   String get logoutConfirm => 'Are you sure you want to logout?';
 
   @override
-  String get logoutDescription =>
-      'Encrypted secret key will be deleted.\nPlease save your secret key before logout.';
+  String get logoutDescription => 'Encrypted secret key will be deleted.\nPlease save your secret key before logout.';
 }
