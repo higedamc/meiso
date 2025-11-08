@@ -69,15 +69,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         AppLogger.info(' [Todos] ローカルから${localTodos.length}件のタスクを読み込み');
         state = AsyncValue.data(grouped);
         
-        // バックグラウンドで同期
-        _backgroundSync();
+        // ログイン済みの場合のみバックグラウンド同期
+        if (_ref.read(nostrInitializedProvider)) {
+          AppLogger.debug(' [Todos] Nostr初期化済み。バックグラウンド同期を開始');
+          _backgroundSync();
+        } else {
+          AppLogger.debug(' [Todos] Nostr未初期化（ログイン前）のため、同期をスキップ');
+        }
       } else {
-        // ローカルデータがない場合：空の状態にしてNostr同期を優先
-        AppLogger.info(' [Todos] ローカルデータなし。Nostr同期を優先します');
+        // ローカルデータがない場合：空の状態
+        AppLogger.info(' [Todos] ローカルデータなし');
         state = AsyncValue.data({});
         
-        // 即座にNostr同期（遅延なし）
-        _prioritySync();
+        // ログイン済みの場合のみ優先同期
+        if (_ref.read(nostrInitializedProvider)) {
+          AppLogger.debug(' [Todos] Nostr初期化済み。優先同期を開始');
+          _prioritySync();
+        } else {
+          AppLogger.debug(' [Todos] Nostr未初期化（ログイン前）のため、同期をスキップ');
+        }
       }
       
       // 自動バッチ同期タイマーを開始（30秒ごと）
@@ -93,20 +103,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   
   /// 優先同期（遅延なし、初回ログイン時用）
   Future<void> _prioritySync() async {
-    // Nostr初期化を最大10秒待つ
-    int attempts = 0;
-    while (!_ref.read(nostrInitializedProvider) && attempts < 10) {
-      AppLogger.debug(' [Todos] Nostr初期化待機中... (${attempts + 1}/10)');
-      await Future.delayed(const Duration(seconds: 1));
-      attempts++;
-    }
-    
+    // Nostr初期化チェック（即座に）
     if (!_ref.read(nostrInitializedProvider)) {
-      AppLogger.warning(' [Todos] Nostr初期化タイムアウト（10秒）');
+      AppLogger.debug(' [Todos] Nostr未初期化のため、優先同期をスキップ');
       return;
     }
     
-    AppLogger.info(' [Todos] Nostr初期化完了。優先同期を開始');
+    AppLogger.info(' [Todos] 優先同期を開始');
 
     try {
       // タイムアウト付きで同期実行（60秒）
@@ -187,20 +190,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // 画面表示後に実行
     await Future.delayed(const Duration(seconds: 1));
     
-    // Nostr初期化を最大10秒待つ
-    int attempts = 0;
-    while (!_ref.read(nostrInitializedProvider) && attempts < 10) {
-      AppLogger.debug(' Waiting for Nostr initialization... (attempt ${attempts + 1}/10)');
-      await Future.delayed(const Duration(seconds: 1));
-      attempts++;
-    }
-    
+    // Nostr初期化チェック（即座に）
     if (!_ref.read(nostrInitializedProvider)) {
-      AppLogger.warning(' Nostr not initialized after 10 seconds - skipping background sync');
+      AppLogger.debug(' [Todos] Nostr未初期化のため、バックグラウンド同期をスキップ');
       return;
     }
     
-    AppLogger.info(' Nostr initialized, proceeding with background sync');
+    AppLogger.info(' [Todos] バックグラウンド同期を開始');
 
     try {
       AppLogger.info(' Starting background Nostr sync...');
@@ -1851,20 +1847,52 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // カスタムリスト名を抽出
           final List<String> nostrListNames = [];
-          for (final event in encryptedEvents) {
-            if (event.listId != null && event.title != null) {
+          AppLogger.info(' [Sync] 📋 Extracting custom list names from ${encryptedEvents.length} events...');
+          
+          for (int i = 0; i < encryptedEvents.length; i++) {
+            final event = encryptedEvents[i];
+            AppLogger.debug(' [Sync]   Event $i: listId="${event.listId}", title="${event.title}", eventId=${event.eventId}');
+            
+            if (event.listId != null) {
               final listId = event.listId!;
+              
               // デフォルトリストは除外
               if (listId == 'meiso-todos') {
+                AppLogger.debug(' [Sync]     → Skipping default list (meiso-todos)');
                 continue;
               }
-              // titleからリスト名を取得（重複チェック）
-              if (!nostrListNames.contains(event.title!)) {
-                nostrListNames.add(event.title!);
-                AppLogger.debug(' [Sync] Found custom list: "${event.title}" (d tag: $listId)');
+              
+              // リスト名を取得（titleタグがあればそれを使用、なければlist_idから生成）
+              String listName;
+              if (event.title != null && event.title!.isNotEmpty) {
+                listName = event.title!;
+                AppLogger.debug(' [Sync]     → Using title tag: "$listName"');
+              } else {
+                // titleタグがない場合、list_idから名前を抽出
+                // 例: "meiso-list-mylist" → "mylist"
+                if (listId.startsWith('meiso-list-')) {
+                  listName = listId.substring('meiso-list-'.length);
+                  AppLogger.warning(' [Sync]     ⚠️ No title tag, extracted from list_id: "$listName"');
+                } else {
+                  // list_idが予期しない形式の場合、そのまま使用
+                  listName = listId;
+                  AppLogger.warning(' [Sync]     ⚠️ No title tag, using list_id as name: "$listName"');
+                }
               }
+              
+              // 重複チェック
+              if (!nostrListNames.contains(listName)) {
+                nostrListNames.add(listName);
+                AppLogger.info(' [Sync]     ✅ Found custom list: "$listName" (d tag: $listId)');
+              } else {
+                AppLogger.debug(' [Sync]     → Duplicate list name, skipping: "$listName"');
+              }
+            } else {
+              AppLogger.warning(' [Sync]     ❌ Event $i has null listId (title=${event.title})');
             }
           }
+          
+          AppLogger.info(' [Sync] 📊 Extracted ${nostrListNames.length} custom list names: ${nostrListNames.join(", ")}');
           
           // カスタムリストを同期（名前ベース）
           // nostrListNamesが空の場合でも呼び出し、デフォルトリストを作成
@@ -1995,29 +2023,56 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // カスタムリスト名を抽出（デフォルトリストは除外）
           final List<String> nostrListNames = [];
-          for (final meta in metadata) {
-            if (meta.listId != null && meta.title != null) {
+          AppLogger.info(' [Sync] 📋 Extracting custom list names from ${metadata.length} metadata entries...');
+          
+          for (int i = 0; i < metadata.length; i++) {
+            final meta = metadata[i];
+            AppLogger.debug(' [Sync]   Metadata $i: listId="${meta.listId}", title="${meta.title}"');
+            
+            if (meta.listId != null) {
               final listId = meta.listId!;
+              
               // デフォルトリストは除外
               if (listId == 'meiso-todos') {
+                AppLogger.debug(' [Sync]     → Skipping default list (meiso-todos)');
                 continue;
               }
-              // titleからリスト名を取得（重複チェック）
-              if (!nostrListNames.contains(meta.title!)) {
-                nostrListNames.add(meta.title!);
-                AppLogger.debug(' [Sync] Found custom list: "${meta.title}" (d tag: $listId)');
+              
+              // リスト名を取得（titleタグがあればそれを使用、なければlist_idから生成）
+              String listName;
+              if (meta.title != null && meta.title!.isNotEmpty) {
+                listName = meta.title!;
+                AppLogger.debug(' [Sync]     → Using title tag: "$listName"');
+              } else {
+                // titleタグがない場合、list_idから名前を抽出
+                // 例: "meiso-list-mylist" → "mylist"
+                if (listId.startsWith('meiso-list-')) {
+                  listName = listId.substring('meiso-list-'.length);
+                  AppLogger.warning(' [Sync]     ⚠️ No title tag, extracted from list_id: "$listName"');
+                } else {
+                  // list_idが予期しない形式の場合、そのまま使用
+                  listName = listId;
+                  AppLogger.warning(' [Sync]     ⚠️ No title tag, using list_id as name: "$listName"');
+                }
               }
+              
+              // 重複チェック
+              if (!nostrListNames.contains(listName)) {
+                nostrListNames.add(listName);
+                AppLogger.info(' [Sync]     ✅ Found custom list: "$listName" (d tag: $listId)');
+              } else {
+                AppLogger.debug(' [Sync]     → Duplicate list name, skipping: "$listName"');
+              }
+            } else {
+              AppLogger.warning(' [Sync]     ❌ Metadata $i has null listId (title=${meta.title})');
             }
           }
+          
+          AppLogger.info(' [Sync] 📊 Extracted ${nostrListNames.length} custom list names: ${nostrListNames.join(", ")}');
           
           // カスタムリストを同期（名前ベース）
           // nostrListNamesが空の場合でも呼び出し、デフォルトリストを作成
           AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
-          if (nostrListNames.isNotEmpty) {
-            AppLogger.info(' ${nostrListNames.length}件のカスタムリストを同期します');
-          } else {
-            AppLogger.debug(' カスタムリストが見つかりませんでした');
-          }
           await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
           AppLogger.info(' [Sync] カスタムリスト同期完了');
           

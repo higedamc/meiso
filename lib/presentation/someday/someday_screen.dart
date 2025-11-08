@@ -5,10 +5,12 @@ import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
+import '../../providers/nostr_provider.dart';
 import '../../services/logger_service.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/add_list_screen.dart';
 import '../../widgets/add_group_list_dialog.dart';
+import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
 
@@ -20,6 +22,28 @@ class SomedayScreen extends ConsumerWidget {
   });
 
   final VoidCallback? onClose;
+
+  /// Pull-to-refreshで同期を実行
+  Future<void> _onRefresh(WidgetRef ref) async {
+    AppLogger.info(' [SomedayScreen] 🔄 Pull-to-refresh triggered');
+    
+    // Nostr未初期化の場合はスキップ
+    if (!ref.read(nostrInitializedProvider)) {
+      AppLogger.debug(' [SomedayScreen] Nostr未初期化のため、同期をスキップ');
+      return;
+    }
+
+    try {
+      final todoNotifier = ref.read(todosProvider.notifier);
+      
+      // Nostrから全Todoリストとカスタムリストを同期
+      await todoNotifier.syncFromNostr();
+      AppLogger.info(' [SomedayScreen] ✅ Pull-to-refresh sync completed');
+    } catch (e) {
+      AppLogger.warning(' [SomedayScreen] ⚠️ 同期エラー: $e');
+      // エラーは表示せずに静かに失敗させる（UX改善のため）
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -40,12 +64,15 @@ class SomedayScreen extends ConsumerWidget {
           Expanded(
             child: customListsAsync.when(
               data: (customLists) => todosAsync.when(
-                data: (todos) => _buildListContent(
-                  context,
-                  ref,
-                  customLists,
-                  todos,
-                  isDark,
+                data: (todos) => RefreshIndicator(
+                  onRefresh: () => _onRefresh(ref),
+                  child: _buildListContent(
+                    context,
+                    ref,
+                    customLists,
+                    todos,
+                    isDark,
+                  ),
                 ),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (_, __) => const Center(child: Text('エラーが発生しました')),
@@ -88,6 +115,15 @@ class SomedayScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        // 同期ステータスインジケーター
+        const Padding(
+          padding: EdgeInsets.only(bottom: 16),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: SyncStatusIndicator(),
+          ),
+        ),
+        
         // MY LISTSセクション
         _buildSectionHeader('MY LISTS', isDark),
         const SizedBox(height: 16),

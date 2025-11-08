@@ -228,6 +228,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     
     // 現在のリストを取得
     List<CustomList> currentLists;
+    bool needsStateUpdate = false; // stateの更新が必要かどうか
     
     if (currentState is AsyncData<List<CustomList>>) {
       // 既にデータがロードされている場合
@@ -238,6 +239,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       AppLogger.warning(' [CustomLists] State is ${currentState.runtimeType}, loading from local storage');
       currentLists = await localStorageService.loadCustomLists();
       AppLogger.info(' [CustomLists] Loaded ${currentLists.length} lists from local storage');
+      needsStateUpdate = true; // AsyncLoadingから読み込んだので、stateの更新が必要
     }
     AppLogger.info(' [CustomLists] 📱 Current local lists: ${currentLists.length}');
     for (final list in currentLists) {
@@ -274,26 +276,31 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       }
     }
     
-    AppLogger.info(' [CustomLists] 📊 Sync result: hasChanges=$hasChanges, updatedListsCount=${updatedLists.length}');
+    AppLogger.info(' [CustomLists] 📊 Sync result: hasChanges=$hasChanges, updatedListsCount=${updatedLists.length}, needsStateUpdate=$needsStateUpdate');
     
-    if (hasChanges) {
-      AppLogger.info(' [CustomLists] 💾 Saving changes...');
-      
-      // AppSettingsから順番を復元
-      await _applySavedListOrder(updatedLists);
-      
-      // ローカルストレージに保存
-      await localStorageService.saveCustomLists(updatedLists);
+    // 変更があった場合、または stateの更新が必要な場合
+    if (hasChanges || needsStateUpdate) {
+      if (hasChanges) {
+        AppLogger.info(' [CustomLists] 💾 Saving changes to local storage...');
+        
+        // AppSettingsから順番を復元
+        await _applySavedListOrder(updatedLists);
+        
+        // ローカルストレージに保存
+        await localStorageService.saveCustomLists(updatedLists);
+      }
       
       // 状態を更新（UIに確実に通知）
+      // hasChangesがfalseでも、AsyncLoadingから読み込んだ場合は更新が必要
       AppLogger.info(' [CustomLists] 🔄 Updating state with ${updatedLists.length} lists...');
       state = AsyncValue.data(updatedLists);
-      AppLogger.info(' [CustomLists] ✅ State updated successfully!');
+      AppLogger.info(' [CustomLists] ✅ State updated successfully! UI should now reflect ${updatedLists.length} lists');
       
-      AppLogger.info(' [CustomLists] ✅ Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
-      AppLogger.info(' [CustomLists] 📱 UI should now update with ${updatedLists.length} total lists');
+      if (hasChanges) {
+        AppLogger.info(' [CustomLists] ✅ Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
+      }
     } else {
-      AppLogger.info(' [CustomLists] ⏭️  No new lists to sync from Nostr (all lists already exist locally)');
+      AppLogger.info(' [CustomLists] ⏭️  No changes needed (all lists already synced and state is up-to-date)');
     }
     
     // Nostr同期後、リストが空の場合はデフォルトリストを作成
@@ -497,6 +504,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       // 現在のリストを取得
       List<CustomList> currentLists;
+      bool needsStateUpdate = false; // stateの更新が必要かどうか
       
       if (currentState is AsyncData<List<CustomList>>) {
         // 既にデータがロードされている場合
@@ -507,6 +515,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         AppLogger.warning(' [CustomLists] State is ${currentState.runtimeType} for group sync, loading from local storage');
         currentLists = await localStorageService.loadCustomLists();
         AppLogger.info(' [CustomLists] Loaded ${currentLists.length} lists from local storage for group sync');
+        needsStateUpdate = true; // AsyncLoadingから読み込んだので、stateの更新が必要
       }
       final updatedLists = List<CustomList>.from(currentLists);
       bool hasChanges = false;
@@ -534,18 +543,22 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         }
       }
       
-      if (hasChanges) {
-        // ローカルストレージに保存
-        await localStorageService.saveCustomLists(updatedLists);
+      // 変更があった場合、または stateの更新が必要な場合
+      if (hasChanges || needsStateUpdate) {
+        if (hasChanges) {
+          // ローカルストレージに保存
+          await localStorageService.saveCustomLists(updatedLists);
+          
+          // AppSettingsのcustomListOrderも更新
+          await _updateCustomListOrderInSettings(updatedLists);
+        }
         
         // 状態を更新（UIに確実に通知）
+        // hasChangesがfalseでも、AsyncLoadingから読み込んだ場合は更新が必要
         state = AsyncValue.data(updatedLists);
         
-        // AppSettingsのcustomListOrderも更新
-        await _updateCustomListOrderInSettings(updatedLists);
-        
         AppLogger.info('✅ Synced ${groupLists.length} group lists from Nostr');
-        AppLogger.info('📱 UI updated with ${updatedLists.length} total lists (including ${groupLists.length} groups)');
+        AppLogger.info('📱 State updated successfully! UI should now reflect ${updatedLists.length} total lists');
       }
     } catch (e, st) {
       AppLogger.error('❌ Failed to sync group lists from Nostr: $e', error: e, stackTrace: st);
