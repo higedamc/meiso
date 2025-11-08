@@ -1500,7 +1500,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               'updated_at': todo.updatedAt.toIso8601String(),
               'event_id': todo.eventId,
               'link_preview': todo.linkPreview?.toJson(),
-              'custom_list_id': todo.customListId,
+              // customListIdを名前ベースIDに変換（リストキーと一致させる）
+              'custom_list_id': todo.customListId != null 
+                  ? customListsMap[todo.customListId!] 
+                  : null,
               'recurrence': todo.recurrence?.toJson(),
               'parent_recurring_id': todo.parentRecurringId,
               'needs_sync': todo.needsSync,
