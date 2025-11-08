@@ -440,27 +440,17 @@ class NostrService {
 
   /// Amberモード: すべての暗号化されたTodoリストイベント（Kind 30001）を取得
   Future<List<rust_api.EncryptedTodoListEvent>> fetchAllEncryptedTodoLists() async {
-    AppLogger.debug('📡 [NostrProvider] fetchAllEncryptedTodoLists called');
-    
     final publicKey = _ref.read(publicKeyProvider);
     if (publicKey == null) {
-      AppLogger.error('❌ Public key is null');
       throw Exception('公開鍵が設定されていません');
     }
 
-    AppLogger.debug('🔑 [NostrProvider] Public key: ${publicKey.substring(0, 16)}...');
-    AppLogger.debug('🚀 [NostrProvider] Calling Rust fetchAllEncryptedTodoListsForPubkey...');
-    
     try {
       final result = await rust_api.fetchAllEncryptedTodoListsForPubkey(
         publicKeyHex: publicKey,
       );
       
-      AppLogger.info('📥 [NostrProvider] Received ${result.length} encrypted todo list events from Rust');
-      
-      for (final event in result) {
-        AppLogger.debug('  📋 Event: listId=${event.listId}, title=${event.title}');
-      }
+      AppLogger.debug('📥 [NostrProvider] Received ${result.length} encrypted todo list events');
       
       return result;
     } catch (e, stackTrace) {
