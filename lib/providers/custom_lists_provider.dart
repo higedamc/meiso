@@ -226,13 +226,19 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     final currentState = state;
     AppLogger.debug(' [CustomLists] Current state type: ${currentState.runtimeType}');
     
-    // AsyncValueが data でない場合は処理できない
-    if (currentState is! AsyncData<List<CustomList>>) {
-      AppLogger.warning(' [CustomLists] ❌ Cannot sync - state is not AsyncData (${currentState.runtimeType})');
-      return;
-    }
+    // 現在のリストを取得
+    List<CustomList> currentLists;
     
-    final currentLists = currentState.value;
+    if (currentState is AsyncData<List<CustomList>>) {
+      // 既にデータがロードされている場合
+      currentLists = currentState.value;
+      AppLogger.debug(' [CustomLists] Using current state (${currentLists.length} lists)');
+    } else {
+      // AsyncLoadingやAsyncErrorの場合は、ローカルストレージから直接読み込む
+      AppLogger.warning(' [CustomLists] State is ${currentState.runtimeType}, loading from local storage');
+      currentLists = await localStorageService.loadCustomLists();
+      AppLogger.info(' [CustomLists] Loaded ${currentLists.length} lists from local storage');
+    }
     AppLogger.info(' [CustomLists] 📱 Current local lists: ${currentLists.length}');
     for (final list in currentLists) {
       AppLogger.debug(' [CustomLists]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})');
@@ -489,13 +495,19 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       final currentState = state;
       
-      // AsyncValueが data でない場合は処理できない
-      if (currentState is! AsyncData<List<CustomList>>) {
-        AppLogger.warning(' [CustomLists] Cannot sync groups - state is not AsyncData');
-        return;
-      }
+      // 現在のリストを取得
+      List<CustomList> currentLists;
       
-      final currentLists = currentState.value;
+      if (currentState is AsyncData<List<CustomList>>) {
+        // 既にデータがロードされている場合
+        currentLists = currentState.value;
+        AppLogger.debug(' [CustomLists] Using current state for group sync');
+      } else {
+        // AsyncLoadingやAsyncErrorの場合は、ローカルストレージから直接読み込む
+        AppLogger.warning(' [CustomLists] State is ${currentState.runtimeType} for group sync, loading from local storage');
+        currentLists = await localStorageService.loadCustomLists();
+        AppLogger.info(' [CustomLists] Loaded ${currentLists.length} lists from local storage for group sync');
+      }
       final updatedLists = List<CustomList>.from(currentLists);
       bool hasChanges = false;
       
