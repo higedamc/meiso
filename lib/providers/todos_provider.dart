@@ -1818,12 +1818,31 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             
             if (hasLocalData) {
               AppLogger.info(' ローカルデータを保持（リモートは空/Amber）');
+              
+              // リモートにTodoイベントがなくても、カスタムリストとグループリストは同期する
+              AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
+              await _ref.read(customListsProvider.notifier).syncListsFromNostr([]);
+              AppLogger.info(' [Sync] カスタムリスト同期完了');
+              
+              AppLogger.info(' [Sync] 2.5/3: グループリストを同期中...');
+              await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
+              AppLogger.info(' [Sync] グループリスト同期完了');
+              
               _ref.read(syncStatusProvider.notifier).syncSuccess();
               return; // ここで関数を抜ける
             }
             
-            // ローカルデータもない場合は空状態に
+            // ローカルデータもない場合は空状態に（それでもカスタムリストとグループリストは同期する）
             AppLogger.debug(' ローカルもリモートもデータがありません');
+            
+            AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
+            await _ref.read(customListsProvider.notifier).syncListsFromNostr([]);
+            AppLogger.info(' [Sync] カスタムリスト同期完了');
+            
+            AppLogger.info(' [Sync] 2.5/3: グループリストを同期中...');
+            await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
+            AppLogger.info(' [Sync] グループリスト同期完了');
+            
             _ref.read(syncStatusProvider.notifier).syncSuccess();
             return;
           }
