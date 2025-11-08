@@ -220,15 +220,24 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// Nostrから同期されたカスタムリストを反映
   /// listNameのListを受け取り、ローカルにないリストを追加
   Future<void> syncListsFromNostr(List<String> nostrListNames) async {
+    AppLogger.info(' [CustomLists] 🔄 syncListsFromNostr called with ${nostrListNames.length} lists from Nostr');
+    AppLogger.info(' [CustomLists] 📋 Nostr lists: ${nostrListNames.join(", ")}');
+    
     final currentState = state;
+    AppLogger.debug(' [CustomLists] Current state type: ${currentState.runtimeType}');
     
     // AsyncValueが data でない場合は処理できない
     if (currentState is! AsyncData<List<CustomList>>) {
-      AppLogger.warning(' [CustomLists] Cannot sync - state is not AsyncData');
+      AppLogger.warning(' [CustomLists] ❌ Cannot sync - state is not AsyncData (${currentState.runtimeType})');
       return;
     }
     
     final currentLists = currentState.value;
+    AppLogger.info(' [CustomLists] 📱 Current local lists: ${currentLists.length}');
+    for (final list in currentLists) {
+      AppLogger.debug(' [CustomLists]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})');
+    }
+    
     final updatedLists = List<CustomList>.from(currentLists);
     final now = DateTime.now();
     bool hasChanges = false;
@@ -236,12 +245,13 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     for (final listName in nostrListNames) {
       // 名前から決定的なIDを生成
       final listId = CustomListHelpers.generateIdFromName(listName);
+      AppLogger.debug(' [CustomLists] Processing Nostr list: "$listName" → ID: "$listId"');
       
       // すでに存在するか確認（IDで）
       final exists = updatedLists.any((list) => list.id == listId);
       
       if (!exists) {
-        AppLogger.debug(' [CustomLists] Adding synced list from Nostr: "$listName" (ID: $listId)');
+        AppLogger.info(' [CustomLists] ✨ Adding NEW list from Nostr: "$listName" (ID: $listId)');
         
         final newList = CustomList(
           id: listId, // 名前から生成した決定的なID
@@ -254,11 +264,15 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         updatedLists.add(newList);
         hasChanges = true;
       } else {
-        AppLogger.debug(' [CustomLists] List "$listName" (ID: $listId) already exists, skipping');
+        AppLogger.debug(' [CustomLists] ⏭️  List "$listName" (ID: $listId) already exists, skipping');
       }
     }
     
+    AppLogger.info(' [CustomLists] 📊 Sync result: hasChanges=$hasChanges, updatedListsCount=${updatedLists.length}');
+    
     if (hasChanges) {
+      AppLogger.info(' [CustomLists] 💾 Saving changes...');
+      
       // AppSettingsから順番を復元
       await _applySavedListOrder(updatedLists);
       
@@ -266,12 +280,14 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       await localStorageService.saveCustomLists(updatedLists);
       
       // 状態を更新（UIに確実に通知）
+      AppLogger.info(' [CustomLists] 🔄 Updating state with ${updatedLists.length} lists...');
       state = AsyncValue.data(updatedLists);
+      AppLogger.info(' [CustomLists] ✅ State updated successfully!');
       
       AppLogger.info(' [CustomLists] ✅ Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
-      AppLogger.info(' [CustomLists] 📱 UI updated with ${updatedLists.length} total lists');
+      AppLogger.info(' [CustomLists] 📱 UI should now update with ${updatedLists.length} total lists');
     } else {
-      AppLogger.debug(' [CustomLists] No new lists to sync from Nostr');
+      AppLogger.info(' [CustomLists] ⏭️  No new lists to sync from Nostr (all lists already exist locally)');
     }
     
     // Nostr同期後、リストが空の場合はデフォルトリストを作成

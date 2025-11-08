@@ -23,7 +23,11 @@ class SomedayScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    AppLogger.debug(' [SomedayScreen] 🎨 build() called');
+    
     final customListsAsync = ref.watch(customListsProvider);
+    AppLogger.debug(' [SomedayScreen] customListsAsync type: ${customListsAsync.runtimeType}');
+    
     final todosAsync = ref.watch(todosProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
@@ -76,6 +80,11 @@ class SomedayScreen extends ConsumerWidget {
     Map<DateTime?, List<Todo>> todos,
     bool isDark,
   ) {
+    AppLogger.info(' [SomedayScreen] 📋 _buildListContent called with ${customLists.length} custom lists');
+    for (final list in customLists) {
+      AppLogger.debug(' [SomedayScreen]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})');
+    }
+    
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
