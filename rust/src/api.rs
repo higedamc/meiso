@@ -2356,12 +2356,12 @@ pub fn save_group_task_list_to_nostr(
             vec![group_list.group_name.clone()],
         );
         
-        // メンバータグを追加（検索可能にする）
+        // メンバーをpタグで追加（検索可能にする - NIP-01標準）
         let mut tags = vec![d_tag, title_tag];
         for member_pubkey in &group_list.members {
-            tags.push(Tag::custom(
-                TagKind::Custom(std::borrow::Cow::Borrowed("member")),
-                vec![member_pubkey.clone()],
+            tags.push(Tag::public_key(
+                nostr_sdk::PublicKey::from_hex(member_pubkey)
+                    .map_err(|e| anyhow::anyhow!("Invalid member pubkey: {}", e))?,
             ));
         }
         
@@ -2386,16 +2386,25 @@ pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
         let keys = client.keys.as_ref()
             .context("Secret key required for fetching group task lists")?;
         
-        // 自分がメンバータグに含まれるKind 30001イベントを検索
-        // Note: Nostr-SDKの制限により、カスタムタグでの検索は直接サポートされない
-        // 代わりに、すべてのKind 30001イベントを取得して、メンバータグでフィルタリング
-        let filter = Filter::new()
+        // 自分がメンバーとして含まれるKind 30001イベントを検索
+        // 戦略: pタグで検索できない場合、全てのKind 30001を取得してフィルタリング
+        let my_pubkey = keys.public_key().to_hex();
+        
+        // まずpタグで検索（新形式）
+        let filter_p = Filter::new()
             .kind(Kind::Custom(30001))
-            .author(keys.public_key()); // 自分が作成したグループのみ
+            .custom_tag(
+                nostr_sdk::SingleLetterTag::lowercase(nostr_sdk::Alphabet::P),
+                vec![my_pubkey.clone()]
+            );
+        
+        // 次に全てのKind 30001を取得（旧形式のmemberタグ対応）
+        let filter_all = Filter::new()
+            .kind(Kind::Custom(30001));
         
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(vec![filter_p, filter_all], Some(Duration::from_secs(10)))
             .await?;
         
         if events.is_empty() {
@@ -2426,16 +2435,22 @@ pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
                         Ok(decrypted) => {
                             match serde_json::from_str::<GroupTodoList>(&decrypted) {
                                 Ok(group_list) => {
-                                    println!("✅ Decrypted group: {}", group_list.group_name);
-                                    group_lists.push(group_list);
+                                    // 自分がメンバーに含まれているか確認
+                                    if group_list.members.contains(&my_pubkey) {
+                                        println!("✅ Decrypted group: {} (member check: ✓)", group_list.group_name);
+                                        group_lists.push(group_list);
+                                    } else {
+                                        println!("⚠️ Skipping group {} (not a member)", group_list.group_name);
+                                    }
                                 }
                                 Err(e) => {
                                     eprintln!("❌ Failed to parse group task list JSON from {:?}: {}", d_tag, e);
                                 }
                             }
                         }
-                        Err(e) => {
-                            eprintln!("❌ Failed to decrypt group task list {:?}: {}", d_tag, e);
+                        Err(_) => {
+                            // 復号化失敗 = 自分宛てではない or 壊れたデータ
+                            // 全てのKind 30001を取得しているため、これは正常
                         }
                     }
                 }

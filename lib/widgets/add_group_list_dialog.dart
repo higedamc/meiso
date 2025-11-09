@@ -22,13 +22,22 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   @override
   void initState() {
     super.initState();
-    // 自分の公開鍵をデフォルトで追加
-    Future.microtask(() {
-      final ownPubkey = ref.read(nostrPublicKeyProvider);
-      if (ownPubkey != null && mounted) {
-        setState(() {
-          _members.add(ownPubkey);
-        });
+    // 自分の公開鍵をデフォルトで追加（hex形式）
+    Future.microtask(() async {
+      final ownPubkeyNpub = ref.read(nostrPublicKeyProvider);
+      if (ownPubkeyNpub != null && mounted) {
+        try {
+          // npub形式をhex形式に変換
+          final nostrService = ref.read(nostrServiceProvider);
+          final ownPubkeyHex = await nostrService.npubToHex(ownPubkeyNpub);
+          if (mounted) {
+            setState(() {
+              _members.add(ownPubkeyHex);
+            });
+          }
+        } catch (e) {
+          AppLogger.error('❌ Failed to convert npub to hex: $e', error: e);
+        }
       }
     });
   }
@@ -147,13 +156,62 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.add),
-                  onPressed: () {
+                  onPressed: () async {
                     final pubkey = _memberPubkeyController.text.trim();
-                    if (pubkey.isNotEmpty && !_members.contains(pubkey)) {
+                    if (pubkey.isEmpty) return;
+                    
+                    try {
+                      String hexPubkey;
+                      
+                      // npub形式かhex形式かを判定
+                      if (pubkey.startsWith('npub1')) {
+                        // npub形式をhex形式に変換
+                        final nostrService = ref.read(nostrServiceProvider);
+                        hexPubkey = await nostrService.npubToHex(pubkey);
+                        AppLogger.debug('🔑 Converted npub to hex: ${hexPubkey.substring(0, 16)}...');
+                      } else if (pubkey.length == 64 && RegExp(r'^[0-9a-fA-F]+$').hasMatch(pubkey)) {
+                        // 既にhex形式
+                        hexPubkey = pubkey.toLowerCase();
+                      } else {
+                        // 無効な形式
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('無効な公開鍵形式です（npub形式またはhex形式のみ）'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                        return;
+                      }
+                      
+                      // 重複チェック
+                      if (_members.contains(hexPubkey)) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('このメンバーは既に追加されています'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                        return;
+                      }
+                      
                       setState(() {
-                        _members.add(pubkey);
+                        _members.add(hexPubkey);
                         _memberPubkeyController.clear();
                       });
+                    } catch (e) {
+                      AppLogger.error('❌ Failed to add member: $e', error: e);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('公開鍵の変換に失敗しました: $e'),
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
                     }
                   },
                 ),
