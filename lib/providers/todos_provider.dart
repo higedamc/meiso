@@ -376,16 +376,39 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: list,
       };
 
+      // 【楽観的UI更新】即座にUI更新
       state = AsyncValue.data(updatedTodos);
+      AppLogger.info(' UI updated immediately (optimistic)');
 
+      // 以下、全てバックグラウンドで実行（UIをブロックしない）
+      _performBackgroundTasks(
+        newTodo: newTodo,
+        updatedTodos: updatedTodos,
+        autoRecurrence: autoRecurrence,
+        date: date,
+        detectedUrl: detectedUrl,
+        customListId: customListId,
+      );
+    }).value;
+  }
+
+  /// バックグラウンドで全ての非同期タスクを実行（UIをブロックしない）
+  Future<void> _performBackgroundTasks({
+    required Todo newTodo,
+    required Map<DateTime?, List<Todo>> updatedTodos,
+    required RecurrencePattern? autoRecurrence,
+    required DateTime? date,
+    required String? detectedUrl,
+    required String? customListId,
+  }) async {
+    try {
       // リカーリングタスクの場合、将来のインスタンスを事前生成
       if (autoRecurrence != null && date != null) {
-        // 最新の state を渡す（元のタスクが含まれている）
         await _generateFutureInstances(newTodo, updatedTodos);
       }
 
-      // ローカルストレージに保存（awaitする - これは速い）
-      AppLogger.debug(' Saving to local storage...');
+      // ローカルストレージに保存
+      AppLogger.debug(' Saving to local storage (background)...');
       await _saveAllTodosToLocal();
       AppLogger.info(' Local save complete');
       
@@ -397,11 +420,40 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         _fetchLinkPreviewInBackground(newTodo.id, date, detectedUrl);
       }
 
-      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
-      AppLogger.debug(' Starting background Nostr sync (non-blocking)...');
-      _updateUnsyncedCount(); // 未同期カウントを更新
+      // 未同期カウントを更新
+      _updateUnsyncedCount();
+      
+      // グループリストのTodoの場合、グループタスクとして同期
+      if (customListId != null) {
+        final customListsAsync = _ref.read(customListsProvider);
+        final isGroup = await customListsAsync.whenData((customLists) async {
+          final list = customLists.firstWhere(
+            (l) => l.id == customListId, 
+            orElse: () => CustomList(
+              id: '', 
+              name: '', 
+              order: 0, 
+              createdAt: DateTime.now(), 
+              updatedAt: DateTime.now(),
+            ),
+          );
+          return list.isGroup;
+        }).value ?? false;
+        
+        if (isGroup) {
+          AppLogger.info('📤 Syncing to group list: $customListId');
+          _syncToNostr(() async {
+            await _syncGroupToNostr(customListId);
+          });
+          return; // 通常のTodo同期はスキップ
+        }
+      }
+      
+      // 通常のTodo同期
       _syncToNostrBackground();
-    }).value;
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ Background task failed: $e', error: e, stackTrace: stackTrace);
+    }
   }
 
   /// バックグラウンドでリンクプレビューを取得
@@ -541,6 +593,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
         _updateUnsyncedCount();
+        
+        // グループリストのTodoの場合、グループタスクとして同期
+        if (todo.customListId != null) {
+          final customListsAsync = _ref.read(customListsProvider);
+          final isGroup = await customListsAsync.whenData((customLists) async {
+            final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+            return list.isGroup;
+          }).value ?? false;
+          
+          if (isGroup) {
+            AppLogger.info('📤 Syncing to group list: ${todo.customListId}');
+            _syncToNostr(() async {
+              await _syncGroupToNostr(todo.customListId!);
+            });
+            return; // 通常のTodo同期はスキップ
+          }
+        }
+        
         _syncToNostrBackground();
       }
     }).value;
@@ -726,6 +796,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
         _updateUnsyncedCount();
+        
+        // グループリストのTodoの場合、グループタスクとして同期
+        final updatedTodo = list[index];
+        if (updatedTodo.customListId != null) {
+          final customListsAsync = _ref.read(customListsProvider);
+          final isGroup = await customListsAsync.whenData((customLists) async {
+            final list = customLists.firstWhere((l) => l.id == updatedTodo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+            return list.isGroup;
+          }).value ?? false;
+          
+          if (isGroup) {
+            AppLogger.info('📤 Syncing to group list: ${updatedTodo.customListId}');
+            _syncToNostr(() async {
+              await _syncGroupToNostr(updatedTodo.customListId!);
+            });
+            return; // 通常のTodo同期はスキップ
+          }
+        }
+        
         _syncToNostrBackground();
       }
     }).value;
@@ -765,6 +854,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
         _updateUnsyncedCount();
+        
+        // グループリストのTodoの場合、グループタスクとして同期
+        if (todo.customListId != null) {
+          final customListsAsync = _ref.read(customListsProvider);
+          final isGroup = await customListsAsync.whenData((customLists) async {
+            final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+            return list.isGroup;
+          }).value ?? false;
+          
+          if (isGroup) {
+            AppLogger.info('📤 Syncing to group list: ${todo.customListId}');
+            _syncToNostr(() async {
+              await _syncGroupToNostr(todo.customListId!);
+            });
+            return; // 通常のTodo同期はスキップ
+          }
+        }
+        
         _syncToNostrBackground();
       }
     }).value;
@@ -1402,21 +1509,35 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // Amberモード: リストごとに分割 → JSON → Amber暗号化 → 未署名イベント → Amber署名 → リレー送信
           AppLogger.debug('🔐 Amberモードでリストごとに同期します（バックグラウンド処理）');
           
-          // カスタムリスト情報を取得（UUIDから名前ベースIDへの変換用）
+          // カスタムリスト情報を取得（UUIDから名前ベースIDへの変換用 & グループリスト判定）
           final customListsAsync = _ref.read(customListsProvider);
           final customListsMap = <String, String>{}; // oldId -> newId
           final customListNames = <String, String>{}; // newId -> name
+          final groupListIds = <String>{}; // グループリストのID
           await customListsAsync.whenData((customLists) async {
             for (final list in customLists) {
-              final nameBasedId = CustomListHelpers.generateIdFromName(list.name);
-              customListsMap[list.id] = nameBasedId;
-              customListNames[nameBasedId] = list.name;
+              if (list.isGroup) {
+                // グループリストはIDをそのまま保持
+                groupListIds.add(list.id);
+              } else {
+                // 通常のカスタムリストは名前ベースIDに変換
+                final nameBasedId = CustomListHelpers.generateIdFromName(list.name);
+                customListsMap[list.id] = nameBasedId;
+                customListNames[nameBasedId] = list.name;
+              }
             }
           }).value;
           
           // 1. Todoをリストごとにグループ化（名前ベースIDに変換）
+          // グループリストのTodoは除外（別途 _syncGroupToNostr で同期される）
           final Map<String, List<Todo>> groupedTodos = {};
           for (final todo in allTodos) {
+            // グループリストのTodoはスキップ
+            if (todo.customListId != null && groupListIds.contains(todo.customListId)) {
+              AppLogger.debug('   Skipping group list todo: "${todo.title}" (groupId: ${todo.customListId})');
+              continue;
+            }
+            
             // customListIdを名前ベースIDに変換
             String listKey;
             if (todo.customListId == null) {
@@ -1576,18 +1697,40 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
         } else {
           // 通常モード: 秘密鍵で署名（Rust側でNIP-44暗号化）
+          // ただし、グループリストのTodoは除外（別途 _syncGroupToNostr で同期）
           AppLogger.info(' 通常モードで全TODOリストを同期します');
-          AppLogger.info(' Calling nostrService.createTodoListOnNostr with ${allTodos.length} todos...');
+          
+          // グループリストを取得
+          final customListsAsync = _ref.read(customListsProvider);
+          final groupListIds = <String>{};
+          await customListsAsync.whenData((customLists) async {
+            for (final list in customLists) {
+              if (list.isGroup) {
+                groupListIds.add(list.id);
+              }
+            }
+          }).value;
+          
+          // グループリストのTodoを除外
+          final nonGroupTodos = allTodos.where((todo) {
+            if (todo.customListId != null && groupListIds.contains(todo.customListId)) {
+              AppLogger.debug('   Skipping group list todo: "${todo.title}" (groupId: ${todo.customListId})');
+              return false;
+            }
+            return true;
+          }).toList();
+          
+          AppLogger.info(' Calling nostrService.createTodoListOnNostr with ${nonGroupTodos.length} non-group todos (excluded ${allTodos.length - nonGroupTodos.length} group todos)...');
           
           try {
-            final sendResult = await nostrService.createTodoListOnNostr(allTodos);
-            AppLogger.info('✅✅ TODOリスト送信完了: ${sendResult.eventId} (${allTodos.length}件)');
+            final sendResult = await nostrService.createTodoListOnNostr(nonGroupTodos);
+            AppLogger.info('✅✅ TODOリスト送信完了: ${sendResult.eventId} (${nonGroupTodos.length}件)');
             
             // 全TodoのeventIdを更新
-            for (final todo in allTodos) {
+            for (final todo in nonGroupTodos) {
               await _updateTodoEventIdInState(todo.id, todo.date, sendResult.eventId);
             }
-            AppLogger.info(' Updated eventId for ${allTodos.length} todos');
+            AppLogger.info(' Updated eventId for ${nonGroupTodos.length} todos');
           } catch (e) {
             AppLogger.error('❌❌ createTodoListOnNostr failed: $e');
             rethrow;
@@ -1824,6 +1967,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
               AppLogger.info(' [Sync] グループリスト同期完了');
               
+              // グループタスクを同期
+              AppLogger.info(' [Sync] 2.6/3: グループタスクを同期中...');
+              final groupListsAsync = _ref.read(customListsProvider);
+              final groupLists = groupListsAsync.whenOrNull(data: (lists) => lists) ?? [];
+              final groupIds = groupLists.where((l) => l.isGroup).map((l) => l.id).toList();
+              for (final groupId in groupIds) {
+                AppLogger.info(' [Sync] Syncing group tasks for: $groupId');
+                await syncGroupTodos(groupId);
+              }
+              AppLogger.info(' [Sync] グループタスク同期完了 (${groupIds.length} groups)');
+              
               _ref.read(syncStatusProvider.notifier).syncSuccess();
               return; // ここで関数を抜ける
             }
@@ -1838,6 +1992,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             AppLogger.info(' [Sync] 2.5/3: グループリストを同期中...');
             await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
             AppLogger.info(' [Sync] グループリスト同期完了');
+            
+            // グループタスクを同期
+            AppLogger.info(' [Sync] 2.6/3: グループタスクを同期中...');
+            final groupListsAsync2 = _ref.read(customListsProvider);
+            final groupLists2 = groupListsAsync2.whenOrNull(data: (lists) => lists) ?? [];
+            final groupIds2 = groupLists2.where((l) => l.isGroup).map((l) => l.id).toList();
+            for (final groupId in groupIds2) {
+              AppLogger.info(' [Sync] Syncing group tasks for: $groupId');
+              await syncGroupTodos(groupId);
+            }
+            AppLogger.info(' [Sync] グループタスク同期完了 (${groupIds2.length} groups)');
             
             _ref.read(syncStatusProvider.notifier).syncSuccess();
             return;
@@ -1904,6 +2069,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.info(' [Sync] 2.5/3: グループリストを同期中...');
           await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
           AppLogger.info(' [Sync] グループリスト同期完了');
+          
+          // グループタスクを同期
+          AppLogger.info(' [Sync] 2.6/3: グループタスクを同期中...');
+          final groupListsAsync3 = _ref.read(customListsProvider);
+          final groupLists3 = groupListsAsync3.whenOrNull(data: (lists) => lists) ?? [];
+          final groupIds3 = groupLists3.where((l) => l.isGroup).map((l) => l.id).toList();
+          for (final groupId in groupIds3) {
+            AppLogger.info(' [Sync] Syncing group tasks for: $groupId');
+            await syncGroupTodos(groupId);
+          }
+          AppLogger.info(' [Sync] グループタスク同期完了 (${groupIds3.length} groups)');
           
           final amberService = _ref.read(amberServiceProvider);
           var publicKey = _ref.read(publicKeyProvider);
