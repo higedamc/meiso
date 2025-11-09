@@ -1,19 +1,12 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
 import 'package:flutter/services.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import '../models/app_settings.dart';
-import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
-import '../services/logger_service.dart';
 import '../services/amber_service.dart';
 import '../services/logger_service.dart';
 import 'nostr_provider.dart';
-import '../services/logger_service.dart';
 import '../bridge_generated.dart/api.dart' as bridge;
-import '../services/logger_service.dart';
 
 /// アプリ設定を管理するProvider
 final appSettingsProvider =
@@ -248,6 +241,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'relays': settings.relays,
           'tor_enabled': settings.torEnabled,
           'proxy_url': settings.proxyUrl,
+          'custom_list_order': settings.customListOrder,
           'updated_at': settings.updatedAt.toIso8601String(),
         });
         
