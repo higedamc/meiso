@@ -255,6 +255,278 @@ class TodosProvider extends StateNotifier<AsyncValue<List<Todo>>> {
 
 ---
 
+## 詳細実装ロードマップ（Option B → Production）
+
+### Phase 5: 実デバイス間での2人グループテスト 🔄
+
+**目的**: Option B PoCの実機検証
+
+**作業内容**:
+1. 2台のデバイスで相互にKey Package交換
+2. Welcome Message送受信テスト
+3. 相手のメッセージ復号化確認
+4. 双方向TODO共有動作確認
+
+**成功基準**:
+- [ ] デバイスAがグループ作成 → デバイスBが参加
+- [ ] デバイスAのTODOをデバイスBで復号化できる
+- [ ] デバイスBのTODOをデバイスAで復号化できる
+- [ ] Listen Key生成が両デバイスで一致
+
+**推定作業時間**: 1-2時間（テストのみ）
+
+---
+
+### Phase 6: マジックリンク招待システム実装 🎯
+
+**目的**: Key Package手動交換を不要にし、ワンタップでグループ参加
+
+**背景**: 
+TODOアプリとして、メッセージアプリのように手動でKey Packageを交換するのは煩雑。
+Keychat方式を参考に、npub指定だけで招待できる自動化システムを実装。
+
+#### 6.1 Key Package公開機能（Rust側）
+
+```rust
+/// Kind 10443イベントでKey Packageをリレーに公開
+pub async fn publish_key_package_to_relay(
+    nostr_id: String,
+    relays: Vec<String>,
+) -> Result<String> {
+    let kp = create_key_package(nostr_id)?;
+    
+    // NIP-EEに準拠したイベント作成
+    let event = create_unsigned_event(
+        kind: 10443,
+        content: kp.key_package,
+        tags: [
+            ["mls_protocol_version", kp.mls_protocol_version],
+            ["ciphersuite", kp.ciphersuite],
+            ["client", "meiso"],
+            ["relay", ...relays],
+        ],
+    );
+    
+    // Amber/秘密鍵で署名してリレー送信
+    Ok(event_id)
+}
+
+/// npubからKey Packageを自動取得
+pub async fn fetch_key_package_by_npub(
+    npub: String,
+    relays: Vec<String>,
+) -> Result<String> {
+    let filter = Filter::new()
+        .kind(Kind::Custom(10443))
+        .author(npub_to_hex(npub)?)
+        .limit(1);
+    
+    let events = fetch_from_relays(filter, relays).await?;
+    let latest = events.first().ok_or("No key package found")?;
+    
+    Ok(latest.content.clone())
+}
+```
+
+#### 6.2 マジックリンク生成＆NIP-17送信（Flutter側）
+
+```dart
+/// グループ招待フロー（完全自動）
+Future<void> inviteUserToGroup({
+  required String groupId,
+  required String groupName,
+  required String inviteeNpub,
+}) async {
+  // Step 1: 相手のKey Packageを自動取得
+  final keyPackage = await rust_api.fetchKeyPackageByNpub(
+    npub: inviteeNpub,
+    relays: relayList,
+  );
+  
+  // Step 2: Welcome Message生成
+  final welcomeMsg = await rust_api.mlsAddMembersToGroup(
+    nostrId: myPubkey,
+    groupId: groupId,
+    keyPackages: [keyPackage],
+  );
+  
+  // Step 3: マジックリンク生成
+  final magicLink = 'meiso://join-group/$groupId?'
+      'welcome=${base64UrlEncode(welcomeMsg)}&'
+      'name=${Uri.encodeComponent(groupName)}';
+  
+  // Step 4: NIP-17でDM送信（Amber対応）
+  await nostrService.sendEncryptedDM(
+    recipientNpub: inviteeNpub,
+    content: '📋 「$groupName」への招待\n\n'
+             '以下のリンクをタップしてグループに参加:\n'
+             '$magicLink\n\n'
+             'または、Meisoアプリで招待通知を確認してください。',
+  );
+  
+  // Step 5: アプリ内通知も送信（リレー経由）
+  await sendGroupInviteNotification(
+    recipientNpub: inviteeNpub,
+    groupId: groupId,
+    groupName: groupName,
+    welcomeMsg: welcomeMsg,
+  );
+}
+```
+
+#### 6.3 ディープリンク処理（Flutter側）
+
+```dart
+// AndroidManifest.xml / Info.plist設定
+// Scheme: meiso://
+
+class DeepLinkHandler {
+  static Future<void> handleDeepLink(Uri uri) async {
+    if (uri.scheme != 'meiso') return;
+    
+    switch (uri.host) {
+      case 'join-group':
+        await _handleJoinGroup(uri);
+        break;
+      // 将来の拡張: share-list, open-todo, etc.
+    }
+  }
+  
+  static Future<void> _handleJoinGroup(Uri uri) async {
+    final groupId = uri.pathSegments.first;
+    final welcomeB64 = uri.queryParameters['welcome'];
+    final groupName = uri.queryParameters['name'] ?? 'グループ';
+    
+    if (welcomeB64 == null) return;
+    
+    // 確認ダイアログ表示
+    final confirmed = await showConfirmDialog(
+      title: 'グループ参加',
+      message: '「$groupName」に参加しますか？',
+    );
+    
+    if (!confirmed) return;
+    
+    // Welcome Message復号化 & グループ参加
+    final welcomeMsg = base64Url.decode(welcomeB64);
+    await rust_api.mlsJoinGroup(
+      nostrId: myPubkey,
+      groupId: groupId,
+      welcomeMsg: welcomeMsg,
+    );
+    
+    // カスタムリスト作成
+    await todosProvider.createCustomList(
+      listId: groupId,
+      listName: groupName,
+      isGroup: true,
+    );
+    
+    // 成功通知
+    showSnackBar('✅ 「$groupName」に参加しました！');
+    
+    // グループ画面へ遷移
+    context.go('/list/$groupId');
+  }
+}
+```
+
+#### 6.4 UI実装
+
+**メンバー招待ダイアログ**:
+```dart
+// widgets/invite_member_dialog.dart
+class InviteMemberDialog extends StatefulWidget {
+  final String groupId;
+  final String groupName;
+  
+  // npub入力フィールド
+  // またはコンタクトリストから選択
+  // 「招待を送信」ボタン → 自動処理
+}
+```
+
+**グループ管理画面**:
+- メンバーリスト表示
+- 「メンバー追加」ボタン → InviteMemberDialog表示
+- メンバー削除機能（後のフェーズ）
+
+**Key Package管理**:
+- 初回起動時に自動生成＆公開
+- 設定画面で再生成可能
+- リレーへの公開状態表示
+
+#### 6.5 NIP-17統合（暗号化DM）
+
+```rust
+// Rust側: NIP-17イベント作成
+pub fn create_nip17_dm(
+    sender_keys: &Keys,
+    recipient_pubkey: String,
+    content: String,
+) -> Result<Event> {
+    // NIP-17: Gift Wrapped DM
+    // 実装詳細はKeychatのapi_nostr.rs参照
+}
+```
+
+**推定作業時間**: 2-3日
+
+**成功基準**:
+- [x] Key Package自動公開（Kind 10443）
+- [ ] npubからKey Package自動取得
+- [ ] マジックリンク生成
+- [ ] NIP-17でDM送信（Amber対応）
+- [ ] ディープリンク処理
+- [ ] ワンタップでグループ参加
+- [ ] UXテスト完了
+
+---
+
+### Phase 7: Amberモード動作確認 🔐
+
+**目的**: Amber統合での完全動作確認
+
+**作業内容**:
+1. Key Package署名（Amber経由）
+2. グループ作成イベント署名（Amber経由）
+3. NIP-17 DM送信（Amber暗号化）
+4. 全フロー動作確認
+
+**重要**: MLSの内部処理はRust側完結なので、Amberは以下のみ使用：
+- Nostrイベント署名
+- NIP-44/NIP-17暗号化
+
+**推定作業時間**: 1日
+
+**成功基準**:
+- [ ] Amberモードで全機能動作
+- [ ] Key Package公開成功
+- [ ] グループ招待送信成功
+- [ ] グループ参加成功
+- [ ] TODO共有成功
+
+---
+
+### Phase 8: Option A移行判断 🤔
+
+**判断基準**:
+
+**Option Bのまま進める場合**:
+- ✅ 基本機能が安定動作
+- ✅ 2-5人程度の小規模グループで十分
+- ✅ 早期リリース優先
+
+**Option Aへ移行する場合**:
+- ⚠️ 大規模グループ（10人以上）サポート必要
+- ⚠️ 高度なメンバー管理（権限、削除、再追加）
+- ⚠️ Commit/Proposal処理が必要
+- ⚠️ Forward Secrecy完全実装
+
+**推定判断時期**: Phase 7完了後（2025-11-15頃）
+
+---
+
 ## 現在の進捗（2025-11-10 終了時点）
 
 ### 完了 ✅ Option B PoC実装完了 + 2人グループテスト対応！
