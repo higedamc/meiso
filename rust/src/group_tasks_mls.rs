@@ -218,8 +218,8 @@ pub fn join_mls_group(
 /// * `nostr_id` - The user's Nostr public key
 /// 
 /// # Returns
-/// * Hex-encoded key package to be published
-pub fn create_key_package(nostr_id: String) -> Result<String> {
+/// * KeyPackageResult containing hex-encoded key package and metadata
+pub fn create_key_package(nostr_id: String) -> Result<KeyPackageResult> {
     let rt = RUNTIME.as_ref();
     rt.block_on(async {
         let mut store = STORE.lock().await;
@@ -238,7 +238,7 @@ pub fn create_key_package(nostr_id: String) -> Result<String> {
         // Update storage
         user.update(nostr_id, true).await?;
         
-        Ok(key_package_result.key_package)
+        Ok(key_package_result)
     })
 }
 
