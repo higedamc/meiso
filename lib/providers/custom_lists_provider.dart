@@ -5,6 +5,7 @@ import '../models/custom_list.dart';
 import '../services/local_storage_service.dart';
 import '../services/group_task_service.dart';
 import 'app_settings_provider.dart';
+import 'nostr_provider.dart';
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -492,8 +493,37 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     try {
       AppLogger.info('🔄 Syncing group lists from Nostr...');
       
+      // 公開鍵を取得
+      var publicKey = _ref.read(publicKeyProvider);
+      var npub = _ref.read(nostrPublicKeyProvider);
+      
+      // 公開鍵がnullの場合、復元を試みる
+      if (publicKey == null || npub == null) {
+        AppLogger.warning(' 公開鍵が未設定、復元を試みます...');
+        try {
+          final nostrService = _ref.read(nostrServiceProvider);
+          publicKey = await nostrService.getPublicKey();
+          if (publicKey != null) {
+            AppLogger.info(' hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+            _ref.read(publicKeyProvider.notifier).state = publicKey;
+            
+            npub = await nostrService.hexToNpub(publicKey);
+            _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+            AppLogger.info(' npub公開鍵も復元: ${npub.substring(0, 16)}...');
+          } else {
+            throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+          }
+        } catch (e) {
+          AppLogger.error(' 公開鍵の復元に失敗: $e');
+          throw Exception('公開鍵が設定されていません: $e');
+        }
+      }
+      
       // Nostrからグループリストを取得
-      final groupLists = await groupTaskService.syncGroupLists();
+      final groupLists = await groupTaskService.syncGroupLists(
+        publicKey: publicKey,
+        npub: npub,
+      );
       
       if (groupLists.isEmpty) {
         AppLogger.info('ℹ️ No group lists found on Nostr');

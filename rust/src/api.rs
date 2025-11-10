@@ -2377,7 +2377,120 @@ pub fn save_group_task_list_to_nostr(
     })
 }
 
-/// 自分がメンバーになっているグループタスクリストを取得
+/// 暗号化されたグループタスクイベント（Amber復号化用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedGroupTodoListEvent {
+    pub event_id: String,
+    pub encrypted_content: String,
+    pub created_at: i64,
+    pub list_id: String,          // d tag (例: "meiso-group-family")
+    pub group_name: Option<String>,  // title tag (オプション)
+}
+
+/// 公開鍵だけで暗号化されたグループタスクイベントを取得（Amber復号化用）
+/// 復号化はAmber側で行うため、暗号化されたままのイベントを返す
+pub fn fetch_encrypted_group_task_lists_for_pubkey(
+    public_key_hex: String,
+) -> Result<Vec<EncryptedGroupTodoListEvent>> {
+    fetch_encrypted_group_task_lists_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<EncryptedGroupTodoListEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // pタグで自分がメンバーとして含まれるKind 30001イベントを検索
+        let filter_p = Filter::new()
+            .kind(Kind::Custom(30001))
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::P),
+                vec![public_key_hex.clone()]
+            );
+        
+        // 全てのKind 30001を取得（旧形式のmemberタグ対応）
+        let filter_all = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(public_key);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter_p, filter_all], Some(Duration::from_secs(10)))
+            .await?;
+        
+        if events.is_empty() {
+            println!("⚠️ No encrypted group task list events found");
+            return Ok(Vec::new());
+        }
+        
+        println!("📥 Found {} encrypted group task list events", events.len());
+        
+        // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events {
+            // d タグを取得
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            if let Some(d_value) = d_tag {
+                // meiso-group-* のみを処理
+                if d_value.starts_with("meiso-group-") {
+                    // 既存のイベントと比較して、より新しい場合のみ保持
+                    if let Some(existing_event) = latest_events.get(&d_value) {
+                        if event.created_at.as_u64() > existing_event.created_at.as_u64() {
+                            println!("🔄 Updating latest event for d='{}' (newer timestamp)", d_value);
+                            latest_events.insert(d_value, event);
+                        } else {
+                            println!("⏭️  Skipping older event for d='{}'", d_value);
+                        }
+                    } else {
+                        latest_events.insert(d_value, event);
+                    }
+                }
+            }
+        }
+        
+        println!("📋 After deduplication: {} unique group task lists", latest_events.len());
+        
+        let mut encrypted_lists = Vec::new();
+        
+        for (d_tag, event) in latest_events {
+            // title タグを取得（オプション）
+            let group_name = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::Title)
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            encrypted_lists.push(EncryptedGroupTodoListEvent {
+                event_id: event.id.to_hex(),
+                encrypted_content: event.content.clone(),
+                created_at: event.created_at.as_u64() as i64,
+                list_id: d_tag.clone(),
+                group_name,
+            });
+            
+            println!("📦 Added encrypted group event: d='{}', event_id={}", 
+                d_tag, event.id.to_hex());
+        }
+        
+        println!("✅ Total encrypted group task lists: {}", encrypted_lists.len());
+        Ok(encrypted_lists)
+    })
+}
+
+/// 自分がメンバーになっているグループタスクリストを取得（非推奨 - Amberモードでは動作しない）
+/// 代わりに fetch_encrypted_group_task_lists_for_pubkey を使用してください
+#[deprecated(note = "Use fetch_encrypted_group_task_lists_for_pubkey for Amber mode compatibility")]
 pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(None).await?;
