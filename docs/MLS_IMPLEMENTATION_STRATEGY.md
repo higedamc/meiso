@@ -277,13 +277,38 @@ class TodosProvider extends StateNotifier<AsyncValue<List<Todo>>> {
 
 ---
 
-### Phase 6: マジックリンク招待システム実装 🎯
+### Phase 6: アプリ内招待システム実装 🎯
 
-**目的**: Key Package手動交換を不要にし、ワンタップでグループ参加
+**目的**: Key Package手動交換を不要にし、アプリ内でワンタップグループ参加
 
 **背景**: 
 TODOアプリとして、メッセージアプリのように手動でKey Packageを交換するのは煩雑。
-Keychat方式を参考に、npub指定だけで招待できる自動化システムを実装。
+また、外部DMアプリを経由するのもTODOアプリのUXとして不自然。
+**TODOアプリネイティブなUX**として、アプリ内で完結する招待システムを実装。
+
+**UXフロー**:
+```
+1. Alice が Bob の npub を入力 → グループリスト作成
+   → Key Package自動取得 → Welcome Message生成
+   → Nostrリレー経由でBobに通知送信
+
+2. Bob のアプリで自動同期
+   → SOMEDAYのリスト一覧に「インビテーション付きグループリスト」表示
+   → 視覚的フィードバック: 👥 グループマーク + 📩 インビテーションマーク
+
+3. Bob がインビテーション付きリストをタップ
+   → 参加確認ダイアログ表示
+   → 承諾 → Welcome Message処理 → リスト閲覧可能
+
+4. 参加完了！ AliceとBobで同じTODOリストを共有
+```
+
+**TODOアプリならではの利点**:
+- ✅ アプリ内完結（外部DMアプリ不要）
+- ✅ SOMEDAYのカスタムリスト一覧に自然に統合
+- ✅ 視覚的フィードバックが明確
+- ✅ ユーザーの学習コストゼロ
+- ✅ 誤操作防止（確認ダイアログ）
 
 #### 6.1 Key Package公開機能（Rust側）
 
@@ -328,10 +353,10 @@ pub async fn fetch_key_package_by_npub(
 }
 ```
 
-#### 6.2 マジックリンク生成＆NIP-17送信（Flutter側）
+#### 6.2 グループ招待通知送信（Flutter側）
 
 ```dart
-/// グループ招待フロー（完全自動）
+/// グループ招待フロー（アプリ内完結）
 Future<void> inviteUserToGroup({
   required String groupId,
   required String groupName,
@@ -350,136 +375,406 @@ Future<void> inviteUserToGroup({
     keyPackages: [keyPackage],
   );
   
-  // Step 3: マジックリンク生成
-  final magicLink = 'meiso://join-group/$groupId?'
-      'welcome=${base64UrlEncode(welcomeMsg)}&'
-      'name=${Uri.encodeComponent(groupName)}';
-  
-  // Step 4: NIP-17でDM送信（Amber対応）
-  await nostrService.sendEncryptedDM(
-    recipientNpub: inviteeNpub,
-    content: '📋 「$groupName」への招待\n\n'
-             '以下のリンクをタップしてグループに参加:\n'
-             '$magicLink\n\n'
-             'または、Meisoアプリで招待通知を確認してください。',
-  );
-  
-  // Step 5: アプリ内通知も送信（リレー経由）
-  await sendGroupInviteNotification(
+  // Step 3: グループ招待イベント送信（Kind 30078 - App Data）
+  // NIP-78を使用してアプリ専用データとして送信
+  await nostrService.sendGroupInvitation(
     recipientNpub: inviteeNpub,
     groupId: groupId,
     groupName: groupName,
-    welcomeMsg: welcomeMsg,
+    welcomeMsg: base64UrlEncode(welcomeMsg),
+    inviterNpub: myNpub,
+    inviterName: myName ?? myNpub,
   );
+  
+  // Step 4: ローカルに「招待送信済み」状態を保存
+  await customListsProvider.markInvitationSent(
+    groupId: groupId,
+    inviteeNpub: inviteeNpub,
+  );
+  
+  showSnackBar('✅ ${inviteeNpub.substring(0, 16)}...に招待を送信しました');
+}
+
+/// グループ招待イベント作成（Rust側で実装）
+/// Kind: 30078 (NIP-78 App Data)
+/// d tag: group-invitation-{groupId}-{recipientPubkey}
+/// 暗号化: NIP-44で recipient_pubkey 宛に暗号化
+pub fn create_group_invitation_event(
+    sender_keys: &Keys,
+    recipient_pubkey: String,
+    group_id: String,
+    group_name: String,
+    welcome_msg: String,
+) -> Result<Event> {
+    let content_json = json!({
+        "type": "group_invitation",
+        "group_id": group_id,
+        "group_name": group_name,
+        "welcome_msg": welcome_msg,
+        "invited_at": Utc::now().timestamp(),
+    });
+    
+    // NIP-44で暗号化
+    let encrypted = encrypt_nip44(
+        sender_keys,
+        &recipient_pubkey,
+        &content_json.to_string(),
+    )?;
+    
+    // Kind 30078イベント作成
+    let event = EventBuilder::new(
+        Kind::Custom(30078),
+        encrypted,
+        vec![
+            Tag::custom(TagKind::Custom("d".into()), 
+                vec![format!("group-invitation-{}-{}", group_id, recipient_pubkey)]),
+            Tag::public_key(PublicKey::from_hex(&recipient_pubkey)?),
+            Tag::custom(TagKind::Custom("client".into()), vec!["meiso".to_string()]),
+        ],
+    )
+    .to_event(sender_keys)?;
+    
+    Ok(event)
 }
 ```
 
-#### 6.3 ディープリンク処理（Flutter側）
+#### 6.3 招待通知受信＆同期（Flutter側）
 
 ```dart
-// AndroidManifest.xml / Info.plist設定
-// Scheme: meiso://
-
-class DeepLinkHandler {
-  static Future<void> handleDeepLink(Uri uri) async {
-    if (uri.scheme != 'meiso') return;
-    
-    switch (uri.host) {
-      case 'join-group':
-        await _handleJoinGroup(uri);
-        break;
-      // 将来の拡張: share-list, open-todo, etc.
+/// グループ招待イベントの同期（CustomListsProvider）
+class CustomListsProvider extends StateNotifier<AsyncValue<List<CustomList>>> {
+  
+  /// 招待通知の同期（起動時＆定期実行）
+  Future<void> syncGroupInvitations() async {
+    try {
+      // Kind 30078でグループ招待イベントを取得
+      final invitations = await rust_api.fetchGroupInvitations(
+        nostrId: myPubkey,
+        relays: relayList,
+      );
+      
+      for (final invitation in invitations) {
+        // 既存のリストに存在しない場合のみ追加
+        if (!_hasInvitation(invitation.groupId)) {
+          // インビテーション付きリストとして追加
+          final pendingList = CustomList(
+            id: invitation.groupId,
+            name: invitation.groupName,
+            isGroup: true,
+            isPendingInvitation: true,  // ← New field!
+            inviterNpub: invitation.inviterNpub,
+            inviterName: invitation.inviterName,
+            welcomeMsg: invitation.welcomeMsg,
+            createdAt: DateTime.now(),
+            order: 999, // SOMEDAYの末尾に配置
+          );
+          
+          // ローカルに保存（まだMLSグループには参加していない）
+          await _localStorageService.saveCustomList(pendingList);
+        }
+      }
+      
+      // 状態更新 → UIに反映
+      state = AsyncData(await _loadAllLists());
+      
+    } catch (e) {
+      AppLogger.error('Failed to sync group invitations', error: e);
     }
   }
+}
+
+/// Rust側: グループ招待イベントの取得
+pub async fn fetch_group_invitations(
+    nostr_id: String,
+    relays: Vec<String>,
+) -> Result<Vec<GroupInvitation>> {
+    let filter = Filter::new()
+        .kind(Kind::Custom(30078))
+        .pubkey(PublicKey::from_hex(&nostr_id)?)  // 自分宛のイベント
+        .custom_tag(
+            SingleLetterTag::lowercase(Alphabet::D), 
+            vec!["group-invitation-".to_string()]  // d tagで絞り込み
+        );
+    
+    let events = fetch_from_relays(filter, relays).await?;
+    let mut invitations = Vec::new();
+    
+    for event in events {
+        // NIP-44で復号化
+        let decrypted = decrypt_nip44(&nostr_id, &event.content)?;
+        let invitation: GroupInvitationData = serde_json::from_str(&decrypted)?;
+        
+        invitations.push(GroupInvitation {
+            group_id: invitation.group_id,
+            group_name: invitation.group_name,
+            welcome_msg: invitation.welcome_msg,
+            inviter_npub: event.pubkey.to_bech32()?,
+            inviter_name: invitation.inviter_name,
+            invited_at: invitation.invited_at,
+        });
+    }
+    
+    Ok(invitations)
+}
+```
+
+#### 6.4 SOMEDAYリスト表示UI（インビテーション対応）
+
+```dart
+/// CustomListモデルの拡張
+@freezed
+class CustomList with _$CustomList {
+  factory CustomList({
+    required String id,
+    required String name,
+    required bool isGroup,
+    @Default(false) bool isPendingInvitation,  // ← New!
+    String? inviterNpub,
+    String? inviterName,
+    String? welcomeMsg,  // Welcome Messageを保存
+    // ... その他のフィールド
+  }) = _CustomList;
+}
+
+/// SOMEDAY画面でのリスト表示
+class SomedayListItem extends StatelessWidget {
+  final CustomList list;
   
-  static Future<void> _handleJoinGroup(Uri uri) async {
-    final groupId = uri.pathSegments.first;
-    final welcomeB64 = uri.queryParameters['welcome'];
-    final groupName = uri.queryParameters['name'] ?? 'グループ';
-    
-    if (welcomeB64 == null) return;
-    
-    // 確認ダイアログ表示
-    final confirmed = await showConfirmDialog(
-      title: 'グループ参加',
-      message: '「$groupName」に参加しますか？',
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      // リーディングアイコン
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // グループマーク
+          if (list.isGroup) 
+            Icon(Icons.group, color: Colors.blue, size: 20),
+          SizedBox(width: 4),
+          // インビテーションバッジ
+          if (list.isPendingInvitation)
+            Badge(
+              label: Text('!'),
+              backgroundColor: Colors.red,
+              child: Icon(Icons.mail, color: Colors.orange, size: 20),
+            ),
+        ],
+      ),
+      
+      // リスト名
+      title: Text(
+        list.name,
+        style: TextStyle(
+          fontWeight: list.isPendingInvitation 
+              ? FontWeight.bold  // 未読は太字
+              : FontWeight.normal,
+        ),
+      ),
+      
+      // 招待元の表示
+      subtitle: list.isPendingInvitation
+          ? Text('📩 ${list.inviterName ?? list.inviterNpub}からの招待')
+          : null,
+      
+      // タップ時の処理
+      onTap: () {
+        if (list.isPendingInvitation) {
+          // 招待確認ダイアログ表示
+          _showJoinConfirmDialog(context, list);
+        } else {
+          // 通常のリスト表示
+          context.go('/list/${list.id}');
+        }
+      },
+    );
+  }
+  
+  /// グループ参加確認ダイアログ
+  Future<void> _showJoinConfirmDialog(
+    BuildContext context, 
+    CustomList invitation,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('グループに参加'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('「${invitation.name}」に参加しますか？'),
+            SizedBox(height: 16),
+            Text(
+              '招待元: ${invitation.inviterName ?? invitation.inviterNpub}',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('拒否'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('参加する'),
+          ),
+        ],
+      ),
     );
     
-    if (!confirmed) return;
+    if (confirmed != true) return;
     
-    // Welcome Message復号化 & グループ参加
-    final welcomeMsg = base64Url.decode(welcomeB64);
-    await rust_api.mlsJoinGroup(
-      nostrId: myPubkey,
-      groupId: groupId,
-      welcomeMsg: welcomeMsg,
-    );
-    
-    // カスタムリスト作成
-    await todosProvider.createCustomList(
-      listId: groupId,
-      listName: groupName,
-      isGroup: true,
-    );
-    
-    // 成功通知
-    showSnackBar('✅ 「$groupName」に参加しました！');
-    
-    // グループ画面へ遷移
-    context.go('/list/$groupId');
+    // グループ参加処理
+    await _joinGroup(context, invitation);
+  }
+  
+  /// グループ参加処理
+  Future<void> _joinGroup(
+    BuildContext context,
+    CustomList invitation,
+  ) async {
+    try {
+      // Welcome Message復号化 & MLSグループ参加
+      final welcomeMsg = base64Url.decode(invitation.welcomeMsg!);
+      await rust_api.mlsJoinGroup(
+        nostrId: myPubkey,
+        groupId: invitation.id,
+        welcomeMsg: welcomeMsg,
+      );
+      
+      // ローカルリストの状態更新（isPendingInvitation: false）
+      await ref.read(customListsProvider.notifier).acceptInvitation(
+        invitation.id,
+      );
+      
+      // 成功通知
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('✅ 「${invitation.name}」に参加しました！')),
+      );
+      
+      // グループ画面へ遷移
+      context.go('/list/${invitation.id}');
+      
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ 参加に失敗しました: $e')),
+      );
+    }
   }
 }
 ```
 
-#### 6.4 UI実装
+#### 6.5 メンバー招待ダイアログ
 
-**メンバー招待ダイアログ**:
 ```dart
-// widgets/invite_member_dialog.dart
+/// widgets/invite_member_dialog.dart
 class InviteMemberDialog extends StatefulWidget {
   final String groupId;
   final String groupName;
   
-  // npub入力フィールド
-  // またはコンタクトリストから選択
-  // 「招待を送信」ボタン → 自動処理
+  @override
+  State<InviteMemberDialog> createState() => _InviteMemberDialogState();
 }
-```
 
-**グループ管理画面**:
-- メンバーリスト表示
-- 「メンバー追加」ボタン → InviteMemberDialog表示
-- メンバー削除機能（後のフェーズ）
-
-**Key Package管理**:
-- 初回起動時に自動生成＆公開
-- 設定画面で再生成可能
-- リレーへの公開状態表示
-
-#### 6.5 NIP-17統合（暗号化DM）
-
-```rust
-// Rust側: NIP-17イベント作成
-pub fn create_nip17_dm(
-    sender_keys: &Keys,
-    recipient_pubkey: String,
-    content: String,
-) -> Result<Event> {
-    // NIP-17: Gift Wrapped DM
-    // 実装詳細はKeychatのapi_nostr.rs参照
+class _InviteMemberDialogState extends State<InviteMemberDialog> {
+  final _npubController = TextEditingController();
+  bool _isInviting = false;
+  
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('メンバーを招待'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _npubController,
+            decoration: InputDecoration(
+              labelText: 'npub',
+              hintText: 'npub1...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'または、後でコンタクトリストから選択可能に',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('キャンセル'),
+        ),
+        ElevatedButton(
+          onPressed: _isInviting ? null : _sendInvitation,
+          child: _isInviting
+              ? SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text('招待を送信'),
+        ),
+      ],
+    );
+  }
+  
+  Future<void> _sendInvitation() async {
+    final npub = _npubController.text.trim();
+    if (npub.isEmpty || !npub.startsWith('npub')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('正しいnpubを入力してください')),
+      );
+      return;
+    }
+    
+    setState(() => _isInviting = true);
+    
+    try {
+      // グループ招待送信（自動でKey Package取得 → Welcome Message生成 → 通知送信）
+      await ref.read(customListsProvider.notifier).inviteUserToGroup(
+        groupId: widget.groupId,
+        groupName: widget.groupName,
+        inviteeNpub: npub,
+      );
+      
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('✅ 招待を送信しました')),
+      );
+      
+    } catch (e) {
+      setState(() => _isInviting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ 招待の送信に失敗しました: $e')),
+      );
+    }
+  }
 }
 ```
 
 **推定作業時間**: 2-3日
 
 **成功基準**:
-- [x] Key Package自動公開（Kind 10443）
+- [ ] Key Package自動公開（Kind 10443）
 - [ ] npubからKey Package自動取得
-- [ ] マジックリンク生成
-- [ ] NIP-17でDM送信（Amber対応）
-- [ ] ディープリンク処理
-- [ ] ワンタップでグループ参加
+- [ ] グループ招待イベント送信（Kind 30078 + NIP-44）
+- [ ] 招待通知の自動同期
+- [ ] SOMEDAYにインビテーション付きリスト表示
+- [ ] 視覚的フィードバック（👥 + 📩 バッジ）
+- [ ] タップで参加確認ダイアログ表示
+- [ ] ワンタップでグループ参加完了
+- [ ] Amber対応（署名・暗号化）
 - [ ] UXテスト完了
+
+**UI/UXのポイント**:
+- ✅ アプリ内完結（外部アプリ不要）
+- ✅ 既存UI構造への自然な統合
+- ✅ 明確な視覚的フィードバック
+- ✅ 段階的承認フロー（誤操作防止）
 
 ---
 
