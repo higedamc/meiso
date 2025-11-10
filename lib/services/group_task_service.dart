@@ -1,8 +1,11 @@
+import 'dart:convert';
+import 'package:flutter/services.dart';
 import '../models/todo.dart';
 import '../models/custom_list.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
 import '../bridge_generated.dart/group_tasks.dart';
 import 'logger_service.dart';
+import 'amber_service.dart';
 
 /// グループタスク管理サービス
 /// 
@@ -54,11 +57,68 @@ class GroupTaskService {
   }
   
   /// 自分がメンバーになっているグループタスクリストを取得
-  Future<List<GroupTodoList>> fetchMyGroupTaskLists() async {
+  /// 
+  /// [publicKey] - hex形式の公開鍵
+  /// [npub] - npub形式の公開鍵
+  Future<List<GroupTodoList>> fetchMyGroupTaskLists({
+    required String publicKey,
+    required String npub,
+  }) async {
     try {
       AppLogger.info('📥 Fetching my group task lists...');
       
-      final groupLists = await rust_api.fetchMyGroupTaskLists();
+      // 1. 暗号化されたグループタスクイベントを取得
+      final encryptedEvents = await rust_api.fetchEncryptedGroupTaskListsForPubkey(
+        publicKeyHex: publicKey,
+      );
+      
+      AppLogger.info('📦 Fetched ${encryptedEvents.length} encrypted group task events');
+      
+      // 2. 各イベントを復号化してGroupTodoListに変換
+      final groupLists = <GroupTodoList>[];
+      
+      for (final encryptedEvent in encryptedEvents) {
+        try {
+          // Amber経由でNIP-44復号化
+          final decrypted = await _decryptContentViaAmber(
+            encryptedContent: encryptedEvent.encryptedContent,
+            publicKey: publicKey,
+            npub: npub,
+          );
+          
+          // JSONをパース
+          final Map<String, dynamic> json = jsonDecode(decrypted);
+          
+          // GroupTodoListを再構築
+          final groupList = GroupTodoList(
+            groupId: json['group_id'] as String,
+            groupName: json['group_name'] as String,
+            encryptedData: json['encrypted_data'] as String,
+            members: (json['members'] as List).map((e) => e as String).toList(),
+            encryptedKeys: (json['encrypted_keys'] as List)
+                .map((e) => EncryptedKey(
+                      memberPubkey: e['member_pubkey'] as String,
+                      encryptedAesKey: e['encrypted_aes_key'] as String,
+                    ))
+                .toList(),
+          );
+          
+          // 自分がメンバーに含まれているか確認
+          if (groupList.members.contains(publicKey)) {
+            AppLogger.info('✅ Decrypted group: ${groupList.groupName} (member check: ✓)');
+            groupLists.add(groupList);
+          } else {
+            AppLogger.warning('⚠️ Skipping group ${groupList.groupName} (not a member)');
+          }
+        } catch (e, st) {
+          AppLogger.error(
+            '❌ Failed to decrypt group event ${encryptedEvent.listId}: $e',
+            error: e,
+            stackTrace: st,
+          );
+          // エラーは無視して次のイベントを処理
+        }
+      }
       
       AppLogger.info('✅ Fetched ${groupLists.length} group task lists');
       
@@ -66,6 +126,35 @@ class GroupTaskService {
     } catch (e, st) {
       AppLogger.error('❌ Failed to fetch group task lists: $e', error: e, stackTrace: st);
       rethrow;
+    }
+  }
+  
+  /// Amber経由でコンテンツを復号化
+  Future<String> _decryptContentViaAmber({
+    required String encryptedContent,
+    required String publicKey,
+    required String npub,
+  }) async {
+    final amberService = AmberService();
+    
+    try {
+      // まずContentProvider経由で試す（バックグラウンド処理）
+      final decrypted = await amberService.decryptNip44WithContentProvider(
+        ciphertext: encryptedContent,
+        pubkey: publicKey,
+        npub: npub,
+      );
+      AppLogger.info(' 復号化完了（バックグラウンド）');
+      return decrypted;
+    } on PlatformException catch (e) {
+      // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+      AppLogger.warning(' ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...');
+      final decrypted = await amberService.decryptNip44(
+        encryptedContent,
+        publicKey,
+      );
+      AppLogger.info(' 復号化完了（UI経由）');
+      return decrypted;
     }
   }
   
@@ -169,11 +258,20 @@ class GroupTaskService {
   }
   
   /// グループリストを同期（NostrからCustomListに変換）
-  Future<List<CustomList>> syncGroupLists() async {
+  /// 
+  /// [publicKey] - hex形式の公開鍵
+  /// [npub] - npub形式の公開鍵
+  Future<List<CustomList>> syncGroupLists({
+    required String publicKey,
+    required String npub,
+  }) async {
     try {
       AppLogger.info('🔄 Syncing group lists from Nostr...');
       
-      final groupLists = await fetchMyGroupTaskLists();
+      final groupLists = await fetchMyGroupTaskLists(
+        publicKey: publicKey,
+        npub: npub,
+      );
       
       final customLists = groupLists.map((groupList) {
         return CustomList(

@@ -2788,8 +2788,37 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     try {
       AppLogger.info('🔄 Syncing group todos for group: $groupId');
       
+      // 公開鍵を取得
+      var publicKey = _ref.read(publicKeyProvider);
+      var npub = _ref.read(nostrPublicKeyProvider);
+      
+      // 公開鍵がnullの場合、復元を試みる
+      if (publicKey == null || npub == null) {
+        AppLogger.warning(' 公開鍵が未設定、復元を試みます...');
+        try {
+          final nostrService = _ref.read(nostrServiceProvider);
+          publicKey = await nostrService.getPublicKey();
+          if (publicKey != null) {
+            AppLogger.info(' hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+            _ref.read(publicKeyProvider.notifier).state = publicKey;
+            
+            npub = await nostrService.hexToNpub(publicKey);
+            _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+            AppLogger.info(' npub公開鍵も復元: ${npub.substring(0, 16)}...');
+          } else {
+            throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+          }
+        } catch (e) {
+          AppLogger.error(' 公開鍵の復元に失敗: $e');
+          throw Exception('公開鍵が設定されていません: $e');
+        }
+      }
+      
       // グループリストを取得
-      final groupLists = await groupTaskService.fetchMyGroupTaskLists();
+      final groupLists = await groupTaskService.fetchMyGroupTaskLists(
+        publicKey: publicKey,
+        npub: npub,
+      );
       final groupList = groupLists.where((g) => g.groupId == groupId).firstOrNull;
       
       if (groupList == null) {
@@ -3013,8 +3042,37 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     try {
       AppLogger.info('🔄 [Batch] Syncing all group todos...');
       
+      // 公開鍵を取得
+      var publicKey = _ref.read(publicKeyProvider);
+      var npub = _ref.read(nostrPublicKeyProvider);
+      
+      // 公開鍵がnullの場合、復元を試みる
+      if (publicKey == null || npub == null) {
+        AppLogger.warning(' 公開鍵が未設定、復元を試みます...');
+        try {
+          final nostrService = _ref.read(nostrServiceProvider);
+          publicKey = await nostrService.getPublicKey();
+          if (publicKey != null) {
+            AppLogger.info(' hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+            _ref.read(publicKeyProvider.notifier).state = publicKey;
+            
+            npub = await nostrService.hexToNpub(publicKey);
+            _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+            AppLogger.info(' npub公開鍵も復元: ${npub.substring(0, 16)}...');
+          } else {
+            throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+          }
+        } catch (e) {
+          AppLogger.error(' 公開鍵の復元に失敗: $e');
+          throw Exception('公開鍵が設定されていません: $e');
+        }
+      }
+      
       // 全グループリストを一括取得
-      final groupLists = await groupTaskService.fetchMyGroupTaskLists();
+      final groupLists = await groupTaskService.fetchMyGroupTaskLists(
+        publicKey: publicKey,
+        npub: npub,
+      );
       
       if (groupLists.isEmpty) {
         AppLogger.info('ℹ️ No group lists found');
