@@ -18,6 +18,8 @@ import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
 import 'app_settings_provider.dart';
+import 'package:path_provider/path_provider.dart';
+import '../bridge_generated.dart/api.dart' as rust_api;
 
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
@@ -45,6 +47,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   
   // バッチ同期用のタイマー
   Timer? _batchSyncTimer;
+  
+  // MLS初期化フラグ（Option B PoC）
+  bool _mlsInitialized = false;
 
   Future<void> _initialize() async {
     try {
@@ -3191,6 +3196,128 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }).value;
     } catch (e, stackTrace) {
       AppLogger.error('❌ Failed to sync all group todos: $e', error: e, stackTrace: stackTrace);
+    }
+  }
+  
+  // ========================================
+  // MLS関連メソッド（Option B PoC）
+  // ========================================
+  
+  /// MLS初期化（必要に応じて実行）
+  Future<void> _initMlsIfNeeded() async {
+    if (_mlsInitialized) return;
+    
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dbPath = '${appDocDir.path}/mls.db';
+      
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = nostrService.getPublicKey();
+      
+      AppLogger.info('🔐 [MLS] 初期化開始: dbPath=$dbPath, user=$userPubkey');
+      
+      await rust_api.mlsInitDb(
+        dbPath: dbPath,
+        nostrId: userPubkey,
+      );
+      
+      _mlsInitialized = true;
+      AppLogger.info('✅ [MLS] 初期化完了');
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] 初期化エラー', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+  
+  /// MLSグループを作成（PoC: メンバーなしで作成）
+  Future<void> createMlsGroupList({
+    required String listId,
+    required String listName,
+  }) async {
+    try {
+      await _initMlsIfNeeded();
+      
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = nostrService.getPublicKey();
+      
+      AppLogger.info('📦 [MLS] グループ作成開始: listId=$listId, listName=$listName');
+      
+      final welcomeMsg = await rust_api.mlsCreateTodoGroup(
+        nostrId: userPubkey,
+        groupId: listId,
+        groupName: listName,
+        keyPackages: [], // PoC: メンバーなし
+      );
+      
+      AppLogger.info('✅ [MLS] グループ作成完了: welcomeSize=${welcomeMsg.length}');
+      
+      // Export SecretからListen Keyを取得（テスト）
+      final listenKey = await rust_api.mlsGetListenKey(
+        nostrId: userPubkey,
+        groupId: listId,
+      );
+      
+      AppLogger.info('🔑 [MLS] Listen Key: $listenKey');
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] グループ作成エラー', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+  
+  /// MLS TODO暗号化テスト
+  Future<String> encryptMlsTodo({
+    required String groupId,
+    required String todoJson,
+  }) async {
+    try {
+      await _initMlsIfNeeded();
+      
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = nostrService.getPublicKey();
+      
+      AppLogger.debug('🔒 [MLS] TODO暗号化: groupId=$groupId');
+      
+      final encrypted = await rust_api.mlsAddTodo(
+        nostrId: userPubkey,
+        groupId: groupId,
+        todoJson: todoJson,
+      );
+      
+      AppLogger.debug('✅ [MLS] TODO暗号化完了: ${encrypted.length}文字');
+      
+      return encrypted;
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] TODO暗号化エラー', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+  
+  /// MLS TODO復号化テスト
+  Future<String> decryptMlsTodo({
+    required String groupId,
+    required String encryptedMsg,
+  }) async {
+    try {
+      await _initMlsIfNeeded();
+      
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = nostrService.getPublicKey();
+      
+      AppLogger.debug('🔓 [MLS] TODO復号化: groupId=$groupId');
+      
+      final result = await rust_api.mlsDecryptTodo(
+        nostrId: userPubkey,
+        groupId: groupId,
+        encryptedMsg: encryptedMsg,
+      );
+      
+      AppLogger.debug('✅ [MLS] TODO復号化完了: sender=${result.$2}');
+      
+      return result.$1; // decrypted_json
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] TODO復号化エラー', error: e, stackTrace: stackTrace);
+      rethrow;
     }
   }
 }

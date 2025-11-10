@@ -2708,3 +2708,50 @@ pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
     })
 }
 
+// ========================================
+// MLS API (Option B PoC)
+// ========================================
+
+/// MLS: データベース初期化
+pub fn mls_init_db(db_path: String, nostr_id: String) -> Result<()> {
+    crate::mls::init_mls_db(db_path, nostr_id)
+}
+
+/// MLS: Export SecretからListen Key取得
+pub fn mls_get_listen_key(nostr_id: String, group_id: String) -> Result<String> {
+    crate::mls::get_listen_key_from_export_secret(nostr_id, group_id)
+}
+
+/// MLS: TODOグループ作成
+pub fn mls_create_todo_group(
+    nostr_id: String,
+    group_id: String,
+    group_name: String,
+    key_packages: Vec<String>,
+) -> Result<Vec<u8>> {
+    crate::group_tasks_mls::create_mls_todo_group(nostr_id, group_id, group_name, key_packages)
+}
+
+/// MLS: TODOをグループに追加（暗号化）
+pub fn mls_add_todo(
+    nostr_id: String,
+    group_id: String,
+    todo_json: String,
+) -> Result<String> {
+    crate::group_tasks_mls::add_todo_to_mls_group(nostr_id, group_id, todo_json)
+}
+
+/// MLS: TODOを復号化
+pub fn mls_decrypt_todo(
+    nostr_id: String,
+    group_id: String,
+    encrypted_msg: String,
+) -> Result<(String, String, String)> {
+    crate::group_tasks_mls::decrypt_todo_from_mls_group(nostr_id, group_id, encrypted_msg)
+}
+
+/// MLS: Key Package作成
+pub fn mls_create_key_package(nostr_id: String) -> Result<crate::group_tasks_mls::KeyPackageResult> {
+    crate::group_tasks_mls::create_key_package(nostr_id)
+}
+
