@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/todo.dart';
 import '../models/custom_list.dart';
@@ -79,37 +78,57 @@ class GroupTaskService {
       
       for (final encryptedEvent in encryptedEvents) {
         try {
-          // Amber経由でNIP-44復号化
-          final decrypted = await _decryptContentViaAmber(
-            encryptedContent: encryptedEvent.encryptedContent,
+          // 2-1. 自分がメンバーに含まれているか確認
+          if (!encryptedEvent.members.contains(publicKey)) {
+            AppLogger.debug('⏭️  Skipping group ${encryptedEvent.listId} (not a member)');
+            continue;
+          }
+          
+          // 2-2. encrypted_keysから自分用のAES鍵を見つける
+          final myEncryptedKey = encryptedEvent.encryptedKeys.firstWhere(
+            (k) => k.memberPubkey == publicKey,
+            orElse: () => throw Exception('No encrypted AES key found for current user'),
+          );
+          
+          AppLogger.debug('🔑 Found encrypted AES key for ${encryptedEvent.listId}');
+          
+          // 2-3. Amber経由でAES鍵をNIP-44復号化
+          final aesKeyBase64 = await _decryptContentViaAmber(
+            encryptedContent: myEncryptedKey.encryptedAesKey,
             publicKey: publicKey,
             npub: npub,
           );
           
-          // JSONをパース
-          final Map<String, dynamic> json = jsonDecode(decrypted);
+          AppLogger.debug('🔓 Decrypted AES key for ${encryptedEvent.listId}');
           
-          // GroupTodoListを再構築
-          final groupList = GroupTodoList(
-            groupId: json['group_id'] as String,
-            groupName: json['group_name'] as String,
-            encryptedData: json['encrypted_data'] as String,
-            members: (json['members'] as List).map((e) => e as String).toList(),
-            encryptedKeys: (json['encrypted_keys'] as List)
-                .map((e) => EncryptedKey(
-                      memberPubkey: e['member_pubkey'] as String,
-                      encryptedAesKey: e['encrypted_aes_key'] as String,
-                    ))
-                .toList(),
+          // 2-4. 復号化したAES鍵でデータを復号化（Rust経由）
+          // 注意: 復号化の動作確認のためにデータを取得するが、現時点では使用しない
+          await rust_api.decryptGroupDataWithAesKey(
+            encryptedDataBase64: encryptedEvent.encryptedData,
+            aesKeyBase64: aesKeyBase64,
           );
           
-          // 自分がメンバーに含まれているか確認
-          if (groupList.members.contains(publicKey)) {
-            AppLogger.info('✅ Decrypted group: ${groupList.groupName} (member check: ✓)');
-            groupLists.add(groupList);
-          } else {
-            AppLogger.warning('⚠️ Skipping group ${groupList.groupName} (not a member)');
-          }
+          AppLogger.debug('📦 Decrypted group data for ${encryptedEvent.listId} (verification successful)');
+          
+          // 2-5. GroupTodoListを構築（encryptedKeysを変換）
+          final groupList = GroupTodoList(
+            groupId: encryptedEvent.listId,
+            groupName: encryptedEvent.groupName ?? encryptedEvent.listId,
+            encryptedData: encryptedEvent.encryptedData,
+            members: encryptedEvent.members,
+            encryptedKeys: encryptedEvent.encryptedKeys.map((k) => EncryptedKey(
+              memberPubkey: k.memberPubkey,
+              encryptedAesKey: k.encryptedAesKey,
+            )).toList(),
+          );
+          
+          // 注意: decryptedDataJson は現時点では使用しない
+          // GroupTodoList の encryptedData は暗号化されたままで保持され、
+          // 実際のタスク取得時に復号化される
+          
+          groupLists.add(groupList);
+          AppLogger.info('✅ Successfully decrypted group: ${groupList.groupName}');
+          
         } catch (e, st) {
           AppLogger.error(
             '❌ Failed to decrypt group event ${encryptedEvent.listId}: $e',
