@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -10,13 +11,14 @@ import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
+import '../../bridge_generated.dart/api.dart' as rust_api;
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final publicKeyHex = ref.watch(publicKeyProvider);
     final publicKeyNpubAsync = ref.watch(publicKeyNpubProvider);
@@ -225,8 +227,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
-          // MLS統合テスト（開発者向け）
-          if (kDebugMode && isNostrInitialized) ...[
+          // MLS統合テスト
+          if (isNostrInitialized) ...[
             _buildSettingTile(
               context,
               icon: Icons.science,
@@ -312,11 +314,167 @@ class _MlsTestDialog extends StatefulWidget {
 class _MlsTestDialogState extends State<_MlsTestDialog> {
   final _logs = <String>[];
   bool _isRunning = false;
+  String? _myKeyPackage;
+  String? _groupId;
+  final _keyPackageController = TextEditingController();
+
+  @override
+  void dispose() {
+    _keyPackageController.dispose();
+    super.dispose();
+  }
 
   void _addLog(String message) {
     setState(() {
       _logs.add('[${DateTime.now().toString().substring(11, 19)}] $message');
     });
+  }
+
+  // Key Package生成
+  Future<void> _generateKeyPackage() async {
+    setState(() {
+      _isRunning = true;
+      _logs.clear();
+    });
+
+    try {
+      _addLog('🔑 Key Package生成開始');
+      
+      final nostrService = widget.ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
+      
+      // MLS初期化
+      final todosNotifier = widget.ref.read(todosProvider.notifier);
+      await todosNotifier.createMlsGroupList(
+        listId: 'init-${DateTime.now().millisecondsSinceEpoch}',
+        listName: 'Init',
+      );
+      
+      // Key Package生成（直接Rust API呼び出し）
+      final result = await rust_api.mlsCreateKeyPackage(nostrId: userPubkey);
+      
+      setState(() {
+        _myKeyPackage = result.keyPackage;
+      });
+      
+      _addLog('✅ Key Package生成完了');
+      _addLog('📋 Key Package: ${result.keyPackage.substring(0, 32)}...');
+      _addLog('🔐 Protocol: ${result.mlsProtocolVersion}');
+      _addLog('🔒 Ciphersuite: ${result.ciphersuite}');
+      _addLog('');
+      _addLog('📝 このKey Packageを相手に共有してください');
+      
+    } catch (e) {
+      _addLog('❌ エラー: $e');
+    } finally {
+      setState(() {
+        _isRunning = false;
+      });
+    }
+  }
+
+  // 2人グループ作成（相手のKey Package追加）
+  Future<void> _create2PersonGroup() async {
+    final otherKeyPackage = _keyPackageController.text.trim();
+    
+    if (otherKeyPackage.isEmpty) {
+      _addLog('❌ 相手のKey Packageを入力してください');
+      return;
+    }
+    
+    setState(() {
+      _isRunning = true;
+    });
+
+    try {
+      _addLog('');
+      _addLog('🚀 2人グループ作成開始');
+      
+      // グループ作成（相手のKey Package追加）
+      _addLog('📦 Step 1: グループ作成 + メンバー追加');
+      final groupId = 'group-2p-${DateTime.now().millisecondsSinceEpoch}';
+      
+      final nostrService = widget.ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
+      
+      final welcomeMsg = await rust_api.mlsCreateTodoGroup(
+        nostrId: userPubkey,
+        groupId: groupId,
+        groupName: '2 Person Test Group',
+        keyPackages: [otherKeyPackage],
+      );
+      
+      setState(() {
+        _groupId = groupId;
+      });
+      
+      _addLog('✅ 2人グループ作成完了: $groupId');
+      _addLog('📨 Welcome message: ${welcomeMsg.length} bytes');
+      _addLog('');
+      _addLog('📝 相手にWelcomeメッセージを送信してください');
+      _addLog('   (実装予定: NIP-17経由での自動送信)');
+      
+    } catch (e) {
+      _addLog('❌ エラー: $e');
+    } finally {
+      setState(() {
+        _isRunning = false;
+      });
+    }
+  }
+
+  // TODO送信テスト（2人グループ）
+  Future<void> _sendTodoIn2PersonGroup() async {
+    if (_groupId == null) {
+      _addLog('❌ 先に2人グループを作成してください');
+      return;
+    }
+    
+    setState(() {
+      _isRunning = true;
+    });
+
+    try {
+      final todosNotifier = widget.ref.read(todosProvider.notifier);
+      
+      _addLog('');
+      _addLog('📤 TODO送信テスト開始');
+      
+      final testTodo = {
+        'id': 'todo-2p-${DateTime.now().millisecondsSinceEpoch}',
+        'title': 'Test TODO for 2 Person Group',
+        'completed': false,
+        'date': DateTime.now().toIso8601String(),
+        'order': 0,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      
+      final encrypted = await todosNotifier.encryptMlsTodo(
+        groupId: _groupId!,
+        todoJson: testTodo.toString(),
+      );
+      
+      _addLog('✅ TODO暗号化完了: ${encrypted.substring(0, 32)}...');
+      _addLog('');
+      _addLog('📝 このメッセージをNostrリレーに送信');
+      _addLog('   相手のデバイスで復号化テスト可能');
+      
+    } catch (e) {
+      _addLog('❌ エラー: $e');
+    } finally {
+      setState(() {
+        _isRunning = false;
+      });
+    }
   }
 
   Future<void> _runMlsTest() async {
@@ -328,7 +486,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
     try {
       final todosNotifier = widget.ref.read(todosProvider.notifier);
       
-      _addLog('🚀 MLS統合テスト開始');
+      _addLog('🚀 MLS統合テスト開始（1人グループ）');
       
       // Step 1: グループ作成
       _addLog('📦 Step 1: グループ作成');
@@ -361,27 +519,24 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       
       await Future.delayed(const Duration(milliseconds: 500));
       
-      // Step 3: TODO復号化
-      _addLog('🔓 Step 3: TODO復号化');
-      final decrypted = await todosNotifier.decryptMlsTodo(
-        groupId: groupId,
-        encryptedMsg: encrypted,
-      );
-      _addLog('✅ TODO復号化完了: ${decrypted.substring(0, 50)}...');
+      // Step 3: スキップ（自分のメッセージは復号化不可）
+      _addLog('⏭️  Step 3: TODO復号化（スキップ）');
+      _addLog('ℹ️  MLSでは自分のメッセージは復号化できません');
+      _addLog('   これは仕様通りの動作です');
       
       await Future.delayed(const Duration(milliseconds: 500));
       
       // 完了
       _addLog('');
-      _addLog('🎉 MLS統合テスト完了！');
+      _addLog('🎉 1人グループテスト完了！');
       _addLog('✅ グループ作成: OK');
       _addLog('✅ TODO暗号化: OK');
-      _addLog('✅ TODO復号化: OK');
       _addLog('');
-      _addLog('📝 次のステップ:');
-      _addLog('  - 他のアカウントからKey Package取得');
-      _addLog('  - メンバー追加機能実装');
-      _addLog('  - 2人以上でのTODO共有テスト');
+      _addLog('📝 2人グループテスト:');
+      _addLog('  1. "Key Package生成"で自分のKPを生成');
+      _addLog('  2. 相手にKey Packageを共有');
+      _addLog('  3. 相手のKey Packageを入力して');
+      _addLog('     "2人グループ作成"をタップ');
       
     } catch (e, stackTrace) {
       _addLog('❌ エラー: $e');
@@ -405,15 +560,73 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       ),
       content: SizedBox(
         width: double.maxFinite,
-        height: 400,
+        height: 500,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Option B PoC: 1人グループでの動作確認',
+              'Option B PoC: 2人グループ対応テスト',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            
+            // Key Package表示エリア
+            if (_myKeyPackage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '📋 あなたのKey Package:',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_myKeyPackage!.substring(0, 40)}...',
+                      style: const TextStyle(fontSize: 9, fontFamily: 'monospace'),
+                    ),
+                    const SizedBox(height: 4),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: _myKeyPackage!));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Key Packageをコピーしました')),
+                        );
+                      },
+                      icon: const Icon(Icons.copy, size: 14),
+                      label: const Text('コピー', style: TextStyle(fontSize: 11)),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: const Size(0, 28),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            
+            // 相手のKey Package入力
+            TextField(
+              controller: _keyPackageController,
+              decoration: const InputDecoration(
+                labelText: '相手のKey Package',
+                hintText: 'ここに貼り付け',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.all(8),
+                isDense: true,
+              ),
+              style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 8),
+            
             Expanded(
               child: Container(
                 padding: const EdgeInsets.all(8),
@@ -425,20 +638,20 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
                 child: _logs.isEmpty
                     ? const Center(
                         child: Text(
-                          'テスト実行ボタンを押してください',
-                          style: TextStyle(color: Colors.grey),
+                          'テストボタンを押してください',
+                          style: TextStyle(color: Colors.grey, fontSize: 11),
                         ),
                       )
                     : ListView.builder(
                         itemCount: _logs.length,
                         itemBuilder: (context, index) {
                           return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            padding: const EdgeInsets.symmetric(vertical: 1),
                             child: Text(
                               _logs[index],
                               style: const TextStyle(
                                 fontFamily: 'monospace',
-                                fontSize: 11,
+                                fontSize: 10,
                               ),
                             ),
                           );
@@ -452,7 +665,31 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       actions: [
         TextButton(
           onPressed: _isRunning ? null : () => Navigator.of(context).pop(),
-          child: const Text('閉じる'),
+          child: const Text('閉じる', style: TextStyle(fontSize: 12)),
+        ),
+        ElevatedButton.icon(
+          onPressed: _isRunning ? null : _generateKeyPackage,
+          icon: const Icon(Icons.vpn_key, size: 16),
+          label: const Text('Key Package生成', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: _isRunning ? null : _create2PersonGroup,
+          icon: const Icon(Icons.group_add, size: 16),
+          label: const Text('2人グループ作成', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: _isRunning ? null : _sendTodoIn2PersonGroup,
+          icon: const Icon(Icons.send, size: 16),
+          label: const Text('TODO送信', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
         ),
         ElevatedButton.icon(
           onPressed: _isRunning ? null : _runMlsTest,
@@ -462,8 +699,11 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.play_arrow),
-          label: Text(_isRunning ? '実行中...' : 'テスト実行'),
+              : const Icon(Icons.play_arrow, size: 16),
+          label: Text(_isRunning ? '実行中...' : '1人テスト', style: const TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
         ),
       ],
     );
