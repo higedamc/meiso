@@ -8,6 +8,7 @@ import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
+import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -224,6 +225,20 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
+          // MLS統合テスト（開発者向け）
+          if (kDebugMode && isNostrInitialized) ...[
+            _buildSettingTile(
+              context,
+              icon: Icons.science,
+              title: 'MLS統合テスト (PoC)',
+              subtitle: 'Option B: 1人グループでの動作確認',
+              onTap: () => _showMlsTestDialog(context, ref),
+            ),
+            const Divider(height: 1),
+          ],
+
+          const SizedBox(height: 24),
+
           // バージョン情報
           FutureBuilder<PackageInfo>(
             future: PackageInfo.fromPlatform(),
@@ -273,6 +288,184 @@ class SettingsScreen extends ConsumerWidget {
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: onTap,
+    );
+  }
+
+  void _showMlsTestDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => _MlsTestDialog(ref: ref),
+    );
+  }
+}
+
+/// MLS統合テストダイアログ（Option B PoC）
+class _MlsTestDialog extends StatefulWidget {
+  final WidgetRef ref;
+
+  const _MlsTestDialog({required this.ref});
+
+  @override
+  State<_MlsTestDialog> createState() => _MlsTestDialogState();
+}
+
+class _MlsTestDialogState extends State<_MlsTestDialog> {
+  final _logs = <String>[];
+  bool _isRunning = false;
+
+  void _addLog(String message) {
+    setState(() {
+      _logs.add('[${DateTime.now().toString().substring(11, 19)}] $message');
+    });
+  }
+
+  Future<void> _runMlsTest() async {
+    setState(() {
+      _isRunning = true;
+      _logs.clear();
+    });
+
+    try {
+      final todosNotifier = widget.ref.read(todosProvider.notifier);
+      
+      _addLog('🚀 MLS統合テスト開始');
+      
+      // Step 1: グループ作成
+      _addLog('📦 Step 1: グループ作成');
+      final groupId = 'test-mls-group-${DateTime.now().millisecondsSinceEpoch}';
+      await todosNotifier.createMlsGroupList(
+        listId: groupId,
+        listName: 'MLS Test List',
+      );
+      _addLog('✅ グループ作成完了: $groupId');
+      
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Step 2: TODO暗号化
+      _addLog('🔒 Step 2: TODO暗号化');
+      final testTodo = {
+        'id': 'test-todo-001',
+        'title': 'Test TODO in MLS Group',
+        'completed': false,
+        'date': DateTime.now().toIso8601String(),
+        'order': 0,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      
+      final encrypted = await todosNotifier.encryptMlsTodo(
+        groupId: groupId,
+        todoJson: testTodo.toString(),
+      );
+      _addLog('✅ TODO暗号化完了: ${encrypted.substring(0, 32)}...');
+      
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Step 3: TODO復号化
+      _addLog('🔓 Step 3: TODO復号化');
+      final decrypted = await todosNotifier.decryptMlsTodo(
+        groupId: groupId,
+        encryptedMsg: encrypted,
+      );
+      _addLog('✅ TODO復号化完了: ${decrypted.substring(0, 50)}...');
+      
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // 完了
+      _addLog('');
+      _addLog('🎉 MLS統合テスト完了！');
+      _addLog('✅ グループ作成: OK');
+      _addLog('✅ TODO暗号化: OK');
+      _addLog('✅ TODO復号化: OK');
+      _addLog('');
+      _addLog('📝 次のステップ:');
+      _addLog('  - 他のアカウントからKey Package取得');
+      _addLog('  - メンバー追加機能実装');
+      _addLog('  - 2人以上でのTODO共有テスト');
+      
+    } catch (e, stackTrace) {
+      _addLog('❌ エラー: $e');
+      _addLog('Stack trace: ${stackTrace.toString().substring(0, 200)}...');
+    } finally {
+      setState(() {
+        _isRunning = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.science, color: Colors.blue),
+          SizedBox(width: 8),
+          Text('MLS統合テスト'),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Option B PoC: 1人グループでの動作確認',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: _logs.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'テスト実行ボタンを押してください',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _logs.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              _logs[index],
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isRunning ? null : () => Navigator.of(context).pop(),
+          child: const Text('閉じる'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _isRunning ? null : _runMlsTest,
+          icon: _isRunning
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.play_arrow),
+          label: Text(_isRunning ? '実行中...' : 'テスト実行'),
+        ),
+      ],
     );
   }
 }
