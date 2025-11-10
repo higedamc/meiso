@@ -9,6 +9,15 @@ pub struct AddMembersResult {
     pub welcome: Vec<u8>,
 }
 
+/// Result type for key package creation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyPackageResult {
+    pub key_package: String,
+    pub mls_protocol_version: String,
+    pub ciphersuite: String,
+    pub extensions: String,
+}
+
 /// Create a new MLS TODO group
 /// 
 /// # Arguments
@@ -38,7 +47,7 @@ pub fn create_mls_todo_group(
             .ok_or_else(|| anyhow::anyhow!("User {} not found", nostr_id))?;
         
         // Create MLS group with Meiso-specific extension
-        let group_config = user.create_mls_group(
+        let _group_config = user.create_mls_group(
             group_id.clone(),
             "Meiso TODO Group".to_string(), // description
             group_name,
@@ -49,7 +58,7 @@ pub fn create_mls_todo_group(
         
         // Add members if any
         if !key_packages.is_empty() {
-            let (queued_msg, welcome) = user.add_members(group_id, key_packages)?;
+            let (_queued_msg, welcome) = user.add_members(group_id.clone(), key_packages)?;
             
             // Commit the changes
             user.self_commit(group_id)?;

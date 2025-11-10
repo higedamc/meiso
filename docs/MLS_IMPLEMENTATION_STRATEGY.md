@@ -1,0 +1,336 @@
+# Meiso: MLS Group List Implementation Strategy (Updated)
+
+## 概要
+
+MeisoのグループTODOリスト機能をKeychatのMLS実装を参考に、OpenMLSライブラリを使用して実装する。
+
+**実装アプローチ**: 段階的実装（Option B → Option A）
+
+## アーキテクチャ
+
+### 二重暗号化レイヤー
+
+```
+TODO → MLS暗号化 → NIP-44暗号化 → Nostrリレー
+```
+
+#### Layer 1: MLS（内側）
+- **目的**: グループメンバー間の暗号化・鍵管理
+- **スケーラビリティ**: O(log n)（ツリーベース）
+- **セキュリティ**: Forward Secrecy + Post-Compromise Security
+- **実装**: OpenMLS (keychat-io/openmls, branch: kc4)
+
+#### Layer 2: NIP-44（外側）
+- **目的**: NostrリレーへのトランスポートLayer
+- **鍵生成**: MLS Export SecretからNostr鍵ペアを決定的に生成
+- **暗号化**: 全メンバーが同じ`listen_key`で受信
+
+### Export Secret → Nostr鍵ペア生成
+
+```rust
+// KeychatのアプローチをMeisoに適用
+let export_secret = mls_group.export_secret(provider, "meiso", b"todo", 32)?;
+let export_secret_hex = hex::encode(&export_secret);
+let keypair = nostr::Keys::parse(&export_secret_hex)?;
+let listen_key = keypair.public_key().to_hex();
+```
+
+**重要**: この`listen_key`は**決定的**に生成される。全メンバーが同じMLS groupに属していれば、同じ`listen_key`を導出できる。
+
+## 段階的実装戦略: Option B → Option A
+
+### Option B: 簡略化PoC（迅速検証）
+
+**目的**: 2-3日で動作するPoCを作成し、MLSアプローチの妥当性を検証
+
+**スコープ**:
+- ✅ MLS基本構造（MlsStore, RUNTIME, Export Secret生成）
+- ✅ 簡易Userラッパー（最小限のメソッド実装）
+- ✅ グループ作成（1人グループでテスト）
+- ✅ TODO暗号化・復号化（基本フロー）
+- ⏸️ メンバー管理（後回し）
+- ⏸️ Key Package管理（後回し）
+- ⏸️ Commit/Proposal処理（後回し）
+
+**実装方針**:
+```rust
+// 簡易Userラッパー
+pub struct User {
+    pub mls_user: MlsUser,
+}
+
+impl User {
+    // 最小限のメソッド実装
+    pub fn create_mls_group(...) -> Result<()> {
+        // グループ作成のみ（メンバー追加なし）
+    }
+    
+    pub fn encrypt_todo(...) -> Result<String> {
+        // TODO暗号化（MLS Application Message）
+    }
+    
+    pub fn decrypt_todo(...) -> Result<String> {
+        // TODO復号化
+    }
+}
+```
+
+**検証ポイント**:
+1. Export Secret → Nostr鍵ペア生成が正しく動作するか
+2. MLS暗号化・復号化が機能するか
+3. SQLiteストレージが正常に動作するか
+
+**成功基準**:
+- [ ] 1人でグループを作成できる
+- [ ] TODOを暗号化・復号化できる
+- [ ] Export SecretからListen Keyを取得できる
+- [ ] Flutter側から呼び出せる
+
+---
+
+### Option A: 完全実装（Production Ready）
+
+**目的**: Option B検証後、Keychatの完全実装を移植
+
+**スコープ**:
+- ✅ 完全なUserラッパー（Keychatのapi_mls.user.rs移植）
+- ✅ Key Package管理（生成・公開・削除）
+- ✅ メンバー管理（追加・削除・権限）
+- ✅ Commit/Proposal処理（状態同期）
+- ✅ グループ拡張（メタデータ管理）
+- ✅ エラーハンドリング・リカバリー
+
+**実装方針**:
+```rust
+// 完全なUserラッパー（Keychat互換）
+pub struct User {
+    pub mls_user: MlsUser,
+}
+
+impl User {
+    // 約20個のメソッド実装
+    pub fn create_mls_group(...) -> Result<Vec<u8>>;
+    pub fn add_members(...) -> Result<(String, Vec<u8>)>;
+    pub fn remove_members(...) -> Result<String>;
+    pub fn self_commit(...) -> Result<()>;
+    pub fn others_commit_normal(...) -> Result<CommitResult>;
+    pub fn create_key_package(...) -> Result<KeyPackageResult>;
+    pub fn join_mls_group(...) -> Result<()>;
+    pub fn create_message(...) -> Result<(String, String)>;
+    pub fn decrypt_msg(...) -> Result<(String, String, String)>;
+    pub fn self_update(...) -> Result<String>;
+    pub fn get_group_extension(...) -> Result<NostrGroupDataExtension>;
+    pub fn get_member_extension(...) -> Result<Vec<LeafNode>>;
+    // ... 他多数
+}
+```
+
+**移植戦略**:
+1. Keychatの`api_mls.user.rs`（1224行）を分析
+2. 必要なインポート・型定義を追加
+3. メソッドを1つずつ移植・テスト
+4. Meiso固有の調整（Nostr Kind 30001対応など）
+
+---
+
+## 実装計画（更新版）
+
+### Phase 1: Option B - 簡略化PoC（完了: 2025-11-10）
+
+#### 1.1 依存関係追加 ✅
+- OpenMLS, openmls_traits, openmls_sqlite_storage, kc
+- bincode, lazy_static, hex
+
+#### 1.2 MLS基本実装 ✅
+- `rust/src/mls.rs`: MlsStore, RUNTIME, 初期化
+- Export Secret → Nostr鍵ペア生成
+
+#### 1.3 グループTODO API骨組み ✅
+- `rust/src/group_tasks_mls.rs`: 公開API定義
+
+#### 1.4 簡易Userラッパー実装 🔄（次のステップ）
+```rust
+// rust/src/mls.rs に追加
+pub struct User {
+    pub mls_user: MlsUser,
+}
+
+impl User {
+    // 最小限のメソッド
+    pub async fn load(provider: OpenMlsRustPersistentCrypto, nostr_id: String) -> Result<MlsUser>;
+    pub fn create_mls_group(...) -> Result<Vec<u8>>;
+    pub fn create_message(...) -> Result<(String, String)>;
+    pub fn decrypt_msg(...) -> Result<(String, String, String)>;
+}
+```
+
+#### 1.5 Flutter統合テスト
+- `./generate.sh` でFlutter Rust Bridge生成
+- 基本的な呼び出しテスト
+
+**目標期限**: 2025-11-11（明日）
+
+---
+
+### Phase 2: Option A - 完全実装への拡張
+
+#### 2.1 Keychat Userラッパー移植（3-5日）
+- [ ] `api_mls.user.rs`の完全移植
+- [ ] 型定義・インポート調整
+- [ ] エラーハンドリング
+
+#### 2.2 Key Package管理（1-2日）
+- [ ] Key Package生成・公開API
+- [ ] Nostr Kind 10443での公開
+- [ ] 有効期限管理
+
+#### 2.3 メンバー管理（2-3日）
+- [ ] メンバー追加フロー（Welcome送信）
+- [ ] メンバー削除フロー（Remove Proposal）
+- [ ] 権限管理（Admin判定）
+
+#### 2.4 Commit/Proposal処理（2-3日）
+- [ ] `others_commit_normal`実装
+- [ ] 状態同期ロジック
+- [ ] 競合解決
+
+**目標期限**: 2025-11-20
+
+---
+
+### Phase 3: Flutter側統合（完全版）
+
+#### 3.1 Provider拡張
+```dart
+class TodosProvider extends StateNotifier<AsyncValue<List<Todo>>> {
+  bool _mlsInitialized = false;
+  
+  Future<void> _initMlsIfNeeded() async {
+    if (!_mlsInitialized) {
+      await rust.initMlsDb(
+        dbPath: '${appDocDir.path}/mls.db',
+        nostrId: userPubkey,
+      );
+      _mlsInitialized = true;
+    }
+  }
+  
+  Future<void> createMlsGroupList(
+    String listName,
+    List<String> memberPubkeys,
+  ) async {
+    await _initMlsIfNeeded();
+    
+    // Key Packages取得
+    final keyPackages = await _fetchKeyPackages(memberPubkeys);
+    
+    // グループ作成
+    final welcomeMsg = await rust.createMlsTodoGroup(
+      nostrId: userPubkey,
+      groupId: listId,
+      groupName: listName,
+      members: keyPackages,
+    );
+    
+    // Welcome送信
+    await _sendWelcomeMessages(memberPubkeys, welcomeMsg);
+  }
+}
+```
+
+#### 3.2 同期ロジック
+- Export SecretからListen Key取得
+- Nostrイベント購読
+- 暗号化TODO復号化
+- ローカルDB保存
+
+#### 3.3 UI実装
+- グループリスト作成画面
+- メンバー管理UI
+- Key Package公開ボタン
+
+**目標期限**: 2025-11-25
+
+---
+
+## 現在の進捗（2025-11-10 終了時点）
+
+### 完了 ✅
+- ✅ OpenMLS依存追加
+- ✅ `rust/src/mls.rs` 基本実装
+- ✅ Export Secret → Nostr鍵ペア生成
+- ✅ `rust/src/group_tasks_mls.rs` API定義
+
+### 次のステップ 🔄
+- 🔄 簡易Userラッパー実装（Option B）
+- ⏭️ 1人グループでの動作テスト
+- ⏭️ Flutter統合
+
+### コミット履歴
+```
+5eb738b - WIP: fiatjaf方式グループリスト実装（Phase1保存ポイント）
+8a83dd4 - WIP: MLS PoC Phase 1 基礎実装
+```
+
+**ロールバックポイント**: 
+- fiatjaf方式に戻る場合: `git checkout 5eb738b`
+- Phase 1開始時に戻る場合: `git checkout feature/amber-group-list-phase1`
+
+---
+
+## Amber統合
+
+**重要**: MLSの内部暗号操作はRust側で完結するため、Amberは**不要**。
+
+| 操作 | 実行場所 | Amber必要？ |
+|------|---------|-----------|
+| DH鍵交換（X25519） | Rust（OpenMLS） | ❌ |
+| AES-GCM暗号化 | Rust（OpenMLS） | ❌ |
+| Export Secret生成 | Rust（OpenMLS） | ❌ |
+| NIP-44暗号化 | Rust | ❌ |
+| Nostrイベント署名 | Rust/Amber | ✅ |
+
+**結論**: Amberモードでも問題なく動作する！
+
+---
+
+## リスク管理
+
+### ロールバック戦略
+- fiatjaf実装のコミットは保持（5eb738b）
+- 問題があれば即座に戻せる
+- ブランチ: 
+  - `feature/amber-group-list-phase1` (fiatjaf方式)
+  - `feature/amber-group-list-phase2` (MLS方式)
+
+### Option B失敗時の対策
+1. **技術的課題**: OpenMLS APIの理解不足
+   - 対策: Keychatの実装を詳細に分析
+   - フォールバック: fiatjaf方式に戻る
+
+2. **パフォーマンス問題**: MLSのオーバーヘッドが大きい
+   - 対策: ベンチマーク測定、最適化
+   - フォールバック: ハイブリッド実装（小規模はfiatjaf、大規模はMLS）
+
+3. **エコシステム未成熟**: 他のクライアントが未対応
+   - 対策: Meiso専用として実装
+   - フォールバック: NIP提案を待つ
+
+---
+
+## 参考実装
+
+- Keychat: https://github.com/keychat-io/keychat-app
+- Keychat Rust FFI: https://github.com/keychat-io/keychat_rust_ffi_plugin
+  - `rust/src/api_mls.rs`: 948行
+  - `rust/src/api_mls.user.rs`: 1224行
+  - `rust/src/api_mls.types.rs`: 64行
+- OpenMLS: https://github.com/keychat-io/openmls (branch: kc4)
+- NIP-EE Draft: Signal Protocol over Nostr
+
+---
+
+**ステータス**: Option B実装中（2025-11-10）  
+**担当**: AI Agent + Oracle  
+**次の目標**: 簡易Userラッパー完成 → 1人グループテスト成功（2025-11-11）
+
