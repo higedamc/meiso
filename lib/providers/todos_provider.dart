@@ -3212,7 +3212,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final dbPath = '${appDocDir.path}/mls.db';
       
       final nostrService = _ref.read(nostrServiceProvider);
-      final userPubkey = nostrService.getPublicKey();
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
       
       AppLogger.info('🔐 [MLS] 初期化開始: dbPath=$dbPath, user=$userPubkey');
       
@@ -3238,7 +3242,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       await _initMlsIfNeeded();
       
       final nostrService = _ref.read(nostrServiceProvider);
-      final userPubkey = nostrService.getPublicKey();
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
       
       AppLogger.info('📦 [MLS] グループ作成開始: listId=$listId, listName=$listName');
       
@@ -3274,7 +3282,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       await _initMlsIfNeeded();
       
       final nostrService = _ref.read(nostrServiceProvider);
-      final userPubkey = nostrService.getPublicKey();
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
       
       AppLogger.debug('🔒 [MLS] TODO暗号化: groupId=$groupId');
       
@@ -3302,7 +3314,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       await _initMlsIfNeeded();
       
       final nostrService = _ref.read(nostrServiceProvider);
-      final userPubkey = nostrService.getPublicKey();
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
       
       AppLogger.debug('🔓 [MLS] TODO復号化: groupId=$groupId');
       
