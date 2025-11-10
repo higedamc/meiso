@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../models/todo.dart';
 import '../models/custom_list.dart';
@@ -11,47 +14,153 @@ import 'amber_service.dart';
 /// マルチパーティ暗号化を使用したグループタスクの作成・同期を担当
 class GroupTaskService {
   /// グループタスクリストを作成（暗号化してNostrに保存）
-  Future<void> createGroupTaskList({
+  /// 
+  /// 成功した場合、NostrイベントIDを返す
+  Future<String?> createGroupTaskList({
     required List<Todo> tasks,
     required CustomList customList,
+    required String publicKey,
+    required String npub,
   }) async {
     try {
-      AppLogger.info('🔐 Creating group task list: ${customList.name} with ${customList.groupMembers.length} members');
+      AppLogger.info('🔐 [Amber] Creating group task list: ${customList.name} with ${customList.groupMembers.length} members');
       
-      // Todoデータを GroupTodoData に変換
-      final groupTasks = tasks.map((todo) => GroupTodoData(
-        id: todo.id,
-        title: todo.title,
-        completed: todo.completed,
-        date: todo.date?.toIso8601String(),
-        order: todo.order,
-        createdAt: todo.createdAt.toIso8601String(),
-        updatedAt: todo.updatedAt.toIso8601String(),
-      )).toList();
+      // 1. Todoデータを GroupTodoData JSON に変換
+      final groupTasks = tasks.map((todo) => {
+        'id': todo.id,
+        'title': todo.title,
+        'completed': todo.completed,
+        'date': todo.date?.toIso8601String(),
+        'order': todo.order,
+        'created_at': todo.createdAt.toIso8601String(),
+        'updated_at': todo.updatedAt.toIso8601String(),
+      }).toList();
       
-      // 1. タスクを暗号化（マルチパーティ暗号化）
-      final encryptedGroup = await rust_api.encryptGroupTaskList(
-        tasks: groupTasks,
+      final tasksJson = jsonEncode(groupTasks);
+      AppLogger.debug('📝 Serialized ${tasks.length} tasks to JSON');
+      
+      // 2. ランダムなAES-256鍵を生成（32バイト = 256ビット）
+      final random = Random.secure();
+      final aesKeyBytes = Uint8List.fromList(
+        List<int>.generate(32, (_) => random.nextInt(256))
+      );
+      final aesKeyBase64 = base64Encode(aesKeyBytes);
+      AppLogger.debug('🔑 Generated AES-256 key');
+      
+      // 3. タスクデータをAES-256-GCMで暗号化（Rust経由）
+      final encryptedData = await rust_api.encryptGroupDataWithAesKey(
+        tasksJson: tasksJson,
+        aesKeyBase64: aesKeyBase64,
+      );
+      AppLogger.debug('🔒 Encrypted task data with AES-256-GCM');
+      
+      // 4. 各メンバー用にAES鍵をAmber経由でNIP-44暗号化
+      final encryptedKeys = <EncryptedKey>[];
+      for (final memberPubkey in customList.groupMembers) {
+        try {
+          final encryptedAesKey = await _encryptContentViaAmber(
+            plaintext: aesKeyBase64,
+            recipientPubkey: memberPubkey,
+            senderPubkey: publicKey,
+            npub: npub,
+          );
+          
+          encryptedKeys.add(EncryptedKey(
+            memberPubkey: memberPubkey,
+            encryptedAesKey: encryptedAesKey,
+          ));
+          
+          AppLogger.debug('🔑 Encrypted AES key for member: ${memberPubkey.substring(0, 8)}...');
+        } catch (e) {
+          AppLogger.error('❌ Failed to encrypt AES key for member $memberPubkey: $e');
+          rethrow;
+        }
+      }
+      
+      AppLogger.info('✅ Encrypted AES keys for ${encryptedKeys.length} members');
+      
+      // 5. GroupTodoListを構築
+      final groupList = GroupTodoList(
         groupId: customList.id,
         groupName: customList.name,
-        memberPubkeys: customList.groupMembers,
+        encryptedData: encryptedData,
+        members: customList.groupMembers,
+        encryptedKeys: encryptedKeys,
       );
       
-      AppLogger.info('✅ Encrypted group tasks for ${customList.groupMembers.length} members');
+      // 6. GroupTodoListをJSON化（平文で保存）
+      // 注意: contentは平文だが、encrypted_dataとencrypted_keysが暗号化されているため安全
+      final groupListJson = jsonEncode({
+        'group_id': groupList.groupId,
+        'group_name': groupList.groupName,
+        'encrypted_data': groupList.encryptedData,
+        'members': groupList.members,
+        'encrypted_keys': groupList.encryptedKeys.map((k) => {
+          'member_pubkey': k.memberPubkey,
+          'encrypted_aes_key': k.encryptedAesKey,
+        }).toList(),
+      });
       
-      // 2. Nostrに保存（Kind 30001 - NIP-51）
-      final result = await rust_api.saveGroupTaskListToNostr(
-        groupList: encryptedGroup,
+      AppLogger.debug('📝 Created GroupTodoList JSON (plaintext metadata)');
+      
+      // 7. Rust経由で未署名イベントを作成（contentは平文）
+      final unsignedEventJson = await rust_api.createUnsignedGroupTaskListEvent(
+        groupListJson: groupListJson,
+        encryptedContent: groupListJson, // 平文のまま保存
+        publicKeyHex: publicKey,
       );
+      
+      AppLogger.debug('📝 Created unsigned event');
+      
+      // 8. Amberで署名
+      final amberService = AmberService();
+      final signedEventJson = await amberService.signEventWithTimeout(unsignedEventJson);
+      
+      AppLogger.debug('✍️ Signed event with Amber');
+      
+      // 9. リレーに送信（Rust API経由）
+      final result = await rust_api.sendSignedEvent(eventJson: signedEventJson);
       
       if (result.success) {
         AppLogger.info('✅ Group task list saved to Nostr: ${result.eventId}');
+        return result.eventId;
       } else {
         AppLogger.warning('⚠️ Group task list save failed: ${result.errorMessage}');
+        return null;
       }
+      
     } catch (e, st) {
       AppLogger.error('❌ Failed to create group task list: $e', error: e, stackTrace: st);
       rethrow;
+    }
+  }
+  
+  /// Amber経由でコンテンツを暗号化（NIP-44）
+  Future<String> _encryptContentViaAmber({
+    required String plaintext,
+    required String recipientPubkey,
+    required String senderPubkey,
+    required String npub,
+  }) async {
+    final amberService = AmberService();
+    
+    try {
+      // ContentProvider経由で暗号化を試みる
+      final encrypted = await amberService.encryptNip44WithContentProvider(
+        plaintext: plaintext,
+        pubkey: recipientPubkey,
+        npub: npub,
+      );
+      AppLogger.debug(' 暗号化完了（バックグラウンド）');
+      return encrypted;
+    } on PlatformException catch (e) {
+      AppLogger.warning(' ContentProvider暗号化失敗 (${e.code}), UI経由で再試行します...');
+      final encrypted = await amberService.encryptNip44(
+        plaintext,
+        recipientPubkey,
+      );
+      AppLogger.debug(' 暗号化完了（UI経由）');
+      return encrypted;
     }
   }
   
@@ -78,60 +187,66 @@ class GroupTaskService {
       
       for (final encryptedEvent in encryptedEvents) {
         try {
-          // 2-1. 自分がメンバーに含まれているか確認
+          // 2-1. 自分がメンバーに含まれているか確認（p タグから取得したメンバー）
           if (!encryptedEvent.members.contains(publicKey)) {
             AppLogger.debug('⏭️  Skipping group ${encryptedEvent.listId} (not a member)');
             continue;
           }
           
-          // 2-2. encrypted_keysから自分用のAES鍵を見つける
-          final myEncryptedKey = encryptedEvent.encryptedKeys.firstWhere(
-            (k) => k.memberPubkey == publicKey,
+          AppLogger.info('📋 Processing group: ${encryptedEvent.listId} (${encryptedEvent.members.length} members)');
+          
+          // 2-2. contentをJSONパース（平文なので復号化不要）
+          final Map<String, dynamic> groupListJson = jsonDecode(encryptedEvent.encryptedContent);
+          
+          final encryptedData = groupListJson['encrypted_data'] as String;
+          final members = (groupListJson['members'] as List).map((e) => e as String).toList();
+          final encryptedKeysJson = groupListJson['encrypted_keys'] as List;
+          
+          AppLogger.debug('📋 Found encrypted_data and ${encryptedKeysJson.length} encrypted_keys');
+          
+          // 2-3. encrypted_keysから自分用のAES鍵を見つける
+          final myEncryptedKeyJson = encryptedKeysJson.firstWhere(
+            (k) => k['member_pubkey'] == publicKey,
             orElse: () => throw Exception('No encrypted AES key found for current user'),
           );
           
           AppLogger.debug('🔑 Found encrypted AES key for ${encryptedEvent.listId}');
           
-          // 2-3. Amber経由でAES鍵をNIP-44復号化
+          // 2-4. Amber経由でAES鍵をNIP-44復号化
           final aesKeyBase64 = await _decryptContentViaAmber(
-            encryptedContent: myEncryptedKey.encryptedAesKey,
+            encryptedContent: myEncryptedKeyJson['encrypted_aes_key'] as String,
             publicKey: publicKey,
             npub: npub,
           );
           
           AppLogger.debug('🔓 Decrypted AES key for ${encryptedEvent.listId}');
           
-          // 2-4. 復号化したAES鍵でデータを復号化（Rust経由）
-          // 注意: 復号化の動作確認のためにデータを取得するが、現時点では使用しない
+          // 2-5. 復号化したAES鍵でデータを復号化（動作確認）
           await rust_api.decryptGroupDataWithAesKey(
-            encryptedDataBase64: encryptedEvent.encryptedData,
+            encryptedDataBase64: encryptedData,
             aesKeyBase64: aesKeyBase64,
           );
           
           AppLogger.debug('📦 Decrypted group data for ${encryptedEvent.listId} (verification successful)');
           
-          // 2-5. GroupTodoListを構築（encryptedKeysを変換）
+          // 2-6. GroupTodoListを構築
           final groupList = GroupTodoList(
             groupId: encryptedEvent.listId,
             groupName: encryptedEvent.groupName ?? encryptedEvent.listId,
-            encryptedData: encryptedEvent.encryptedData,
-            members: encryptedEvent.members,
-            encryptedKeys: encryptedEvent.encryptedKeys.map((k) => EncryptedKey(
-              memberPubkey: k.memberPubkey,
-              encryptedAesKey: k.encryptedAesKey,
+            encryptedData: encryptedData,
+            members: members,
+            encryptedKeys: encryptedKeysJson.map((k) => EncryptedKey(
+              memberPubkey: k['member_pubkey'] as String,
+              encryptedAesKey: k['encrypted_aes_key'] as String,
             )).toList(),
           );
           
-          // 注意: decryptedDataJson は現時点では使用しない
-          // GroupTodoList の encryptedData は暗号化されたままで保持され、
-          // 実際のタスク取得時に復号化される
-          
           groupLists.add(groupList);
-          AppLogger.info('✅ Successfully decrypted group: ${groupList.groupName}');
+          AppLogger.info('✅ Successfully processed group: ${groupList.groupName}');
           
         } catch (e, st) {
           AppLogger.error(
-            '❌ Failed to decrypt group event ${encryptedEvent.listId}: $e',
+            '❌ Failed to process group event ${encryptedEvent.listId}: $e',
             error: e,
             stackTrace: st,
           );
@@ -178,40 +293,67 @@ class GroupTaskService {
   }
   
   /// グループタスクリストを復号化
+  /// グループタスクリストを復号化してTodoリストに変換（Amberモード対応）
   Future<List<Todo>> decryptGroupTaskList({
     required GroupTodoList groupList,
+    required String publicKey,
+    required String npub,
   }) async {
     try {
       AppLogger.info('🔓 Decrypting group task list: ${groupList.groupName}');
       
-      final decryptedTasks = await rust_api.decryptGroupTaskList(
-        groupList: groupList,
+      // 1. encrypted_keysから自分用のAES鍵を見つける
+      final myEncryptedKey = groupList.encryptedKeys.firstWhere(
+        (k) => k.memberPubkey == publicKey,
+        orElse: () => throw Exception('No encrypted AES key found for current user'),
       );
       
-      // rust_api.GroupTodoData を Todo モデルに変換
-      final todos = decryptedTasks.map((task) {
+      AppLogger.debug('🔑 Found encrypted AES key for ${groupList.groupName}');
+      
+      // 2. Amber経由でAES鍵をNIP-44復号化
+      final aesKeyBase64 = await _decryptContentViaAmber(
+        encryptedContent: myEncryptedKey.encryptedAesKey,
+        publicKey: publicKey,
+        npub: npub,
+      );
+      
+      AppLogger.debug('🔓 Decrypted AES key for ${groupList.groupName}');
+      
+      // 3. 復号化したAES鍵でデータを復号化（Rust経由）
+      final decryptedDataJson = await rust_api.decryptGroupDataWithAesKey(
+        encryptedDataBase64: groupList.encryptedData,
+        aesKeyBase64: aesKeyBase64,
+      );
+      
+      AppLogger.debug('📦 Decrypted group data for ${groupList.groupName}');
+      
+      // 4. JSONをパースしてTodoオブジェクトに変換
+      final List<dynamic> tasksJson = jsonDecode(decryptedDataJson);
+      
+      final todos = tasksJson.map((taskJson) {
         DateTime? date;
-        if (task.date != null) {
+        if (taskJson['date'] != null) {
           try {
-            date = DateTime.parse(task.date!);
+            date = DateTime.parse(taskJson['date']);
           } catch (e) {
-            AppLogger.warning('Failed to parse date: ${task.date}');
+            AppLogger.warning('Failed to parse date: ${taskJson['date']}');
           }
         }
         
         return Todo(
-          id: task.id,
-          title: task.title,
-          completed: task.completed,
+          id: taskJson['id'] as String,
+          title: taskJson['title'] as String,
+          completed: taskJson['completed'] as bool,
           date: date,
-          order: task.order,
-          createdAt: DateTime.parse(task.createdAt),
-          updatedAt: DateTime.parse(task.updatedAt),
+          order: taskJson['order'] as int,
+          createdAt: DateTime.parse(taskJson['created_at']),
+          updatedAt: DateTime.parse(taskJson['updated_at']),
           customListId: groupList.groupId,
+          eventId: taskJson['event_id'] as String?,
         );
       }).toList();
       
-      AppLogger.info('✅ Decrypted ${todos.length} todos from group');
+      AppLogger.info('✅ Decrypted ${todos.length} todos from group ${groupList.groupName}');
       
       return todos;
     } catch (e, st) {

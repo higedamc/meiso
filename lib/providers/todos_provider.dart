@@ -2829,6 +2829,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // グループタスクを復号化
       final groupTodos = await groupTaskService.decryptGroupTaskList(
         groupList: groupList,
+        publicKey: publicKey,
+        npub: npub,
       );
       
       AppLogger.info('✅ Decrypted ${groupTodos.length} todos from group');
@@ -3025,13 +3027,69 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         return;
       }
       
+      // 公開鍵を取得
+      var publicKey = _ref.read(publicKeyProvider);
+      var npub = _ref.read(nostrPublicKeyProvider);
+      
+      // 公開鍵がnullの場合、復元を試みる
+      if (publicKey == null || npub == null) {
+        AppLogger.warning(' 公開鍵が未設定、復元を試みます...');
+        try {
+          final nostrService = _ref.read(nostrServiceProvider);
+          publicKey = await nostrService.getPublicKey();
+          if (publicKey != null) {
+            AppLogger.info(' hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+            _ref.read(publicKeyProvider.notifier).state = publicKey;
+            
+            npub = await nostrService.hexToNpub(publicKey);
+            _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+            AppLogger.info(' npub公開鍵も復元: ${npub.substring(0, 16)}...');
+          } else {
+            throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+          }
+        } catch (e) {
+          AppLogger.error(' 公開鍵の復元に失敗: $e');
+          throw Exception('公開鍵が設定されていません: $e');
+        }
+      }
+      
       // グループタスクリストを暗号化してNostrに保存
-      await groupTaskService.createGroupTaskList(
+      final eventId = await groupTaskService.createGroupTaskList(
         tasks: todos,
         customList: groupList,
+        publicKey: publicKey,
+        npub: npub,
       );
       
-      AppLogger.info('✅ Group tasks synced to Nostr: ${todos.length} tasks');
+      if (eventId != null) {
+        // 成功した場合、各タスクのneedsSyncフラグをfalseに設定
+        // 注意: グループタスクは個別のeventIdを持たない（リスト全体が1つのeventId）
+        await state.whenData((currentTodos) async {
+          final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
+          
+          for (final dateKey in updated.keys) {
+            updated[dateKey] = updated[dateKey]!.map((todo) {
+              if (todo.customListId == groupId) {
+                // グループタスクは needsSync のみ更新（eventId は null のまま）
+                return todo.copyWith(
+                  needsSync: false,
+                );
+              }
+              return todo;
+            }).toList();
+          }
+          
+          // 状態を更新
+          state = AsyncValue.data(updated);
+          
+          // ローカルストレージに保存
+          await _saveAllTodosToLocal();
+          
+          AppLogger.info('✅ Group tasks synced to Nostr: ${todos.length} tasks (list eventId: $eventId)');
+        }).value;
+      } else {
+        AppLogger.warning('⚠️ Group task sync failed: eventId is null');
+      }
     } catch (e, st) {
       AppLogger.error('❌ Failed to sync group to Nostr: $e', error: e, stackTrace: st);
     }
@@ -3089,6 +3147,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.debug('🔓 Decrypting tasks for group: ${groupList.groupName}');
           final groupTodos = await groupTaskService.decryptGroupTaskList(
             groupList: groupList,
+            publicKey: publicKey,
+            npub: npub,
           );
           groupTodosMap[groupList.groupId] = groupTodos;
           AppLogger.debug('✅ Decrypted ${groupTodos.length} todos from ${groupList.groupName}');

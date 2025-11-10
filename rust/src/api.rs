@@ -2378,6 +2378,77 @@ pub fn save_group_task_list_to_nostr(
     })
 }
 
+/// グループタスクリストの未署名イベントを作成（Amberモード用）
+/// 
+/// GroupTodoListを受け取り、暗号化済みcontentで未署名イベントJSONを作成
+/// 
+/// # Arguments
+/// * `group_list_json` - GroupTodoListのJSON文字列（暗号化前）
+/// * `encrypted_content` - Amberで暗号化済みのcontent
+/// * `public_key_hex` - 作成者の公開鍵（hex）
+/// 
+/// # Returns
+/// 未署名イベントのJSON文字列
+pub fn create_unsigned_group_task_list_event(
+    group_list_json: String,
+    encrypted_content: String,
+    public_key_hex: String,
+) -> Result<String> {
+    // GroupTodoListをパース
+    let group_list: GroupTodoList = serde_json::from_str(&group_list_json)
+        .context("Failed to parse GroupTodoList JSON")?;
+    
+    // d tag（グループ識別子）
+    let d_tag_value = format!("meiso-group-{}", group_list.group_id);
+    
+    let d_tag = Tag::custom(
+        TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+        vec![d_tag_value.clone()],
+    );
+    
+    let title_tag = Tag::custom(
+        TagKind::Custom(std::borrow::Cow::Borrowed("title")),
+        vec![group_list.group_name.clone()],
+    );
+    
+    // メンバーをpタグで追加（検索可能にする）
+    let mut tags = vec![d_tag, title_tag];
+    for member_pubkey in &group_list.members {
+        tags.push(Tag::public_key(
+            nostr_sdk::PublicKey::from_hex(member_pubkey)
+                .map_err(|e| anyhow::anyhow!("Invalid member pubkey: {}", e))?,
+        ));
+    }
+    
+    // 未署名イベントを手動構築
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    
+    // タグをJSON配列に変換
+    let tags_json: Vec<Vec<String>> = tags.iter().map(|tag| {
+        tag.clone().to_vec().iter().map(|s| s.to_string()).collect()
+    }).collect();
+    
+    // 未署名イベントのJSON構造を作成
+    let unsigned_event = serde_json::json!({
+        "pubkey": public_key_hex,
+        "created_at": now,
+        "kind": 30001,
+        "tags": tags_json,
+        "content": encrypted_content,
+    });
+    
+    // JSON文字列に変換
+    let unsigned_event_json = serde_json::to_string(&unsigned_event)
+        .context("Failed to serialize unsigned event")?;
+    
+    println!("📝 Created unsigned group task list event (d='{}', {} members)", 
+        d_tag_value, group_list.members.len());
+    
+    Ok(unsigned_event_json)
+}
+
 /// 暗号化されたグループタスクイベント（Amber復号化用）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedGroupTodoListEvent {
@@ -2482,60 +2553,55 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
             
-            // イベントのcontentをJSONとしてパースして、必要なフィールドを抽出
-            match serde_json::from_str::<serde_json::Value>(&event.content) {
-                Ok(json) => {
-                    let encrypted_data = json.get("encrypted_data")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    
-                    let members = json.get("members")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                                .collect::<Vec<String>>()
-                        })
-                        .unwrap_or_default();
-                    
-                    let encrypted_keys = json.get("encrypted_keys")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| {
-                                    let member_pubkey = v.get("member_pubkey")?.as_str()?.to_string();
-                                    let encrypted_aes_key = v.get("encrypted_aes_key")?.as_str()?.to_string();
-                                    Some(EncryptedKeyData { member_pubkey, encrypted_aes_key })
-                                })
-                                .collect::<Vec<EncryptedKeyData>>()
-                        })
-                        .unwrap_or_default();
-                    
-                    encrypted_lists.push(EncryptedGroupTodoListEvent {
-                        event_id: event.id.to_hex(),
-                        encrypted_content: event.content.clone(),
-                        created_at: event.created_at.as_u64() as i64,
-                        list_id: d_tag.clone(),
-                        group_name,
-                        encrypted_data,
-                        members,
-                        encrypted_keys,
-                    });
-                    
-                    println!("📦 Added encrypted group event: d='{}', event_id={}", 
-                        d_tag, event.id.to_hex());
-                },
-                Err(e) => {
-                    println!("⚠️ Failed to parse group event content for d='{}': {}", d_tag, e);
-                    // パースエラーの場合はスキップ
-                }
-            }
+            // p タグからメンバー一覧を取得
+            // 注意: contentは暗号化されているため、pタグから取得する必要がある
+            let members: Vec<String> = event.tags.iter()
+                .filter_map(|tag| {
+                    if tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::P)) {
+                        tag.content().map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            
+            let members_count = members.len();
+            println!("📋 Group '{}' has {} members from p tags", d_tag, members_count);
+            
+            // encrypted_content をそのまま保存（後でFlutter側でAmber復号化）
+            encrypted_lists.push(EncryptedGroupTodoListEvent {
+                event_id: event.id.to_hex(),
+                encrypted_content: event.content.clone(),
+                created_at: event.created_at.as_u64() as i64,
+                list_id: d_tag.clone(),
+                group_name,
+                encrypted_data: String::new(), // 後でcontentを復号化してから取得
+                members,
+                encrypted_keys: Vec::new(), // 後でcontentを復号化してから取得
+            });
+            
+            println!("📦 Added encrypted group event: d='{}', event_id={}, members={}", 
+                d_tag, event.id.to_hex(), members_count);
         }
         
         println!("✅ Total encrypted group task lists: {}", encrypted_lists.len());
         Ok(encrypted_lists)
     })
+}
+
+/// タスクデータをAES-256-GCMで暗号化（Amberモード用）
+/// 
+/// # Arguments
+/// * `tasks_json` - タスクデータのJSON文字列
+/// * `aes_key_base64` - base64エンコードされたAES-256鍵（32バイト）
+/// 
+/// # Returns
+/// base64エンコードされた暗号化データ（ノンス12バイト + 暗号文）
+pub fn encrypt_group_data_with_aes_key(
+    tasks_json: String,
+    aes_key_base64: String,
+) -> Result<String> {
+    group_tasks::encrypt_data_with_aes_key(tasks_json, aes_key_base64)
 }
 
 /// AES鍵を使ってグループタスクデータを復号化（Amberモード用）
