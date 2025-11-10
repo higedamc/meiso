@@ -177,6 +177,63 @@ pub fn decrypt_group_tasks(
     Ok(tasks)
 }
 
+/// AES鍵を使ってグループタスクデータを復号化（Amberモード用）
+/// 
+/// Amberで復号化済みのAES鍵を使ってデータを復号化する
+/// 
+/// # Arguments
+/// * `encrypted_data_base64` - base64エンコードされた暗号化データ
+/// * `aes_key_base64` - base64エンコードされたAES鍵（すでに復号化済み）
+/// 
+/// # Returns
+/// 復号化されたJSON文字列
+pub fn decrypt_data_with_aes_key(
+    encrypted_data_base64: String,
+    aes_key_base64: String,
+) -> Result<String> {
+    // 1. AES鍵をデコード
+    let aes_key_bytes = general_purpose::STANDARD
+        .decode(&aes_key_base64)
+        .context("Failed to decode AES key from base64")?;
+
+    if aes_key_bytes.len() != 32 {
+        return Err(anyhow::anyhow!(
+            "Invalid AES key length: {} (expected 32)",
+            aes_key_bytes.len()
+        ));
+    }
+
+    // 2. 暗号化データをbase64デコード
+    let encrypted_data_bytes = general_purpose::STANDARD
+        .decode(&encrypted_data_base64)
+        .context("Failed to decode encrypted data from base64")?;
+
+    // ノンス（最初の12バイト）と暗号文を分離
+    if encrypted_data_bytes.len() < 12 {
+        return Err(anyhow::anyhow!("Encrypted data too short (minimum 12 bytes for nonce)"));
+    }
+
+    let (nonce_bytes, ciphertext) = encrypted_data_bytes.split_at(12);
+    let mut nonce_array = [0u8; 12];
+    nonce_array.copy_from_slice(nonce_bytes);
+    let nonce = Nonce::from(nonce_array);
+
+    // 3. AES-256-GCMで復号化
+    let mut aes_key_array = [0u8; 32];
+    aes_key_array.copy_from_slice(&aes_key_bytes);
+
+    let cipher = Aes256Gcm::new(&aes_key_array.into());
+    let plaintext_bytes = cipher
+        .decrypt(&nonce, ciphertext)
+        .map_err(|e| anyhow::anyhow!("AES-256-GCM decryption failed: {}", e))?;
+
+    // 4. UTF-8文字列に変換
+    let plaintext = String::from_utf8(plaintext_bytes)
+        .context("Failed to convert decrypted data to UTF-8 string")?;
+
+    Ok(plaintext)
+}
+
 /// グループにメンバーを追加
 /// 
 /// 新しいメンバー用にAES鍵を暗号化して追加
