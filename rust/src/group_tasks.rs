@@ -177,6 +177,53 @@ pub fn decrypt_group_tasks(
     Ok(tasks)
 }
 
+/// タスクデータをAES-256-GCMで暗号化（Amberモード用）
+/// 
+/// # Arguments
+/// * `tasks_json` - タスクデータのJSON文字列
+/// * `aes_key_base64` - base64エンコードされたAES-256鍵（32バイト）
+/// 
+/// # Returns
+/// base64エンコードされた暗号化データ（ノンス12バイト + 暗号文）
+pub fn encrypt_data_with_aes_key(
+    tasks_json: String,
+    aes_key_base64: String,
+) -> Result<String> {
+    // 1. AES鍵をデコード
+    let aes_key_bytes = general_purpose::STANDARD
+        .decode(&aes_key_base64)
+        .context("Failed to decode AES key from base64")?;
+
+    if aes_key_bytes.len() != 32 {
+        return Err(anyhow::anyhow!(
+            "Invalid AES key length: {} (expected 32)",
+            aes_key_bytes.len()
+        ));
+    }
+
+    // 2. AES-256-GCM暗号化
+    let mut aes_key_array = [0u8; 32];
+    aes_key_array.copy_from_slice(&aes_key_bytes);
+    let cipher = Aes256Gcm::new(&aes_key_array.into());
+
+    // 3. ノンスを生成（12バイト）
+    let mut nonce_bytes = [0u8; 12];
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from(nonce_bytes);
+
+    // 4. 暗号化
+    let ciphertext = cipher
+        .encrypt(&nonce, tasks_json.as_bytes())
+        .map_err(|e| anyhow::anyhow!("AES-256-GCM encryption failed: {}", e))?;
+
+    // 5. ノンス + 暗号文を結合してbase64エンコード
+    let mut encrypted_data_bytes = nonce_bytes.to_vec();
+    encrypted_data_bytes.extend_from_slice(&ciphertext);
+    let encrypted_data = general_purpose::STANDARD.encode(&encrypted_data_bytes);
+
+    Ok(encrypted_data)
+}
+
 /// AES鍵を使ってグループタスクデータを復号化（Amberモード用）
 /// 
 /// Amberで復号化済みのAES鍵を使ってデータを復号化する
