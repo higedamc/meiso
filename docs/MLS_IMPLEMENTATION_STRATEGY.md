@@ -255,26 +255,94 @@ class TodosProvider extends StateNotifier<AsyncValue<List<Todo>>> {
 
 ## 現在の進捗（2025-11-10 終了時点）
 
-### 完了 ✅
-- ✅ OpenMLS依存追加
-- ✅ `rust/src/mls.rs` 基本実装
-- ✅ Export Secret → Nostr鍵ペア生成
-- ✅ `rust/src/group_tasks_mls.rs` API定義
+### 完了 ✅ Option B PoC実装完了！
+- ✅ **Phase 1: Rust側MLS基盤**
+  - OpenMLS依存追加（Keychat kc4ブランチ）
+  - `rust/src/mls.rs` MLS基本実装（MlsStore, User, Export Secret）
+  - `rust/src/group_tasks_mls.rs` グループTODO API実装
+  - 簡易Userラッパー実装（最小限のメソッド）
+
+- ✅ **Phase 2.1: Flutter側MLS統合**
+  - `rust/src/api.rs`にMLS wrapper関数追加
+  - Flutter Rust Bridgeコード生成
+  - `TodosProvider`にMLS統合（初期化、暗号化、復号化）
+
+- ✅ **Phase 2.2: UI実装**
+  - `settings_screen.dart`にMLS統合テストセクション追加
+  - `_MlsTestDialog`実装（グループ作成、TODO暗号化・復号化テスト）
+  - リアルタイムログ表示
+
+- ✅ **Phase 3: 統合テスト準備**
+  - `getPublicKey()`非同期対応
+  - null チェック追加
+  - flutter analyze クリア
 
 ### 次のステップ 🔄
-- 🔄 簡易Userラッパー実装（Option B）
-- ⏭️ 1人グループでの動作テスト
-- ⏭️ Flutter統合
+- ⏭️ 実機でのMLS統合テスト実行
+- ⏭️ Phase 4: Amberモード動作確認
+- ⏭️ Option A（完全実装）への移行判断
 
 ### コミット履歴
 ```
-5eb738b - WIP: fiatjaf方式グループリスト実装（Phase1保存ポイント）
+5eb738b - WIP: fiatjaf方式（Phase1保存ポイント）
 8a83dd4 - WIP: MLS PoC Phase 1 基礎実装
+6af1313 - feat: Option B - MLS簡易実装完成
+b6f4095 - feat: Phase 2.1 - Flutter側MLS統合完了
+a4e13aa - feat: Phase 2.2 - MLS統合テストUI実装完了
+0f3892c - fix: Phase 3 - getPublicKey()非同期対応
 ```
 
 **ロールバックポイント**: 
 - fiatjaf方式に戻る場合: `git checkout 5eb738b`
 - Phase 1開始時に戻る場合: `git checkout feature/amber-group-list-phase1`
+
+### 実装完了した機能
+
+**Rust API（Option B）**:
+```rust
+// MLS初期化
+pub fn mls_init_db(db_path: String, nostr_id: String) -> Result<()>
+
+// Export SecretからListen Key取得
+pub fn mls_get_listen_key(nostr_id: String, group_id: String) -> Result<String>
+
+// TODOグループ作成
+pub fn mls_create_todo_group(
+    nostr_id: String,
+    group_id: String,
+    group_name: String,
+    key_packages: Vec<String>,
+) -> Result<Vec<u8>>
+
+// TODO暗号化
+pub fn mls_add_todo(nostr_id: String, group_id: String, todo_json: String) -> Result<String>
+
+// TODO復号化
+pub fn mls_decrypt_todo(
+    nostr_id: String,
+    group_id: String,
+    encrypted_msg: String,
+) -> Result<(String, String, String)>
+
+// Key Package作成
+pub fn mls_create_key_package(nostr_id: String) -> Result<KeyPackageResult>
+```
+
+**Flutter側**:
+```dart
+// TodosProvider
+Future<void> _initMlsIfNeeded() // 自動初期化
+Future<void> createMlsGroupList({...}) // グループ作成
+Future<String> encryptMlsTodo({...}) // TODO暗号化
+Future<String> decryptMlsTodo({...}) // TODO復号化
+
+// UI (settings_screen.dart)
+_MlsTestDialog // 統合テストダイアログ
+  - グループ作成テスト
+  - TODO暗号化テスト
+  - TODO復号化テスト
+  - リアルタイムログ表示
+```
 
 ---
 
