@@ -706,6 +706,41 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       });
     }
   }
+
+  // Key Package公開（ダイアログ内）
+  Future<void> _publishKeyPackageInDialog() async {
+    if (_myKeyPackage == null) {
+      _addLog('❌ 先に「KP生成」でKey Packageを生成してください');
+      return;
+    }
+    
+    setState(() {
+      _isRunning = true;
+    });
+    
+    try {
+      _addLog('');
+      _addLog('📤 Key Package公開開始...');
+      
+      final nostrService = widget.ref.read(nostrServiceProvider);
+      final eventId = await nostrService.publishKeyPackage();
+      
+      if (eventId != null) {
+        _addLog('✅ Key Package公開成功！');
+        _addLog('📝 Event ID: ${eventId.substring(0, 16)}...');
+        _addLog('');
+        _addLog('🎉 相手があなたのnpubからKey Packageを取得できます');
+      } else {
+        _addLog('❌ Key Package公開失敗');
+      }
+    } catch (e) {
+      _addLog('❌ エラー: $e');
+    } finally {
+      setState(() {
+        _isRunning = false;
+      });
+    }
+  }
   
   Future<void> _runMlsTest() async {
     setState(() {
@@ -914,9 +949,19 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
         ElevatedButton.icon(
           onPressed: _isRunning ? null : _generateKeyPackage,
           icon: const Icon(Icons.vpn_key, size: 16),
-          label: const Text('Key Package生成', style: TextStyle(fontSize: 11)),
+          label: const Text('KP生成', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: _isRunning ? null : _publishKeyPackageInDialog,
+          icon: const Icon(Icons.cloud_upload, size: 16),
+          label: const Text('KP公開', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
           ),
         ),
         ElevatedButton.icon(
