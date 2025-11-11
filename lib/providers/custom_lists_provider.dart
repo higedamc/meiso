@@ -25,9 +25,17 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   
   final Ref _ref;
   Timer? _invitationSyncTimer;
+  
+  /// Issue #80: 削除済みイベントIDのセット（kind 5で削除されたリスト）
+  Set<String> _deletedEventIds = {};
 
   Future<void> _initialize() async {
     try {
+      // Issue #80: 削除済みイベントIDを読み込み
+      final deletedIds = await localStorageService.loadDeletedEventIds();
+      _deletedEventIds = deletedIds.toSet();
+      AppLogger.info('🗑️ [CustomLists] Loaded ${_deletedEventIds.length} deleted event IDs');
+      
       // ローカルストレージから読み込み
       final localLists = await localStorageService.loadCustomLists();
       
@@ -234,9 +242,68 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     return lists.map((l) => l.order).reduce((a, b) => a > b ? a : b) + 1;
   }
   
+  /// Issue #80: kind 5削除イベントを同期
+  Future<void> syncDeletionEvents() async {
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        AppLogger.warning('🗑️ [CustomLists] User pubkey not available, skipping deletion sync');
+        return;
+      }
+      
+      AppLogger.info('🗑️ [CustomLists] Syncing deletion events (kind 5)...');
+      
+      // Rust APIを呼び出してkind 5削除イベントを取得
+      final deletedIds = await rust_api.fetchDeletionEventsForPubkeyWithClientId(
+        publicKeyHex: userPubkey,
+        clientId: null,
+      );
+      
+      if (deletedIds.isNotEmpty) {
+        _deletedEventIds.addAll(deletedIds);
+        await localStorageService.saveDeletedEventIds(_deletedEventIds.toList());
+        AppLogger.info('✅ [CustomLists] Synced ${deletedIds.length} deletion events (total: ${_deletedEventIds.length})');
+      } else {
+        AppLogger.info('ℹ️ [CustomLists] No deletion events found');
+      }
+    } catch (e, st) {
+      AppLogger.error('❌ [CustomLists] Failed to sync deletion events', error: e, stackTrace: st);
+    }
+  }
+  
+  /// 削除済みイベントIDをチェックして、リストをフィルタリング
+  List<CustomList> _filterDeletedLists(List<CustomList> lists) {
+    if (_deletedEventIds.isEmpty) {
+      return lists;
+    }
+    
+    // kind 30001イベントの場合、d tagがリストIDになる
+    // カスタムリストのIDがkind 30001のd tagと一致する場合、削除済みとみなす
+    final filtered = lists.where((list) {
+      // グループリストの場合、eventIdをチェック
+      // 個人リストの場合、リスト名から生成されたIDをチェック
+      // 注: kind 30001のイベントIDは「pubkey:30001:d-tag」のようになっているが、
+      //     ここでは単純にリストIDが削除済みイベントIDに含まれるかチェック
+      
+      // 削除済みイベントIDのセットに含まれていたら除外
+      return !_deletedEventIds.contains(list.id);
+    }).toList();
+    
+    if (filtered.length < lists.length) {
+      AppLogger.info('🗑️ [CustomLists] Filtered out ${lists.length - filtered.length} deleted lists');
+    }
+    
+    return filtered;
+  }
+  
   /// Nostrから同期されたカスタムリストを反映
   /// listNameのListを受け取り、ローカルにないリストを追加
   Future<void> syncListsFromNostr(List<String> nostrListNames) async {
+    // Issue #80: 最初に削除イベントを同期
+    await syncDeletionEvents();
+    
     AppLogger.info(' [CustomLists] 🔄 syncListsFromNostr called with ${nostrListNames.length} lists from Nostr');
     AppLogger.info(' [CustomLists] 📋 Nostr lists: ${nostrListNames.join(", ")}');
     
@@ -295,23 +362,26 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     
     AppLogger.info(' [CustomLists] 📊 Sync result: hasChanges=$hasChanges, updatedListsCount=${updatedLists.length}, needsStateUpdate=$needsStateUpdate');
     
+    // Issue #80: 削除済みリストをフィルタリング
+    final filteredLists = _filterDeletedLists(updatedLists);
+    
     // 変更があった場合、または stateの更新が必要な場合
     if (hasChanges || needsStateUpdate) {
       if (hasChanges) {
         AppLogger.info(' [CustomLists] 💾 Saving changes to local storage...');
         
         // AppSettingsから順番を復元
-        await _applySavedListOrder(updatedLists);
+        await _applySavedListOrder(filteredLists);
         
         // ローカルストレージに保存
-        await localStorageService.saveCustomLists(updatedLists);
+        await localStorageService.saveCustomLists(filteredLists);
       }
       
       // 状態を更新（UIに確実に通知）
       // hasChangesがfalseでも、AsyncLoadingから読み込んだ場合は更新が必要
-      AppLogger.info(' [CustomLists] 🔄 Updating state with ${updatedLists.length} lists...');
-      state = AsyncValue.data(updatedLists);
-      AppLogger.info(' [CustomLists] ✅ State updated successfully! UI should now reflect ${updatedLists.length} lists');
+      AppLogger.info(' [CustomLists] 🔄 Updating state with ${filteredLists.length} lists...');
+      state = AsyncValue.data(filteredLists);
+      AppLogger.info(' [CustomLists] ✅ State updated successfully! UI should now reflect ${filteredLists.length} lists');
       
       if (hasChanges) {
         AppLogger.info(' [CustomLists] ✅ Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
@@ -771,6 +841,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// Nostrからグループリストを同期
   Future<void> syncGroupListsFromNostr() async {
     try {
+      // Issue #80: 最初に削除イベントを同期
+      await syncDeletionEvents();
+      
       AppLogger.info('🔄 Syncing group lists from Nostr...');
       
       // 公開鍵を取得
@@ -853,22 +926,25 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         }
       }
       
+      // Issue #80: 削除済みリストをフィルタリング
+      final filteredLists = _filterDeletedLists(updatedLists);
+      
       // 変更があった場合、または stateの更新が必要な場合
       if (hasChanges || needsStateUpdate) {
         if (hasChanges) {
           // ローカルストレージに保存
-          await localStorageService.saveCustomLists(updatedLists);
+          await localStorageService.saveCustomLists(filteredLists);
           
           // AppSettingsのcustomListOrderも更新
-          await _updateCustomListOrderInSettings(updatedLists);
+          await _updateCustomListOrderInSettings(filteredLists);
         }
         
         // 状態を更新（UIに確実に通知）
         // hasChangesがfalseでも、AsyncLoadingから読み込んだ場合は更新が必要
-        state = AsyncValue.data(updatedLists);
+        state = AsyncValue.data(filteredLists);
         
         AppLogger.info('✅ Synced ${groupLists.length} group lists from Nostr');
-        AppLogger.info('📱 State updated successfully! UI should now reflect ${updatedLists.length} total lists');
+        AppLogger.info('📱 State updated successfully! UI should now reflect ${filteredLists.length} total lists');
       }
     } catch (e, st) {
       AppLogger.error('❌ Failed to sync group lists from Nostr: $e', error: e, stackTrace: st);
