@@ -2755,3 +2755,69 @@ pub fn mls_create_key_package(nostr_id: String) -> Result<crate::group_tasks_mls
     crate::group_tasks_mls::create_key_package(nostr_id)
 }
 
+/// MLS: Key Package公開イベント作成（Kind 10443 - NIP-EE）
+/// 
+/// Key PackageをKind 10443イベントとして公開することで、
+/// 他のユーザーがnpubから自動的にKey Packageを取得できるようになる
+/// 
+/// # Arguments
+/// * `key_package_result` - mlsCreateKeyPackageの結果
+/// * `public_key_hex` - ユーザーの公開鍵（hex）
+/// * `relays` - Key Packageを公開するリレーのリスト
+/// 
+/// # Returns
+/// * 未署名イベントJSON（Amber署名用）
+pub fn create_unsigned_key_package_event(
+    key_package_result: crate::group_tasks_mls::KeyPackageResult,
+    public_key_hex: String,
+    relays: Vec<String>,
+) -> Result<String> {
+    use serde_json::json;
+    
+    // 公開鍵をパース
+    let public_key = PublicKey::from_hex(&public_key_hex)
+        .context("Failed to parse public key")?;
+    
+    // 現在のタイムスタンプ
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    // NIP-EE（Kind 10443）のタグ構成
+    let mut tags = Vec::new();
+    
+    // MLS Protocol Version
+    tags.push(vec!["mls_protocol_version".to_string(), key_package_result.mls_protocol_version]);
+    
+    // Ciphersuite
+    tags.push(vec!["ciphersuite".to_string(), key_package_result.ciphersuite]);
+    
+    // Extensions (if any)
+    if !key_package_result.extensions.is_empty() {
+        tags.push(vec!["extensions".to_string(), key_package_result.extensions]);
+    }
+    
+    // Client識別
+    tags.push(vec!["client".to_string(), "meiso".to_string()]);
+    
+    // リレーリスト
+    for relay_url in &relays {
+        tags.push(vec!["relay".to_string(), relay_url.clone()]);
+    }
+    
+    // 未署名イベントJSON（Amber用）
+    let unsigned_event = json!({
+        "pubkey": public_key.to_hex(),
+        "created_at": created_at,
+        "kind": 10443,  // NIP-EE: Key Package
+        "tags": tags,
+        "content": key_package_result.key_package,
+    });
+    
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    
+    println!("📦 Created unsigned key package event (Kind 10443) for Amber signing");
+    Ok(event_json)
+}
+
