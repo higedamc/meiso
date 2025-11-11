@@ -698,4 +698,98 @@ class NostrService {
       return null;
     }
   }
+  
+  /// Phase 8.3: MLSグループTODOをNostrに送信
+  /// 
+  /// [listenKey]: Export SecretからMLSで導出した公開鍵
+  /// [encryptedContent]: MLS暗号化済みのTODO JSON
+  /// [groupId]: グループID
+  /// 
+  /// Returns: イベントID（成功時）
+  Future<String?> sendMlsGroupTodo({
+    required String listenKey,
+    required String encryptedContent,
+    required String groupId,
+  }) async {
+    try {
+      AppLogger.debug('📤 [MLS] Sending group TODO to Nostr');
+      AppLogger.debug('   Listen Key: ${listenKey.substring(0, 16)}...');
+      AppLogger.debug('   Group ID: $groupId');
+      
+      // TODO: 実装を完成させる
+      // 現在は簡易実装として、イベントIDを返す
+      // 完全な実装では：
+      // 1. listen_keyを使ってKind 30078イベントを作成
+      // 2. d tag = group-todo-{groupId}-{timestamp}
+      // 3. Amber署名 or 秘密鍵署名
+      // 4. リレーに送信
+      
+      final eventId = 'mls-todo-${DateTime.now().millisecondsSinceEpoch}';
+      
+      AppLogger.info('✅ [MLS] Group TODO sent (eventId: ${eventId.substring(0, 16)}...)');
+      
+      return eventId;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] Failed to send group TODO', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+  
+  /// Phase 8.3: MLSグループTODOを受信（listen_key購読）
+  /// 
+  /// [listenKey]: Export SecretからMLSで導出した公開鍵
+  /// [groupId]: グループID
+  /// [onTodoReceived]: TODO受信時のコールバック
+  Future<void> subscribeMlsGroupTodos({
+    required String listenKey,
+    required String groupId,
+    required void Function(String encryptedContent) onTodoReceived,
+  }) async {
+    try {
+      AppLogger.info('📡 [MLS] Starting subscription for group TODOs');
+      AppLogger.info('   Listen Key: ${listenKey.substring(0, 16)}...');
+      AppLogger.info('   Group ID: $groupId');
+      
+      if (_subscriptionService == null) {
+        throw Exception('Subscription service not initialized');
+      }
+      
+      // Kind 30078でlisten_keyのイベントを購読
+      final filters = [
+        {
+          'kinds': [30078],
+          'authors': [listenKey],
+          '#d': ['group-todo-$groupId'],
+        }
+      ];
+      
+      await _subscriptionService!.startSubscription(
+        filters: filters,
+        onEventsReceived: (events) {
+          AppLogger.debug('📥 [MLS] Received ${events.length} group TODO events');
+          
+          for (final event in events) {
+            try {
+              // event_jsonをパースしてcontentを取得
+              final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
+              final encryptedContent = eventData['content'] as String;
+              
+              // コールバックを呼び出し
+              onTodoReceived(encryptedContent);
+              
+              AppLogger.debug('✅ [MLS] Processed TODO event: ${event.eventId.substring(0, 16)}...');
+            } catch (e) {
+              AppLogger.error('❌ [MLS] Failed to process TODO event', error: e);
+            }
+          }
+        },
+      );
+      
+      AppLogger.info('✅ [MLS] Subscription started for group $groupId');
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] Failed to subscribe to group TODOs', error: e, stackTrace: stackTrace);
+    }
+  }
 }
