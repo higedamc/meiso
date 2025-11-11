@@ -247,56 +247,57 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
     
     return appSettingsAsync.when(
       data: (settings) {
-        return Stack(
-          children: [
-            // メインアプリ
-            MaterialApp.router(
-              title: 'Meiso',
-              theme: AppTheme.lightTheme,
-              darkTheme: AppTheme.darkTheme,
-              themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
-              debugShowCheckedModeBanner: false,
-              routerConfig: _router,
-              // 多言語対応
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              supportedLocales: const [
-                Locale('en'), // English
-                Locale('ja'), // Japanese
-                Locale('es'), // Spanish
-              ],
-              locale: locale,
-              // Android 13+の「App languages」設定を優先的に反映
-              localeListResolutionCallback: (systemLocales, supportedLocales) {
-                // ユーザーが手動で言語を設定している場合はそれを優先
-                if (locale != null) {
-                  return locale;
-                }
-                
-                // システムのロケールリスト（App languages設定を含む）から
-                // サポートしている言語を探す
-                if (systemLocales != null) {
-                  for (final systemLocale in systemLocales) {
-                    for (final supportedLocale in supportedLocales) {
-                      if (systemLocale.languageCode == supportedLocale.languageCode) {
-                        return supportedLocale;
-                      }
-                    }
+        return MaterialApp.router(
+          title: 'Meiso',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
+          debugShowCheckedModeBanner: false,
+          routerConfig: _router,
+          // 多言語対応
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en'), // English
+            Locale('ja'), // Japanese
+            Locale('es'), // Spanish
+          ],
+          locale: locale,
+          // Android 13+の「App languages」設定を優先的に反映
+          localeListResolutionCallback: (systemLocales, supportedLocales) {
+            // ユーザーが手動で言語を設定している場合はそれを優先
+            if (locale != null) {
+              return locale;
+            }
+            
+            // システムのロケールリスト（App languages設定を含む）から
+            // サポートしている言語を探す
+            if (systemLocales != null) {
+              for (final systemLocale in systemLocales) {
+                for (final supportedLocale in supportedLocales) {
+                  if (systemLocale.languageCode == supportedLocale.languageCode) {
+                    return supportedLocale;
                   }
                 }
-                
-                // マッチする言語がない場合は英語をデフォルトとする
-                return const Locale('en');
-              },
-            ),
+              }
+            }
             
-            // Phase 8.5.1: 同期中のローディングオーバーレイ
-            const SyncLoadingOverlay(),
-          ],
+            // マッチする言語がない場合は英語をデフォルトとする
+            return const Locale('en');
+          },
+          // Phase 8.5.1: 同期中のローディングオーバーレイをbuilderで統合
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
+          },
         );
       },
       loading: () {
@@ -336,6 +337,14 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             
             return const Locale('en');
           },
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
+          },
         );
       },
       error: (error, stack) {
@@ -374,6 +383,14 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             }
             
             return const Locale('en');
+          },
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
           },
         );
       },
