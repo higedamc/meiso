@@ -18,6 +18,7 @@ import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
 import 'app_settings_provider.dart';
+import '../utils/error_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
 
@@ -1917,6 +1918,81 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
 
+  /// Phase 8.5.3: グループ系データをバックグラウンドで同期（優先度低）
+  Future<void> _syncGroupDataInBackground() async {
+    AppLogger.info('🔄 [Background] グループ系同期開始（バックグラウンド）');
+    
+    try {
+      // グループリストとグループタスクを並列同期
+      await Future.wait([
+        // 1. グループリスト同期
+        _ref.read(customListsProvider.notifier).syncGroupListsFromNostr().then((_) {
+          AppLogger.info('✅ [Background] グループリスト同期完了');
+        }).catchError((e) {
+          AppLogger.warning('⚠️ [Background] グループリスト同期エラー: $e');
+        }),
+        
+        // 2. グループタスク同期
+        syncAllGroupTodos().then((_) {
+          AppLogger.info('✅ [Background] グループタスク同期完了');
+        }).catchError((e) {
+          AppLogger.warning('⚠️ [Background] グループタスク同期エラー: $e');
+        }),
+      ], eagerError: false);
+      
+      AppLogger.info('✅ [Background] グループ系同期完了');
+    } catch (e) {
+      AppLogger.error('❌ [Background] グループ系同期エラー', error: e);
+    }
+  }
+  
+  /// Phase 8.5.1: 暗号化イベントからカスタムリスト名を抽出（並列同期用）
+  Future<List<String>> _fetchEncryptedEventsForListNames() async {
+    final nostrService = _ref.read(nostrServiceProvider);
+    
+    try {
+      // タイムアウト付きでイベント取得（5秒）
+      final encryptedEvents = await ErrorHandler.withTimeout<List<rust_api.EncryptedTodoListEvent>>(
+        operation: () => nostrService.fetchAllEncryptedTodoLists(),
+        operationName: 'fetchEncryptedEventsForListNames',
+        timeout: const Duration(seconds: 5),
+        defaultValue: <rust_api.EncryptedTodoListEvent>[],
+      );
+      
+      if (encryptedEvents.isEmpty) {
+        AppLogger.debug('📋 [Sync] イベントなし、空リスト返却');
+        return [];
+      }
+      
+      // カスタムリスト名を抽出
+      final List<String> listNames = [];
+      for (final event in encryptedEvents) {
+        if (event.listId == null || event.listId == 'meiso-todos') {
+          continue; // デフォルトリストは除外
+        }
+        
+        String listName;
+        if (event.title != null && event.title!.isNotEmpty) {
+          listName = event.title!;
+        } else if (event.listId!.startsWith('meiso-list-')) {
+          listName = event.listId!.substring('meiso-list-'.length);
+        } else {
+          listName = event.listId!;
+        }
+        
+        if (!listNames.contains(listName)) {
+          listNames.add(listName);
+        }
+      }
+      
+      AppLogger.debug('📋 [Sync] 抽出されたリスト名: ${listNames.join(", ")}');
+      return listNames;
+    } catch (e) {
+      AppLogger.error('❌ [Sync] カスタムリスト名抽出エラー', error: e);
+      return [];
+    }
+  }
+  
   /// Nostrからすべてのtodoを同期（Kind 30001 - Todoリスト全体を取得）
   Future<void> syncFromNostr() async {
     if (!_ref.read(nostrInitializedProvider)) {
@@ -1930,16 +2006,45 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     _ref.read(syncStatusProvider.notifier).startSync();
 
     try {
-      // 最優先: AppSettings（リレーリスト含む）を同期
-      AppLogger.info(' [Sync] 1/3: AppSettings（リレーリスト含む）を同期中...');
+      // Phase 8.5.1: 優先度付き並列同期
+      AppLogger.info('🚀 [Sync] Phase 1: 優先同期開始（並列実行）');
+      
+      // Phase 1: 重要データを並列同期（AppSettings + カスタムリスト名取得）
+      final phase1Results = await Future.wait([
+        // 1. AppSettings同期（リレーリスト含む）
+        _ref.read(appSettingsProvider.notifier).syncFromNostr().then((_) {
+          AppLogger.info('✅ [Sync] AppSettings同期完了');
+          return true;
+        }).catchError((e) {
+          AppLogger.warning('⚠️ [Sync] AppSettings同期エラー（続行）: $e');
+          return false;
+        }),
+        
+        // 2. 暗号化Todoリストイベント取得（カスタムリスト名抽出のため）
+        _fetchEncryptedEventsForListNames().then((listNames) {
+          AppLogger.info('✅ [Sync] カスタムリスト名抽出完了: ${listNames.length}件');
+          return listNames;
+        }).catchError((e) {
+          AppLogger.warning('⚠️ [Sync] カスタムリスト名抽出エラー: $e');
+          return <String>[];
+        }),
+      ], eagerError: false); // エラーがあっても全て完了するまで待つ
+      
+      final customListNames = phase1Results[1] as List<String>;
+      
+      AppLogger.info('✅ [Sync] Phase 1完了（${Duration(milliseconds: 0)})');
+      
+      // Phase 2: カスタムリスト同期（Phase 1の結果を使用）
+      AppLogger.info('📋 [Sync] Phase 2: カスタムリスト同期開始');
       try {
-        await _ref.read(appSettingsProvider.notifier).syncFromNostr();
-        AppLogger.info(' [Sync] AppSettings同期完了');
+        await _ref.read(customListsProvider.notifier).syncListsFromNostr(customListNames);
+        AppLogger.info('✅ [Sync] カスタムリスト同期完了');
       } catch (e) {
-        AppLogger.warning(' [Sync] AppSettings同期エラー（続行します）: $e');
+        AppLogger.warning('⚠️ [Sync] カスタムリスト同期エラー: $e');
       }
       
-      // タイムアウト付きで同期実行（30秒）
+      // Phase 3: TODO同期（タイムアウト付き、短縮: 20秒）
+      AppLogger.info('📝 [Sync] Phase 3: TODO同期開始');
       await Future(() async {
         if (isAmberMode) {
           // Amberモード: すべてのTodoリストイベント（Kind 30001）を取得 → Amberで復号化
@@ -1963,41 +2068,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             if (hasLocalData) {
               AppLogger.info(' ローカルデータを保持（リモートは空/Amber）');
               
-              // リモートにTodoイベントがなくても、カスタムリストとグループリストは同期する
-              AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
-              await _ref.read(customListsProvider.notifier).syncListsFromNostr([]);
-              AppLogger.info(' [Sync] カスタムリスト同期完了');
-              
-              AppLogger.info(' [Sync] 2.5/3: グループリストを同期中...');
-              await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
-              AppLogger.info(' [Sync] グループリスト同期完了');
-              
-              // グループタスクを同期
-              AppLogger.info(' [Sync] 2.6/3: グループタスクを一括同期中...');
-              await syncAllGroupTodos();
-              AppLogger.info(' [Sync] グループタスク同期完了');
-              
+              // Phase 8.5.3: グループ系はバックグラウンドで同期
               _ref.read(syncStatusProvider.notifier).syncSuccess();
+              
+              // バックグラウンドでグループ系同期を開始（UIをブロックしない）
+              Future.microtask(() => _syncGroupDataInBackground());
+              
               return; // ここで関数を抜ける
             }
             
-            // ローカルデータもない場合は空状態に（それでもカスタムリストとグループリストは同期する）
+            // ローカルデータもない場合は空状態に
             AppLogger.debug(' ローカルもリモートもデータがありません');
             
-            AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
-            await _ref.read(customListsProvider.notifier).syncListsFromNostr([]);
-            AppLogger.info(' [Sync] カスタムリスト同期完了');
-            
-            AppLogger.info(' [Sync] 2.5/3: グループリストを同期中...');
-            await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
-            AppLogger.info(' [Sync] グループリスト同期完了');
-            
-            // グループタスクを同期
-            AppLogger.info(' [Sync] 2.6/3: グループタスクを一括同期中...');
-            await syncAllGroupTodos();
-            AppLogger.info(' [Sync] グループタスク同期完了');
-            
+            // Phase 8.5.3: グループ系はバックグラウンドで同期
             _ref.read(syncStatusProvider.notifier).syncSuccess();
+            
+            // バックグラウンドでグループ系同期を開始（UIをブロックしない）
+            Future.microtask(() => _syncGroupDataInBackground());
+            
             return;
           }
           
@@ -2052,21 +2140,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           AppLogger.info(' [Sync] 📊 Extracted ${nostrListNames.length} custom list names: ${nostrListNames.join(", ")}');
           
-          // カスタムリストを同期（名前ベース）
-          // nostrListNamesが空の場合でも呼び出し、デフォルトリストを作成
-          AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
-          await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
-          AppLogger.info(' [Sync] カスタムリスト同期完了');
-          
-          // グループリストを同期
-          AppLogger.info(' [Sync] 2.5/3: グループリストを同期中...');
-          await _ref.read(customListsProvider.notifier).syncGroupListsFromNostr();
-          AppLogger.info(' [Sync] グループリスト同期完了');
-          
-          // グループタスクを同期
-          AppLogger.info(' [Sync] 2.6/3: グループタスクを一括同期中...');
-          await syncAllGroupTodos();
-          AppLogger.info(' [Sync] グループタスク同期完了');
+          // Phase 8.5: カスタムリスト名は既にPhase 1で取得済みなので、ここでは使用のみ
+          // （このコードパスは旧実装との互換性のため残す）
+          AppLogger.debug(' [Sync] カスタムリスト名: ${nostrListNames.join(", ")}（Phase 1で処理済み）');
           
           final amberService = _ref.read(amberServiceProvider);
           var publicKey = _ref.read(publicKeyProvider);
