@@ -206,6 +206,14 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
             // エラーがあってもアプリ起動は継続
           }
+          
+          // Phase 8.1: Key Package自動公開
+          try {
+            await nostrService.autoPublishKeyPackageIfNeeded();
+          } catch (e) {
+            AppLogger.warning('[復元] Key Package自動公開エラー', error: e, tag: 'MLS');
+            // エラーは無視（必須ではない）
+          }
         } else {
           AppLogger.warning('公開鍵が見つかりませんでした（Amberモード）', tag: 'AMBER');
           AppLogger.debug('公開鍵ファイルが存在するか: ${await nostrService.hasPublicKey()}', tag: 'AMBER');

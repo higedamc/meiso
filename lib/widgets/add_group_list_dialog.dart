@@ -15,46 +15,99 @@ class AddGroupListDialog extends ConsumerStatefulWidget {
 
 class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   final TextEditingController _groupNameController = TextEditingController();
-  final TextEditingController _memberPubkeyController = TextEditingController();
-  final List<String> _members = [];
+  final TextEditingController _memberNpubController = TextEditingController();
+  final List<Map<String, String>> _members = []; // {npub, keyPackage}
   bool _isLoading = false;
+  bool _isFetchingKeyPackage = false;
 
   @override
   void initState() {
     super.initState();
-    // 自分の公開鍵をデフォルトで追加（hex形式）
-    Future.microtask(() async {
-      final ownPubkeyNpub = ref.read(nostrPublicKeyProvider);
-      if (ownPubkeyNpub != null && mounted) {
-        try {
-          // npub形式をhex形式に変換
-          final nostrService = ref.read(nostrServiceProvider);
-          final ownPubkeyHex = await nostrService.npubToHex(ownPubkeyNpub);
-          if (mounted) {
-            setState(() {
-              _members.add(ownPubkeyHex);
-            });
-          }
-        } catch (e) {
-          AppLogger.error('❌ Failed to convert npub to hex: $e', error: e);
-        }
-      }
-    });
+    // Phase 8.1: 自分はデフォルトメンバーに含めない
+    // MLSグループは自動的に自分を含む
   }
 
   @override
   void dispose() {
     _groupNameController.dispose();
-    _memberPubkeyController.dispose();
+    _memberNpubController.dispose();
     super.dispose();
   }
+  
+  /// Phase 8.1: Key Package取得
+  Future<void> _fetchKeyPackage() async {
+    final npub = _memberNpubController.text.trim();
+    
+    if (npub.isEmpty || !npub.startsWith('npub')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('有効なnpubを入力してください'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isFetchingKeyPackage = true;
+    });
+    
+    try {
+      AppLogger.info('🔍 [AddGroupListDialog] Fetching Key Package for: ${npub.substring(0, 20)}...');
+      
+      final nostrService = ref.read(nostrServiceProvider);
+      final keyPackage = await nostrService.fetchKeyPackageByNpub(npub);
+      
+      if (keyPackage != null) {
+        setState(() {
+          _members.add({
+            'npub': npub,
+            'keyPackage': keyPackage,
+          });
+          _memberNpubController.clear();
+        });
+        
+        AppLogger.info('✅ [AddGroupListDialog] Key Package fetched successfully');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ ${npub.substring(0, 20)}... を追加しました'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        throw Exception('Key Packageが見つかりません。相手がまだKey Packageを公開していない可能性があります。');
+      }
+      
+    } catch (e) {
+      AppLogger.error('❌ [AddGroupListDialog] Failed to fetch Key Package', error: e);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Key Package取得失敗: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingKeyPackage = false;
+        });
+      }
+    }
+  }
 
+  /// Phase 8.1: MLSグループ作成
   Future<void> _createGroup() async {
-    if (_groupNameController.text.trim().isEmpty || _members.isEmpty) {
+    if (_groupNameController.text.trim().isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('グループ名とメンバーを入力してください'),
+            content: Text('グループ名を入力してください'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -67,21 +120,35 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     });
 
     try {
-      final groupList = await ref.read(customListsProvider.notifier).createGroupList(
+      AppLogger.info('🚀 [AddGroupListDialog] Creating MLS group: ${_groupNameController.text}');
+      AppLogger.info('   Members: ${_members.length}');
+      
+      // Key Packagesを抽出
+      final keyPackages = _members.map((m) => m['keyPackage']!).toList();
+      
+      final groupList = await ref.read(customListsProvider.notifier).createMlsGroupList(
             name: _groupNameController.text.trim(),
-            memberPubkeys: _members,
+            keyPackages: keyPackages,
           );
 
       if (groupList != null && mounted) {
-        AppLogger.info('✅ Group list created: ${groupList.name}');
+        AppLogger.info('✅ [AddGroupListDialog] MLS group created: ${groupList.name}');
         Navigator.pop(context, true);
+        
+        // 成功メッセージ
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ グループ「${groupList.name}」を作成しました'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
-      AppLogger.error('❌ Failed to create group list: $e', error: e);
+      AppLogger.error('❌ [AddGroupListDialog] Failed to create group: $e', error: e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('グループリスト作成に失敗しました: $e'),
+            content: Text('❌ グループ作成失敗: $e'),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -129,10 +196,11 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Members (Public Keys)',
+              'Phase 8.1: Add Member (MLS)',
               style: TextStyle(
                 color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
                 fontWeight: FontWeight.bold,
+                fontSize: 12,
               ),
             ),
             const SizedBox(height: 8),
@@ -140,10 +208,12 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _memberPubkeyController,
+                    controller: _memberNpubController,
                     decoration: InputDecoration(
-                      labelText: 'Add Member npub/hex',
+                      labelText: 'Member npub',
+                      hintText: 'npub1...',
                       labelStyle: TextStyle(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
+                      hintStyle: TextStyle(color: isDark ? AppTheme.darkTextSecondary.withOpacity(0.5) : AppTheme.lightTextSecondary.withOpacity(0.5)),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider),
                       ),
@@ -154,73 +224,35 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                     style: TextStyle(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  onPressed: () async {
-                    final pubkey = _memberPubkeyController.text.trim();
-                    if (pubkey.isEmpty) return;
-                    
-                    try {
-                      String hexPubkey;
-                      
-                      // npub形式かhex形式かを判定
-                      if (pubkey.startsWith('npub1')) {
-                        // npub形式をhex形式に変換
-                        final nostrService = ref.read(nostrServiceProvider);
-                        hexPubkey = await nostrService.npubToHex(pubkey);
-                        AppLogger.debug('🔑 Converted npub to hex: ${hexPubkey.substring(0, 16)}...');
-                      } else if (pubkey.length == 64 && RegExp(r'^[0-9a-fA-F]+$').hasMatch(pubkey)) {
-                        // 既にhex形式
-                        hexPubkey = pubkey.toLowerCase();
-                      } else {
-                        // 無効な形式
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('無効な公開鍵形式です（npub形式またはhex形式のみ）'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                        return;
-                      }
-                      
-                      // 重複チェック
-                      if (_members.contains(hexPubkey)) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('このメンバーは既に追加されています'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                        return;
-                      }
-                      
-                      setState(() {
-                        _members.add(hexPubkey);
-                        _memberPubkeyController.clear();
-                      });
-                    } catch (e) {
-                      AppLogger.error('❌ Failed to add member: $e', error: e);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('公開鍵の変換に失敗しました: $e'),
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                ),
+                if (_isFetchingKeyPackage)
+                  const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.download),
+                    tooltip: 'Fetch Key Package',
+                    onPressed: _fetchKeyPackage,
+                  ),
               ],
             ),
             const SizedBox(height: 8),
-            if (_members.isNotEmpty)
+            if (_members.isNotEmpty) ...[
+              Text(
+                'Members: ${_members.length}',
+                style: TextStyle(
+                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 4),
               Container(
-                constraints: const BoxConstraints(maxHeight: 150),
+                constraints: const BoxConstraints(maxHeight: 120),
                 decoration: BoxDecoration(
                   border: Border.all(
                     color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
@@ -231,14 +263,22 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                   shrinkWrap: true,
                   itemCount: _members.length,
                   itemBuilder: (context, index) {
-                    final pubkey = _members[index];
+                    final member = _members[index];
+                    final npub = member['npub']!;
+                    final shortNpub = npub.length > 20 ? '${npub.substring(0, 16)}...' : npub;
+                    
                     return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.check_circle, color: Colors.green, size: 16),
                       title: Text(
-                        pubkey.length > 20 ? '${pubkey.substring(0, 10)}...${pubkey.substring(pubkey.length - 10)}' : pubkey,
-                        style: TextStyle(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
+                        shortNpub,
+                        style: TextStyle(
+                          color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                          fontSize: 12,
+                        ),
                       ),
                       trailing: IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
+                        icon: const Icon(Icons.remove_circle_outline, size: 18),
                         onPressed: () {
                           setState(() {
                             _members.removeAt(index);
@@ -249,6 +289,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                   },
                 ),
               ),
+            ],
           ],
         ),
       ),

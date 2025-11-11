@@ -520,6 +520,66 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     }
   }
   
+  /// Phase 8.1: MLSグループリスト作成
+  Future<CustomList?> createMlsGroupList({
+    required String name,
+    required List<String> keyPackages,
+  }) async {
+    if (name.trim().isEmpty) return null;
+    
+    try {
+      final lists = await state.whenData((lists) => lists).value ?? [];
+      
+      final now = DateTime.now();
+      final normalizedName = name.trim().toUpperCase();
+      
+      // グループIDを生成
+      const uuid = Uuid();
+      final groupId = uuid.v4();
+      
+      AppLogger.info('🔐 [CustomLists] Creating MLS group: "$normalizedName"');
+      
+      // MLSグループを作成
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
+      
+      final welcomeMsgBytes = await rust_api.mlsCreateTodoGroup(
+        nostrId: userPubkey,
+        groupId: groupId,
+        groupName: normalizedName,
+        keyPackages: keyPackages,
+      );
+      
+      AppLogger.info('✅ [CustomLists] MLS group created (Welcome: ${welcomeMsgBytes.length} bytes)');
+      // TODO: Phase 8.4で Welcome Message を各メンバーに送信
+      
+      // ローカルにグループリストを作成
+      final newGroupList = CustomList(
+        id: groupId,
+        name: normalizedName,
+        order: _getNextOrder(lists),
+        createdAt: now,
+        updatedAt: now,
+        isGroup: true,
+        groupMembers: [],
+      );
+      
+      final updatedLists = [...lists, newGroupList];
+      await localStorageService.saveCustomLists(updatedLists);
+      state = AsyncValue.data(updatedLists);
+      await _updateCustomListOrderInSettings(updatedLists);
+      
+      return newGroupList;
+    } catch (e, st) {
+      AppLogger.error('❌ [CustomLists] Failed to create MLS group', error: e, stackTrace: st);
+      return null;
+    }
+  }
+  
   /// グループリストにメンバーを追加
   Future<void> addMemberToGroupList({
     required String groupId,
