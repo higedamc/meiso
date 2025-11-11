@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
@@ -701,8 +702,10 @@ class NostrService {
   
   /// Phase 8.3: MLSグループTODOをNostrに送信
   /// 
-  /// [listenKey]: Export SecretからMLSで導出した公開鍵
-  /// [encryptedContent]: MLS暗号化済みのTODO JSON
+  /// Keychatパターンに従い、NIP-17 (Gift Wrap) + Amber署名を使用
+  /// 
+  /// [listenKey]: Export SecretからMLSで導出した受信用公開鍵
+  /// [encryptedContent]: MLS暗号化済みのTODO JSON（hex）
   /// [groupId]: グループID
   /// 
   /// Returns: イベントID（成功時）
@@ -715,20 +718,62 @@ class NostrService {
       AppLogger.debug('📤 [MLS] Sending group TODO to Nostr');
       AppLogger.debug('   Listen Key: ${listenKey.substring(0, 16)}...');
       AppLogger.debug('   Group ID: $groupId');
+      AppLogger.debug('   Content size: ${encryptedContent.length} bytes');
       
-      // TODO: 実装を完成させる
-      // 現在は簡易実装として、イベントIDを返す
-      // 完全な実装では：
-      // 1. listen_keyを使ってKind 30078イベントを作成
-      // 2. d tag = group-todo-{groupId}-{timestamp}
-      // 3. Amber署名 or 秘密鍵署名
-      // 4. リレーに送信
+      // 公開鍵を取得
+      final publicKeyHex = await getPublicKey();
+      if (publicKeyHex == null) {
+        throw Exception('Public key not available');
+      }
       
-      final eventId = 'mls-todo-${DateTime.now().millisecondsSinceEpoch}';
+      final npub = await hexToNpub(publicKeyHex);
       
-      AppLogger.info('✅ [MLS] Group TODO sent (eventId: ${eventId.substring(0, 16)}...)');
+      // NIP-17 Gift Wrap用の未署名イベントを作成
+      // Kind 1059（Seal）、受信者 = listen_key
+      final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       
-      return eventId;
+      final unsignedEvent = jsonEncode({
+        'pubkey': publicKeyHex,
+        'created_at': timestamp,
+        'kind': 1059, // NIP-17 Seal
+        'tags': [
+          ['p', listenKey], // 受信者 = listen_key（グループの共有公開鍵）
+          ['group_id', groupId],
+        ],
+        'content': encryptedContent, // MLS暗号化済み
+      });
+      
+      AppLogger.debug('📄 [MLS] Created unsigned Gift Wrap event');
+      
+      // Amberで署名
+      final amberService = AmberService();
+      
+      String signedEvent;
+      try {
+        // ContentProvider経由で試行（バックグラウンド）
+        signedEvent = await amberService.signEventWithContentProvider(
+          event: unsignedEvent,
+          npub: npub,
+        );
+        AppLogger.debug('✅ [MLS] Signed via ContentProvider');
+      } on PlatformException catch (e) {
+        // UI経由にフォールバック
+        AppLogger.warning('[MLS] ContentProvider failed (${e.code}), using UI method');
+        signedEvent = await amberService.signEventWithTimeout(
+          unsignedEvent,
+          timeout: const Duration(minutes: 2),
+        );
+        AppLogger.debug('✅ [MLS] Signed via UI');
+      }
+      
+      // リレーに送信
+      final sendResult = await sendSignedEvent(signedEvent);
+      
+      AppLogger.info('✅ [MLS] Group TODO sent successfully');
+      AppLogger.info('   Event ID: ${sendResult.eventId.substring(0, 16)}...');
+      AppLogger.info('   Successful relays: ${sendResult.successfulRelays}');
+      
+      return sendResult.eventId;
       
     } catch (e, stackTrace) {
       AppLogger.error('❌ [MLS] Failed to send group TODO', error: e, stackTrace: stackTrace);
@@ -738,7 +783,9 @@ class NostrService {
   
   /// Phase 8.3: MLSグループTODOを受信（listen_key購読）
   /// 
-  /// [listenKey]: Export SecretからMLSで導出した公開鍵
+  /// Keychatパターンに従い、NIP-17 (Gift Wrap) を受信
+  /// 
+  /// [listenKey]: Export SecretからMLSで導出した受信用公開鍵
   /// [groupId]: グループID
   /// [onTodoReceived]: TODO受信時のコールバック
   Future<void> subscribeMlsGroupTodos({
@@ -755,25 +802,40 @@ class NostrService {
         throw Exception('Subscription service not initialized');
       }
       
-      // Kind 30078でlisten_keyのイベントを購読
+      // NIP-17: Kind 1059（Seal）で購読
+      // #p タグ = listen_key で受信
       final filters = [
         {
-          'kinds': [30078],
-          'authors': [listenKey],
-          '#d': ['group-todo-$groupId'],
+          'kinds': [1059], // NIP-17 Seal
+          '#p': [listenKey], // 受信者 = listen_key
         }
       ];
       
       await _subscriptionService!.startSubscription(
         filters: filters,
         onEventsReceived: (events) {
-          AppLogger.debug('📥 [MLS] Received ${events.length} group TODO events');
+          AppLogger.debug('📥 [MLS] Received ${events.length} sealed events');
           
           for (final event in events) {
             try {
               // event_jsonをパースしてcontentを取得
               final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
               final encryptedContent = eventData['content'] as String;
+              
+              // group_idタグをチェック（このグループ宛か確認）
+              final tags = eventData['tags'] as List<dynamic>?;
+              if (tags != null) {
+                final groupIdTag = tags.firstWhere(
+                  (tag) => tag is List && tag.isNotEmpty && tag[0] == 'group_id',
+                  orElse: () => null,
+                );
+                
+                if (groupIdTag != null && groupIdTag[1] != groupId) {
+                  // 別のグループ宛のメッセージ
+                  AppLogger.debug('⏭️  [MLS] Skipping message for different group');
+                  continue;
+                }
+              }
               
               // コールバックを呼び出し
               onTodoReceived(encryptedContent);
