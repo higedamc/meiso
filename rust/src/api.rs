@@ -2869,6 +2869,16 @@ pub fn sync_group_invitations(
         
         println!("✅ Found {} group invitation events", events.len());
         
+        // Phase 8.1.3: 取得したイベントの詳細をログ出力
+        if !events.is_empty() {
+            println!("📋 Event details:");
+            for (i, event) in events.iter().enumerate() {
+                println!("  [{}] Event ID: {}", i + 1, event.id.to_hex().chars().take(16).collect::<String>());
+                println!("      From: {}", event.pubkey.to_hex().chars().take(16).collect::<String>());
+                println!("      Created: {}", event.created_at.as_u64());
+            }
+        }
+        
         // イベントをJSON配列に変換
         let mut invitations = Vec::new();
         
@@ -2888,16 +2898,19 @@ pub fn sync_group_invitations(
             
             if let Some(d_tag_value) = d_tag {
                 // d_tag形式: group-invitation-{groupId}-{recipientPubkey}
+                println!("  🔍 Processing d_tag: {}", d_tag_value.chars().take(50).collect::<String>());
+                
                 if let Some(group_id) = d_tag_value.strip_prefix("group-invitation-") {
                     if let Some(group_id_only) = group_id.split('-').next() {
                         // contentをパース（平文のJSON）
                         // Note: 将来的にはNIP-44復号化が必要
                         if let Ok(content_json) = serde_json::from_str::<serde_json::Value>(&event.content) {
+                            let group_name = content_json.get("group_name").and_then(|v| v.as_str()).unwrap_or("Unnamed Group");
                             let invitation = json!({
                                 "event_id": event.id.to_hex(),
                                 "inviter_pubkey": event.pubkey.to_hex(),
                                 "group_id": content_json.get("group_id").and_then(|v| v.as_str()).unwrap_or(group_id_only),
-                                "group_name": content_json.get("group_name").and_then(|v| v.as_str()).unwrap_or("Unnamed Group"),
+                                "group_name": group_name,
                                 "welcome_msg": content_json.get("welcome_msg").and_then(|v| v.as_str()).unwrap_or(""),
                                 "inviter_name": content_json.get("inviter_name").and_then(|v| v.as_str()),
                                 "invited_at": content_json.get("invited_at").and_then(|v| v.as_u64()).unwrap_or(0),
@@ -2907,13 +2920,21 @@ pub fn sync_group_invitations(
                             invitations.push(invitation);
                             
                             println!(
-                                "  📨 Invitation: {} from {}",
-                                content_json.get("group_name").and_then(|v| v.as_str()).unwrap_or("Unnamed"),
+                                "  ✅ Parsed invitation: '{}' from {}",
+                                group_name,
                                 event.pubkey.to_hex().chars().take(16).collect::<String>()
                             );
+                        } else {
+                            println!("  ⚠️ Failed to parse content JSON");
                         }
+                    } else {
+                        println!("  ⚠️ Failed to extract group_id from d_tag");
                     }
+                } else {
+                    println!("  ⚠️ d_tag doesn't start with 'group-invitation-'");
                 }
+            } else {
+                println!("  ⚠️ No d_tag found in event");
             }
         }
         

@@ -607,8 +607,11 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       int successCount = 0;
       int failCount = 0;
       
-      for (final npub in memberNpubs) {
+      for (int i = 0; i < memberNpubs.length; i++) {
+        final npub = memberNpubs[i];
         try {
+          AppLogger.info('📤 [CustomLists] Sending invitation ${i + 1}/${memberNpubs.length} to ${npub.substring(0, 20)}...');
+          
           // Phase 8.2.1: リトライ付きで招待送信
           final eventId = await ErrorHandler.retryWithBackoff<String?>(
             operation: () => nostrService.sendGroupInvitation(
@@ -623,17 +626,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           );
           
           if (eventId != null) {
-            AppLogger.info('  ✅ Sent invitation to ${npub.substring(0, 20)}...');
+            AppLogger.info('  ✅ Invitation sent successfully! Event ID: ${eventId.substring(0, 16)}...');
             successCount++;
           } else {
-            AppLogger.warning('  ⚠️ Failed to send invitation to ${npub.substring(0, 20)}...');
+            AppLogger.warning('  ⚠️ Invitation failed (returned null)');
             failCount++;
           }
         } catch (e) {
           final appError = ErrorHandler.classify(e);
           AppLogger.error(
-            '  ❌ Error sending invitation to ${npub.substring(0, 20)}...\n'
-            'User Message: ${appError.userMessage}',
+            '  ❌ Invitation error: ${appError.userMessage}',
             error: e,
           );
           failCount++;
@@ -642,6 +644,17 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       }
       
       AppLogger.info('✅ [CustomLists] Invitations sent: $successCount success, $failCount failed');
+      
+      // Phase 8.1.3: 招待送信が全て失敗した場合はエラー
+      if (successCount == 0 && memberNpubs.isNotEmpty) {
+        AppLogger.error('❌ [CustomLists] All invitations failed to send');
+        throw Exception('招待送信が全て失敗しました。メンバーのnpubを確認してください。');
+      }
+      
+      // 一部失敗した場合は警告ログを出力
+      if (failCount > 0) {
+        AppLogger.warning('⚠️ [CustomLists] Some invitations failed: $failCount/${ memberNpubs.length}');
+      }
       
       // ローカルにグループリストを作成
       final newGroupList = CustomList(
