@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
@@ -593,6 +594,16 @@ class SomedayScreen extends ConsumerWidget {
       if (userPubkey == null) {
         throw Exception('User public key not available');
       }
+      
+      // MLS DBを初期化（まだ初期化されていない場合）
+      AppLogger.info('🔐 [GroupInvitation] Initializing MLS DB...');
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dbPath = '${appDocDir.path}/mls.db';
+      
+      await rust_api.mlsInitDb(
+        dbPath: dbPath,
+        nostrId: userPubkey,
+      );
       
       AppLogger.info('📥 [GroupInvitation] Joining MLS group: ${list.id}');
       
