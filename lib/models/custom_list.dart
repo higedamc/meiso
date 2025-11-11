@@ -27,6 +27,18 @@ class CustomList with _$CustomList {
     
     /// グループメンバーの公開鍵リスト（hex形式）
     @Default([]) List<String> groupMembers,
+    
+    /// インビテーション待ちかどうか（Phase 6.4: MLS招待システム）
+    @Default(false) bool isPendingInvitation,
+    
+    /// 招待者のnpub（Phase 6.4: MLS招待システム）
+    String? inviterNpub,
+    
+    /// 招待者の名前（Phase 6.4: MLS招待システム）
+    String? inviterName,
+    
+    /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
+    String? welcomeMsg,
   }) = _CustomList;
 
   factory CustomList.fromJson(Map<String, dynamic> json) =>

@@ -2755,6 +2755,15 @@ pub fn mls_create_key_package(nostr_id: String) -> Result<crate::group_tasks_mls
     crate::group_tasks_mls::create_key_package(nostr_id)
 }
 
+/// MLS: グループに参加（Welcome Message使用）
+pub fn mls_join_group(
+    nostr_id: String,
+    group_id: String,
+    welcome_msg: Vec<u8>,
+) -> Result<()> {
+    crate::group_tasks_mls::join_mls_group(nostr_id, group_id, welcome_msg)
+}
+
 /// MLS: Key Package公開イベント作成（Kind 10443 - NIP-EE）
 /// 
 /// Key PackageをKind 10443イベントとして公開することで、
@@ -2819,6 +2828,102 @@ pub fn create_unsigned_key_package_event(
     
     println!("📦 Created unsigned key package event (Kind 10443) for Amber signing");
     Ok(event_json)
+}
+
+/// MLS: グループ招待を同期（Kind 30078から取得）
+/// 
+/// 自分宛のグループ招待イベントを取得する
+/// 
+/// # Arguments
+/// * `recipient_public_key_hex` - 受信者の公開鍵（hex）
+/// * `client_id` - NostrクライアントID（オプション）
+/// 
+/// # Returns
+/// * グループ招待のJSON配列
+pub fn sync_group_invitations(
+    recipient_public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    use serde_json::json;
+    
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let recipient_pubkey = PublicKey::from_hex(&recipient_public_key_hex)
+            .context("Failed to parse recipient public key")?;
+        
+        println!("📥 Syncing group invitations for: {}", recipient_pubkey.to_hex());
+        
+        // Kind 30078イベントをフィルタ（pタグで自分宛）
+        let filter = Filter::new()
+            .kind(Kind::Custom(30078))
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::P),
+                vec![recipient_pubkey.to_hex()],
+            )
+            .limit(50);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        println!("✅ Found {} group invitation events", events.len());
+        
+        // イベントをJSON配列に変換
+        let mut invitations = Vec::new();
+        
+        for event in events {
+            // d tagからgroup_idを抽出
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.first().map(|s| s.as_str()) == Some("d")
+                })
+                .and_then(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.get(1).cloned()
+                });
+            
+            if let Some(d_tag_value) = d_tag {
+                // d_tag形式: group-invitation-{groupId}-{recipientPubkey}
+                if let Some(group_id) = d_tag_value.strip_prefix("group-invitation-") {
+                    if let Some(group_id_only) = group_id.split('-').next() {
+                        // contentをパース（平文のJSON）
+                        // Note: 将来的にはNIP-44復号化が必要
+                        if let Ok(content_json) = serde_json::from_str::<serde_json::Value>(&event.content) {
+                            let invitation = json!({
+                                "event_id": event.id.to_hex(),
+                                "inviter_pubkey": event.pubkey.to_hex(),
+                                "group_id": content_json.get("group_id").and_then(|v| v.as_str()).unwrap_or(group_id_only),
+                                "group_name": content_json.get("group_name").and_then(|v| v.as_str()).unwrap_or("Unnamed Group"),
+                                "welcome_msg": content_json.get("welcome_msg").and_then(|v| v.as_str()).unwrap_or(""),
+                                "inviter_name": content_json.get("inviter_name").and_then(|v| v.as_str()),
+                                "invited_at": content_json.get("invited_at").and_then(|v| v.as_u64()).unwrap_or(0),
+                                "created_at": event.created_at.as_u64(),
+                            });
+                            
+                            invitations.push(invitation);
+                            
+                            println!(
+                                "  📨 Invitation: {} from {}",
+                                content_json.get("group_name").and_then(|v| v.as_str()).unwrap_or("Unnamed"),
+                                event.pubkey.to_hex().chars().take(16).collect::<String>()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        
+        let result = json!({
+            "invitations": invitations,
+            "count": invitations.len(),
+        });
+        
+        Ok(serde_json::to_string(&result)?)
+    })
 }
 
 /// MLS: グループ招待イベント作成（Kind 30078 + NIP-44）

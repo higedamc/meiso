@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../services/logger_service.dart';
@@ -6,6 +7,7 @@ import '../services/local_storage_service.dart';
 import '../services/group_task_service.dart';
 import 'app_settings_provider.dart';
 import 'nostr_provider.dart';
+import '../bridge_generated.dart/api.dart' as rust_api;
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -306,6 +308,102 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     
     // Nostr同期後、リストが空の場合はデフォルトリストを作成
     await createDefaultListsIfEmpty();
+  }
+  
+  /// グループ招待を同期（Phase 6.4: MLS招待システム）
+  Future<void> syncGroupInvitations() async {
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        AppLogger.warning('📥 [GroupInvitations] User pubkey not available, skipping sync');
+        return;
+      }
+      
+      AppLogger.info('📥 [GroupInvitations] Syncing group invitations...');
+      
+      // Rust APIを呼び出してグループ招待を取得
+      final resultJson = await rust_api.syncGroupInvitations(
+        recipientPublicKeyHex: userPubkey,
+        clientId: null,
+      );
+      
+      final result = jsonDecode(resultJson) as Map<String, dynamic>;
+      final invitations = result['invitations'] as List<dynamic>;
+      
+      AppLogger.info('✅ [GroupInvitations] Found ${invitations.length} pending invitations');
+      
+      if (invitations.isEmpty) {
+        return;
+      }
+      
+      // 現在のリストを取得
+      final currentLists = await state.whenData((lists) => lists).value ?? [];
+      final updatedLists = List<CustomList>.from(currentLists);
+      bool hasChanges = false;
+      
+      for (final invitationData in invitations) {
+        final invitation = invitationData as Map<String, dynamic>;
+        final groupId = invitation['group_id'] as String;
+        final groupName = invitation['group_name'] as String;
+        final welcomeMsg = invitation['welcome_msg'] as String;
+        final inviterPubkey = invitation['inviter_pubkey'] as String;
+        final inviterName = invitation['inviter_name'] as String?;
+        
+        // 既にこのグループのリストが存在するか確認
+        final existingIndex = updatedLists.indexWhere((list) => list.id == groupId);
+        
+        if (existingIndex == -1) {
+          // 新しい招待として追加
+          AppLogger.info('📨 [GroupInvitations] New invitation: $groupName from ${inviterPubkey.substring(0, 16)}...');
+          
+          final newList = CustomList(
+            id: groupId,
+            name: groupName.toUpperCase(),
+            order: _getNextOrder(updatedLists),
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            isGroup: true,
+            isPendingInvitation: true,
+            inviterNpub: inviterPubkey, // hex形式（npub変換は後で必要に応じて）
+            inviterName: inviterName,
+            welcomeMsg: welcomeMsg,
+            groupMembers: [], // 招待受諾後に設定
+          );
+          
+          updatedLists.add(newList);
+          hasChanges = true;
+        } else {
+          // 既存のリストを更新（招待情報を追加）
+          final existingList = updatedLists[existingIndex];
+          if (!existingList.isPendingInvitation) {
+            AppLogger.info('📨 [GroupInvitations] Updating existing list with invitation: $groupName');
+            
+            updatedLists[existingIndex] = existingList.copyWith(
+              isPendingInvitation: true,
+              inviterNpub: inviterPubkey,
+              inviterName: inviterName,
+              welcomeMsg: welcomeMsg,
+            );
+            hasChanges = true;
+          }
+        }
+      }
+      
+      if (hasChanges) {
+        // ローカルストレージに保存
+        await localStorageService.saveCustomLists(updatedLists);
+        
+        // 状態を更新
+        state = AsyncValue.data(updatedLists);
+        
+        AppLogger.info('✅ [GroupInvitations] Synced ${invitations.length} group invitations');
+      }
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [GroupInvitations] Failed to sync group invitations', error: e, stackTrace: stackTrace);
+    }
   }
   
   /// AppSettingsから保存された順番を適用
