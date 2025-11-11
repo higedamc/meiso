@@ -161,6 +161,9 @@ impl User {
     }
     
     /// Self commit (finalize pending proposals)
+    /// 
+    /// Note: If add_members() was called, it already created a commit.
+    /// In that case, we only need to merge the pending commit.
     pub fn self_commit(&mut self, group_id: String) -> Result<()> {
         let mut groups = self
             .mls_user
@@ -172,15 +175,27 @@ impl User {
             .get_mut(&group_id)
             .ok_or_else(|| anyhow::anyhow!("Group {} not found", group_id))?;
         
-        group
-            .mls_group
-            .commit_to_pending_proposals(&self.mls_user.provider, &self.mls_user.identity.read().unwrap().signer)
-            .map_err(|e| anyhow::anyhow!("Failed to commit: {:?}", e))?;
-        
-        group
-            .mls_group
-            .merge_pending_commit(&self.mls_user.provider)
-            .map_err(|e| anyhow::anyhow!("Failed to merge commit: {:?}", e))?;
+        // Check if there's already a pending commit (from add_members, etc.)
+        if group.mls_group.pending_commit().is_some() {
+            println!("📝 [MLS] Merging existing pending commit for group {}", group_id);
+            // Only merge if commit already exists
+            group
+                .mls_group
+                .merge_pending_commit(&self.mls_user.provider)
+                .map_err(|e| anyhow::anyhow!("Failed to merge commit: {:?}", e))?;
+        } else {
+            println!("📝 [MLS] Creating and merging new commit for group {}", group_id);
+            // Create new commit if none exists
+            group
+                .mls_group
+                .commit_to_pending_proposals(&self.mls_user.provider, &self.mls_user.identity.read().unwrap().signer)
+                .map_err(|e| anyhow::anyhow!("Failed to commit: {:?}", e))?;
+            
+            group
+                .mls_group
+                .merge_pending_commit(&self.mls_user.provider)
+                .map_err(|e| anyhow::anyhow!("Failed to merge commit: {:?}", e))?;
+        }
         
         Ok(())
     }

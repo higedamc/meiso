@@ -39,6 +39,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         AppLogger.info(' [CustomLists] Loaded ${localLists.length} lists from local storage');
         state = AsyncValue.data(localLists);
       }
+      
+      // Phase 6.4: 起動時にグループ招待を同期
+      // Note: Nostr初期化後に実行されるため、ここでは呼び出しのみ
+      Future.microtask(() async {
+        try {
+          await syncGroupInvitations();
+        } catch (e) {
+          AppLogger.warning('📥 [GroupInvitations] Initial sync failed: $e');
+        }
+      });
     } catch (e) {
       AppLogger.warning(' CustomList初期化エラー: $e');
       state = AsyncValue.data([]);
