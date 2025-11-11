@@ -810,6 +810,17 @@ class NostrService {
       // リレーリストを取得（デフォルトリレーを使用）
       final relays = defaultRelays;
       
+      // Phase 8.1.3: MLS DB初期化（Key Package生成前に必須）
+      AppLogger.debug('  Step 0: MLS DB初期化中...');
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dbPath = '${appDocDir.path}/mls.db';
+      
+      await rust_api.mlsInitDb(
+        dbPath: dbPath,
+        nostrId: publicKeyHex,
+      );
+      AppLogger.debug('  ✅ MLS DB初期化完了');
+      
       // Step 1: Key Package生成
       AppLogger.debug('  Step 1: Key Package生成中...');
       final keyPackageResult = await rust_api.mlsCreateKeyPackage(
