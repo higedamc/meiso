@@ -13,111 +13,30 @@ class AddGroupListDialog extends ConsumerStatefulWidget {
   ConsumerState<AddGroupListDialog> createState() => _AddGroupListDialogState();
 }
 
-enum GroupListType {
-  legacy, // kind: 30001
-  mls,    // MLS (Phase 8.1)
-}
+// Phase 8.4: Legacy (kind: 30001) は廃止
+// enum GroupListType は削除
 
 class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   final TextEditingController _groupNameController = TextEditingController();
-  final TextEditingController _memberPubkeyController = TextEditingController(); // Legacy用
   final TextEditingController _memberNpubController = TextEditingController(); // MLS用
-  final List<String> _legacyMembers = []; // hex形式
   final List<Map<String, dynamic>> _mlsMembers = []; // {npub, keyPackage, hasWarning}
   bool _isLoading = false;
   bool _isFetchingKeyPackage = false;
-  GroupListType _selectedType = GroupListType.mls; // デフォルトはMLS
 
   @override
   void initState() {
     super.initState();
-    // Legacy: 自分の公開鍵をデフォルトで追加（hex形式）
-    Future.microtask(() async {
-      final ownPubkeyNpub = ref.read(nostrPublicKeyProvider);
-      if (ownPubkeyNpub != null && mounted) {
-        try {
-          // npub形式をhex形式に変換
-          final nostrService = ref.read(nostrServiceProvider);
-          final ownPubkeyHex = await nostrService.npubToHex(ownPubkeyNpub);
-          if (mounted) {
-            setState(() {
-              _legacyMembers.add(ownPubkeyHex);
-            });
-          }
-        } catch (e) {
-          AppLogger.error('❌ Failed to convert npub to hex: $e', error: e);
-        }
-      }
-    });
+    // Phase 8.4: Legacy初期化は削除
   }
 
   @override
   void dispose() {
     _groupNameController.dispose();
-    _memberPubkeyController.dispose();
     _memberNpubController.dispose();
     super.dispose();
   }
   
-  /// Legacy: メンバー追加（npub/hex対応）
-  Future<void> _addLegacyMember() async {
-    final pubkey = _memberPubkeyController.text.trim();
-    if (pubkey.isEmpty) return;
-    
-    try {
-      String hexPubkey;
-      
-      // npub形式かhex形式かを判定
-      if (pubkey.startsWith('npub1')) {
-        // npub形式をhex形式に変換
-        final nostrService = ref.read(nostrServiceProvider);
-        hexPubkey = await nostrService.npubToHex(pubkey);
-        AppLogger.debug('🔑 Converted npub to hex: ${hexPubkey.substring(0, 16)}...');
-      } else if (pubkey.length == 64 && RegExp(r'^[0-9a-fA-F]+$').hasMatch(pubkey)) {
-        // 既にhex形式
-        hexPubkey = pubkey.toLowerCase();
-      } else {
-        // 無効な形式
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('無効な公開鍵形式です（npub形式またはhex形式のみ）'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        return;
-      }
-      
-      // 重複チェック
-      if (_legacyMembers.contains(hexPubkey)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('このメンバーは既に追加されています'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        return;
-      }
-      
-      setState(() {
-        _legacyMembers.add(hexPubkey);
-        _memberPubkeyController.clear();
-      });
-    } catch (e) {
-      AppLogger.error('❌ Failed to add member: $e', error: e);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('公開鍵の変換に失敗しました: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
+  // Phase 8.4: _addLegacyMember() 削除（kind: 30001廃止）
   
   /// Phase 8.1: Key Package取得
   Future<void> _fetchKeyPackage() async {
@@ -428,7 +347,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     }
   }
 
-  /// グループ作成（Legacy / MLS対応）
+  /// Phase 8.4: MLSグループ作成（kind: 30001廃止）
   Future<void> _createGroup() async {
     if (_groupNameController.text.trim().isEmpty) {
       if (mounted) {
@@ -442,50 +361,35 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       return;
     }
 
-    // メンバーチェック（Legacyの場合のみ）
-    if (_selectedType == GroupListType.legacy && _legacyMembers.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('グループ名とメンバーを入力してください'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
+    // Phase 8.4: MLS - 警告メンバーの検証
+    final hasWarning = _mlsMembers.any((m) => m['hasWarning'] == true);
     
-    // Phase 8.1.1: MLS - 警告メンバーの検証
-    if (_selectedType == GroupListType.mls) {
-      final hasWarning = _mlsMembers.any((m) => m['hasWarning'] == true);
+    if (hasWarning) {
+      final warningCount = _mlsMembers.where((m) => m['hasWarning'] == true).length;
+      final validCount = _mlsMembers.where((m) => m['hasWarning'] != true).length;
       
-      if (hasWarning) {
-        final warningCount = _mlsMembers.where((m) => m['hasWarning'] == true).length;
-        final validCount = _mlsMembers.where((m) => m['hasWarning'] != true).length;
-        
-        if (validCount == 0) {
-          // 全員が警告状態の場合はグループ作成不可
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('⚠️ Key Packageが取得できたメンバーが必要です'),
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
+      if (validCount == 0) {
+        // 全員が警告状態の場合はグループ作成不可
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Key Packageが取得できたメンバーが必要です'),
+              duration: Duration(seconds: 3),
+            ),
+          );
         }
-        
-        // 一部が警告状態の場合は確認ダイアログ
-        final confirmed = await _showWarningMembersConfirmDialog(warningCount, validCount);
-        if (confirmed != true) {
-          return;
-        }
-        
-        // 警告メンバーを除外
-        _mlsMembers.removeWhere((m) => m['hasWarning'] == true);
-        AppLogger.info('⚠️ [AddGroupListDialog] Excluded $warningCount member(s) without Key Package');
+        return;
       }
+      
+      // 一部が警告状態の場合は確認ダイアログ
+      final confirmed = await _showWarningMembersConfirmDialog(warningCount, validCount);
+      if (confirmed != true) {
+        return;
+      }
+      
+      // 警告メンバーを除外
+      _mlsMembers.removeWhere((m) => m['hasWarning'] == true);
+      AppLogger.info('⚠️ [AddGroupListDialog] Excluded $warningCount member(s) without Key Package');
     }
 
     setState(() {
@@ -493,44 +397,28 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     });
 
     try {
-      if (_selectedType == GroupListType.mls) {
-        // MLS実装
-        AppLogger.info('🚀 [AddGroupListDialog] Creating MLS group: ${_groupNameController.text}');
-        AppLogger.info('   Members: ${_mlsMembers.length}');
-        
-        final keyPackages = _mlsMembers
-            .where((m) => m['keyPackage'] != null)
-            .map((m) => m['keyPackage'] as String)
-            .toList();
-        final memberNpubs = _mlsMembers
-            .where((m) => m['keyPackage'] != null)
-            .map((m) => m['npub'] as String)
-            .toList();
-        
-        final groupList = await ref.read(customListsProvider.notifier).createMlsGroupList(
-              name: _groupNameController.text.trim(),
-              keyPackages: keyPackages,
-              memberNpubs: memberNpubs, // Phase 8.4: 招待送信用
-            );
+      // Phase 8.4: MLSグループのみ作成（kind: 30001は廃止）
+      AppLogger.info('🚀 [AddGroupListDialog] Creating MLS group: ${_groupNameController.text}');
+      AppLogger.info('   Members: ${_mlsMembers.length}');
+      
+      final keyPackages = _mlsMembers
+          .where((m) => m['keyPackage'] != null)
+          .map((m) => m['keyPackage'] as String)
+          .toList();
+      final memberNpubs = _mlsMembers
+          .where((m) => m['keyPackage'] != null)
+          .map((m) => m['npub'] as String)
+          .toList();
+      
+      final groupList = await ref.read(customListsProvider.notifier).createMlsGroupList(
+            name: _groupNameController.text.trim(),
+            keyPackages: keyPackages,
+            memberNpubs: memberNpubs,
+          );
 
-        if (groupList != null && mounted) {
-          AppLogger.info('✅ [AddGroupListDialog] MLS group created: ${groupList.name}');
-          Navigator.pop(context, true);
-        }
-      } else {
-        // Legacy実装 (kind: 30001)
-        AppLogger.info('🚀 [AddGroupListDialog] Creating Legacy group: ${_groupNameController.text}');
-        AppLogger.info('   Members: ${_legacyMembers.length}');
-        
-        final groupList = await ref.read(customListsProvider.notifier).createGroupList(
-              name: _groupNameController.text.trim(),
-              memberPubkeys: _legacyMembers,
-            );
-
-        if (groupList != null && mounted) {
-          AppLogger.info('✅ [AddGroupListDialog] Legacy group created: ${groupList.name}');
-          Navigator.pop(context, true);
-        }
+      if (groupList != null && mounted) {
+        AppLogger.info('✅ [AddGroupListDialog] MLS group created: ${groupList.name}');
+        Navigator.pop(context, true);
       }
     } catch (e) {
       AppLogger.error('❌ [AddGroupListDialog] Failed to create group: $e', error: e);
@@ -621,62 +509,30 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
             ),
             const SizedBox(height: 16),
             
-            // トグルボタン (Legacy / MLS)
+            // Phase 8.4: MLSグループのみに統一（kind: 30001廃止）
             Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
               decoration: BoxDecoration(
-                color: isDark ? AppTheme.darkDivider.withOpacity(0.3) : AppTheme.lightDivider.withOpacity(0.3),
+                color: AppTheme.primaryPurple.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppTheme.primaryPurple.withOpacity(0.3),
+                ),
               ),
               child: Row(
                 children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedType = GroupListType.legacy),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _selectedType == GroupListType.legacy
-                              ? AppTheme.primaryPurple
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Legacy (kind: 30001)',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: _selectedType == GroupListType.legacy
-                                ? Colors.white
-                                : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
+                  const Icon(
+                    Icons.security,
+                    color: AppTheme.primaryPurple,
+                    size: 18,
                   ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedType = GroupListType.mls),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _selectedType == GroupListType.mls
-                              ? AppTheme.primaryPurple
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'MLS (Beta)',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: _selectedType == GroupListType.mls
-                                ? Colors.white
-                                : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'MLS Encrypted Group',
+                    style: TextStyle(
+                      color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -684,8 +540,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
             ),
             const SizedBox(height: 16),
             
-            // メンバー入力（タイプに応じて表示）
-            if (_selectedType == GroupListType.mls) ...[
+            // Phase 8.4: MLSメンバー入力（kind: 30001は廃止）
               Text(
                 'Add Member (MLS)',
                 style: TextStyle(
@@ -811,73 +666,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                   ),
                 ),
               ],
-            ] else if (_selectedType == GroupListType.legacy) ...[
-              // Legacy用メンバー入力（既存実装を復元）
-              Text(
-                'Members (Public Keys)',
-                style: TextStyle(
-                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _memberPubkeyController,
-                      decoration: InputDecoration(
-                        labelText: 'Add Member npub/hex',
-                        labelStyle: TextStyle(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider),
-                        ),
-                        focusedBorder: const OutlineInputBorder(
-                          borderSide: BorderSide(color: AppTheme.primaryPurple),
-                        ),
-                      ),
-                      style: TextStyle(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: _addLegacyMember,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (_legacyMembers.isNotEmpty)
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 150),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _legacyMembers.length,
-                    itemBuilder: (context, index) {
-                      final pubkey = _legacyMembers[index];
-                      return ListTile(
-                        title: Text(
-                          pubkey.length > 20 ? '${pubkey.substring(0, 10)}...${pubkey.substring(pubkey.length - 10)}' : pubkey,
-                          style: TextStyle(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: () {
-                            setState(() {
-                              _legacyMembers.removeAt(index);
-                            });
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-            ],
+            // Phase 8.4: Legacy (kind: 30001) メンバー入力は削除
           ],
         ),
       ),
