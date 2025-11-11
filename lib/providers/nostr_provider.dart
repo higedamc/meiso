@@ -645,6 +645,71 @@ class NostrService {
     }
   }
   
+  /// Phase 8.4: グループ招待送信（Kind 30078）
+  Future<String?> sendGroupInvitation({
+    required String recipientNpub,
+    required String groupId,
+    required String groupName,
+    required String welcomeMsgBase64,
+  }) async {
+    try {
+      AppLogger.info('📤 [Invitation] Sending group invitation to: ${recipientNpub.substring(0, 20)}...');
+      
+      // 公開鍵を取得
+      final senderPubkeyHex = await getPublicKey();
+      if (senderPubkeyHex == null) {
+        throw Exception('Sender public key not available');
+      }
+      
+      final senderNpub = await hexToNpub(senderPubkeyHex);
+      
+      // 未署名イベントを作成
+      final unsignedEventJson = await rust_api.createUnsignedGroupInvitationEvent(
+        senderPublicKeyHex: senderPubkeyHex,
+        recipientNpub: recipientNpub,
+        groupId: groupId,
+        groupName: groupName,
+        welcomeMsgBase64: welcomeMsgBase64,
+        inviterName: null, // オプション
+      );
+      
+      AppLogger.debug('📄 [Invitation] Created unsigned event');
+      
+      // Amberで署名
+      final amberService = AmberService();
+      
+      String signedEvent;
+      try {
+        // ContentProvider経由で試行（バックグラウンド）
+        signedEvent = await amberService.signEventWithContentProvider(
+          event: unsignedEventJson,
+          npub: senderNpub,
+        );
+        AppLogger.debug('✅ [Invitation] Signed via ContentProvider');
+      } on PlatformException catch (e) {
+        // UI経由にフォールバック
+        AppLogger.warning('[Invitation] ContentProvider failed (${e.code}), using UI method');
+        signedEvent = await amberService.signEventWithTimeout(
+          unsignedEventJson,
+          timeout: const Duration(minutes: 2),
+        );
+        AppLogger.debug('✅ [Invitation] Signed via UI');
+      }
+      
+      // リレーに送信
+      final sendResult = await sendSignedEvent(signedEvent);
+      
+      AppLogger.info('✅ [Invitation] Group invitation sent successfully');
+      AppLogger.info('   Event ID: ${sendResult.eventId.substring(0, 16)}...');
+      
+      return sendResult.eventId;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [Invitation] Failed to send group invitation', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+  
   /// Phase 8.1: 起動時にKey Packageを自動公開
   /// 
   /// Amberモードで初回起動時、またはKey Packageが古い場合に自動公開

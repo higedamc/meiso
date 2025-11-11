@@ -224,10 +224,12 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         AppLogger.info('   Members: ${_mlsMembers.length}');
         
         final keyPackages = _mlsMembers.map((m) => m['keyPackage']!).toList();
+        final memberNpubs = _mlsMembers.map((m) => m['npub']!).toList();
         
         final groupList = await ref.read(customListsProvider.notifier).createMlsGroupList(
               name: _groupNameController.text.trim(),
               keyPackages: keyPackages,
+              memberNpubs: memberNpubs, // Phase 8.4: 招待送信用
             );
 
         if (groupList != null && mounted) {
