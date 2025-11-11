@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
@@ -13,6 +14,7 @@ import '../../widgets/add_group_list_dialog.dart';
 import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
+import '../../bridge_generated.dart/api.dart' as rust_api;
 
 /// SOMEDAYページ（リスト管理画面）- モーダル版
 class SomedayScreen extends ConsumerWidget {
@@ -147,7 +149,14 @@ class SomedayScreen extends ConsumerWidget {
               key: ValueKey(list.id),
               showDragHandle: true, // ドラッグハンドルを表示
               isGroup: list.isGroup, // グループリストフラグ
+              isPendingInvitation: list.isPendingInvitation, // Phase 6.4: 招待バッジ表示
               onTap: () {
+                // インビテーション待ちの場合は招待受諾ダイアログを表示（Phase 6.5で実装）
+                if (list.isPendingInvitation) {
+                  _showAcceptInvitationDialog(context, ref, list);
+                  return;
+                }
+                
                 // リスト詳細画面に遷移
                 Navigator.push(
                   context,
@@ -222,6 +231,7 @@ class SomedayScreen extends ConsumerWidget {
     required VoidCallback onTap,
     bool showDragHandle = false,
     bool isGroup = false,
+    bool isPendingInvitation = false,
   }) {
     return InkWell(
       key: key,
@@ -272,6 +282,40 @@ class SomedayScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            // インビテーションバッジ（Phase 6.4: MLS招待システム）
+            if (isPendingInvitation) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.mail,
+                      size: 14,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '招待',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             // カウント
             if (count > 0)
               Container(
@@ -407,6 +451,204 @@ class SomedayScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  /// グループ招待受諾ダイアログを表示（Phase 6.5: MLS招待システム）
+  void _showAcceptInvitationDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          title: Row(
+            children: [
+              Icon(
+                Icons.mail,
+                color: Colors.orange,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'グループ招待',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${list.name}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (list.inviterName != null) ...[
+                Text(
+                  '招待者: ${list.inviterName}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (list.inviterNpub != null) ...[
+                Text(
+                  '公開鍵: ${list.inviterNpub!.substring(0, 16)}...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: isDark 
+                      ? AppTheme.darkTextSecondary.withOpacity(0.7) 
+                      : AppTheme.lightTextSecondary.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                'このグループリストに参加しますか？',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'キャンセル',
+                style: TextStyle(
+                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _acceptGroupInvitation(context, ref, list);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('参加する'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// グループ招待を受諾（Phase 6.5: MLS招待システム）
+  Future<void> _acceptGroupInvitation(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+  ) async {
+    try {
+      AppLogger.info('🎉 [GroupInvitation] Accepting invitation for: ${list.name}');
+      
+      // ローディングインジケータを表示
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+      
+      // Welcome Messageをデコード
+      if (list.welcomeMsg == null) {
+        throw Exception('Welcome message not found');
+      }
+      
+      final welcomeMsgBytes = base64Decode(list.welcomeMsg!);
+      
+      // MLS groupに参加
+      final nostrService = ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
+      
+      AppLogger.info('📥 [GroupInvitation] Joining MLS group: ${list.id}');
+      
+      await rust_api.mlsJoinGroup(
+        nostrId: userPubkey,
+        groupId: list.id,
+        welcomeMsg: welcomeMsgBytes,
+      );
+      
+      AppLogger.info('✅ [GroupInvitation] Successfully joined MLS group');
+      
+      // リストの招待フラグをクリア
+      final updatedList = list.copyWith(
+        isPendingInvitation: false,
+        inviterNpub: null,
+        inviterName: null,
+        welcomeMsg: null,
+      );
+      
+      // ローカルストレージに保存
+      final customListsNotifier = ref.read(customListsProvider.notifier);
+      await customListsNotifier.updateList(updatedList);
+      
+      // ローディングを閉じる
+      if (context.mounted) Navigator.pop(context);
+      
+      // 成功メッセージ
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ ${list.name}に参加しました'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      AppLogger.info('🎉 [GroupInvitation] Group invitation accepted successfully');
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [GroupInvitation] Failed to accept invitation', error: e, stackTrace: stackTrace);
+      
+      // ローディングを閉じる
+      if (context.mounted) Navigator.pop(context);
+      
+      // エラーメッセージ
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('エラー'),
+            content: Text('招待の受諾に失敗しました\n\n$e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 }
 

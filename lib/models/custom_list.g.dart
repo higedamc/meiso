@@ -19,6 +19,10 @@ _$CustomListImpl _$$CustomListImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      isPendingInvitation: json['isPendingInvitation'] as bool? ?? false,
+      inviterNpub: json['inviterNpub'] as String?,
+      inviterName: json['inviterName'] as String?,
+      welcomeMsg: json['welcomeMsg'] as String?,
     );
 
 Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
@@ -30,4 +34,8 @@ Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
       'updatedAt': instance.updatedAt.toIso8601String(),
       'isGroup': instance.isGroup,
       'groupMembers': instance.groupMembers,
+      'isPendingInvitation': instance.isPendingInvitation,
+      'inviterNpub': instance.inviterNpub,
+      'inviterName': instance.inviterName,
+      'welcomeMsg': instance.welcomeMsg,
     };
