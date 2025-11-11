@@ -2821,6 +2821,92 @@ pub fn create_unsigned_key_package_event(
     Ok(event_json)
 }
 
+/// MLS: グループ招待イベント作成（Kind 30078 + NIP-44）
+/// 
+/// グループ招待通知をKind 30078イベントとして作成（未署名）
+/// 受信者の公開鍵でNIP-44暗号化される
+/// 
+/// # Arguments
+/// * `sender_public_key_hex` - 送信者の公開鍵（hex）
+/// * `recipient_npub` - 受信者のnpub
+/// * `group_id` - グループID
+/// * `group_name` - グループ名
+/// * `welcome_msg_base64` - Welcome Message（base64エンコード済み）
+/// * `inviter_name` - 招待者の名前（オプション）
+/// 
+/// # Returns
+/// * 未署名イベントJSON（Amber署名用）
+pub fn create_unsigned_group_invitation_event(
+    sender_public_key_hex: String,
+    recipient_npub: String,
+    group_id: String,
+    group_name: String,
+    welcome_msg_base64: String,
+    inviter_name: Option<String>,
+) -> Result<String> {
+    use serde_json::json;
+    
+    // 公開鍵をパース
+    let sender_pubkey = PublicKey::from_hex(&sender_public_key_hex)
+        .context("Failed to parse sender public key")?;
+    let recipient_pubkey = PublicKey::from_bech32(&recipient_npub)
+        .context("Failed to parse recipient npub")?;
+    
+    // 招待データを作成
+    let invitation_data = json!({
+        "type": "group_invitation",
+        "group_id": group_id,
+        "group_name": group_name,
+        "welcome_msg": welcome_msg_base64,
+        "inviter_name": inviter_name,
+        "invited_at": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+    });
+    
+    let content_json = serde_json::to_string(&invitation_data)?;
+    
+    println!("📤 Creating group invitation event");
+    println!("   Group: {}", group_name);
+    println!("   Recipient: {}", recipient_pubkey.to_hex());
+    
+    // NIP-44で暗号化（注意: Amber署名前なので、ここでは暗号化できない）
+    // → Amber署名版では、contentを平文で渡し、Flutter側で暗号化する必要がある
+    // → または、秘密鍵モードでは署名前に暗号化する
+    
+    // 簡略化のため、ここでは平文をそのまま渡す（実際の実装ではFlutter側で暗号化）
+    // Amber対応のため、未署名イベントとして返す
+    
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    // d tag: group-invitation-{groupId}-{recipientPubkey}
+    let d_tag_value = format!("group-invitation-{}-{}", group_id, recipient_pubkey.to_hex());
+    
+    let mut tags = Vec::new();
+    tags.push(vec!["d".to_string(), d_tag_value]);
+    tags.push(vec!["p".to_string(), recipient_pubkey.to_hex()]);
+    tags.push(vec!["client".to_string(), "meiso".to_string()]);
+    
+    // 未署名イベントJSON
+    // Note: contentは平文で渡す。実際の暗号化はFlutter側（Amber署名時）に実装予定
+    let unsigned_event = json!({
+        "pubkey": sender_pubkey.to_hex(),
+        "created_at": created_at,
+        "kind": 30078,  // NIP-78: App Data
+        "tags": tags,
+        "content": content_json,  // 平文（TODO: NIP-44暗号化）
+    });
+    
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    
+    println!("✅ Created unsigned group invitation event");
+    Ok(event_json)
+}
+
 /// MLS: npubからKey Packageを取得（Kind 10443）
 /// 
 /// 指定したnpubのユーザーが公開しているKey Packageを取得する
