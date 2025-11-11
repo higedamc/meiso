@@ -629,6 +629,76 @@ class NostrService {
     _subscriptionService?.dispose();
   }
   
+  /// Phase 8.1: npubからKey Packageを取得
+  Future<String?> fetchKeyPackageByNpub(String npub) async {
+    try {
+      AppLogger.debug('🔍 Fetching Key Package for: ${npub.substring(0, 20)}...');
+      
+      final keyPackage = await rust_api.fetchKeyPackageByNpub(npub: npub);
+      
+      AppLogger.info('✅ Key Package fetched successfully');
+      return keyPackage;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ Failed to fetch Key Package', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+  
+  /// Phase 8.1: 起動時にKey Packageを自動公開
+  /// 
+  /// Amberモードで初回起動時、またはKey Packageが古い場合に自動公開
+  Future<void> autoPublishKeyPackageIfNeeded() async {
+    try {
+      // Amberモードチェック
+      if (!localStorageService.isUsingAmber()) {
+        AppLogger.debug('⏭️  [KeyPackage] Amberモードではないため、自動公開をスキップ');
+        return;
+      }
+      
+      // Nostr初期化チェック
+      final publicKey = await getPublicKey();
+      if (publicKey == null) {
+        AppLogger.warning('⚠️ [KeyPackage] 公開鍵が取得できないため、自動公開をスキップ');
+        return;
+      }
+      
+      AppLogger.info('🔑 [KeyPackage] 起動時Key Package自動公開チェック');
+      
+      // 前回の公開時刻をチェック
+      final lastPublished = localStorageService.getLastKeyPackagePublishTime();
+      final now = DateTime.now();
+      
+      if (lastPublished != null) {
+        final hoursSincePublish = now.difference(lastPublished).inHours;
+        AppLogger.debug('   前回公開: ${hoursSincePublish}時間前');
+        
+        // 24時間以内なら公開しない
+        if (hoursSincePublish < 24) {
+          AppLogger.info('✅ [KeyPackage] Key Packageは最新です（${hoursSincePublish}時間前に公開済み）');
+          return;
+        }
+      } else {
+        AppLogger.debug('   初回公開');
+      }
+      
+      // Key Package公開
+      final eventId = await publishKeyPackage();
+      
+      if (eventId != null) {
+        // 公開時刻を保存
+        localStorageService.setLastKeyPackagePublishTime(now);
+        AppLogger.info('✅ [KeyPackage] 起動時Key Package自動公開成功');
+      } else {
+        AppLogger.warning('⚠️ [KeyPackage] 自動公開に失敗しました');
+      }
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [KeyPackage] 自動公開エラー', error: e, stackTrace: stackTrace);
+      // エラーは無視（アプリ起動に影響を与えない）
+    }
+  }
+  
   /// MLS: Key PackageをKind 10443イベントとして公開
   /// 
   /// Key Packageを公開することで、他のユーザーがnpubから自動的に
