@@ -151,6 +151,28 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     });
     
     try {
+      // Nostrクライアント初期化確認（最大5秒待機）
+      final isInitialized = ref.read(nostrInitializedProvider);
+      if (!isInitialized) {
+        AppLogger.warning('⚠️ [AddGroupListDialog] Nostrクライアントが初期化されていません。待機中...');
+        
+        // 最大10回（5秒）待機
+        bool initCompleted = false;
+        for (int i = 0; i < 10; i++) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (ref.read(nostrInitializedProvider)) {
+            AppLogger.info('✅ [AddGroupListDialog] Nostrクライアント初期化完了');
+            initCompleted = true;
+            break;
+          }
+        }
+        
+        // まだ初期化されていない場合はエラー
+        if (!initCompleted) {
+          throw Exception('Nostrクライアントの初期化がタイムアウトしました。アプリを再起動してください。');
+        }
+      }
+      
       AppLogger.info('🔍 [AddGroupListDialog] Fetching Key Package for: ${npub.substring(0, 20)}...');
       
       final nostrService = ref.read(nostrServiceProvider);
@@ -329,6 +351,28 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     });
     
     try {
+      // Nostrクライアント初期化確認（最大5秒待機）
+      final isInitialized = ref.read(nostrInitializedProvider);
+      if (!isInitialized) {
+        AppLogger.warning('⚠️ [AddGroupListDialog] Nostrクライアントが初期化されていません。待機中...');
+        
+        // 最大10回（5秒）待機
+        bool initCompleted = false;
+        for (int i = 0; i < 10; i++) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (ref.read(nostrInitializedProvider)) {
+            AppLogger.info('✅ [AddGroupListDialog] Nostrクライアント初期化完了');
+            initCompleted = true;
+            break;
+          }
+        }
+        
+        // まだ初期化されていない場合はエラー
+        if (!initCompleted) {
+          throw Exception('Nostrクライアントの初期化がタイムアウトしました。アプリを再起動してください。');
+        }
+      }
+      
       AppLogger.info('🔄 [AddGroupListDialog] Retrying Key Package fetch for: ${npub.substring(0, 20)}...');
       
       final nostrService = ref.read(nostrServiceProvider);
@@ -510,6 +554,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isNostrInitialized = ref.watch(nostrInitializedProvider);
 
     return AlertDialog(
       backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
@@ -525,6 +570,41 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Nostr初期化状態の表示
+            if (!isNostrInitialized)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Nostr接続を初期化中...\nKey Package取得は初期化完了後に可能です',
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             TextField(
               controller: _groupNameController,
               decoration: InputDecoration(
@@ -647,8 +727,15 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                 else
                   IconButton(
                     icon: const Icon(Icons.download),
-                    tooltip: 'Fetch Key Package',
-                    onPressed: _fetchKeyPackage,
+                    tooltip: isNostrInitialized 
+                        ? 'Fetch Key Package' 
+                        : 'Nostr初期化中...',
+                    color: isNostrInitialized 
+                        ? null 
+                        : Colors.grey,
+                    onPressed: isNostrInitialized 
+                        ? _fetchKeyPackage 
+                        : null,
                   ),
               ],
             ),
