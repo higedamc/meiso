@@ -627,6 +627,8 @@ class SomedayScreen extends ConsumerWidget {
       final customListsNotifier = ref.read(customListsProvider.notifier);
       await customListsNotifier.updateList(updatedList);
       
+      AppLogger.info('🎉 [GroupInvitation] Group invitation accepted successfully');
+      
       // ローディングを閉じる
       if (context.mounted) Navigator.pop(context);
       
@@ -640,7 +642,19 @@ class SomedayScreen extends ConsumerWidget {
         );
       }
       
-      AppLogger.info('🎉 [GroupInvitation] Group invitation accepted successfully');
+      // 参加成功後、自動的にリスト詳細画面に遷移
+      await Future.delayed(const Duration(milliseconds: 300)); // 状態更新を待つ
+      
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ListDetailScreen(
+              customList: updatedList, // 更新後のリストを渡す
+            ),
+          ),
+        );
+      }
       
     } catch (e, stackTrace) {
       AppLogger.error('❌ [GroupInvitation] Failed to accept invitation', error: e, stackTrace: stackTrace);
