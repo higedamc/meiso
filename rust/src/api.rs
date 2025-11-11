@@ -2821,3 +2821,64 @@ pub fn create_unsigned_key_package_event(
     Ok(event_json)
 }
 
+/// MLS: npubからKey Packageを取得（Kind 10443）
+/// 
+/// 指定したnpubのユーザーが公開しているKey Packageを取得する
+/// 
+/// # Arguments
+/// * `npub` - 取得対象ユーザーのnpub（bech32形式）
+/// 
+/// # Returns
+/// * Key Package（hex文字列）
+pub fn fetch_key_package_by_npub(npub: String) -> Result<String> {
+    fetch_key_package_by_npub_with_client_id(npub, None)
+}
+
+/// MLS: npubからKey Packageを取得（client_id指定可能）
+pub fn fetch_key_package_by_npub_with_client_id(
+    npub: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // npubを公開鍵（hex）に変換
+        let public_key = PublicKey::from_bech32(&npub)
+            .context("Failed to parse npub")?;
+        
+        println!("🔍 Fetching Key Package for: {}", public_key.to_hex());
+        
+        // Kind 10443イベントをクエリ
+        let filter = Filter::new()
+            .kind(Kind::Custom(10443))
+            .author(public_key)
+            .limit(1);  // 最新のKey Packageのみ
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        // 最新のKey Packageを取得
+        if let Some(event) = events.first() {
+            println!("✅ Found Key Package event: {}", event.id.to_hex());
+            println!("   Created at: {}", event.created_at);
+            
+            // タグから情報を取得（デバッグ用）
+            for tag in event.tags.iter() {
+                let tag_vec = tag.clone().to_vec();
+                if let Some(tag_kind) = tag_vec.first() {
+                    if tag_kind == "mls_protocol_version" || tag_kind == "ciphersuite" {
+                        println!("   {}: {:?}", tag_kind, tag_vec.get(1));
+                    }
+                }
+            }
+            
+            // contentがKey Package本体
+            Ok(event.content.clone())
+        } else {
+            Err(anyhow::anyhow!("No Key Package found for npub: {}", npub))
+        }
+    })
+}
+
