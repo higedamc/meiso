@@ -12,6 +12,7 @@ import '../services/nostr_cache_service.dart';
 import '../services/nostr_subscription_service.dart';
 import '../services/amber_service.dart';
 import 'sync_status_provider.dart';
+import '../utils/error_handler.dart';
 
 /// デフォルトのNostrリレーリスト
 const List<String> defaultRelays = [
@@ -630,17 +631,40 @@ class NostrService {
   }
   
   /// Phase 8.1: npubからKey Packageを取得
+  /// Phase 8.2: リトライロジック + タイムアウト対応
   Future<String?> fetchKeyPackageByNpub(String npub) async {
     try {
       AppLogger.debug('🔍 Fetching Key Package for: ${npub.substring(0, 20)}...');
       
-      final keyPackage = await rust_api.fetchKeyPackageByNpub(npub: npub);
+      // Phase 8.2.1: リトライ + タイムアウト
+      final keyPackage = await ErrorHandler.retryWithBackoff<String?>(
+        operation: () => ErrorHandler.withTimeout<String?>(
+          operation: () => rust_api.fetchKeyPackageByNpub(npub: npub),
+          operationName: 'fetchKeyPackageByNpub',
+          timeout: const Duration(seconds: 10),
+          defaultValue: null,
+        ),
+        operationName: 'fetchKeyPackageByNpub',
+        maxAttempts: 2, // 1回のリトライのみ
+        initialDelay: const Duration(seconds: 2),
+      );
       
-      AppLogger.info('✅ Key Package fetched successfully');
+      if (keyPackage != null) {
+        AppLogger.info('✅ Key Package fetched successfully');
+      } else {
+        AppLogger.warning('⚠️ Key Package not found (null result)');
+      }
+      
       return keyPackage;
       
     } catch (e, stackTrace) {
-      AppLogger.error('❌ Failed to fetch Key Package', error: e, stackTrace: stackTrace);
+      final appError = ErrorHandler.classify(e, stackTrace: stackTrace);
+      AppLogger.error(
+        '❌ Failed to fetch Key Package\n'
+        'User Message: ${appError.userMessage}',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }

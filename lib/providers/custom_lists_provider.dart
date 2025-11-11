@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../services/logger_service.dart';
@@ -8,6 +9,7 @@ import '../services/group_task_service.dart';
 import 'app_settings_provider.dart';
 import 'nostr_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
+import '../utils/error_handler.dart';
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -18,9 +20,11 @@ final customListsProvider =
 class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   CustomListsNotifier(this._ref) : super(const AsyncValue.loading()) {
     _initialize();
+    _startInvitationSyncTimer();
   }
   
   final Ref _ref;
+  Timer? _invitationSyncTimer;
 
   Future<void> _initialize() async {
     try {
@@ -416,6 +420,37 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     }
   }
   
+  /// Phase 8.1.2: 招待通知の自動同期タイマーを開始
+  void _startInvitationSyncTimer() {
+    // 5分ごとに同期
+    const syncInterval = Duration(minutes: 5);
+    
+    _invitationSyncTimer = Timer.periodic(syncInterval, (timer) async {
+      AppLogger.debug('🔄 [GroupInvitations] Auto-sync triggered (timer)');
+      try {
+        await syncGroupInvitations();
+      } catch (e) {
+        AppLogger.warning('⚠️ [GroupInvitations] Auto-sync failed', error: e);
+        // エラーは無視（次回の同期で再試行）
+      }
+    });
+    
+    AppLogger.info('⏱️ [GroupInvitations] Auto-sync timer started (interval: $syncInterval)');
+  }
+  
+  /// Phase 8.1.2: 招待通知の自動同期タイマーを停止
+  void _stopInvitationSyncTimer() {
+    _invitationSyncTimer?.cancel();
+    _invitationSyncTimer = null;
+    AppLogger.info('⏱️ [GroupInvitations] Auto-sync timer stopped');
+  }
+  
+  @override
+  void dispose() {
+    _stopInvitationSyncTimer();
+    super.dispose();
+  }
+  
   /// AppSettingsから保存された順番を適用
   Future<void> _applySavedListOrder(List<CustomList> lists) async {
     try {
@@ -521,6 +556,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   }
   
   /// Phase 8.1/8.4: MLSグループリスト作成 + 招待送信
+  /// Phase 8.2: エラーハンドリング強化
   Future<CustomList?> createMlsGroupList({
     required String name,
     required List<String> keyPackages,
@@ -549,11 +585,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         throw Exception('User public key not available');
       }
       
-      final welcomeMsgBytes = await rust_api.mlsCreateTodoGroup(
-        nostrId: userPubkey,
-        groupId: groupId,
-        groupName: normalizedName,
-        keyPackages: keyPackages,
+      // Phase 8.2.1: タイムアウト付きでMLSグループ作成
+      final welcomeMsgBytes = await ErrorHandler.withTimeout(
+        operation: () => rust_api.mlsCreateTodoGroup(
+          nostrId: userPubkey,
+          groupId: groupId,
+          groupName: normalizedName,
+          keyPackages: keyPackages,
+        ),
+        operationName: 'mlsCreateTodoGroup',
+        timeout: const Duration(seconds: 30),
       );
       
       AppLogger.info('✅ [CustomLists] MLS group created (Welcome: ${welcomeMsgBytes.length} bytes)');
@@ -563,27 +604,44 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       AppLogger.info('📤 [CustomLists] Sending invitations to ${memberNpubs.length} members...');
       
+      int successCount = 0;
+      int failCount = 0;
+      
       for (final npub in memberNpubs) {
         try {
-          final eventId = await nostrService.sendGroupInvitation(
-            recipientNpub: npub,
-            groupId: groupId,
-            groupName: normalizedName,
-            welcomeMsgBase64: welcomeMsgBase64,
+          // Phase 8.2.1: リトライ付きで招待送信
+          final eventId = await ErrorHandler.retryWithBackoff<String?>(
+            operation: () => nostrService.sendGroupInvitation(
+              recipientNpub: npub,
+              groupId: groupId,
+              groupName: normalizedName,
+              welcomeMsgBase64: welcomeMsgBase64,
+            ),
+            operationName: 'sendGroupInvitation',
+            maxAttempts: 2,
+            initialDelay: const Duration(seconds: 1),
           );
           
           if (eventId != null) {
             AppLogger.info('  ✅ Sent invitation to ${npub.substring(0, 20)}...');
+            successCount++;
           } else {
             AppLogger.warning('  ⚠️ Failed to send invitation to ${npub.substring(0, 20)}...');
+            failCount++;
           }
         } catch (e) {
-          AppLogger.error('  ❌ Error sending invitation to ${npub.substring(0, 20)}...', error: e);
+          final appError = ErrorHandler.classify(e);
+          AppLogger.error(
+            '  ❌ Error sending invitation to ${npub.substring(0, 20)}...\n'
+            'User Message: ${appError.userMessage}',
+            error: e,
+          );
+          failCount++;
           // エラーがあっても次のメンバーに送信を続ける
         }
       }
       
-      AppLogger.info('✅ [CustomLists] All invitations sent');
+      AppLogger.info('✅ [CustomLists] Invitations sent: $successCount success, $failCount failed');
       
       // ローカルにグループリストを作成
       final newGroupList = CustomList(
@@ -603,7 +661,20 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       return newGroupList;
     } catch (e, st) {
-      AppLogger.error('❌ [CustomLists] Failed to create MLS group', error: e, stackTrace: st);
+      final appError = ErrorHandler.classify(e, stackTrace: st);
+      AppLogger.error(
+        '❌ [CustomLists] Failed to create MLS group\n'
+        'Category: ${appError.category}\n'
+        'User Message: ${appError.userMessage}',
+        error: e,
+        stackTrace: st,
+      );
+      
+      // Phase 8.2.4: MLS固有エラーの処理
+      if (appError.category == ErrorCategory.mls && appError.isRetryable) {
+        AppLogger.info('💡 [CustomLists] MLS error is retryable, consider retry');
+      }
+      
       return null;
     }
   }
