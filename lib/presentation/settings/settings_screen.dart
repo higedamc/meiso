@@ -227,6 +227,18 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
+          // MLS: Key Package公開
+          if (isNostrInitialized) ...[
+            _buildSettingTile(
+              context,
+              icon: Icons.vpn_key,
+              title: 'Key Package公開',
+              subtitle: 'グループ招待を受けるために必要',
+              onTap: () => _publishKeyPackage(context, ref),
+            ),
+            const Divider(height: 1),
+          ],
+          
           // MLS統合テスト
           if (isNostrInitialized) ...[
             _buildSettingTile(
@@ -293,6 +305,134 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  /// Key Package公開
+  Future<void> _publishKeyPackage(BuildContext context, WidgetRef ref) async {
+    // 確認ダイアログ
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Key Package公開'),
+        content: const Text(
+          'Key Packageをリレーに公開します。\n\n'
+          '公開することで、他のユーザーがあなたをグループに招待できるようになります。\n\n'
+          '続行しますか？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('公開する'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    // ローディング表示
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Key Packageを公開中...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    try {
+      // Key Package公開
+      final nostrService = ref.read(nostrServiceProvider);
+      final eventId = await nostrService.publishKeyPackage();
+      
+      // ローディング閉じる
+      if (context.mounted) Navigator.pop(context);
+      
+      if (eventId != null) {
+        // 成功ダイアログ
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('公開完了'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Key Packageをリレーに公開しました！'),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '他のユーザーがあなたのnpubを使ってグループに招待できるようになりました。',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Event ID: ${eventId.substring(0, 16)}...',
+                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('閉じる'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        throw Exception('イベントIDが取得できませんでした');
+      }
+      
+    } catch (e) {
+      // ローディング閉じる
+      if (context.mounted) Navigator.pop(context);
+      
+      // エラーダイアログ
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(width: 8),
+                Text('公開失敗'),
+              ],
+            ),
+            content: Text('Key Packageの公開に失敗しました。\n\nエラー: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('閉じる'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+  
   void _showMlsTestDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,

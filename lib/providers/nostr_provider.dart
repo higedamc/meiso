@@ -1,25 +1,16 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import 'package:path_provider/path_provider.dart';
-import '../services/logger_service.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
-import '../services/logger_service.dart';
 import '../models/todo.dart';
-import '../services/logger_service.dart';
 import '../models/link_preview.dart';
-import '../services/logger_service.dart';
 import '../models/recurrence_pattern.dart';
-import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/logger_service.dart';
 import '../services/nostr_cache_service.dart';
-import '../services/logger_service.dart';
 import '../services/nostr_subscription_service.dart';
-import '../services/logger_service.dart';
+import '../services/amber_service.dart';
 import 'sync_status_provider.dart';
-import '../services/logger_service.dart';
 
 /// デフォルトのNostrリレーリスト
 const List<String> defaultRelays = [
@@ -635,5 +626,76 @@ class NostrService {
   /// サービスをクリーンアップ
   void dispose() {
     _subscriptionService?.dispose();
+  }
+  
+  /// MLS: Key PackageをKind 10443イベントとして公開
+  /// 
+  /// Key Packageを公開することで、他のユーザーがnpubから自動的に
+  /// Key Packageを取得してグループに招待できるようになる
+  /// 
+  /// Returns: イベントID（成功時）
+  Future<String?> publishKeyPackage() async {
+    try {
+      AppLogger.info('📦 Key Package公開を開始...');
+      
+      // 公開鍵を取得
+      final publicKeyHex = await getPublicKey();
+      if (publicKeyHex == null) {
+        throw Exception('Public key not available');
+      }
+      
+      // Amberモード判定
+      final isAmber = _ref.read(isAmberModeProvider);
+      
+      // リレーリストを取得（デフォルトリレーを使用）
+      final relays = defaultRelays;
+      
+      // Step 1: Key Package生成
+      AppLogger.debug('  Step 1: Key Package生成中...');
+      final keyPackageResult = await rust_api.mlsCreateKeyPackage(
+        nostrId: publicKeyHex,
+      );
+      AppLogger.debug('  ✅ Key Package生成完了');
+      AppLogger.debug('    Protocol: ${keyPackageResult.mlsProtocolVersion}');
+      AppLogger.debug('    Ciphersuite: ${keyPackageResult.ciphersuite}');
+      
+      // Step 2: 未署名イベント作成
+      AppLogger.debug('  Step 2: Kind 10443イベント作成中...');
+      final unsignedEventJson = await rust_api.createUnsignedKeyPackageEvent(
+        keyPackageResult: keyPackageResult,
+        publicKeyHex: publicKeyHex,
+        relays: relays,
+      );
+      
+      String signedEvent;
+      
+      if (isAmber) {
+        // Step 3: Amber署名
+        AppLogger.debug('  Step 3: Amberで署名中...');
+        final amberService = AmberService();
+        signedEvent = await amberService.signEventWithTimeout(
+          unsignedEventJson,
+          timeout: const Duration(minutes: 2),
+        );
+        AppLogger.debug('  ✅ Amber署名完了');
+      } else {
+        // 秘密鍵モードは現在pending
+        throw Exception('秘密鍵モードでのKey Package公開は未実装です。Amberモードをご利用ください。');
+      }
+      
+      // Step 4: リレーに送信
+      AppLogger.debug('  Step 4: リレーに送信中...');
+      final sendResult = await sendSignedEvent(signedEvent);
+      
+      AppLogger.info('✅ Key Package公開完了！');
+      AppLogger.info('   Event ID: ${sendResult.eventId}');
+      AppLogger.info('   公開先リレー数: ${relays.length}');
+      
+      return sendResult.eventId;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ Key Package公開失敗', error: e, stackTrace: stackTrace);
+      return null;
+    }
   }
 }
