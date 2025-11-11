@@ -3002,7 +3002,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// グループタスクをNostrに同期（バックグラウンド）
   Future<void> _syncGroupToNostr(String groupId) async {
     try {
-      AppLogger.info('📤 Syncing group tasks to Nostr: $groupId');
+      AppLogger.info('📤 [GroupSync] Syncing group tasks to Nostr: $groupId');
       
       // グループリスト情報を取得
       final customListsAsync = _ref.read(customListsProvider);
@@ -3010,7 +3010,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final groupList = customLists.where((l) => l.id == groupId && l.isGroup).firstOrNull;
       
       if (groupList == null) {
-        AppLogger.warning('⚠️ Group list not found: $groupId');
+        AppLogger.warning('⚠️ [GroupSync] Group list not found: $groupId');
         return;
       }
       
@@ -3028,7 +3028,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }).value ?? [];
       
       if (todos.isEmpty) {
-        AppLogger.info('ℹ️ No todos to sync for group: $groupId');
+        AppLogger.info('ℹ️ [GroupSync] No todos to sync for group: $groupId');
         return;
       }
       
@@ -3038,33 +3038,52 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // 公開鍵がnullの場合、復元を試みる
       if (publicKey == null || npub == null) {
-        AppLogger.warning(' 公開鍵が未設定、復元を試みます...');
+        AppLogger.warning('[GroupSync] 公開鍵が未設定、復元を試みます...');
         try {
           final nostrService = _ref.read(nostrServiceProvider);
           publicKey = await nostrService.getPublicKey();
           if (publicKey != null) {
-            AppLogger.info(' hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+            AppLogger.info('[GroupSync] hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
             _ref.read(publicKeyProvider.notifier).state = publicKey;
             
             npub = await nostrService.hexToNpub(publicKey);
             _ref.read(nostrPublicKeyProvider.notifier).state = npub;
-            AppLogger.info(' npub公開鍵も復元: ${npub.substring(0, 16)}...');
+            AppLogger.info('[GroupSync] npub公開鍵も復元: ${npub.substring(0, 16)}...');
           } else {
             throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
           }
         } catch (e) {
-          AppLogger.error(' 公開鍵の復元に失敗: $e');
+          AppLogger.error('[GroupSync] 公開鍵の復元に失敗: $e');
           throw Exception('公開鍵が設定されていません: $e');
         }
       }
       
-      // グループタスクリストを暗号化してNostrに保存
-      final eventId = await groupTaskService.createGroupTaskList(
-        tasks: todos,
-        customList: groupList,
-        publicKey: publicKey,
-        npub: npub,
-      );
+      // Phase 8.3: MLSグループ判定
+      // TODO: グループメンバー情報からMLS/旧実装を判定
+      // 現在はgroupMembersが空でない = MLSグループと仮定
+      final isMlsGroup = groupList.groupMembers.isNotEmpty || 
+                        groupList.isPendingInvitation; // 招待済みグループもMLS
+      
+      String? eventId;
+      
+      if (isMlsGroup) {
+        // Phase 8.3: MLS経由で送信
+        AppLogger.info('🔐 [GroupSync] MLS group detected, using MLS encryption');
+        eventId = await _syncGroupToNostrMls(
+          groupId: groupId,
+          todos: todos,
+          publicKey: publicKey,
+        );
+      } else {
+        // 旧実装（Phase 8.4で廃止予定）
+        AppLogger.info('📦 [GroupSync] Legacy group, using old encryption');
+        eventId = await groupTaskService.createGroupTaskList(
+          tasks: todos,
+          customList: groupList,
+          publicKey: publicKey,
+          npub: npub,
+        );
+      }
       
       if (eventId != null) {
         // 成功した場合、各タスクのneedsSyncフラグをfalseに設定
@@ -3090,13 +3109,75 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // ローカルストレージに保存
           await _saveAllTodosToLocal();
           
-          AppLogger.info('✅ Group tasks synced to Nostr: ${todos.length} tasks (list eventId: $eventId)');
+          AppLogger.info('✅ [GroupSync] Group tasks synced to Nostr: ${todos.length} tasks (list eventId: $eventId)');
         }).value;
       } else {
-        AppLogger.warning('⚠️ Group task sync failed: eventId is null');
+        AppLogger.warning('⚠️ [GroupSync] Group task sync failed: eventId is null');
       }
     } catch (e, st) {
-      AppLogger.error('❌ Failed to sync group to Nostr: $e', error: e, stackTrace: st);
+      AppLogger.error('❌ [GroupSync] Failed to sync group to Nostr: $e', error: e, stackTrace: st);
+    }
+  }
+  
+  /// Phase 8.3: MLS経由でグループTODOを送信
+  Future<String?> _syncGroupToNostrMls({
+    required String groupId,
+    required List<Todo> todos,
+    required String publicKey,
+  }) async {
+    try {
+      await _initMlsIfNeeded();
+      
+      AppLogger.info('🔐 [MLS] Encrypting ${todos.length} todos for group: $groupId');
+      
+      // 各TODOを個別に暗号化して送信
+      for (final todo in todos) {
+        // TODOをJSONに変換
+        final todoJson = jsonEncode({
+          'id': todo.id,
+          'title': todo.title,
+          'completed': todo.completed,
+          'date': todo.date?.toIso8601String(),
+          'order': todo.order,
+          'created_at': todo.createdAt.toIso8601String(),
+          'updated_at': todo.updatedAt.toIso8601String(),
+          'custom_list_id': todo.customListId,
+          'recurrence': todo.recurrence?.toJson(),
+          'parent_recurring_id': todo.parentRecurringId,
+        });
+        
+        // MLS暗号化
+        final encryptedMsg = await rust_api.mlsAddTodo(
+          nostrId: publicKey,
+          groupId: groupId,
+          todoJson: todoJson,
+        );
+        
+        AppLogger.debug('🔒 [MLS] Encrypted todo: ${todo.title.substring(0, 20)}... (${encryptedMsg.length} bytes)');
+        
+        // Export SecretからListen Keyを取得
+        final listenKey = await rust_api.mlsGetListenKey(
+          nostrId: publicKey,
+          groupId: groupId,
+        );
+        
+        // Listen KeyでNostrに送信（Kind 30078）
+        final nostrService = _ref.read(nostrServiceProvider);
+        final eventId = await nostrService.sendMlsGroupTodo(
+          listenKey: listenKey,
+          encryptedContent: encryptedMsg,
+          groupId: groupId,
+        );
+        
+        AppLogger.info('📤 [MLS] Sent todo to Nostr: ${todo.title} (eventId: ${eventId?.substring(0, 16)}...)');
+      }
+      
+      // TODO: 実際のeventIdを返す（現在は簡易実装）
+      return 'mls-group-$groupId-${DateTime.now().millisecondsSinceEpoch}';
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] Failed to sync group to Nostr via MLS', error: e, stackTrace: stackTrace);
+      rethrow;
     }
   }
   
