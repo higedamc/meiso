@@ -520,10 +520,11 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     }
   }
   
-  /// Phase 8.1: MLSグループリスト作成
+  /// Phase 8.1/8.4: MLSグループリスト作成 + 招待送信
   Future<CustomList?> createMlsGroupList({
     required String name,
     required List<String> keyPackages,
+    required List<String> memberNpubs, // Phase 8.4: 招待送信用
   }) async {
     if (name.trim().isEmpty) return null;
     
@@ -538,6 +539,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       final groupId = uuid.v4();
       
       AppLogger.info('🔐 [CustomLists] Creating MLS group: "$normalizedName"');
+      AppLogger.info('   Members: ${memberNpubs.length}');
       
       // MLSグループを作成
       final nostrService = _ref.read(nostrServiceProvider);
@@ -555,7 +557,33 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       );
       
       AppLogger.info('✅ [CustomLists] MLS group created (Welcome: ${welcomeMsgBytes.length} bytes)');
-      // TODO: Phase 8.4で Welcome Message を各メンバーに送信
+      
+      // Phase 8.4: Welcome Messageを各メンバーに送信
+      final welcomeMsgBase64 = base64Encode(welcomeMsgBytes);
+      
+      AppLogger.info('📤 [CustomLists] Sending invitations to ${memberNpubs.length} members...');
+      
+      for (final npub in memberNpubs) {
+        try {
+          final eventId = await nostrService.sendGroupInvitation(
+            recipientNpub: npub,
+            groupId: groupId,
+            groupName: normalizedName,
+            welcomeMsgBase64: welcomeMsgBase64,
+          );
+          
+          if (eventId != null) {
+            AppLogger.info('  ✅ Sent invitation to ${npub.substring(0, 20)}...');
+          } else {
+            AppLogger.warning('  ⚠️ Failed to send invitation to ${npub.substring(0, 20)}...');
+          }
+        } catch (e) {
+          AppLogger.error('  ❌ Error sending invitation to ${npub.substring(0, 20)}...', error: e);
+          // エラーがあっても次のメンバーに送信を続ける
+        }
+      }
+      
+      AppLogger.info('✅ [CustomLists] All invitations sent');
       
       // ローカルにグループリストを作成
       final newGroupList = CustomList(
