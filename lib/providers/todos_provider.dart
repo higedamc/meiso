@@ -1922,8 +1922,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   Future<void> _syncGroupDataInBackground() async {
     AppLogger.info('🔄 [Background] グループ系同期開始（バックグラウンド）');
     
+    // バックグラウンド同期の開始を通知
+    _ref.read(syncStatusProvider.notifier).startSync();
+    
     try {
-      // グループリストとグループタスクを並列同期
+      // グループリスト、グループタスク、グループ招待を並列同期
       await Future.wait([
         // 1. グループリスト同期
         _ref.read(customListsProvider.notifier).syncGroupListsFromNostr().then((_) {
@@ -1938,11 +1941,32 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }).catchError((e) {
           AppLogger.warning('⚠️ [Background] グループタスク同期エラー: $e');
         }),
+        
+        // 3. グループ招待同期
+        _ref.read(customListsProvider.notifier).syncGroupInvitations().then((_) {
+          AppLogger.info('✅ [Background] グループ招待同期完了');
+        }).catchError((e) {
+          AppLogger.warning('⚠️ [Background] グループ招待同期エラー: $e');
+        }),
       ], eagerError: false);
       
       AppLogger.info('✅ [Background] グループ系同期完了');
+      
+      // バックグラウンド同期の完了を通知
+      _ref.read(syncStatusProvider.notifier).syncSuccess();
     } catch (e) {
       AppLogger.error('❌ [Background] グループ系同期エラー', error: e);
+      
+      // エラーを通知
+      _ref.read(syncStatusProvider.notifier).syncError(
+        'グループ系同期エラー: ${e.toString()}',
+        shouldRetry: false,
+      );
+      
+      // 5秒後にエラーをクリアしてアイドル状態に戻す
+      Future.delayed(const Duration(seconds: 5), () {
+        _ref.read(syncStatusProvider.notifier).clearError();
+      });
     }
   }
   
