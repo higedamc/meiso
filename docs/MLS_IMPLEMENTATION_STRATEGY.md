@@ -822,9 +822,14 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
 
 ---
 
-## 現在の進捗（2025-11-10 終了時点）
+## 現在の進捗（2025-11-11 終了時点）
 
-### 完了 ✅ Option B PoC実装完了 + 2人グループテスト対応！
+### 🎉 完了 ✅ Phase 1-7完了！MLS PoC成功！
+
+**実デバイス間での2人グループテスト完全成功！**
+**アプリ内完結型招待システム完全実装！**
+
+---
 
 #### Phase 1: Rust側MLS基盤 ✅
 - OpenMLS依存追加（Keychat kc4ブランチ）
@@ -873,6 +878,89 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
   - 4つのアクションボタン（1人テスト、Key Package生成、2人グループ作成、TODO送信）
   - リアルタイムログ表示
 
+#### Phase 5: 実デバイス間での2人グループテスト ✅
+- ✅ **完了日**: 2025-11-11
+- ✅ **Alice ↔ Bob間でのKey Package交換**
+  - Key Package生成・公開
+  - npubからの取得成功
+- ✅ **グループ作成・招待**
+  - 2人グループ作成成功
+  - Welcome Message生成
+  - Kind 30078招待通知送信
+- ✅ **招待受信・参加**
+  - Pull-to-refreshで招待同期
+  - 招待バッジ表示
+  - 招待受諾成功
+  - MLSグループ参加完了
+
+#### Phase 6: アプリ内完結型招待システム ✅
+- ✅ **6.1: Key Package公開（Kind 10443）**
+  - Rust: `create_unsigned_key_package_event()`
+  - Flutter: `NostrService.publishKeyPackage()`
+  - 設定画面に公開ボタン追加
+  - Amber署名対応
+
+- ✅ **6.2: npubからKey Package自動取得**
+  - Rust: `fetch_key_package_by_npub()`
+  - MLSテストダイアログに取得機能追加
+  - リレーからKind 10443イベント取得
+
+- ✅ **6.3: グループ招待通知送信（Kind 30078）**
+  - Rust: `create_unsigned_group_invitation_event()`
+  - Welcome Message base64エンコード
+  - 招待データJSON生成
+  - Amber署名 → リレー送信
+
+- ✅ **6.4: SOMEDAYリスト表示UI（インビテーション対応）**
+  - `CustomList`モデル拡張（isPendingInvitation等）
+  - Rust: `sync_group_invitations()`
+  - Flutter: `CustomListsNotifier.syncGroupInvitations()`
+  - 招待バッジ表示（オレンジ色の「招待」マーク）
+  - 起動時 + Pull-to-refresh時に自動同期
+
+- ✅ **6.5: 招待受諾ダイアログ + 自動遷移**
+  - 招待ダイアログUI実装
+  - MLS DB自動初期化
+  - `mlsJoinGroup()`でグループ参加
+  - 招待フラグクリア
+  - 自動的にリスト詳細画面に遷移
+
+#### Phase 7: Amberモード動作確認 ✅
+- ✅ **完了**: 全テストAmberモードで実施
+- ✅ **Key Package公開**: Amber署名成功
+- ✅ **グループ招待送信**: Amber署名成功
+- ✅ **実デバイス間テスト**: 完全動作確認
+
+---
+
+### 🚧 次のステップ: Phase 8（Beta版への移行）
+
+**新定義**: PoCから実用レベルのBeta版へ昇格
+
+詳細: [docs/MLS_BETA_ROADMAP.md](MLS_BETA_ROADMAP.md)
+
+#### 主要タスク
+1. **通常フローへの統合**
+   - MLSテストダイアログ不要に
+   - `AddGroupListDialog`からMLS招待
+   - Key Package自動管理
+
+2. **TODO送受信機能完全実装**
+   - MLS暗号化送信フロー
+   - リアルタイム復号化受信
+   - 自動同期
+
+3. **グループリスト統合**
+   - MLSグループへの一本化
+   - kind: 30001廃止/互換性対応
+
+4. **エラーハンドリングと安定性**
+   - ネットワークエラー対応
+   - オフライン対応
+   - パフォーマンス最適化
+
+**目標期限**: 2-3週間（〜2025-12-02）
+
 - ✅ **APKビルド成功**
   - `app-release.apk` (82.9MB) 生成完了
   - リリースモード動作確認済み
@@ -884,7 +972,7 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
 - ⏭️ Phase 5: Amberモード動作確認
 - ⏭️ Option A（完全実装）への移行判断
 
-### コミット履歴
+### コミット履歴（Phase 1-7）
 ```
 5eb738b - WIP: fiatjaf方式（Phase1保存ポイント）
 8a83dd4 - WIP: MLS PoC Phase 1 基礎実装
@@ -892,7 +980,18 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
 b6f4095 - feat: Phase 2.1 - Flutter側MLS統合完了
 a4e13aa - feat: Phase 2.2 - MLS統合テストUI実装完了
 0f3892c - fix: Phase 3 - getPublicKey()非同期対応
-[次回] - feat: Phase 4 - 2人グループテスト機能実装完了
+642c364 - docs: Option B PoC Phase 1-3 完了記録
+3d4f8d1 - feat: Phase 4 - 2人グループテスト機能実装完了
+2d47450 - docs: Phase 6マジックリンク招待システム実装計画追加
+c9e83f9 - docs: Phase 6 UXフロー改善 - アプリ内完結型招待システムに変更
+d2168d8 - feat: Phase 6.1 - Key Package公開機能（Kind 10443）実装完了
+a13dd10 - feat: Phase 6.2 - npubからKey Package自動取得機能実装完了
+ee4c1d7 - feat: Phase 6.3 - グループ招待通知送信（Kind 30078）実装完了
+f796e1c - feat: Phase 6.4-6.5 - グループ招待UI実装完了
+4d96c6c - fix: PendingCommitエラー修正 + グループ招待同期機能追加
+8663691 - fix: グループ招待受諾時のMLS DB初期化エラー修正
+24e23c7 - feat: MLSテストダイアログ内にKey Package公開ボタン追加
+aa2ab37 - fix: グループ招待受諾後に自動的にリスト詳細画面に遷移
 ```
 
 **ロールバックポイント**: 
