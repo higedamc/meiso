@@ -1927,13 +1927,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     
     try {
       // グループリスト、グループタスク、グループ招待を並列同期
+      // Phase 8.4: kind: 30001グループリスト同期は廃止（MLSグループのみ使用）
       await Future.wait([
-        // 1. グループリスト同期
-        _ref.read(customListsProvider.notifier).syncGroupListsFromNostr().then((_) {
-          AppLogger.info('✅ [Background] グループリスト同期完了');
-        }).catchError((e) {
-          AppLogger.warning('⚠️ [Background] グループリスト同期エラー: $e');
-        }),
+        // 1. グループリスト同期 - 削除（Phase 8.4）
         
         // 2. グループタスク同期
         syncAllGroupTodos().then((_) {
@@ -1971,37 +1967,43 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
   
   /// Phase 8.5.1: 暗号化イベントからカスタムリスト名を抽出（並列同期用）
+  /// Phase 8.5.2: 軽量版リスト名取得（最適化済み）
   Future<List<String>> _fetchEncryptedEventsForListNames() async {
     final nostrService = _ref.read(nostrServiceProvider);
     
     try {
-      // タイムアウト付きでイベント取得（5秒）
-      final encryptedEvents = await ErrorHandler.withTimeout<List<rust_api.EncryptedTodoListEvent>>(
-        operation: () => nostrService.fetchAllEncryptedTodoLists(),
-        operationName: 'fetchEncryptedEventsForListNames',
-        timeout: const Duration(seconds: 5),
-        defaultValue: <rust_api.EncryptedTodoListEvent>[],
-      );
-      
-      if (encryptedEvents.isEmpty) {
-        AppLogger.debug('📋 [Sync] イベントなし、空リスト返却');
+      final userPubkey = await nostrService.getPublicKey();
+      if (userPubkey == null) {
+        AppLogger.warning('⚠️ [Sync] 公開鍵がないため、リスト名取得をスキップ');
         return [];
       }
       
-      // カスタムリスト名を抽出
+      // Phase 8.5.2: 新しい軽量APIを使用（contentを取得しない）
+      final listNamesData = await ErrorHandler.withTimeout<List<rust_api.TodoListName>>(
+        operation: () => rust_api.fetchTodoListNamesOnly(publicKeyHex: userPubkey),
+        operationName: 'fetchTodoListNamesOnly',
+        timeout: const Duration(seconds: 5),
+        defaultValue: <rust_api.TodoListName>[],
+      );
+      
+      if (listNamesData.isEmpty) {
+        AppLogger.debug('📋 [Sync] リスト名なし、空リスト返却');
+        return [];
+      }
+      
+      // list_idからリスト名を抽出
       final List<String> listNames = [];
-      for (final event in encryptedEvents) {
-        if (event.listId == null || event.listId == 'meiso-todos') {
-          continue; // デフォルトリストは除外
-        }
-        
+      for (final data in listNamesData) {
         String listName;
-        if (event.title != null && event.title!.isNotEmpty) {
-          listName = event.title!;
-        } else if (event.listId!.startsWith('meiso-list-')) {
-          listName = event.listId!.substring('meiso-list-'.length);
+        
+        // titleタグがあればそれを使用
+        if (data.title != null && data.title!.isNotEmpty) {
+          listName = data.title!;
+        } else if (data.listId.startsWith('meiso-list-')) {
+          // titleがない場合、list_idから名前を抽出
+          listName = data.listId.substring('meiso-list-'.length);
         } else {
-          listName = event.listId!;
+          listName = data.listId;
         }
         
         if (!listNames.contains(listName)) {
@@ -2009,7 +2011,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
       
-      AppLogger.debug('📋 [Sync] 抽出されたリスト名: ${listNames.join(", ")}');
+      AppLogger.info('✅ [Sync] リスト名取得完了: ${listNames.length}件（軽量API使用）');
       return listNames;
     } catch (e) {
       AppLogger.error('❌ [Sync] カスタムリスト名抽出エラー', error: e);
@@ -2027,7 +2029,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final isAmberMode = _ref.read(isAmberModeProvider);
     final nostrService = _ref.read(nostrServiceProvider);
 
-    _ref.read(syncStatusProvider.notifier).startSync();
+    // Phase 8.5.1: 進捗付き同期開始（全3ステップ）
+    _ref.read(syncStatusProvider.notifier).startSyncWithProgress(
+      totalSteps: 3,
+      initialPhase: 'AppSettings同期中...',
+    );
 
     try {
       // Phase 8.5.1: 優先度付き並列同期
@@ -2058,6 +2064,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       AppLogger.info('✅ [Sync] Phase 1完了（${Duration(milliseconds: 0)})');
       
+      // Phase 8.5.1: Phase 1完了（33%）
+      _ref.read(syncStatusProvider.notifier).setProgress(
+        completedSteps: 1,
+        percentage: 33,
+        currentPhase: 'カスタムリスト同期中... (${customListNames.length}件)',
+      );
+      
       // Phase 2: カスタムリスト同期（Phase 1の結果を使用）
       AppLogger.info('📋 [Sync] Phase 2: カスタムリスト同期開始');
       try {
@@ -2066,6 +2079,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       } catch (e) {
         AppLogger.warning('⚠️ [Sync] カスタムリスト同期エラー: $e');
       }
+      
+      // Phase 8.5.1: Phase 2完了（66%）
+      _ref.read(syncStatusProvider.notifier).setProgress(
+        completedSteps: 2,
+        percentage: 66,
+        currentPhase: 'TODO同期中...',
+      );
       
       // Phase 3: TODO同期（タイムアウト付き、短縮: 20秒）
       AppLogger.info('📝 [Sync] Phase 3: TODO同期開始');
@@ -2403,6 +2423,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           _updateStateWithSyncedTodos(cleanedTodos);
         }
+        
+        // Phase 8.5.1: Phase 3完了（100%）
+        _ref.read(syncStatusProvider.notifier).setProgress(
+          completedSteps: 3,
+          percentage: 100,
+          currentPhase: '同期完了',
+        );
         
         _ref.read(syncStatusProvider.notifier).syncSuccess();
         AppLogger.info(' Nostr同期成功');

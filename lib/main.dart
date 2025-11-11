@@ -21,6 +21,7 @@ import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/todos_provider.dart';
 import 'providers/locale_provider.dart';
+import 'widgets/sync_loading_overlay.dart'; // Phase 8.5.1
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -246,48 +247,56 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
     
     return appSettingsAsync.when(
       data: (settings) {
-        return MaterialApp.router(
-          title: 'Meiso',
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
-          debugShowCheckedModeBanner: false,
-          routerConfig: _router,
-          // 多言語対応
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: const [
-            Locale('en'), // English
-            Locale('ja'), // Japanese
-            Locale('es'), // Spanish
-          ],
-          locale: locale,
-          // Android 13+の「App languages」設定を優先的に反映
-          localeListResolutionCallback: (systemLocales, supportedLocales) {
-            // ユーザーが手動で言語を設定している場合はそれを優先
-            if (locale != null) {
-              return locale;
-            }
-            
-            // システムのロケールリスト（App languages設定を含む）から
-            // サポートしている言語を探す
-            if (systemLocales != null) {
-              for (final systemLocale in systemLocales) {
-                for (final supportedLocale in supportedLocales) {
-                  if (systemLocale.languageCode == supportedLocale.languageCode) {
-                    return supportedLocale;
+        return Stack(
+          children: [
+            // メインアプリ
+            MaterialApp.router(
+              title: 'Meiso',
+              theme: AppTheme.lightTheme,
+              darkTheme: AppTheme.darkTheme,
+              themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
+              debugShowCheckedModeBanner: false,
+              routerConfig: _router,
+              // 多言語対応
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: const [
+                Locale('en'), // English
+                Locale('ja'), // Japanese
+                Locale('es'), // Spanish
+              ],
+              locale: locale,
+              // Android 13+の「App languages」設定を優先的に反映
+              localeListResolutionCallback: (systemLocales, supportedLocales) {
+                // ユーザーが手動で言語を設定している場合はそれを優先
+                if (locale != null) {
+                  return locale;
+                }
+                
+                // システムのロケールリスト（App languages設定を含む）から
+                // サポートしている言語を探す
+                if (systemLocales != null) {
+                  for (final systemLocale in systemLocales) {
+                    for (final supportedLocale in supportedLocales) {
+                      if (systemLocale.languageCode == supportedLocale.languageCode) {
+                        return supportedLocale;
+                      }
+                    }
                   }
                 }
-              }
-            }
+                
+                // マッチする言語がない場合は英語をデフォルトとする
+                return const Locale('en');
+              },
+            ),
             
-            // マッチする言語がない場合は英語をデフォルトとする
-            return const Locale('en');
-          },
+            // Phase 8.5.1: 同期中のローディングオーバーレイ
+            const SyncLoadingOverlay(),
+          ],
         );
       },
       loading: () {

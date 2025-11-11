@@ -5,7 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../services/logger_service.dart';
 import '../models/custom_list.dart';
 import '../services/local_storage_service.dart';
-import '../services/group_task_service.dart';
+// Phase 8.4: group_task_service.dart は kind: 30001廃止により未使用
 import 'app_settings_provider.dart';
 import 'nostr_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
@@ -839,7 +839,18 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   }
   
   /// Nostrからグループリストを同期
+  /// 
+  /// ⚠️ Phase 8.4: kind: 30001グループは廃止されました
+  /// MLSグループのみを使用します（Phase 8.1で完全統合済み）
+  @Deprecated('kind: 30001 group sync is disabled. Use MLS groups only.')
   Future<void> syncGroupListsFromNostr() async {
+    // Phase 8.4: kind: 30001グループの同期を無効化
+    // パフォーマンス問題の原因となっていたため、MLSグループのみを使用
+    AppLogger.info('ℹ️ [Phase 8.4] kind: 30001 group sync is disabled. Use MLS groups only.');
+    return;
+    
+    // 以下のコードは参考用に残す（将来の互換性レイヤー実装時に使用可能）
+    /*
     try {
       // Issue #80: 最初に削除イベントを同期
       await syncDeletionEvents();
@@ -949,6 +960,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     } catch (e, st) {
       AppLogger.error('❌ Failed to sync group lists from Nostr: $e', error: e, stackTrace: st);
     }
+    */
   }
 }
 

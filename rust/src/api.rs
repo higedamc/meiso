@@ -1435,6 +1435,94 @@ pub struct TodoListMetadata {
 }
 
 /// すべてのTodoリスト（デフォルト + カスタムリスト）を取得
+/// Phase 8.5.2: カスタムリスト名のみを取得（軽量版）
+/// 
+/// contentを解析せず、タグ（d, title）のみを返すため高速
+#[derive(Clone)]
+pub struct TodoListName {
+    pub list_id: String,
+    pub title: Option<String>,
+}
+
+pub fn fetch_todo_list_names_only(
+    public_key_hex: String,
+) -> Result<Vec<TodoListName>> {
+    fetch_todo_list_names_only_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_todo_list_names_only_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<TodoListName>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // Kind 30001イベントを取得（contentは不要）
+        let filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(public_key);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        if events.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        // 重複除去: 同じd tagで最新のもののみ保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events {
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            if let Some(ref d_value) = d_tag {
+                // meiso-todos（デフォルトリスト）を除外
+                if d_value == "meiso-todos" {
+                    continue;
+                }
+                
+                // meiso-list-* のみを処理（カスタムリスト）
+                if d_value.starts_with("meiso-list-") {
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            latest_events.insert(d_value.clone(), event);
+                        }
+                    } else {
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                }
+            }
+        }
+        
+        // リスト名のみを抽出
+        let list_names: Vec<TodoListName> = latest_events.into_iter()
+            .map(|(d_tag, event)| {
+                let title = event.tags.iter()
+                    .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
+                    .and_then(|tag| tag.content())
+                    .map(|s| s.to_string());
+                
+                TodoListName {
+                    list_id: d_tag,
+                    title,
+                }
+            })
+            .collect();
+        
+        Ok(list_names)
+    })
+}
+
 pub fn fetch_all_encrypted_todo_lists_for_pubkey(
     public_key_hex: String,
 ) -> Result<Vec<EncryptedTodoListEvent>> {
