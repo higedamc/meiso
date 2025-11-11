@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +12,7 @@ import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
+import '../../services/amber_service.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
 
 class SettingsScreen extends ConsumerWidget {
@@ -456,6 +458,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
   bool _isRunning = false;
   String? _myKeyPackage;
   String? _groupId;
+  String? _inviteeNpub;  // 招待した相手のnpub
   final _keyPackageController = TextEditingController();
 
   @override
@@ -558,9 +561,46 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       
       _addLog('✅ 2人グループ作成完了: $groupId');
       _addLog('📨 Welcome message: ${welcomeMsg.length} bytes');
-      _addLog('');
-      _addLog('📝 相手にWelcomeメッセージを送信してください');
-      _addLog('   (実装予定: NIP-17経由での自動送信)');
+      
+      // Step 2: グループ招待通知送信
+      if (_inviteeNpub != null) {
+        _addLog('');
+        _addLog('📤 Step 2: グループ招待通知送信');
+        
+        // Welcome Messageをbase64エンコード
+        final welcomeMsgBase64 = base64Encode(welcomeMsg);
+        
+        // 未署名イベント作成
+        _addLog('📝 Kind 30078イベント作成中...');
+        final unsignedEvent = await rust_api.createUnsignedGroupInvitationEvent(
+          senderPublicKeyHex: userPubkey,
+          recipientNpub: _inviteeNpub!,
+          groupId: groupId,
+          groupName: '2 Person Test Group',
+          welcomeMsgBase64: welcomeMsgBase64,
+          inviterName: null,
+        );
+        
+        // Amber署名
+        _addLog('✍️ Amberで署名中...');
+        final amberService = AmberService();
+        final signedEvent = await amberService.signEventWithTimeout(
+          unsignedEvent,
+          timeout: const Duration(minutes: 2),
+        );
+        
+        // リレーに送信
+        _addLog('📡 リレーに送信中...');
+        final sendResult = await nostrService.sendSignedEvent(signedEvent);
+        
+        _addLog('✅ グループ招待通知送信完了！');
+        _addLog('   Event ID: ${sendResult.eventId.substring(0, 16)}...');
+        _addLog('');
+        _addLog('🎉 相手のアプリでグループ招待を受信します');
+      } else {
+        _addLog('');
+        _addLog('⚠️ 相手のnpubが不明のため、招待通知はスキップ');
+      }
       
     } catch (e) {
       _addLog('❌ エラー: $e');
@@ -653,6 +693,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       // Key Packageを保存（2人グループ作成で使用）
       setState(() {
         _keyPackageController.text = keyPackage;
+        _inviteeNpub = npub;  // npubも保存
       });
       
     } catch (e) {
