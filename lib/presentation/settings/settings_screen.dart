@@ -617,6 +617,55 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
     }
   }
 
+  // Key Package取得テスト（npubから）
+  Future<void> _fetchKeyPackageByNpub() async {
+    final npub = _keyPackageController.text.trim();
+    
+    if (npub.isEmpty) {
+      _addLog('❌ npubを入力してください');
+      return;
+    }
+    
+    if (!npub.startsWith('npub')) {
+      _addLog('❌ 正しいnpub形式で入力してください');
+      return;
+    }
+    
+    setState(() {
+      _isRunning = true;
+    });
+    
+    try {
+      _addLog('');
+      _addLog('🔍 Key Package取得テスト開始');
+      _addLog('📋 対象npub: ${npub.substring(0, 20)}...');
+      
+      // npubからKey Package取得
+      _addLog('🔎 リレーからKey Packageを検索中...');
+      final keyPackage = await rust_api.fetchKeyPackageByNpub(npub: npub);
+      
+      _addLog('✅ Key Package取得成功！');
+      _addLog('📦 Key Package: ${keyPackage.substring(0, 40)}...');
+      _addLog('📏 サイズ: ${keyPackage.length} bytes');
+      _addLog('');
+      _addLog('💡 このKey Packageを使ってグループに招待できます');
+      
+      // Key Packageを保存（2人グループ作成で使用）
+      setState(() {
+        _keyPackageController.text = keyPackage;
+      });
+      
+    } catch (e) {
+      _addLog('❌ エラー: $e');
+      _addLog('');
+      _addLog('💡 相手がまだKey Packageを公開していない可能性があります');
+    } finally {
+      setState(() {
+        _isRunning = false;
+      });
+    }
+  }
+  
   Future<void> _runMlsTest() async {
     setState(() {
       _isRunning = true;
@@ -752,18 +801,32 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
               const SizedBox(height: 8),
             ],
             
-            // 相手のKey Package入力
-            TextField(
-              controller: _keyPackageController,
-              decoration: const InputDecoration(
-                labelText: '相手のKey Package',
-                hintText: 'ここに貼り付け',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.all(8),
-                isDense: true,
-              ),
-              style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
-              maxLines: 2,
+            // 相手のnpub入力 + Key Package取得
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _keyPackageController,
+                    decoration: const InputDecoration(
+                      labelText: '相手のnpub',
+                      hintText: 'npub1...',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.all(8),
+                      isDense: true,
+                    ),
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _isRunning ? null : _fetchKeyPackageByNpub,
+                  icon: const Icon(Icons.download, size: 14),
+                  label: const Text('取得', style: TextStyle(fontSize: 11)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             
