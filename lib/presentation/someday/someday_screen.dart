@@ -37,9 +37,14 @@ class SomedayScreen extends ConsumerWidget {
 
     try {
       final todoNotifier = ref.read(todosProvider.notifier);
+      final customListsNotifier = ref.read(customListsProvider.notifier);
       
       // Nostrから全Todoリストとカスタムリストを同期
       await todoNotifier.syncFromNostr();
+      
+      // Phase 6.4: グループ招待を同期
+      await customListsNotifier.syncGroupInvitations();
+      
       AppLogger.info(' [SomedayScreen] ✅ Pull-to-refresh sync completed');
     } catch (e) {
       AppLogger.warning(' [SomedayScreen] ⚠️ 同期エラー: $e');
