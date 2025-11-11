@@ -2057,6 +2057,62 @@ pub fn delete_events_with_client_id(
     })
 }
 
+/// 削除イベント（Kind 5）を取得し、削除対象のイベントIDリストを返す
+pub fn fetch_deletion_events_for_pubkey(
+    public_key_hex: String,
+) -> Result<Vec<String>> {
+    fetch_deletion_events_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_deletion_events_for_pubkey_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        println!("🗑️ Fetching deletion events (Kind 5) for pubkey: {}...", &public_key_hex[..16]);
+        
+        // Kind 5（EventDeletion）イベントを取得
+        let filter = Filter::new()
+            .kind(Kind::EventDeletion)
+            .author(public_key);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        println!("📥 Found {} deletion events", events.len());
+        
+        if events.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        // 削除対象のイベントIDを抽出（eタグから）
+        let mut deleted_event_ids = Vec::new();
+        
+        for event in events {
+            // eタグを探す
+            for tag in event.tags.iter() {
+                if let Some(TagStandard::Event { event_id, .. }) = tag.as_standardized() {
+                    let event_id_hex = event_id.to_hex();
+                    deleted_event_ids.push(event_id_hex.clone());
+                    println!("  🗑️ Deleted event ID: {}", &event_id_hex[..16]);
+                }
+            }
+        }
+        
+        println!("✅ Total {} event IDs marked as deleted", deleted_event_ids.len());
+        
+        Ok(deleted_event_ids)
+    })
+}
+
 // ========================================
 // Subscription & キャッシュ関連API
 // ========================================
