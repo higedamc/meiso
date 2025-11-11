@@ -23,7 +23,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   final TextEditingController _memberPubkeyController = TextEditingController(); // Legacy用
   final TextEditingController _memberNpubController = TextEditingController(); // MLS用
   final List<String> _legacyMembers = []; // hex形式
-  final List<Map<String, String>> _mlsMembers = []; // {npub, keyPackage}
+  final List<Map<String, dynamic>> _mlsMembers = []; // {npub, keyPackage, hasWarning}
   bool _isLoading = false;
   bool _isFetchingKeyPackage = false;
   GroupListType _selectedType = GroupListType.mls; // デフォルトはMLS
@@ -133,6 +133,19 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       return;
     }
     
+    // 重複チェック
+    if (_mlsMembers.any((m) => m['npub'] == npub)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('このメンバーは既に追加されています'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+    
     setState(() {
       _isFetchingKeyPackage = true;
     });
@@ -148,6 +161,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
           _mlsMembers.add({
             'npub': npub,
             'keyPackage': keyPackage,
+            'hasWarning': false,
           });
           _memberNpubController.clear();
         });
@@ -163,17 +177,201 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
           );
         }
       } else {
-        throw Exception('Key Packageが見つかりません。相手がまだKey Packageを公開していない可能性があります。');
+        // Key Package未公開: 警告状態で追加
+        setState(() {
+          _mlsMembers.add({
+            'npub': npub,
+            'keyPackage': null,
+            'hasWarning': true,
+          });
+          _memberNpubController.clear();
+        });
+        
+        AppLogger.warning('⚠️ [AddGroupListDialog] Key Package not found for: ${npub.substring(0, 20)}...');
+        
+        // KeyChat風の警告ダイアログを表示
+        if (mounted) {
+          _showKeyPackageWarningDialog(npub);
+        }
       }
       
     } catch (e) {
       AppLogger.error('❌ [AddGroupListDialog] Failed to fetch Key Package', error: e);
       
+      // エラー時も警告状態で追加
+      setState(() {
+        _mlsMembers.add({
+          'npub': npub,
+          'keyPackage': null,
+          'hasWarning': true,
+        });
+        _memberNpubController.clear();
+      });
+      
+      if (mounted) {
+        _showKeyPackageWarningDialog(npub);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingKeyPackage = false;
+        });
+      }
+    }
+  }
+  
+  /// Phase 8.1.1: Key Package警告ダイアログ（KeyChatパターン）
+  void _showKeyPackageWarningDialog(String npub) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        title: Row(
+          children: [
+            const Icon(Icons.warning, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text(
+              'Key Package未公開',
+              style: TextStyle(
+                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          '${npub.substring(0, 20)}...\n\n'
+          'Key Packageが見つかりません。\n'
+          '相手にアプリを起動してもらうと、自動的にKey Packageが公開されます。\n\n'
+          '※ このメンバーはグループ作成時に除外されます',
+          style: TextStyle(
+            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'OK',
+              style: TextStyle(color: AppTheme.primaryPurple),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _retryFetchKeyPackage(npub);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryPurple,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('再試行'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// Phase 8.1.1: 警告メンバー確認ダイアログ
+  Future<bool?> _showWarningMembersConfirmDialog(int warningCount, int validCount) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        title: Text(
+          '一部のメンバーのKey Packageが未公開です',
+          style: TextStyle(
+            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Key Packageが未公開: $warningCount人\n'
+          '招待可能なメンバー: $validCount人\n\n'
+          'Key Packageが未公開のメンバーは招待できません。\n'
+          'それでもグループを作成しますか？',
+          style: TextStyle(
+            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'キャンセル',
+              style: TextStyle(color: AppTheme.primaryPurple),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryPurple,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('作成する'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// Phase 8.1.1: Key Package再取得
+  Future<void> _retryFetchKeyPackage(String npub) async {
+    final memberIndex = _mlsMembers.indexWhere((m) => m['npub'] == npub);
+    if (memberIndex == -1) return;
+    
+    setState(() {
+      _isFetchingKeyPackage = true;
+    });
+    
+    try {
+      AppLogger.info('🔄 [AddGroupListDialog] Retrying Key Package fetch for: ${npub.substring(0, 20)}...');
+      
+      final nostrService = ref.read(nostrServiceProvider);
+      final keyPackage = await nostrService.fetchKeyPackageByNpub(npub);
+      
+      if (keyPackage != null) {
+        setState(() {
+          _mlsMembers[memberIndex] = {
+            'npub': npub,
+            'keyPackage': keyPackage,
+            'hasWarning': false,
+          };
+        });
+        
+        AppLogger.info('✅ [AddGroupListDialog] Key Package fetched successfully on retry');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ ${npub.substring(0, 20)}... のKey Packageを取得しました'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        // 再試行でも失敗
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⚠️ まだKey Packageが公開されていません'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      AppLogger.error('❌ [AddGroupListDialog] Retry failed', error: e);
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Key Package取得失敗: $e'),
-            duration: const Duration(seconds: 3),
+            content: Text('❌ 再試行失敗: $e'),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -212,6 +410,39 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       }
       return;
     }
+    
+    // Phase 8.1.1: MLS - 警告メンバーの検証
+    if (_selectedType == GroupListType.mls) {
+      final hasWarning = _mlsMembers.any((m) => m['hasWarning'] == true);
+      
+      if (hasWarning) {
+        final warningCount = _mlsMembers.where((m) => m['hasWarning'] == true).length;
+        final validCount = _mlsMembers.where((m) => m['hasWarning'] != true).length;
+        
+        if (validCount == 0) {
+          // 全員が警告状態の場合はグループ作成不可
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Key Packageが取得できたメンバーが必要です'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+        
+        // 一部が警告状態の場合は確認ダイアログ
+        final confirmed = await _showWarningMembersConfirmDialog(warningCount, validCount);
+        if (confirmed != true) {
+          return;
+        }
+        
+        // 警告メンバーを除外
+        _mlsMembers.removeWhere((m) => m['hasWarning'] == true);
+        AppLogger.info('⚠️ [AddGroupListDialog] Excluded $warningCount member(s) without Key Package');
+      }
+    }
 
     setState(() {
       _isLoading = true;
@@ -223,8 +454,14 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         AppLogger.info('🚀 [AddGroupListDialog] Creating MLS group: ${_groupNameController.text}');
         AppLogger.info('   Members: ${_mlsMembers.length}');
         
-        final keyPackages = _mlsMembers.map((m) => m['keyPackage']!).toList();
-        final memberNpubs = _mlsMembers.map((m) => m['npub']!).toList();
+        final keyPackages = _mlsMembers
+            .where((m) => m['keyPackage'] != null)
+            .map((m) => m['keyPackage'] as String)
+            .toList();
+        final memberNpubs = _mlsMembers
+            .where((m) => m['keyPackage'] != null)
+            .map((m) => m['npub'] as String)
+            .toList();
         
         final groupList = await ref.read(customListsProvider.notifier).createMlsGroupList(
               name: _groupNameController.text.trim(),
@@ -438,12 +675,15 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                     itemCount: _mlsMembers.length,
                     itemBuilder: (context, index) {
                       final member = _mlsMembers[index];
-                      final npub = member['npub']!;
+                      final npub = member['npub'] as String;
+                      final hasWarning = member['hasWarning'] == true;
                       final shortNpub = npub.length > 20 ? '${npub.substring(0, 16)}...' : npub;
                       
                       return ListTile(
                         dense: true,
-                        leading: const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        leading: hasWarning
+                            ? const Icon(Icons.warning, color: Colors.orange, size: 16)
+                            : const Icon(Icons.check_circle, color: Colors.green, size: 16),
                         title: Text(
                           shortNpub,
                           style: TextStyle(
@@ -451,13 +691,33 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                             fontSize: 12,
                           ),
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.remove_circle_outline, size: 18),
-                          onPressed: () {
-                            setState(() {
-                              _mlsMembers.removeAt(index);
-                            });
-                          },
+                        subtitle: hasWarning
+                            ? Text(
+                                'Key Package未公開',
+                                style: TextStyle(
+                                  color: Colors.orange,
+                                  fontSize: 10,
+                                ),
+                              )
+                            : null,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (hasWarning)
+                              IconButton(
+                                icon: const Icon(Icons.refresh, size: 18, color: Colors.orange),
+                                tooltip: '再試行',
+                                onPressed: () => _retryFetchKeyPackage(npub),
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, size: 18),
+                              onPressed: () {
+                                setState(() {
+                                  _mlsMembers.removeAt(index);
+                                });
+                              },
+                            ),
+                          ],
                         ),
                       );
                     },
