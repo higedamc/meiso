@@ -11,6 +11,7 @@ import '../../../../services/recurrence_parser.dart';
 import '../../../../providers/nostr_provider.dart';
 import '../../../../providers/sync_status_provider.dart';
 import '../../../../providers/custom_lists_provider.dart';
+import '../../../../providers/todos_provider.dart' as old;
 import 'todo_list_state.dart';
 
 /// TodoリストのViewModel（旧TodosNotifierと同等の機能）
@@ -25,7 +26,6 @@ class TodoListViewModel extends StateNotifier<TodoListState> {
   }
 
   final Ref _ref;
-  final _uuid = const Uuid();
   
   // バッチ同期用のタイマー
   Timer? _batchSyncTimer;
@@ -116,7 +116,7 @@ class TodoListViewModel extends StateNotifier<TodoListState> {
   Future<void> syncFromNostr() async {
     try {
       if (!_ref.read(nostrInitializedProvider)) {
-        AppLogger.warn('[TodoListViewModel] Nostr未初期化のため同期をスキップ');
+        AppLogger.warning('[TodoListViewModel] Nostr未初期化のため同期をスキップ');
         return;
       }
 
@@ -124,7 +124,7 @@ class TodoListViewModel extends StateNotifier<TodoListState> {
       
       // 旧実装の syncFromNostr ロジックを呼び出し
       // TODO: この部分は旧Providerに委譲
-      final oldProvider = _ref.read(todosProvider.notifier);
+      final oldProvider = _ref.read(old.todosProvider.notifier);
       await oldProvider.syncFromNostr();
       
       // 同期後にローカルから再読み込み

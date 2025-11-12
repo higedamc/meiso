@@ -6,8 +6,7 @@ import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
-// import '../../providers/todos_provider.dart'; // 旧Provider
-
+import '../../providers/todos_provider.dart';
 import '../../providers/app_settings_provider.dart';
 
 import '../../services/local_storage_service.dart';
