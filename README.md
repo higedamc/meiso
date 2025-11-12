@@ -4,10 +4,11 @@ Nostrプロトコルを活用した個人用タスク管理アプリ
 
 ## 現在のステータス
 
-🎉 **Phase 1 完了！** (2025-10-30)
+🚀 **MLS PoC完了！Beta版へ移行中** (2025-11-11)
 
-Phase 1の全機能が実装され、基本的なタスク管理がローカルおよびNostr経由で動作しています。
-次のPhase 2では、オンボーディング画面とAmber統合を実装予定です。
+Phase 1-7が完了し、MLSベースのグループTODOリスト機能のProof of Conceptが成功しました。
+実デバイス間での2人グループテスト、アプリ内完結型招待システムが完全動作しています。
+現在、PoCからBeta版への移行（Phase 8）を進めています。
 
 ## コンセプト
 
@@ -85,6 +86,45 @@ FlutterとRustを活用し、Android向けに開発されています。
 - ✅ **Nostr同期対応**
   - RecurrencePatternのシリアライズ
   - NIP-44暗号化に完全対応
+
+### Phase 2 完了済み（MLSグループリスト）
+
+#### ✅ MLS (Messaging Layer Security) 統合
+- ✅ **OpenMLS統合**（Keychat kc4ブランチ）
+  - Rust側MLS基盤実装
+  - Export Secret → Nostr鍵ペア生成
+  - 二重暗号化アーキテクチャ（MLS + NIP-44）
+- ✅ **Key Package管理**
+  - Key Package生成・公開（Kind 10443）
+  - npubからの自動取得
+  - リレー経由での配布
+- ✅ **アプリ内完結型招待システム**
+  - グループ招待通知（Kind 30078）
+  - 招待バッジ表示（SOMEDAY画面）
+  - ワンタップ招待受諾
+  - 自動リスト詳細画面遷移
+- ✅ **実デバイス間テスト完了**
+  - 2人グループでの動作確認
+  - Alice ↔ Bob間でのTODO共有準備完了
+  - Amberモードで完全動作
+
+#### 🚧 Phase 8: Beta版への移行（進行中）
+- ⏳ **8.1: 通常フローへの統合**
+  - グループリスト作成の自動化
+  - Key Package自動管理
+  - 手動操作の削除
+- ⏳ **8.2: エラーハンドリングと安定性**
+  - ネットワークエラー対応
+  - MLS固有エラー処理
+  - オフライン対応
+- ⏳ **8.3: TODO送受信機能完全実装**
+  - MLS暗号化送信
+  - リアルタイム復号化受信
+  - 自動同期
+- ⏳ **8.4: グループリスト統合**
+  - MLSグループへの一本化
+  - kind: 30001廃止（グループのみ）
+  - 個人カスタムリストは影響なし
 
 ### Phase 3で実装予定
 
@@ -230,6 +270,50 @@ fvm flutter run
    - 署名フロー実装
 
 ## 変更履歴
+
+### 2025-11-11 - MLS PoC完了（Phase 1-7）
+
+#### 新機能
+- 🎉 **MLSグループリスト機能PoC完了**
+  - OpenMLS統合（Keychat kc4ブランチ）
+  - Rust側MLS基盤（MlsStore, User, Export Secret）
+  - Flutter側MLS統合（TodosProvider, CustomListsProvider）
+  - MLS統合テストUI（設定画面）
+
+- ✅ **Key Package管理システム**
+  - Key Package生成・公開（Kind 10443）
+  - npubからの自動取得機能
+  - リレー経由での配布
+  - MLSテストダイアログ内での公開機能
+
+- ✅ **アプリ内完結型招待システム**
+  - グループ招待通知（Kind 30078 + NIP-44準備）
+  - SOMEDAY画面での招待バッジ表示
+  - 招待受諾ダイアログ
+  - MLS DB自動初期化
+  - グループ参加後の自動画面遷移
+
+- ✅ **実デバイス間2人グループテスト成功**
+  - Alice ↔ Bob間でのKey Package交換
+  - グループ作成・招待送信
+  - 招待受信・表示
+  - グループ参加成功
+  - TODO共有準備完了
+
+#### 技術的改善
+- ✅ PendingCommitエラー修正（self_commit最適化）
+- ✅ グループ招待同期機能（起動時 + Pull-to-refresh）
+- ✅ MLS DB初期化の明示的実行
+- ✅ Amberモード完全対応
+- ✅ エラーハンドリング強化
+
+#### バグ修正
+- 🐛 PendingCommitエラー（add_members後のコミット重複）
+- 🐛 NoMatchingKeyPackageエラー（Key Package公開タイミング）
+- 🐛 MLS DB未初期化エラー（招待受諾時）
+- 🐛 グループリスト詳細画面の無限ローディング
+
+詳細: [docs/MLS_IMPLEMENTATION_STRATEGY.md](docs/MLS_IMPLEMENTATION_STRATEGY.md), [docs/MLS_BETA_ROADMAP.md](docs/MLS_BETA_ROADMAP.md), [docs/MLS_TEST_FLOW.md](docs/MLS_TEST_FLOW.md)
 
 ### 2025-11-03 - Hiveシリアライゼーション修正
 

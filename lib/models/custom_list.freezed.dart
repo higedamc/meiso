@@ -36,6 +36,24 @@ mixin _$CustomList {
   /// 更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
+  /// グループリストかどうか（マルチパーティ暗号化使用）
+  bool get isGroup => throw _privateConstructorUsedError;
+
+  /// グループメンバーの公開鍵リスト（hex形式）
+  List<String> get groupMembers => throw _privateConstructorUsedError;
+
+  /// インビテーション待ちかどうか（Phase 6.4: MLS招待システム）
+  bool get isPendingInvitation => throw _privateConstructorUsedError;
+
+  /// 招待者のnpub（Phase 6.4: MLS招待システム）
+  String? get inviterNpub => throw _privateConstructorUsedError;
+
+  /// 招待者の名前（Phase 6.4: MLS招待システム）
+  String? get inviterName => throw _privateConstructorUsedError;
+
+  /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
+  String? get welcomeMsg => throw _privateConstructorUsedError;
+
   /// Serializes this CustomList to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -59,6 +77,12 @@ abstract class $CustomListCopyWith<$Res> {
     int order,
     DateTime createdAt,
     DateTime updatedAt,
+    bool isGroup,
+    List<String> groupMembers,
+    bool isPendingInvitation,
+    String? inviterNpub,
+    String? inviterName,
+    String? welcomeMsg,
   });
 }
 
@@ -82,6 +106,12 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
     Object? order = null,
     Object? createdAt = null,
     Object? updatedAt = null,
+    Object? isGroup = null,
+    Object? groupMembers = null,
+    Object? isPendingInvitation = null,
+    Object? inviterNpub = freezed,
+    Object? inviterName = freezed,
+    Object? welcomeMsg = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -105,6 +135,30 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
+            isGroup: null == isGroup
+                ? _value.isGroup
+                : isGroup // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            groupMembers: null == groupMembers
+                ? _value.groupMembers
+                : groupMembers // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
+            isPendingInvitation: null == isPendingInvitation
+                ? _value.isPendingInvitation
+                : isPendingInvitation // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            inviterNpub: freezed == inviterNpub
+                ? _value.inviterNpub
+                : inviterNpub // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            inviterName: freezed == inviterName
+                ? _value.inviterName
+                : inviterName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            welcomeMsg: freezed == welcomeMsg
+                ? _value.welcomeMsg
+                : welcomeMsg // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -126,6 +180,12 @@ abstract class _$$CustomListImplCopyWith<$Res>
     int order,
     DateTime createdAt,
     DateTime updatedAt,
+    bool isGroup,
+    List<String> groupMembers,
+    bool isPendingInvitation,
+    String? inviterNpub,
+    String? inviterName,
+    String? welcomeMsg,
   });
 }
 
@@ -148,6 +208,12 @@ class __$$CustomListImplCopyWithImpl<$Res>
     Object? order = null,
     Object? createdAt = null,
     Object? updatedAt = null,
+    Object? isGroup = null,
+    Object? groupMembers = null,
+    Object? isPendingInvitation = null,
+    Object? inviterNpub = freezed,
+    Object? inviterName = freezed,
+    Object? welcomeMsg = freezed,
   }) {
     return _then(
       _$CustomListImpl(
@@ -171,6 +237,30 @@ class __$$CustomListImplCopyWithImpl<$Res>
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
+        isGroup: null == isGroup
+            ? _value.isGroup
+            : isGroup // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        groupMembers: null == groupMembers
+            ? _value.groupMembers
+            : groupMembers // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
+        isPendingInvitation: null == isPendingInvitation
+            ? _value.isPendingInvitation
+            : isPendingInvitation // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        inviterNpub: freezed == inviterNpub
+            ? _value.inviterNpub
+            : inviterNpub // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        inviterName: freezed == inviterName
+            ? _value.inviterName
+            : inviterName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        welcomeMsg: freezed == welcomeMsg
+            ? _value.welcomeMsg
+            : welcomeMsg // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -185,6 +275,12 @@ class _$CustomListImpl implements _CustomList {
     this.order = 0,
     required this.createdAt,
     required this.updatedAt,
+    this.isGroup = false,
+    this.groupMembers = const [],
+    this.isPendingInvitation = false,
+    this.inviterNpub,
+    this.inviterName,
+    this.welcomeMsg,
   });
 
   factory _$CustomListImpl.fromJson(Map<String, dynamic> json) =>
@@ -211,9 +307,36 @@ class _$CustomListImpl implements _CustomList {
   @override
   final DateTime updatedAt;
 
+  /// グループリストかどうか（マルチパーティ暗号化使用）
+  @override
+  @JsonKey()
+  final bool isGroup;
+
+  /// グループメンバーの公開鍵リスト（hex形式）
+  @override
+  @JsonKey()
+  final List<String> groupMembers;
+
+  /// インビテーション待ちかどうか（Phase 6.4: MLS招待システム）
+  @override
+  @JsonKey()
+  final bool isPendingInvitation;
+
+  /// 招待者のnpub（Phase 6.4: MLS招待システム）
+  @override
+  final String? inviterNpub;
+
+  /// 招待者の名前（Phase 6.4: MLS招待システム）
+  @override
+  final String? inviterName;
+
+  /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
+  @override
+  final String? welcomeMsg;
+
   @override
   String toString() {
-    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg)';
   }
 
   @override
@@ -227,13 +350,38 @@ class _$CustomListImpl implements _CustomList {
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
-                other.updatedAt == updatedAt));
+                other.updatedAt == updatedAt) &&
+            (identical(other.isGroup, isGroup) || other.isGroup == isGroup) &&
+            const DeepCollectionEquality().equals(
+              other.groupMembers,
+              groupMembers,
+            ) &&
+            (identical(other.isPendingInvitation, isPendingInvitation) ||
+                other.isPendingInvitation == isPendingInvitation) &&
+            (identical(other.inviterNpub, inviterNpub) ||
+                other.inviterNpub == inviterNpub) &&
+            (identical(other.inviterName, inviterName) ||
+                other.inviterName == inviterName) &&
+            (identical(other.welcomeMsg, welcomeMsg) ||
+                other.welcomeMsg == welcomeMsg));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, name, order, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    name,
+    order,
+    createdAt,
+    updatedAt,
+    isGroup,
+    const DeepCollectionEquality().hash(groupMembers),
+    isPendingInvitation,
+    inviterNpub,
+    inviterName,
+    welcomeMsg,
+  );
 
   /// Create a copy of CustomList
   /// with the given fields replaced by the non-null parameter values.
@@ -256,6 +404,12 @@ abstract class _CustomList implements CustomList {
     final int order,
     required final DateTime createdAt,
     required final DateTime updatedAt,
+    final bool isGroup,
+    final List<String> groupMembers,
+    final bool isPendingInvitation,
+    final String? inviterNpub,
+    final String? inviterName,
+    final String? welcomeMsg,
   }) = _$CustomListImpl;
 
   factory _CustomList.fromJson(Map<String, dynamic> json) =
@@ -280,6 +434,30 @@ abstract class _CustomList implements CustomList {
   /// 更新日時
   @override
   DateTime get updatedAt;
+
+  /// グループリストかどうか（マルチパーティ暗号化使用）
+  @override
+  bool get isGroup;
+
+  /// グループメンバーの公開鍵リスト（hex形式）
+  @override
+  List<String> get groupMembers;
+
+  /// インビテーション待ちかどうか（Phase 6.4: MLS招待システム）
+  @override
+  bool get isPendingInvitation;
+
+  /// 招待者のnpub（Phase 6.4: MLS招待システム）
+  @override
+  String? get inviterNpub;
+
+  /// 招待者の名前（Phase 6.4: MLS招待システム）
+  @override
+  String? get inviterName;
+
+  /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
+  @override
+  String? get welcomeMsg;
 
   /// Create a copy of CustomList
   /// with the given fields replaced by the non-null parameter values.

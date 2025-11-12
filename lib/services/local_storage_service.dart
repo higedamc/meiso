@@ -15,6 +15,8 @@ class LocalStorageService {
   static const String _appSettingsKey = 'app_settings';
   static const String _recurringTasksTipsDismissedKey = 'recurring_tasks_tips_dismissed';
   static const String _languageKey = 'language';
+  static const String _lastKeyPackagePublishTimeKey = 'last_key_package_publish_time'; // Phase 8.1
+  static const String _deletedEventIdsKey = 'deleted_event_ids'; // Issue #80: kind 5削除イベント
   
   Box<Map>? _todosBox;
   Box? _settingsBox;
@@ -322,6 +324,77 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.delete(_languageKey);
+  }
+  
+  // === Phase 8.1: Key Package自動公開関連 ===
+  
+  /// 最後にKey Packageを公開した時刻を保存
+  Future<void> setLastKeyPackagePublishTime(DateTime dateTime) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_lastKeyPackagePublishTimeKey, dateTime.toIso8601String());
+  }
+  
+  /// 最後にKey Packageを公開した時刻を取得
+  DateTime? getLastKeyPackagePublishTime() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final timeString = _settingsBox!.get(_lastKeyPackagePublishTimeKey) as String?;
+    if (timeString == null) return null;
+    
+    try {
+      return DateTime.parse(timeString);
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  /// Key Package公開時刻をクリア
+  Future<void> clearLastKeyPackagePublishTime() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_lastKeyPackagePublishTimeKey);
+  }
+  
+  // === Issue #80: kind 5削除イベント管理 ===
+  
+  /// 削除済みイベントIDリストを保存
+  Future<void> saveDeletedEventIds(List<String> eventIds) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_deletedEventIdsKey, eventIds);
+    AppLogger.info('🗑️ Saved ${eventIds.length} deleted event IDs to storage');
+  }
+  
+  /// 削除済みイベントIDリストを取得
+  Future<List<String>> loadDeletedEventIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    
+    final dynamic stored = _settingsBox!.get(_deletedEventIdsKey);
+    if (stored == null) {
+      return [];
+    }
+    
+    if (stored is List) {
+      return stored.map((e) => e.toString()).toList();
+    }
+    
+    return [];
+  }
+  
+  /// 削除済みイベントIDリストをクリア
+  Future<void> clearDeletedEventIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_deletedEventIdsKey);
+    AppLogger.info('🗑️ Cleared deleted event IDs from storage');
   }
 }
 

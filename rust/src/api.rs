@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 use crate::{NOSTR_CLIENTS, DEFAULT_CLIENT_ID};
+use crate::group_tasks;
 
 /// クライアントモード
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1437,6 +1438,94 @@ pub struct TodoListMetadata {
 }
 
 /// すべてのTodoリスト（デフォルト + カスタムリスト）を取得
+/// Phase 8.5.2: カスタムリスト名のみを取得（軽量版）
+/// 
+/// contentを解析せず、タグ（d, title）のみを返すため高速
+#[derive(Clone)]
+pub struct TodoListName {
+    pub list_id: String,
+    pub title: Option<String>,
+}
+
+pub fn fetch_todo_list_names_only(
+    public_key_hex: String,
+) -> Result<Vec<TodoListName>> {
+    fetch_todo_list_names_only_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_todo_list_names_only_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<TodoListName>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // Kind 30001イベントを取得（contentは不要）
+        let filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(public_key);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        if events.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        // 重複除去: 同じd tagで最新のもののみ保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events {
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            if let Some(ref d_value) = d_tag {
+                // meiso-todos（デフォルトリスト）を除外
+                if d_value == "meiso-todos" {
+                    continue;
+                }
+                
+                // meiso-list-* のみを処理（カスタムリスト）
+                if d_value.starts_with("meiso-list-") {
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            latest_events.insert(d_value.clone(), event);
+                        }
+                    } else {
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                }
+            }
+        }
+        
+        // リスト名のみを抽出
+        let list_names: Vec<TodoListName> = latest_events.into_iter()
+            .map(|(d_tag, event)| {
+                let title = event.tags.iter()
+                    .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
+                    .and_then(|tag| tag.content())
+                    .map(|s| s.to_string());
+                
+                TodoListName {
+                    list_id: d_tag,
+                    title,
+                }
+            })
+            .collect();
+        
+        Ok(list_names)
+    })
+}
+
 pub fn fetch_all_encrypted_todo_lists_for_pubkey(
     public_key_hex: String,
 ) -> Result<Vec<EncryptedTodoListEvent>> {
@@ -2059,6 +2148,62 @@ pub fn delete_events_with_client_id(
     })
 }
 
+/// 削除イベント（Kind 5）を取得し、削除対象のイベントIDリストを返す
+pub fn fetch_deletion_events_for_pubkey(
+    public_key_hex: String,
+) -> Result<Vec<String>> {
+    fetch_deletion_events_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_deletion_events_for_pubkey_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        println!("🗑️ Fetching deletion events (Kind 5) for pubkey: {}...", &public_key_hex[..16]);
+        
+        // Kind 5（EventDeletion）イベントを取得
+        let filter = Filter::new()
+            .kind(Kind::EventDeletion)
+            .author(public_key);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        println!("📥 Found {} deletion events", events.len());
+        
+        if events.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        // 削除対象のイベントIDを抽出（eタグから）
+        let mut deleted_event_ids = Vec::new();
+        
+        for event in events {
+            // eタグを探す
+            for tag in event.tags.iter() {
+                if let Some(TagStandard::Event { event_id, .. }) = tag.as_standardized() {
+                    let event_id_hex = event_id.to_hex();
+                    deleted_event_ids.push(event_id_hex.clone());
+                    println!("  🗑️ Deleted event ID: {}", &event_id_hex[..16]);
+                }
+            }
+        }
+        
+        println!("✅ Total {} event IDs marked as deleted", deleted_event_ids.len());
+        
+        Ok(deleted_event_ids)
+    })
+}
+
 // ========================================
 // Subscription & キャッシュ関連API
 // ========================================
@@ -2211,5 +2356,888 @@ pub fn create_cache_info(
 /// キャッシュが有効かチェック
 pub fn is_cache_valid(cache_info: CachedEventInfo) -> bool {
     cache_info.is_valid()
+}
+
+// ========================================
+// グループタスク管理API（マルチパーティ暗号化）
+// ========================================
+
+use crate::group_tasks::{GroupTodoList, GroupTodoData};
+
+/// グループタスクリストを暗号化（マルチパーティ暗号化）
+/// 
+/// # Parameters
+/// - `tasks`: グループタスクのリスト
+/// - `group_id`: グループID（UUID）
+/// - `group_name`: グループ名
+/// - `member_pubkeys`: メンバーの公開鍵リスト（hex形式）
+pub fn encrypt_group_task_list(
+    tasks: Vec<GroupTodoData>,
+    group_id: String,
+    group_name: String,
+    member_pubkeys: Vec<String>,
+) -> Result<GroupTodoList> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート（Amberモードでは未対応）
+        let keys = client.keys.as_ref()
+            .context("Secret key required for group task encryption")?;
+        
+        crate::group_tasks::encrypt_group_tasks(
+            tasks,
+            group_id,
+            group_name,
+            member_pubkeys,
+            keys,
+        )
+    })
+}
+
+/// グループタスクリストを復号化
+/// 
+/// # Parameters
+/// - `group_list`: 暗号化されたグループタスクリスト
+pub fn decrypt_group_task_list(
+    group_list: GroupTodoList,
+) -> Result<Vec<GroupTodoData>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート（Amberモードでは未対応）
+        let keys = client.keys.as_ref()
+            .context("Secret key required for group task decryption")?;
+        
+        crate::group_tasks::decrypt_group_tasks(
+            &group_list,
+            keys,
+        )
+    })
+}
+
+/// グループにメンバーを追加
+/// 
+/// # Parameters
+/// - `group_list`: 既存のグループタスクリスト
+/// - `new_member_pubkey`: 追加するメンバーの公開鍵（hex形式）
+pub fn add_member_to_group_task_list(
+    mut group_list: GroupTodoList,
+    new_member_pubkey: String,
+) -> Result<GroupTodoList> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート
+        let keys = client.keys.as_ref()
+            .context("Secret key required for adding member")?;
+        
+        crate::group_tasks::add_member_to_group(
+            &mut group_list,
+            new_member_pubkey,
+            keys,
+        )?;
+        
+        Ok(group_list)
+    })
+}
+
+/// グループからメンバーを削除（Forward Secrecy: 全体を再暗号化）
+/// 
+/// # Parameters
+/// - `group_list`: 既存のグループタスクリスト
+/// - `member_to_remove`: 削除するメンバーの公開鍵（hex形式）
+pub fn remove_member_from_group_task_list(
+    group_list: GroupTodoList,
+    member_to_remove: String,
+) -> Result<GroupTodoList> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート
+        let keys = client.keys.as_ref()
+            .context("Secret key required for removing member")?;
+        
+        crate::group_tasks::remove_member_from_group(
+            &group_list,
+            member_to_remove,
+            keys,
+        )
+    })
+}
+
+/// グループタスクリストをNostrに保存（Kind 30001 - NIP-51）
+/// 
+/// # Parameters
+/// - `group_list`: 暗号化されたグループタスクリスト
+pub fn save_group_task_list_to_nostr(
+    group_list: GroupTodoList,
+) -> Result<EventSendResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート
+        let keys = client.keys.as_ref()
+            .context("Secret key required for saving group task list")?;
+        
+        // GroupTodoListをJSON文字列に変換
+        let group_list_json = serde_json::to_string(&group_list)?;
+        
+        // NIP-44で自己暗号化（グループメタデータのみ）
+        let public_key = keys.public_key();
+        let encrypted_content = nip44::encrypt(
+            keys.secret_key(),
+            &public_key,
+            &group_list_json,
+            nip44::Version::V2,
+        )?;
+        
+        // d tag（グループ識別子）
+        let d_tag_value = format!("meiso-group-{}", group_list.group_id);
+        
+        let d_tag = Tag::custom(
+            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+            vec![d_tag_value.clone()],
+        );
+        
+        let title_tag = Tag::custom(
+            TagKind::Custom(std::borrow::Cow::Borrowed("title")),
+            vec![group_list.group_name.clone()],
+        );
+        
+        // メンバーをpタグで追加（検索可能にする - NIP-01標準）
+        let mut tags = vec![d_tag, title_tag];
+        for member_pubkey in &group_list.members {
+            tags.push(Tag::public_key(
+                nostr_sdk::PublicKey::from_hex(member_pubkey)
+                    .map_err(|e| anyhow::anyhow!("Invalid member pubkey: {}", e))?,
+            ));
+        }
+        
+        let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
+            .tags(tags)
+            .sign(keys)
+            .await?;
+        
+        println!("📤 Sending group task list event (d='{}', {} members)", d_tag_value, group_list.members.len());
+        
+        // リレーに送信
+        client.send_event_with_result(event).await
+    })
+}
+
+/// グループタスクリストの未署名イベントを作成（Amberモード用）
+/// 
+/// GroupTodoListを受け取り、暗号化済みcontentで未署名イベントJSONを作成
+/// 
+/// # Arguments
+/// * `group_list_json` - GroupTodoListのJSON文字列（暗号化前）
+/// * `encrypted_content` - Amberで暗号化済みのcontent
+/// * `public_key_hex` - 作成者の公開鍵（hex）
+/// 
+/// # Returns
+/// 未署名イベントのJSON文字列
+pub fn create_unsigned_group_task_list_event(
+    group_list_json: String,
+    encrypted_content: String,
+    public_key_hex: String,
+) -> Result<String> {
+    // GroupTodoListをパース
+    let group_list: GroupTodoList = serde_json::from_str(&group_list_json)
+        .context("Failed to parse GroupTodoList JSON")?;
+    
+    // d tag（グループ識別子）
+    let d_tag_value = format!("meiso-group-{}", group_list.group_id);
+    
+    let d_tag = Tag::custom(
+        TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+        vec![d_tag_value.clone()],
+    );
+    
+    let title_tag = Tag::custom(
+        TagKind::Custom(std::borrow::Cow::Borrowed("title")),
+        vec![group_list.group_name.clone()],
+    );
+    
+    // メンバーをpタグで追加（検索可能にする）
+    let mut tags = vec![d_tag, title_tag];
+    for member_pubkey in &group_list.members {
+        tags.push(Tag::public_key(
+            nostr_sdk::PublicKey::from_hex(member_pubkey)
+                .map_err(|e| anyhow::anyhow!("Invalid member pubkey: {}", e))?,
+        ));
+    }
+    
+    // 未署名イベントを手動構築
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    
+    // タグをJSON配列に変換
+    let tags_json: Vec<Vec<String>> = tags.iter().map(|tag| {
+        tag.clone().to_vec().iter().map(|s| s.to_string()).collect()
+    }).collect();
+    
+    // 未署名イベントのJSON構造を作成
+    let unsigned_event = serde_json::json!({
+        "pubkey": public_key_hex,
+        "created_at": now,
+        "kind": 30001,
+        "tags": tags_json,
+        "content": encrypted_content,
+    });
+    
+    // JSON文字列に変換
+    let unsigned_event_json = serde_json::to_string(&unsigned_event)
+        .context("Failed to serialize unsigned event")?;
+    
+    println!("📝 Created unsigned group task list event (d='{}', {} members)", 
+        d_tag_value, group_list.members.len());
+    
+    Ok(unsigned_event_json)
+}
+
+/// 暗号化されたグループタスクイベント（Amber復号化用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedGroupTodoListEvent {
+    pub event_id: String,
+    pub encrypted_content: String,  // イベント全体のcontent（JSON文字列）
+    pub created_at: i64,
+    pub list_id: String,          // d tag (例: "meiso-group-family")
+    pub group_name: Option<String>,  // title tag (オプション)
+    pub encrypted_data: String,    // 暗号化されたタスクデータ（base64）
+    pub members: Vec<String>,      // メンバーの公開鍵リスト（hex）
+    pub encrypted_keys: Vec<EncryptedKeyData>, // 各メンバー用の暗号化AES鍵
+}
+
+/// メンバー用に暗号化されたAES鍵（Flutter互換）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedKeyData {
+    pub member_pubkey: String,     // メンバーの公開鍵（hex）
+    pub encrypted_aes_key: String, // NIP-44で暗号化されたAES鍵（base64）
+}
+
+/// 公開鍵だけで暗号化されたグループタスクイベントを取得（Amber復号化用）
+/// 復号化はAmber側で行うため、暗号化されたままのイベントを返す
+pub fn fetch_encrypted_group_task_lists_for_pubkey(
+    public_key_hex: String,
+) -> Result<Vec<EncryptedGroupTodoListEvent>> {
+    fetch_encrypted_group_task_lists_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<EncryptedGroupTodoListEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // pタグで自分がメンバーとして含まれるKind 30001イベントを検索
+        let filter_p = Filter::new()
+            .kind(Kind::Custom(30001))
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::P),
+                vec![public_key_hex.clone()]
+            );
+        
+        // 全てのKind 30001を取得（旧形式のmemberタグ対応）
+        let filter_all = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(public_key);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter_p, filter_all], Some(Duration::from_secs(10)))
+            .await?;
+        
+        if events.is_empty() {
+            println!("⚠️ No encrypted group task list events found");
+            return Ok(Vec::new());
+        }
+        
+        println!("📥 Found {} encrypted group task list events", events.len());
+        
+        // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events {
+            // d タグを取得
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            if let Some(d_value) = d_tag {
+                // meiso-group-* のみを処理
+                if d_value.starts_with("meiso-group-") {
+                    // 既存のイベントと比較して、より新しい場合のみ保持
+                    if let Some(existing_event) = latest_events.get(&d_value) {
+                        if event.created_at.as_u64() > existing_event.created_at.as_u64() {
+                            println!("🔄 Updating latest event for d='{}' (newer timestamp)", d_value);
+                            latest_events.insert(d_value, event);
+                        } else {
+                            println!("⏭️  Skipping older event for d='{}'", d_value);
+                        }
+                    } else {
+                        latest_events.insert(d_value, event);
+                    }
+                }
+            }
+        }
+        
+        println!("📋 After deduplication: {} unique group task lists", latest_events.len());
+        
+        let mut encrypted_lists = Vec::new();
+        
+        for (d_tag, event) in latest_events {
+            // title タグを取得（オプション）
+            let group_name = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::Title)
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            // p タグからメンバー一覧を取得
+            // 注意: contentは暗号化されているため、pタグから取得する必要がある
+            let members: Vec<String> = event.tags.iter()
+                .filter_map(|tag| {
+                    if tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::P)) {
+                        tag.content().map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            
+            let members_count = members.len();
+            println!("📋 Group '{}' has {} members from p tags", d_tag, members_count);
+            
+            // encrypted_content をそのまま保存（後でFlutter側でAmber復号化）
+            encrypted_lists.push(EncryptedGroupTodoListEvent {
+                event_id: event.id.to_hex(),
+                encrypted_content: event.content.clone(),
+                created_at: event.created_at.as_u64() as i64,
+                list_id: d_tag.clone(),
+                group_name,
+                encrypted_data: String::new(), // 後でcontentを復号化してから取得
+                members,
+                encrypted_keys: Vec::new(), // 後でcontentを復号化してから取得
+            });
+            
+            println!("📦 Added encrypted group event: d='{}', event_id={}, members={}", 
+                d_tag, event.id.to_hex(), members_count);
+        }
+        
+        println!("✅ Total encrypted group task lists: {}", encrypted_lists.len());
+        Ok(encrypted_lists)
+    })
+}
+
+/// タスクデータをAES-256-GCMで暗号化（Amberモード用）
+/// 
+/// # Arguments
+/// * `tasks_json` - タスクデータのJSON文字列
+/// * `aes_key_base64` - base64エンコードされたAES-256鍵（32バイト）
+/// 
+/// # Returns
+/// base64エンコードされた暗号化データ（ノンス12バイト + 暗号文）
+pub fn encrypt_group_data_with_aes_key(
+    tasks_json: String,
+    aes_key_base64: String,
+) -> Result<String> {
+    group_tasks::encrypt_data_with_aes_key(tasks_json, aes_key_base64)
+}
+
+/// AES鍵を使ってグループタスクデータを復号化（Amberモード用）
+/// 
+/// Amberで復号化済みのAES鍵を使ってデータを復号化する
+/// 
+/// # Arguments
+/// * `encrypted_data_base64` - base64エンコードされた暗号化データ
+/// * `aes_key_base64` - base64エンコードされたAES鍵（すでに復号化済み）
+/// 
+/// # Returns
+/// 復号化されたJSON文字列
+pub fn decrypt_group_data_with_aes_key(
+    encrypted_data_base64: String,
+    aes_key_base64: String,
+) -> Result<String> {
+    group_tasks::decrypt_data_with_aes_key(encrypted_data_base64, aes_key_base64)
+}
+
+/// 自分がメンバーになっているグループタスクリストを取得（非推奨 - Amberモードでは動作しない）
+/// 代わりに fetch_encrypted_group_task_lists_for_pubkey を使用してください
+#[deprecated(note = "Use fetch_encrypted_group_task_lists_for_pubkey for Amber mode compatibility")]
+pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+        
+        // 秘密鍵モードのみサポート
+        let keys = client.keys.as_ref()
+            .context("Secret key required for fetching group task lists")?;
+        
+        // 自分がメンバーとして含まれるKind 30001イベントを検索
+        // 戦略: pタグで検索できない場合、全てのKind 30001を取得してフィルタリング
+        let my_pubkey = keys.public_key().to_hex();
+        
+        // まずpタグで検索（新形式）
+        let filter_p = Filter::new()
+            .kind(Kind::Custom(30001))
+            .custom_tag(
+                nostr_sdk::SingleLetterTag::lowercase(nostr_sdk::Alphabet::P),
+                vec![my_pubkey.clone()]
+            );
+        
+        // 次に全てのKind 30001を取得（旧形式のmemberタグ対応）
+        let filter_all = Filter::new()
+            .kind(Kind::Custom(30001));
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter_p, filter_all], Some(Duration::from_secs(10)))
+            .await?;
+        
+        if events.is_empty() {
+            println!("⚠️ No group task lists found");
+            return Ok(Vec::new());
+        }
+        
+        println!("📥 Found {} group task list events", events.len());
+        
+        let mut group_lists = Vec::new();
+        
+        for event in events {
+            // d タグを取得してグループリストか確認
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            // meiso-group-* のみを処理
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-group-") {
+                    // NIP-44で復号化
+                    match nip44::decrypt(
+                        keys.secret_key(),
+                        &keys.public_key(),
+                        &event.content,
+                    ) {
+                        Ok(decrypted) => {
+                            match serde_json::from_str::<GroupTodoList>(&decrypted) {
+                                Ok(group_list) => {
+                                    // 自分がメンバーに含まれているか確認
+                                    if group_list.members.contains(&my_pubkey) {
+                                        println!("✅ Decrypted group: {} (member check: ✓)", group_list.group_name);
+                                        group_lists.push(group_list);
+                                    } else {
+                                        println!("⚠️ Skipping group {} (not a member)", group_list.group_name);
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("❌ Failed to parse group task list JSON from {:?}: {}", d_tag, e);
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            // 復号化失敗 = 自分宛てではない or 壊れたデータ
+                            // 全てのKind 30001を取得しているため、これは正常
+                        }
+                    }
+                }
+            }
+        }
+        
+        println!("✅ Total group task lists fetched: {}", group_lists.len());
+        Ok(group_lists)
+    })
+}
+
+// ========================================
+// MLS API (Option B PoC)
+// ========================================
+
+/// MLS: データベース初期化
+pub fn mls_init_db(db_path: String, nostr_id: String) -> Result<()> {
+    crate::mls::init_mls_db(db_path, nostr_id)
+}
+
+/// MLS: Export SecretからListen Key取得
+pub fn mls_get_listen_key(nostr_id: String, group_id: String) -> Result<String> {
+    crate::mls::get_listen_key_from_export_secret(nostr_id, group_id)
+}
+
+/// MLS: TODOグループ作成
+pub fn mls_create_todo_group(
+    nostr_id: String,
+    group_id: String,
+    group_name: String,
+    key_packages: Vec<String>,
+) -> Result<Vec<u8>> {
+    crate::group_tasks_mls::create_mls_todo_group(nostr_id, group_id, group_name, key_packages)
+}
+
+/// MLS: TODOをグループに追加（暗号化）
+pub fn mls_add_todo(
+    nostr_id: String,
+    group_id: String,
+    todo_json: String,
+) -> Result<String> {
+    crate::group_tasks_mls::add_todo_to_mls_group(nostr_id, group_id, todo_json)
+}
+
+/// MLS: TODOを復号化
+pub fn mls_decrypt_todo(
+    nostr_id: String,
+    group_id: String,
+    encrypted_msg: String,
+) -> Result<(String, String, String)> {
+    crate::group_tasks_mls::decrypt_todo_from_mls_group(nostr_id, group_id, encrypted_msg)
+}
+
+/// MLS: Key Package作成
+pub fn mls_create_key_package(nostr_id: String) -> Result<crate::group_tasks_mls::KeyPackageResult> {
+    crate::group_tasks_mls::create_key_package(nostr_id)
+}
+
+/// MLS: グループに参加（Welcome Message使用）
+pub fn mls_join_group(
+    nostr_id: String,
+    group_id: String,
+    welcome_msg: Vec<u8>,
+) -> Result<()> {
+    crate::group_tasks_mls::join_mls_group(nostr_id, group_id, welcome_msg)
+}
+
+/// MLS: Key Package公開イベント作成（Kind 10443 - NIP-EE）
+/// 
+/// Key PackageをKind 10443イベントとして公開することで、
+/// 他のユーザーがnpubから自動的にKey Packageを取得できるようになる
+/// 
+/// # Arguments
+/// * `key_package_result` - mlsCreateKeyPackageの結果
+/// * `public_key_hex` - ユーザーの公開鍵（hex）
+/// * `relays` - Key Packageを公開するリレーのリスト
+/// 
+/// # Returns
+/// * 未署名イベントJSON（Amber署名用）
+pub fn create_unsigned_key_package_event(
+    key_package_result: crate::group_tasks_mls::KeyPackageResult,
+    public_key_hex: String,
+    relays: Vec<String>,
+) -> Result<String> {
+    use serde_json::json;
+    
+    // 公開鍵をパース
+    let public_key = PublicKey::from_hex(&public_key_hex)
+        .context("Failed to parse public key")?;
+    
+    // 現在のタイムスタンプ
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    // NIP-EE（Kind 10443）のタグ構成
+    let mut tags = Vec::new();
+    
+    // MLS Protocol Version
+    tags.push(vec!["mls_protocol_version".to_string(), key_package_result.mls_protocol_version]);
+    
+    // Ciphersuite
+    tags.push(vec!["ciphersuite".to_string(), key_package_result.ciphersuite]);
+    
+    // Extensions (if any)
+    if !key_package_result.extensions.is_empty() {
+        tags.push(vec!["extensions".to_string(), key_package_result.extensions]);
+    }
+    
+    // Client識別
+    tags.push(vec!["client".to_string(), "meiso".to_string()]);
+    
+    // リレーリスト
+    for relay_url in &relays {
+        tags.push(vec!["relay".to_string(), relay_url.clone()]);
+    }
+    
+    // 未署名イベントJSON（Amber用）
+    let unsigned_event = json!({
+        "pubkey": public_key.to_hex(),
+        "created_at": created_at,
+        "kind": 10443,  // NIP-EE: Key Package
+        "tags": tags,
+        "content": key_package_result.key_package,
+    });
+    
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    
+    println!("📦 Created unsigned key package event (Kind 10443) for Amber signing");
+    Ok(event_json)
+}
+
+/// MLS: グループ招待を同期（Kind 30078から取得）
+/// 
+/// 自分宛のグループ招待イベントを取得する
+/// 
+/// # Arguments
+/// * `recipient_public_key_hex` - 受信者の公開鍵（hex）
+/// * `client_id` - NostrクライアントID（オプション）
+/// 
+/// # Returns
+/// * グループ招待のJSON配列
+pub fn sync_group_invitations(
+    recipient_public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    use serde_json::json;
+    
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let recipient_pubkey = PublicKey::from_hex(&recipient_public_key_hex)
+            .context("Failed to parse recipient public key")?;
+        
+        println!("📥 Syncing group invitations for: {}", recipient_pubkey.to_hex());
+        
+        // Kind 30078イベントをフィルタ（pタグで自分宛）
+        let filter = Filter::new()
+            .kind(Kind::Custom(30078))
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::P),
+                vec![recipient_pubkey.to_hex()],
+            )
+            .limit(50);
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        println!("✅ Found {} group invitation events", events.len());
+        
+        // Phase 8.1.3: 取得したイベントの詳細をログ出力
+        if !events.is_empty() {
+            println!("📋 Event details:");
+            for (i, event) in events.iter().enumerate() {
+                println!("  [{}] Event ID: {}", i + 1, event.id.to_hex().chars().take(16).collect::<String>());
+                println!("      From: {}", event.pubkey.to_hex().chars().take(16).collect::<String>());
+                println!("      Created: {}", event.created_at.as_u64());
+            }
+        }
+        
+        // イベントをJSON配列に変換
+        let mut invitations = Vec::new();
+        
+        for event in events {
+            // d tagからgroup_idを抽出
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.first().map(|s| s.as_str()) == Some("d")
+                })
+                .and_then(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.get(1).cloned()
+                });
+            
+            if let Some(d_tag_value) = d_tag {
+                // d_tag形式: group-invitation-{groupId}-{recipientPubkey}
+                println!("  🔍 Processing d_tag: {}", d_tag_value.chars().take(50).collect::<String>());
+                
+                if let Some(group_id) = d_tag_value.strip_prefix("group-invitation-") {
+                    if let Some(group_id_only) = group_id.split('-').next() {
+                        // contentをパース（平文のJSON）
+                        // Note: 将来的にはNIP-44復号化が必要
+                        if let Ok(content_json) = serde_json::from_str::<serde_json::Value>(&event.content) {
+                            let group_name = content_json.get("group_name").and_then(|v| v.as_str()).unwrap_or("Unnamed Group");
+                            let invitation = json!({
+                                "event_id": event.id.to_hex(),
+                                "inviter_pubkey": event.pubkey.to_hex(),
+                                "group_id": content_json.get("group_id").and_then(|v| v.as_str()).unwrap_or(group_id_only),
+                                "group_name": group_name,
+                                "welcome_msg": content_json.get("welcome_msg").and_then(|v| v.as_str()).unwrap_or(""),
+                                "inviter_name": content_json.get("inviter_name").and_then(|v| v.as_str()),
+                                "invited_at": content_json.get("invited_at").and_then(|v| v.as_u64()).unwrap_or(0),
+                                "created_at": event.created_at.as_u64(),
+                            });
+                            
+                            invitations.push(invitation);
+                            
+                            println!(
+                                "  ✅ Parsed invitation: '{}' from {}",
+                                group_name,
+                                event.pubkey.to_hex().chars().take(16).collect::<String>()
+                            );
+                        } else {
+                            println!("  ⚠️ Failed to parse content JSON");
+                        }
+                    } else {
+                        println!("  ⚠️ Failed to extract group_id from d_tag");
+                    }
+                } else {
+                    println!("  ⚠️ d_tag doesn't start with 'group-invitation-'");
+                }
+            } else {
+                println!("  ⚠️ No d_tag found in event");
+            }
+        }
+        
+        let result = json!({
+            "invitations": invitations,
+            "count": invitations.len(),
+        });
+        
+        Ok(serde_json::to_string(&result)?)
+    })
+}
+
+/// MLS: グループ招待イベント作成（Kind 30078 + NIP-44）
+/// 
+/// グループ招待通知をKind 30078イベントとして作成（未署名）
+/// 受信者の公開鍵でNIP-44暗号化される
+/// 
+/// # Arguments
+/// * `sender_public_key_hex` - 送信者の公開鍵（hex）
+/// * `recipient_npub` - 受信者のnpub
+/// * `group_id` - グループID
+/// * `group_name` - グループ名
+/// * `welcome_msg_base64` - Welcome Message（base64エンコード済み）
+/// * `inviter_name` - 招待者の名前（オプション）
+/// 
+/// # Returns
+/// * 未署名イベントJSON（Amber署名用）
+pub fn create_unsigned_group_invitation_event(
+    sender_public_key_hex: String,
+    recipient_npub: String,
+    group_id: String,
+    group_name: String,
+    welcome_msg_base64: String,
+    inviter_name: Option<String>,
+) -> Result<String> {
+    use serde_json::json;
+    
+    // 公開鍵をパース
+    let sender_pubkey = PublicKey::from_hex(&sender_public_key_hex)
+        .context("Failed to parse sender public key")?;
+    let recipient_pubkey = PublicKey::from_bech32(&recipient_npub)
+        .context("Failed to parse recipient npub")?;
+    
+    // 招待データを作成
+    let invitation_data = json!({
+        "type": "group_invitation",
+        "group_id": group_id,
+        "group_name": group_name,
+        "welcome_msg": welcome_msg_base64,
+        "inviter_name": inviter_name,
+        "invited_at": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+    });
+    
+    let content_json = serde_json::to_string(&invitation_data)?;
+    
+    println!("📤 Creating group invitation event");
+    println!("   Group: {}", group_name);
+    println!("   Recipient: {}", recipient_pubkey.to_hex());
+    
+    // NIP-44で暗号化（注意: Amber署名前なので、ここでは暗号化できない）
+    // → Amber署名版では、contentを平文で渡し、Flutter側で暗号化する必要がある
+    // → または、秘密鍵モードでは署名前に暗号化する
+    
+    // 簡略化のため、ここでは平文をそのまま渡す（実際の実装ではFlutter側で暗号化）
+    // Amber対応のため、未署名イベントとして返す
+    
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    // d tag: group-invitation-{groupId}-{recipientPubkey}
+    let d_tag_value = format!("group-invitation-{}-{}", group_id, recipient_pubkey.to_hex());
+    
+    let mut tags = Vec::new();
+    tags.push(vec!["d".to_string(), d_tag_value]);
+    tags.push(vec!["p".to_string(), recipient_pubkey.to_hex()]);
+    tags.push(vec!["client".to_string(), "meiso".to_string()]);
+    
+    // 未署名イベントJSON
+    // Note: contentは平文で渡す。実際の暗号化はFlutter側（Amber署名時）に実装予定
+    let unsigned_event = json!({
+        "pubkey": sender_pubkey.to_hex(),
+        "created_at": created_at,
+        "kind": 30078,  // NIP-78: App Data
+        "tags": tags,
+        "content": content_json,  // 平文（TODO: NIP-44暗号化）
+    });
+    
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    
+    println!("✅ Created unsigned group invitation event");
+    Ok(event_json)
+}
+
+/// MLS: npubからKey Packageを取得（Kind 10443）
+/// 
+/// 指定したnpubのユーザーが公開しているKey Packageを取得する
+/// 
+/// # Arguments
+/// * `npub` - 取得対象ユーザーのnpub（bech32形式）
+/// 
+/// # Returns
+/// * Key Package（hex文字列）
+pub fn fetch_key_package_by_npub(npub: String) -> Result<String> {
+    fetch_key_package_by_npub_with_client_id(npub, None)
+}
+
+/// MLS: npubからKey Packageを取得（client_id指定可能）
+pub fn fetch_key_package_by_npub_with_client_id(
+    npub: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // npubを公開鍵（hex）に変換
+        let public_key = PublicKey::from_bech32(&npub)
+            .context("Failed to parse npub")?;
+        
+        println!("🔍 Fetching Key Package for: {}", public_key.to_hex());
+        
+        // Kind 10443イベントをクエリ
+        let filter = Filter::new()
+            .kind(Kind::Custom(10443))
+            .author(public_key)
+            .limit(1);  // 最新のKey Packageのみ
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        // 最新のKey Packageを取得
+        if let Some(event) = events.first() {
+            println!("✅ Found Key Package event: {}", event.id.to_hex());
+            println!("   Created at: {}", event.created_at);
+            
+            // タグから情報を取得（デバッグ用）
+            for tag in event.tags.iter() {
+                let tag_vec = tag.clone().to_vec();
+                if let Some(tag_kind) = tag_vec.first() {
+                    if tag_kind == "mls_protocol_version" || tag_kind == "ciphersuite" {
+                        println!("   {}: {:?}", tag_kind, tag_vec.get(1));
+                    }
+                }
+            }
+            
+            // contentがKey Package本体
+            Ok(event.content.clone())
+        } else {
+            Err(anyhow::anyhow!("No Key Package found for npub: {}", npub))
+        }
+    })
 }
 

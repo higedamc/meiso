@@ -27,6 +27,9 @@ thiserror = "1.0"
 # UUID
 uuid = { version = "1.11", features = ["v4", "serde"] }
 
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+
 # Lazy Static
 once_cell = "1.20"
 
@@ -35,6 +38,15 @@ aes-gcm = "0.10"
 argon2 = { version = "0.5", features = ["std"] }
 rand = "0.8"
 base64 = "0.21"
+hex = "0.4"
+
+# MLS (Messaging Layer Security) - Keychat implementation
+openmls = { git = "https://github.com/keychat-io/openmls.git", branch = "kc4", package = "openmls"}
+openmls_traits = { git = "https://github.com/keychat-io/openmls.git", branch = "kc4", package = "openmls_traits"}
+openmls_sqlite_storage = { git = "https://github.com/keychat-io/openmls.git", branch = "kc4", package = "openmls_sqlite_storage"}
+kc = { git = "https://github.com/keychat-io/openmls.git", branch = "kc4", package = "kc"}
+bincode = "1.3.3"
+lazy_static = "1.4.0"
 
 [dev-dependencies]
 tempfile = "3.8"

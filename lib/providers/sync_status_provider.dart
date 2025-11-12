@@ -41,6 +41,20 @@ class SyncStatus with _$SyncStatus {
     
     /// リトライ回数
     @Default(0) int retryCount,
+    
+    /// Phase 8.5: 進捗追跡フィールド
+    
+    /// 全体のステップ数（同期フェーズの総数）
+    @Default(0) int totalSteps,
+    
+    /// 完了したステップ数
+    @Default(0) int completedSteps,
+    
+    /// 進捗パーセンテージ (0-100)
+    @Default(0) int percentage,
+    
+    /// 現在のフェーズ名（「AppSettings同期中」「カスタムリスト同期中」など）
+    String? currentPhase,
   }) = _SyncStatus;
 }
 
@@ -124,6 +138,57 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
   /// メッセージをクリア
   void clearMessage() {
     state = state.copyWith(message: null);
+  }
+  
+  /// Phase 8.5: 進捗追跡メソッド
+  
+  /// 同期を開始し、全体のステップ数を設定
+  void startSyncWithProgress({required int totalSteps, String? initialPhase}) {
+    state = state.copyWith(
+      state: SyncState.syncing,
+      totalSteps: totalSteps,
+      completedSteps: 0,
+      percentage: 0,
+      currentPhase: initialPhase,
+      errorMessage: null,
+    );
+  }
+  
+  /// ステップを完了し、進捗を更新
+  void completeStep({String? nextPhase}) {
+    final newCompletedSteps = state.completedSteps + 1;
+    final newPercentage = state.totalSteps > 0
+        ? ((newCompletedSteps / state.totalSteps) * 100).round()
+        : 0;
+    
+    state = state.copyWith(
+      completedSteps: newCompletedSteps,
+      percentage: newPercentage,
+      currentPhase: nextPhase,
+    );
+  }
+  
+  /// 特定のフェーズにジャンプ（ステップ数とパーセンテージを直接設定）
+  void setProgress({
+    required int completedSteps,
+    required int percentage,
+    String? currentPhase,
+  }) {
+    state = state.copyWith(
+      completedSteps: completedSteps,
+      percentage: percentage,
+      currentPhase: currentPhase,
+    );
+  }
+  
+  /// 進捗をリセット
+  void resetProgress() {
+    state = state.copyWith(
+      totalSteps: 0,
+      completedSteps: 0,
+      percentage: 0,
+      currentPhase: null,
+    );
   }
 }
 

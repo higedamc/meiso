@@ -22,6 +22,7 @@ import 'providers/nostr_provider.dart' as nostrProvider;
 // import 'providers/todos_provider.dart'; // 旧Provider
 import 'features/todo/presentation/providers/todo_providers_compat.dart';
 import 'providers/locale_provider.dart';
+import 'widgets/sync_loading_overlay.dart'; // Phase 8.5.1
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -207,6 +208,14 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
             // エラーがあってもアプリ起動は継続
           }
+          
+          // Phase 8.1: Key Package自動公開
+          try {
+            await nostrService.autoPublishKeyPackageIfNeeded();
+          } catch (e) {
+            AppLogger.warning('[復元] Key Package自動公開エラー', error: e, tag: 'MLS');
+            // エラーは無視（必須ではない）
+          }
         } else {
           AppLogger.warning('公開鍵が見つかりませんでした（Amberモード）', tag: 'AMBER');
           AppLogger.debug('公開鍵ファイルが存在するか: ${await nostrService.hasPublicKey()}', tag: 'AMBER');
@@ -281,6 +290,15 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             // マッチする言語がない場合は英語をデフォルトとする
             return const Locale('en');
           },
+          // Phase 8.5.1: 同期中のローディングオーバーレイをbuilderで統合
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
+          },
         );
       },
       loading: () {
@@ -320,6 +338,14 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             
             return const Locale('en');
           },
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
+          },
         );
       },
       error: (error, stack) {
@@ -358,6 +384,14 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             }
             
             return const Locale('en');
+          },
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
           },
         );
       },
