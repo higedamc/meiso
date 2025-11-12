@@ -5,7 +5,7 @@ import '../providers/sync_status_provider.dart';
 
 /// Phase 8.5.1: 同期中のローディングオーバーレイ
 /// 
-/// 初回同期時やデータが多い場合に、進捗パーセンテージを表示しながら
+/// 初回同期時のみ、進捗パーセンテージを表示しながら
 /// ユーザーに同期の進行状況を伝えます。
 class SyncLoadingOverlay extends ConsumerWidget {
   const SyncLoadingOverlay({super.key});
@@ -19,8 +19,13 @@ class SyncLoadingOverlay extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     
-    // 進捗が0%の場合のみ表示（初回同期時）
-    // または totalSteps が設定されている場合（Phase 8.5.1の進捗追跡が有効）
+    // 【修正】初回同期時のみ表示する
+    // currentPhase が "初回同期中" の場合のみオーバーレイを表示
+    if (syncStatus.currentPhase != '初回同期中') {
+      return const SizedBox.shrink();
+    }
+    
+    // 進捗が0%の場合は表示しない（データがない状態）
     if (syncStatus.totalSteps == 0 && syncStatus.percentage == 0) {
       return const SizedBox.shrink();
     }
