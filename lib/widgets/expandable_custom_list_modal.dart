@@ -9,6 +9,7 @@ import '../providers/app_settings_provider.dart';
 import '../presentation/list_detail/list_detail_screen.dart';
 import '../presentation/planning_detail/planning_detail_screen.dart';
 import 'add_list_screen.dart';
+import 'add_group_list_dialog.dart';
 
 /// 展開可能なカスタムリストモーダル（画面全体）
 class ExpandableCustomListModal extends ConsumerWidget {
@@ -34,16 +35,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
         heightFactor: isVisible ? 1.0 : 0.0,
         alignment: Alignment.bottomCenter,
         child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                isDark ? AppTheme.darkPurple : AppTheme.primaryPurple,
-                isDark ? AppTheme.darkPurple.withOpacity(0.9) : AppTheme.primaryPurple.withOpacity(0.9),
-              ],
-            ),
-          ),
+          color: Theme.of(context).scaffoldBackgroundColor,
           child: customListsAsync.when(
             data: (customLists) => todosAsync.when(
               data: (todos) => _buildContent(
@@ -287,13 +279,59 @@ class ExpandableCustomListModal extends ConsumerWidget {
     return count;
   }
 
-  /// リスト追加画面を表示
+  /// リスト追加画面を表示（通常リストorグループリスト）
   void _showAddListScreen(BuildContext context, WidgetRef ref) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddListScreen(),
-        fullscreenDialog: true,
-      ),
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          title: Text(
+            'ADD LIST',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              letterSpacing: 1.2,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 通常のカスタムリスト
+              ListTile(
+                leading: const Icon(Icons.list_alt),
+                title: const Text('Personal List'),
+                subtitle: const Text('個人用のタスクリスト'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AddListScreen(),
+                      fullscreenDialog: true,
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              // グループリスト
+              ListTile(
+                leading: const Icon(Icons.group),
+                title: const Text('Group List'),
+                subtitle: const Text('共有可能なグループタスクリスト'),
+                onTap: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (context) => const AddGroupListDialog(),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
