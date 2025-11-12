@@ -1,28 +1,17 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
 import 'package:flutter/material.dart';
-import '../services/logger_service.dart';
 import 'package:flutter/services.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/logger_service.dart';
 import '../app_theme.dart';
-import '../services/logger_service.dart';
 import '../models/todo.dart';
-import '../services/logger_service.dart';
 import '../models/link_preview.dart';
-import '../services/logger_service.dart';
-// import '../providers/todos_provider.dart'; // 旧Provider
-import '../features/todo/presentation/providers/todo_providers_compat.dart';
-import '../services/logger_service.dart';
+import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
+import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
-import '../services/logger_service.dart';
 import 'circular_checkbox.dart';
-import '../services/logger_service.dart';
 
 /// リカーリングタスク削除オプション
 enum RecurringDeleteOption {
@@ -145,7 +134,7 @@ class TodoItem extends StatelessWidget {
                   }
                   
                   // 内部で_syncAllTodosToNostr()を呼び出す
-                  await ref.read(todosProviderNotifierCompat).manualSyncToNostr();
+                  await ref.read(todosProvider.notifier).manualSyncToNostr();
                   
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -459,7 +448,7 @@ class TodoItem extends StatelessWidget {
                   ? tomorrow 
                   : todo.date!.add(const Duration(days: 1));
               
-              await ref.read(todosProviderNotifierCompat).moveTodo(
+              await ref.read(todosProvider.notifier).moveTodo(
                 todo.id,
                 todo.date,
                 targetDate,
@@ -480,7 +469,7 @@ class TodoItem extends StatelessWidget {
                 final result = await _showRecurringDeleteDialog(context);
                 if (result == RecurringDeleteOption.thisInstance) {
                   // このインスタンスのみ削除
-                  await ref.read(todosProviderNotifierCompat).deleteRecurringInstance(
+                  await ref.read(todosProvider.notifier).deleteRecurringInstance(
                     todo.id,
                     todo.date,
                   );
@@ -495,7 +484,7 @@ class TodoItem extends StatelessWidget {
                   return false; // Dismissibleをキャンセル（手動で削除済み）
                 } else if (result == RecurringDeleteOption.allInstances) {
                   // すべてのインスタンスを削除
-                  await ref.read(todosProviderNotifierCompat).deleteAllRecurringInstances(
+                  await ref.read(todosProvider.notifier).deleteAllRecurringInstances(
                     todo.id,
                     todo.date,
                   );
@@ -518,13 +507,31 @@ class TodoItem extends StatelessWidget {
               }
             }
           },
-          onDismissed: (direction) {
+          onDismissed: (direction) async {
             if (direction == DismissDirection.endToStart) {
               // 左スワイプの場合のみ削除
               // 削除前にTodoを保持（元に戻す用）
               final deletedTodo = todo;
               
-              ref.read(todosProviderNotifierCompat).deleteTodo(todo.id, todo.date);
+              // グループリストかどうかを確認
+              bool isGroupList = false;
+              if (todo.customListId != null) {
+                final customListsAsync = ref.read(customListsProvider);
+                final customLists = customListsAsync.whenOrNull(data: (lists) => lists) ?? [];
+                final customList = customLists.where((l) => l.id == todo.customListId).firstOrNull;
+                isGroupList = customList?.isGroup ?? false;
+              }
+              
+              if (isGroupList) {
+                // グループタスクの削除
+                ref.read(todosProvider.notifier).deleteTodoFromGroup(
+                  groupId: todo.customListId!,
+                  todoId: todo.id,
+                );
+              } else {
+                // 通常のタスクの削除
+                ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
+              }
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -535,7 +542,7 @@ class TodoItem extends StatelessWidget {
                     textColor: Colors.blue.shade300,
                     onPressed: () {
                       // 削除をキャンセルしてTodoを復元
-                      ref.read(todosProviderNotifierCompat).addTodoWithData(deletedTodo);
+                      ref.read(todosProvider.notifier).addTodoWithData(deletedTodo);
                     },
                   ),
                 ),
@@ -571,7 +578,7 @@ class TodoItem extends StatelessWidget {
                           value: todo.completed,
                           onChanged: (_) {
                             ref
-                                .read(todosProviderNotifierCompat)
+                                .read(todosProvider.notifier)
                                 .toggleTodo(todo.id, todo.date);
                           },
                           size: 22.0,

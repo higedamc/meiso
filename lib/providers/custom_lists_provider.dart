@@ -1,8 +1,15 @@
+import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../services/logger_service.dart';
 import '../models/custom_list.dart';
 import '../services/local_storage_service.dart';
+// Phase 8.4: group_task_service.dart は kind: 30001廃止により未使用
 import 'app_settings_provider.dart';
+import 'nostr_provider.dart';
+import '../bridge_generated.dart/api.dart' as rust_api;
+import '../utils/error_handler.dart';
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -13,12 +20,22 @@ final customListsProvider =
 class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   CustomListsNotifier(this._ref) : super(const AsyncValue.loading()) {
     _initialize();
+    _startInvitationSyncTimer();
   }
   
   final Ref _ref;
+  Timer? _invitationSyncTimer;
+  
+  /// Issue #80: 削除済みイベントIDのセット（kind 5で削除されたリスト）
+  Set<String> _deletedEventIds = {};
 
   Future<void> _initialize() async {
     try {
+      // Issue #80: 削除済みイベントIDを読み込み
+      final deletedIds = await localStorageService.loadDeletedEventIds();
+      _deletedEventIds = deletedIds.toSet();
+      AppLogger.info('🗑️ [CustomLists] Loaded ${_deletedEventIds.length} deleted event IDs');
+      
       // ローカルストレージから読み込み
       final localLists = await localStorageService.loadCustomLists();
       
@@ -34,6 +51,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         AppLogger.info(' [CustomLists] Loaded ${localLists.length} lists from local storage');
         state = AsyncValue.data(localLists);
       }
+      
+      // Phase 6.4: 起動時にグループ招待を同期
+      // Note: Nostr初期化後に実行されるため、ここでは呼び出しのみ
+      Future.microtask(() async {
+        try {
+          await syncGroupInvitations();
+        } catch (e) {
+          AppLogger.warning('📥 [GroupInvitations] Initial sync failed: $e');
+        }
+      });
     } catch (e) {
       AppLogger.warning(' CustomList初期化エラー: $e');
       state = AsyncValue.data([]);
@@ -215,56 +242,283 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     return lists.map((l) => l.order).reduce((a, b) => a > b ? a : b) + 1;
   }
   
+  /// Issue #80: kind 5削除イベントを同期
+  Future<void> syncDeletionEvents() async {
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        AppLogger.warning('🗑️ [CustomLists] User pubkey not available, skipping deletion sync');
+        return;
+      }
+      
+      AppLogger.info('🗑️ [CustomLists] Syncing deletion events (kind 5)...');
+      
+      // Rust APIを呼び出してkind 5削除イベントを取得
+      final deletedIds = await rust_api.fetchDeletionEventsForPubkeyWithClientId(
+        publicKeyHex: userPubkey,
+        clientId: null,
+      );
+      
+      if (deletedIds.isNotEmpty) {
+        _deletedEventIds.addAll(deletedIds);
+        await localStorageService.saveDeletedEventIds(_deletedEventIds.toList());
+        AppLogger.info('✅ [CustomLists] Synced ${deletedIds.length} deletion events (total: ${_deletedEventIds.length})');
+      } else {
+        AppLogger.info('ℹ️ [CustomLists] No deletion events found');
+      }
+    } catch (e, st) {
+      AppLogger.error('❌ [CustomLists] Failed to sync deletion events', error: e, stackTrace: st);
+    }
+  }
+  
+  /// 削除済みイベントIDをチェックして、リストをフィルタリング
+  List<CustomList> _filterDeletedLists(List<CustomList> lists) {
+    if (_deletedEventIds.isEmpty) {
+      return lists;
+    }
+    
+    // kind 30001イベントの場合、d tagがリストIDになる
+    // カスタムリストのIDがkind 30001のd tagと一致する場合、削除済みとみなす
+    final filtered = lists.where((list) {
+      // グループリストの場合、eventIdをチェック
+      // 個人リストの場合、リスト名から生成されたIDをチェック
+      // 注: kind 30001のイベントIDは「pubkey:30001:d-tag」のようになっているが、
+      //     ここでは単純にリストIDが削除済みイベントIDに含まれるかチェック
+      
+      // 削除済みイベントIDのセットに含まれていたら除外
+      return !_deletedEventIds.contains(list.id);
+    }).toList();
+    
+    if (filtered.length < lists.length) {
+      AppLogger.info('🗑️ [CustomLists] Filtered out ${lists.length - filtered.length} deleted lists');
+    }
+    
+    return filtered;
+  }
+  
   /// Nostrから同期されたカスタムリストを反映
   /// listNameのListを受け取り、ローカルにないリストを追加
   Future<void> syncListsFromNostr(List<String> nostrListNames) async {
-    await state.whenData((currentLists) async {
+    // Issue #80: 最初に削除イベントを同期
+    await syncDeletionEvents();
+    
+    AppLogger.info(' [CustomLists] 🔄 syncListsFromNostr called with ${nostrListNames.length} lists from Nostr');
+    AppLogger.info(' [CustomLists] 📋 Nostr lists: ${nostrListNames.join(", ")}');
+    
+    final currentState = state;
+    AppLogger.debug(' [CustomLists] Current state type: ${currentState.runtimeType}');
+    
+    // 現在のリストを取得
+    List<CustomList> currentLists;
+    bool needsStateUpdate = false; // stateの更新が必要かどうか
+    
+    if (currentState is AsyncData<List<CustomList>>) {
+      // 既にデータがロードされている場合
+      currentLists = currentState.value;
+      AppLogger.debug(' [CustomLists] Using current state (${currentLists.length} lists)');
+    } else {
+      // AsyncLoadingやAsyncErrorの場合は、ローカルストレージから直接読み込む
+      AppLogger.warning(' [CustomLists] State is ${currentState.runtimeType}, loading from local storage');
+      currentLists = await localStorageService.loadCustomLists();
+      AppLogger.info(' [CustomLists] Loaded ${currentLists.length} lists from local storage');
+      needsStateUpdate = true; // AsyncLoadingから読み込んだので、stateの更新が必要
+    }
+    AppLogger.info(' [CustomLists] 📱 Current local lists: ${currentLists.length}');
+    for (final list in currentLists) {
+      AppLogger.debug(' [CustomLists]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})');
+    }
+    
+    final updatedLists = List<CustomList>.from(currentLists);
+    final now = DateTime.now();
+    bool hasChanges = false;
+    
+    for (final listName in nostrListNames) {
+      // 名前から決定的なIDを生成
+      final listId = CustomListHelpers.generateIdFromName(listName);
+      AppLogger.debug(' [CustomLists] Processing Nostr list: "$listName" → ID: "$listId"');
+      
+      // すでに存在するか確認（IDで）
+      final exists = updatedLists.any((list) => list.id == listId);
+      
+      if (!exists) {
+        AppLogger.info(' [CustomLists] ✨ Adding NEW list from Nostr: "$listName" (ID: $listId)');
+        
+        final newList = CustomList(
+          id: listId, // 名前から生成した決定的なID
+          name: listName.toUpperCase(),
+          order: _getNextOrder(updatedLists),
+          createdAt: now,
+          updatedAt: now,
+        );
+        
+        updatedLists.add(newList);
+        hasChanges = true;
+      } else {
+        AppLogger.debug(' [CustomLists] ⏭️  List "$listName" (ID: $listId) already exists, skipping');
+      }
+    }
+    
+    AppLogger.info(' [CustomLists] 📊 Sync result: hasChanges=$hasChanges, updatedListsCount=${updatedLists.length}, needsStateUpdate=$needsStateUpdate');
+    
+    // Issue #80: 削除済みリストをフィルタリング
+    final filteredLists = _filterDeletedLists(updatedLists);
+    
+    // 変更があった場合、または stateの更新が必要な場合
+    if (hasChanges || needsStateUpdate) {
+      if (hasChanges) {
+        AppLogger.info(' [CustomLists] 💾 Saving changes to local storage...');
+        
+        // AppSettingsから順番を復元
+        await _applySavedListOrder(filteredLists);
+        
+        // ローカルストレージに保存
+        await localStorageService.saveCustomLists(filteredLists);
+      }
+      
+      // 状態を更新（UIに確実に通知）
+      // hasChangesがfalseでも、AsyncLoadingから読み込んだ場合は更新が必要
+      AppLogger.info(' [CustomLists] 🔄 Updating state with ${filteredLists.length} lists...');
+      state = AsyncValue.data(filteredLists);
+      AppLogger.info(' [CustomLists] ✅ State updated successfully! UI should now reflect ${filteredLists.length} lists');
+      
+      if (hasChanges) {
+        AppLogger.info(' [CustomLists] ✅ Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
+      }
+    } else {
+      AppLogger.info(' [CustomLists] ⏭️  No changes needed (all lists already synced and state is up-to-date)');
+    }
+    
+    // Nostr同期後、リストが空の場合はデフォルトリストを作成
+    await createDefaultListsIfEmpty();
+  }
+  
+  /// グループ招待を同期（Phase 6.4: MLS招待システム）
+  Future<void> syncGroupInvitations() async {
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        AppLogger.warning('📥 [GroupInvitations] User pubkey not available, skipping sync');
+        return;
+      }
+      
+      AppLogger.info('📥 [GroupInvitations] Syncing group invitations...');
+      
+      // Rust APIを呼び出してグループ招待を取得
+      final resultJson = await rust_api.syncGroupInvitations(
+        recipientPublicKeyHex: userPubkey,
+        clientId: null,
+      );
+      
+      final result = jsonDecode(resultJson) as Map<String, dynamic>;
+      final invitations = result['invitations'] as List<dynamic>;
+      
+      AppLogger.info('✅ [GroupInvitations] Found ${invitations.length} pending invitations');
+      
+      if (invitations.isEmpty) {
+        return;
+      }
+      
+      // 現在のリストを取得
+      final currentLists = await state.whenData((lists) => lists).value ?? [];
       final updatedLists = List<CustomList>.from(currentLists);
-      final now = DateTime.now();
       bool hasChanges = false;
       
-      for (final listName in nostrListNames) {
-        // 名前から決定的なIDを生成
-        final listId = CustomListHelpers.generateIdFromName(listName);
+      for (final invitationData in invitations) {
+        final invitation = invitationData as Map<String, dynamic>;
+        final groupId = invitation['group_id'] as String;
+        final groupName = invitation['group_name'] as String;
+        final welcomeMsg = invitation['welcome_msg'] as String;
+        final inviterPubkey = invitation['inviter_pubkey'] as String;
+        final inviterName = invitation['inviter_name'] as String?;
         
-        // すでに存在するか確認（IDで）
-        final exists = updatedLists.any((list) => list.id == listId);
+        // 既にこのグループのリストが存在するか確認
+        final existingIndex = updatedLists.indexWhere((list) => list.id == groupId);
         
-        if (!exists) {
-          AppLogger.debug(' [CustomLists] Adding synced list from Nostr: "$listName" (ID: $listId)');
+        if (existingIndex == -1) {
+          // 新しい招待として追加
+          AppLogger.info('📨 [GroupInvitations] New invitation: $groupName from ${inviterPubkey.substring(0, 16)}...');
           
           final newList = CustomList(
-            id: listId, // 名前から生成した決定的なID
-            name: listName.toUpperCase(),
+            id: groupId,
+            name: groupName.toUpperCase(),
             order: _getNextOrder(updatedLists),
-            createdAt: now,
-            updatedAt: now,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            isGroup: true,
+            isPendingInvitation: true,
+            inviterNpub: inviterPubkey, // hex形式（npub変換は後で必要に応じて）
+            inviterName: inviterName,
+            welcomeMsg: welcomeMsg,
+            groupMembers: [], // 招待受諾後に設定
           );
           
           updatedLists.add(newList);
           hasChanges = true;
         } else {
-          AppLogger.debug(' [CustomLists] List "$listName" (ID: $listId) already exists, skipping');
+          // 既存のリストを更新（招待情報を追加）
+          final existingList = updatedLists[existingIndex];
+          if (!existingList.isPendingInvitation) {
+            AppLogger.info('📨 [GroupInvitations] Updating existing list with invitation: $groupName');
+            
+            updatedLists[existingIndex] = existingList.copyWith(
+              isPendingInvitation: true,
+              inviterNpub: inviterPubkey,
+              inviterName: inviterName,
+              welcomeMsg: welcomeMsg,
+            );
+            hasChanges = true;
+          }
         }
       }
       
       if (hasChanges) {
-        // AppSettingsから順番を復元
-        await _applySavedListOrder(updatedLists);
-        
-        state = AsyncValue.data(updatedLists);
-        
         // ローカルストレージに保存
         await localStorageService.saveCustomLists(updatedLists);
         
-        AppLogger.info(' [CustomLists] Synced ${nostrListNames.length} lists from Nostr (added ${updatedLists.length - currentLists.length} new)');
-      } else {
-        AppLogger.debug(' [CustomLists] No new lists to sync from Nostr');
+        // 状態を更新
+        state = AsyncValue.data(updatedLists);
+        
+        AppLogger.info('✅ [GroupInvitations] Synced ${invitations.length} group invitations');
       }
-    }).value;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [GroupInvitations] Failed to sync group invitations', error: e, stackTrace: stackTrace);
+    }
+  }
+  
+  /// Phase 8.1.2: 招待通知の自動同期タイマーを開始
+  void _startInvitationSyncTimer() {
+    // 5分ごとに同期
+    const syncInterval = Duration(minutes: 5);
     
-    // Nostr同期後、リストが空の場合はデフォルトリストを作成
-    await createDefaultListsIfEmpty();
+    _invitationSyncTimer = Timer.periodic(syncInterval, (timer) async {
+      AppLogger.debug('🔄 [GroupInvitations] Auto-sync triggered (timer)');
+      try {
+        await syncGroupInvitations();
+      } catch (e) {
+        AppLogger.warning('⚠️ [GroupInvitations] Auto-sync failed', error: e);
+        // エラーは無視（次回の同期で再試行）
+      }
+    });
+    
+    AppLogger.info('⏱️ [GroupInvitations] Auto-sync timer started (interval: $syncInterval)');
+  }
+  
+  /// Phase 8.1.2: 招待通知の自動同期タイマーを停止
+  void _stopInvitationSyncTimer() {
+    _invitationSyncTimer?.cancel();
+    _invitationSyncTimer = null;
+    AppLogger.info('⏱️ [GroupInvitations] Auto-sync timer stopped');
+  }
+  
+  @override
+  void dispose() {
+    _stopInvitationSyncTimer();
+    super.dispose();
   }
   
   /// AppSettingsから保存された順番を適用
@@ -314,6 +568,399 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       // エラー時は現在のorder順にソート
       lists.sort((a, b) => a.order.compareTo(b.order));
     }
+  }
+  
+  // ========================================
+  // グループリスト管理機能
+  // ========================================
+  
+  /// グループリストを作成
+  /// 
+  /// [name]: グループ名
+  /// [memberPubkeys]: メンバーの公開鍵リスト（hex形式）
+  Future<CustomList?> createGroupList({
+    required String name,
+    required List<String> memberPubkeys,
+  }) async {
+    if (name.trim().isEmpty) return null;
+    if (memberPubkeys.isEmpty) {
+      AppLogger.warning('⚠️ Cannot create group list without members');
+      return null;
+    }
+    
+    try {
+      final lists = await state.whenData((lists) => lists).value ?? [];
+      
+      final now = DateTime.now();
+      final normalizedName = name.trim().toUpperCase();
+      
+      // グループIDを生成
+      const uuid = Uuid();
+      final groupId = uuid.v4();
+      
+      final newGroupList = CustomList(
+        id: groupId,
+        name: normalizedName,
+        order: _getNextOrder(lists),
+        createdAt: now,
+        updatedAt: now,
+        isGroup: true,
+        groupMembers: memberPubkeys,
+      );
+      
+      // ローカルに追加
+      final updatedLists = [...lists, newGroupList];
+      await localStorageService.saveCustomLists(updatedLists);
+      state = AsyncValue.data(updatedLists);
+      
+      // AppSettingsのcustomListOrderも更新
+      await _updateCustomListOrderInSettings(updatedLists);
+      
+      AppLogger.info('✅ [CustomLists] Created group list: "$normalizedName" with ${memberPubkeys.length} members');
+      
+      return newGroupList;
+    } catch (e, st) {
+      AppLogger.error('❌ Failed to create group list: $e', error: e, stackTrace: st);
+      return null;
+    }
+  }
+  
+  /// Phase 8.1/8.4: MLSグループリスト作成 + 招待送信
+  /// Phase 8.2: エラーハンドリング強化
+  Future<CustomList?> createMlsGroupList({
+    required String name,
+    required List<String> keyPackages,
+    required List<String> memberNpubs, // Phase 8.4: 招待送信用
+  }) async {
+    if (name.trim().isEmpty) return null;
+    
+    try {
+      final lists = await state.whenData((lists) => lists).value ?? [];
+      
+      final now = DateTime.now();
+      final normalizedName = name.trim().toUpperCase();
+      
+      // グループIDを生成
+      const uuid = Uuid();
+      final groupId = uuid.v4();
+      
+      AppLogger.info('🔐 [CustomLists] Creating MLS group: "$normalizedName"');
+      AppLogger.info('   Members: ${memberNpubs.length}');
+      
+      // MLSグループを作成
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
+      
+      // Phase 8.2.1: タイムアウト付きでMLSグループ作成
+      final welcomeMsgBytes = await ErrorHandler.withTimeout(
+        operation: () => rust_api.mlsCreateTodoGroup(
+          nostrId: userPubkey,
+          groupId: groupId,
+          groupName: normalizedName,
+          keyPackages: keyPackages,
+        ),
+        operationName: 'mlsCreateTodoGroup',
+        timeout: const Duration(seconds: 30),
+      );
+      
+      AppLogger.info('✅ [CustomLists] MLS group created (Welcome: ${welcomeMsgBytes.length} bytes)');
+      
+      // Phase 8.4: Welcome Messageを各メンバーに送信
+      final welcomeMsgBase64 = base64Encode(welcomeMsgBytes);
+      
+      AppLogger.info('📤 [CustomLists] Sending invitations to ${memberNpubs.length} members...');
+      
+      int successCount = 0;
+      int failCount = 0;
+      
+      for (int i = 0; i < memberNpubs.length; i++) {
+        final npub = memberNpubs[i];
+        try {
+          AppLogger.info('📤 [CustomLists] Sending invitation ${i + 1}/${memberNpubs.length} to ${npub.substring(0, 20)}...');
+          
+          // Phase 8.2.1: リトライ付きで招待送信
+          final eventId = await ErrorHandler.retryWithBackoff<String?>(
+            operation: () => nostrService.sendGroupInvitation(
+              recipientNpub: npub,
+              groupId: groupId,
+              groupName: normalizedName,
+              welcomeMsgBase64: welcomeMsgBase64,
+            ),
+            operationName: 'sendGroupInvitation',
+            maxAttempts: 2,
+            initialDelay: const Duration(seconds: 1),
+          );
+          
+          if (eventId != null) {
+            AppLogger.info('  ✅ Invitation sent successfully! Event ID: ${eventId.substring(0, 16)}...');
+            successCount++;
+          } else {
+            AppLogger.warning('  ⚠️ Invitation failed (returned null)');
+            failCount++;
+          }
+        } catch (e) {
+          final appError = ErrorHandler.classify(e);
+          AppLogger.error(
+            '  ❌ Invitation error: ${appError.userMessage}',
+            error: e,
+          );
+          failCount++;
+          // エラーがあっても次のメンバーに送信を続ける
+        }
+      }
+      
+      AppLogger.info('✅ [CustomLists] Invitations sent: $successCount success, $failCount failed');
+      
+      // Phase 8.1.3: 招待送信が全て失敗した場合はエラー
+      if (successCount == 0 && memberNpubs.isNotEmpty) {
+        AppLogger.error('❌ [CustomLists] All invitations failed to send');
+        throw Exception('招待送信が全て失敗しました。メンバーのnpubを確認してください。');
+      }
+      
+      // 一部失敗した場合は警告ログを出力
+      if (failCount > 0) {
+        AppLogger.warning('⚠️ [CustomLists] Some invitations failed: $failCount/${ memberNpubs.length}');
+      }
+      
+      // ローカルにグループリストを作成
+      final newGroupList = CustomList(
+        id: groupId,
+        name: normalizedName,
+        order: _getNextOrder(lists),
+        createdAt: now,
+        updatedAt: now,
+        isGroup: true,
+        groupMembers: [],
+      );
+      
+      final updatedLists = [...lists, newGroupList];
+      await localStorageService.saveCustomLists(updatedLists);
+      state = AsyncValue.data(updatedLists);
+      await _updateCustomListOrderInSettings(updatedLists);
+      
+      return newGroupList;
+    } catch (e, st) {
+      final appError = ErrorHandler.classify(e, stackTrace: st);
+      AppLogger.error(
+        '❌ [CustomLists] Failed to create MLS group\n'
+        'Category: ${appError.category}\n'
+        'User Message: ${appError.userMessage}',
+        error: e,
+        stackTrace: st,
+      );
+      
+      // Phase 8.2.4: MLS固有エラーの処理
+      if (appError.category == ErrorCategory.mls && appError.isRetryable) {
+        AppLogger.info('💡 [CustomLists] MLS error is retryable, consider retry');
+      }
+      
+      return null;
+    }
+  }
+  
+  /// グループリストにメンバーを追加
+  Future<void> addMemberToGroupList({
+    required String groupId,
+    required String memberPubkey,
+  }) async {
+    await state.whenData((lists) async {
+      final listIndex = lists.indexWhere((l) => l.id == groupId && l.isGroup);
+      if (listIndex == -1) {
+        AppLogger.warning('⚠️ Group list not found: $groupId');
+        return;
+      }
+      
+      final groupList = lists[listIndex];
+      
+      // 既にメンバーの場合はスキップ
+      if (groupList.groupMembers.contains(memberPubkey)) {
+        AppLogger.info('ℹ️ Member already exists in group: $groupId');
+        return;
+      }
+      
+      // メンバーを追加
+      final updatedMembers = [...groupList.groupMembers, memberPubkey];
+      final updatedList = groupList.copyWith(
+        groupMembers: updatedMembers,
+        updatedAt: DateTime.now(),
+      );
+      
+      final updatedLists = [...lists];
+      updatedLists[listIndex] = updatedList;
+      
+      await localStorageService.saveCustomLists(updatedLists);
+      state = AsyncValue.data(updatedLists);
+      
+      AppLogger.info('✅ Added member to group list: ${groupList.name}');
+    }).value;
+  }
+  
+  /// グループリストからメンバーを削除
+  Future<void> removeMemberFromGroupList({
+    required String groupId,
+    required String memberPubkey,
+  }) async {
+    await state.whenData((lists) async {
+      final listIndex = lists.indexWhere((l) => l.id == groupId && l.isGroup);
+      if (listIndex == -1) {
+        AppLogger.warning('⚠️ Group list not found: $groupId');
+        return;
+      }
+      
+      final groupList = lists[listIndex];
+      
+      // メンバーを削除
+      final updatedMembers = groupList.groupMembers
+          .where((pubkey) => pubkey != memberPubkey)
+          .toList();
+      
+      if (updatedMembers.isEmpty) {
+        AppLogger.warning('⚠️ Cannot remove last member from group');
+        return;
+      }
+      
+      final updatedList = groupList.copyWith(
+        groupMembers: updatedMembers,
+        updatedAt: DateTime.now(),
+      );
+      
+      final updatedLists = [...lists];
+      updatedLists[listIndex] = updatedList;
+      
+      await localStorageService.saveCustomLists(updatedLists);
+      state = AsyncValue.data(updatedLists);
+      
+      AppLogger.info('✅ Removed member from group list: ${groupList.name}');
+    }).value;
+  }
+  
+  /// Nostrからグループリストを同期
+  /// 
+  /// ⚠️ Phase 8.4: kind: 30001グループは廃止されました
+  /// MLSグループのみを使用します（Phase 8.1で完全統合済み）
+  @Deprecated('kind: 30001 group sync is disabled. Use MLS groups only.')
+  Future<void> syncGroupListsFromNostr() async {
+    // Phase 8.4: kind: 30001グループの同期を無効化
+    // パフォーマンス問題の原因となっていたため、MLSグループのみを使用
+    AppLogger.info('ℹ️ [Phase 8.4] kind: 30001 group sync is disabled. Use MLS groups only.');
+    return;
+    
+    // 以下のコードは参考用に残す（将来の互換性レイヤー実装時に使用可能）
+    /*
+    try {
+      // Issue #80: 最初に削除イベントを同期
+      await syncDeletionEvents();
+      
+      AppLogger.info('🔄 Syncing group lists from Nostr...');
+      
+      // 公開鍵を取得
+      var publicKey = _ref.read(publicKeyProvider);
+      var npub = _ref.read(nostrPublicKeyProvider);
+      
+      // 公開鍵がnullの場合、復元を試みる
+      if (publicKey == null || npub == null) {
+        AppLogger.warning(' 公開鍵が未設定、復元を試みます...');
+        try {
+          final nostrService = _ref.read(nostrServiceProvider);
+          publicKey = await nostrService.getPublicKey();
+          if (publicKey != null) {
+            AppLogger.info(' hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
+            _ref.read(publicKeyProvider.notifier).state = publicKey;
+            
+            npub = await nostrService.hexToNpub(publicKey);
+            _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+            AppLogger.info(' npub公開鍵も復元: ${npub.substring(0, 16)}...');
+          } else {
+            throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+          }
+        } catch (e) {
+          AppLogger.error(' 公開鍵の復元に失敗: $e');
+          throw Exception('公開鍵が設定されていません: $e');
+        }
+      }
+      
+      // Nostrからグループリストを取得
+      final groupLists = await groupTaskService.syncGroupLists(
+        publicKey: publicKey,
+        npub: npub,
+      );
+      
+      if (groupLists.isEmpty) {
+        AppLogger.info('ℹ️ No group lists found on Nostr');
+        return;
+      }
+      
+      final currentState = state;
+      
+      // 現在のリストを取得
+      List<CustomList> currentLists;
+      bool needsStateUpdate = false; // stateの更新が必要かどうか
+      
+      if (currentState is AsyncData<List<CustomList>>) {
+        // 既にデータがロードされている場合
+        currentLists = currentState.value;
+        AppLogger.debug(' [CustomLists] Using current state for group sync');
+      } else {
+        // AsyncLoadingやAsyncErrorの場合は、ローカルストレージから直接読み込む
+        AppLogger.warning(' [CustomLists] State is ${currentState.runtimeType} for group sync, loading from local storage');
+        currentLists = await localStorageService.loadCustomLists();
+        AppLogger.info(' [CustomLists] Loaded ${currentLists.length} lists from local storage for group sync');
+        needsStateUpdate = true; // AsyncLoadingから読み込んだので、stateの更新が必要
+      }
+      final updatedLists = List<CustomList>.from(currentLists);
+      bool hasChanges = false;
+      
+      for (final groupList in groupLists) {
+        // 既に存在するか確認（IDで）
+        final existingIndex = updatedLists.indexWhere((l) => l.id == groupList.id);
+        
+        if (existingIndex == -1) {
+          // 新しいグループリストを追加
+          AppLogger.debug('📥 Adding synced group list: "${groupList.name}"');
+          updatedLists.add(groupList);
+          hasChanges = true;
+        } else {
+          // 既存のグループリストを更新（メンバーが変更されている可能性）
+          final existing = updatedLists[existingIndex];
+          if (existing.groupMembers.length != groupList.groupMembers.length ||
+              !existing.groupMembers.every((m) => groupList.groupMembers.contains(m))) {
+            AppLogger.debug('🔄 Updating group list members: "${groupList.name}"');
+            updatedLists[existingIndex] = groupList.copyWith(
+              order: existing.order, // 既存の順番を維持
+            );
+            hasChanges = true;
+          }
+        }
+      }
+      
+      // Issue #80: 削除済みリストをフィルタリング
+      final filteredLists = _filterDeletedLists(updatedLists);
+      
+      // 変更があった場合、または stateの更新が必要な場合
+      if (hasChanges || needsStateUpdate) {
+        if (hasChanges) {
+          // ローカルストレージに保存
+          await localStorageService.saveCustomLists(filteredLists);
+          
+          // AppSettingsのcustomListOrderも更新
+          await _updateCustomListOrderInSettings(filteredLists);
+        }
+        
+        // 状態を更新（UIに確実に通知）
+        // hasChangesがfalseでも、AsyncLoadingから読み込んだ場合は更新が必要
+        state = AsyncValue.data(filteredLists);
+        
+        AppLogger.info('✅ Synced ${groupLists.length} group lists from Nostr');
+        AppLogger.info('📱 State updated successfully! UI should now reflect ${filteredLists.length} total lists');
+      }
+    } catch (e, st) {
+      AppLogger.error('❌ Failed to sync group lists from Nostr: $e', error: e, stackTrace: st);
+    }
+    */
   }
 }
 

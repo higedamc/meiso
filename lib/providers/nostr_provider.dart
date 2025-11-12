@@ -1,25 +1,18 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import 'package:path_provider/path_provider.dart';
-import '../services/logger_service.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
-import '../services/logger_service.dart';
 import '../models/todo.dart';
-import '../services/logger_service.dart';
 import '../models/link_preview.dart';
-import '../services/logger_service.dart';
 import '../models/recurrence_pattern.dart';
-import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/logger_service.dart';
 import '../services/nostr_cache_service.dart';
-import '../services/logger_service.dart';
 import '../services/nostr_subscription_service.dart';
-import '../services/logger_service.dart';
+import '../services/amber_service.dart';
 import 'sync_status_provider.dart';
-import '../services/logger_service.dart';
+import '../utils/error_handler.dart';
 
 /// デフォルトのNostrリレーリスト
 const List<String> defaultRelays = [
@@ -445,9 +438,18 @@ class NostrService {
       throw Exception('公開鍵が設定されていません');
     }
 
-    return await rust_api.fetchAllEncryptedTodoListsForPubkey(
-      publicKeyHex: publicKey,
-    );
+    try {
+      final result = await rust_api.fetchAllEncryptedTodoListsForPubkey(
+        publicKeyHex: publicKey,
+      );
+      
+      AppLogger.debug('📥 [NostrProvider] Received ${result.length} encrypted todo list events');
+      
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [NostrProvider] Failed to fetch encrypted todo lists: $e', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
   }
 
   /// 通常モード: すべてのTodoリストのメタデータ（d tag, title）を取得
@@ -626,5 +628,400 @@ class NostrService {
   /// サービスをクリーンアップ
   void dispose() {
     _subscriptionService?.dispose();
+  }
+  
+  /// Phase 8.1: npubからKey Packageを取得
+  /// Phase 8.2: リトライロジック + タイムアウト対応
+  Future<String?> fetchKeyPackageByNpub(String npub) async {
+    try {
+      AppLogger.debug('🔍 Fetching Key Package for: ${npub.substring(0, 20)}...');
+      
+      // Phase 8.2.1: リトライ + タイムアウト
+      final keyPackage = await ErrorHandler.retryWithBackoff<String?>(
+        operation: () => ErrorHandler.withTimeout<String?>(
+          operation: () => rust_api.fetchKeyPackageByNpub(npub: npub),
+          operationName: 'fetchKeyPackageByNpub',
+          timeout: const Duration(seconds: 10),
+          defaultValue: null,
+        ),
+        operationName: 'fetchKeyPackageByNpub',
+        maxAttempts: 2, // 1回のリトライのみ
+        initialDelay: const Duration(seconds: 2),
+      );
+      
+      if (keyPackage != null) {
+        AppLogger.info('✅ Key Package fetched successfully');
+      } else {
+        AppLogger.warning('⚠️ Key Package not found (null result)');
+      }
+      
+      return keyPackage;
+      
+    } catch (e, stackTrace) {
+      final appError = ErrorHandler.classify(e, stackTrace: stackTrace);
+      AppLogger.error(
+        '❌ Failed to fetch Key Package\n'
+        'User Message: ${appError.userMessage}',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+  
+  /// Phase 8.4: グループ招待送信（Kind 30078）
+  Future<String?> sendGroupInvitation({
+    required String recipientNpub,
+    required String groupId,
+    required String groupName,
+    required String welcomeMsgBase64,
+  }) async {
+    try {
+      AppLogger.info('📤 [Invitation] Sending group invitation to: ${recipientNpub.substring(0, 20)}...');
+      
+      // 公開鍵を取得
+      final senderPubkeyHex = await getPublicKey();
+      if (senderPubkeyHex == null) {
+        throw Exception('Sender public key not available');
+      }
+      
+      final senderNpub = await hexToNpub(senderPubkeyHex);
+      
+      // 未署名イベントを作成
+      final unsignedEventJson = await rust_api.createUnsignedGroupInvitationEvent(
+        senderPublicKeyHex: senderPubkeyHex,
+        recipientNpub: recipientNpub,
+        groupId: groupId,
+        groupName: groupName,
+        welcomeMsgBase64: welcomeMsgBase64,
+        inviterName: null, // オプション
+      );
+      
+      AppLogger.debug('📄 [Invitation] Created unsigned event');
+      
+      // Amberで署名
+      final amberService = AmberService();
+      
+      String signedEvent;
+      try {
+        // ContentProvider経由で試行（バックグラウンド）
+        signedEvent = await amberService.signEventWithContentProvider(
+          event: unsignedEventJson,
+          npub: senderNpub,
+        );
+        AppLogger.debug('✅ [Invitation] Signed via ContentProvider');
+      } on PlatformException catch (e) {
+        // UI経由にフォールバック
+        AppLogger.warning('[Invitation] ContentProvider failed (${e.code}), using UI method');
+        signedEvent = await amberService.signEventWithTimeout(
+          unsignedEventJson,
+          timeout: const Duration(minutes: 2),
+        );
+        AppLogger.debug('✅ [Invitation] Signed via UI');
+      }
+      
+      // リレーに送信
+      final sendResult = await sendSignedEvent(signedEvent);
+      
+      AppLogger.info('✅ [Invitation] Group invitation sent successfully');
+      AppLogger.info('   Event ID: ${sendResult.eventId.substring(0, 16)}...');
+      
+      return sendResult.eventId;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [Invitation] Failed to send group invitation', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+  
+  /// Phase 8.1: 起動時にKey Packageを自動公開
+  /// 
+  /// Amberモードで初回起動時、またはKey Packageが古い場合に自動公開
+  Future<void> autoPublishKeyPackageIfNeeded() async {
+    try {
+      // Amberモードチェック
+      if (!localStorageService.isUsingAmber()) {
+        AppLogger.debug('⏭️  [KeyPackage] Amberモードではないため、自動公開をスキップ');
+        return;
+      }
+      
+      // Nostr初期化チェック
+      final publicKey = await getPublicKey();
+      if (publicKey == null) {
+        AppLogger.warning('⚠️ [KeyPackage] 公開鍵が取得できないため、自動公開をスキップ');
+        return;
+      }
+      
+      AppLogger.info('🔑 [KeyPackage] 起動時Key Package自動公開チェック');
+      
+      // 前回の公開時刻をチェック
+      final lastPublished = localStorageService.getLastKeyPackagePublishTime();
+      final now = DateTime.now();
+      
+      if (lastPublished != null) {
+        final hoursSincePublish = now.difference(lastPublished).inHours;
+        AppLogger.debug('   前回公開: ${hoursSincePublish}時間前');
+        
+        // 24時間以内なら公開しない
+        if (hoursSincePublish < 24) {
+          AppLogger.info('✅ [KeyPackage] Key Packageは最新です（${hoursSincePublish}時間前に公開済み）');
+          return;
+        }
+      } else {
+        AppLogger.debug('   初回公開');
+      }
+      
+      // Key Package公開
+      final eventId = await publishKeyPackage();
+      
+      if (eventId != null) {
+        // 公開時刻を保存
+        localStorageService.setLastKeyPackagePublishTime(now);
+        AppLogger.info('✅ [KeyPackage] 起動時Key Package自動公開成功');
+      } else {
+        AppLogger.warning('⚠️ [KeyPackage] 自動公開に失敗しました');
+      }
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [KeyPackage] 自動公開エラー', error: e, stackTrace: stackTrace);
+      // エラーは無視（アプリ起動に影響を与えない）
+    }
+  }
+  
+  /// MLS: Key PackageをKind 10443イベントとして公開
+  /// 
+  /// Key Packageを公開することで、他のユーザーがnpubから自動的に
+  /// Key Packageを取得してグループに招待できるようになる
+  /// 
+  /// Returns: イベントID（成功時）
+  Future<String?> publishKeyPackage() async {
+    try {
+      AppLogger.info('📦 Key Package公開を開始...');
+      
+      // 公開鍵を取得
+      final publicKeyHex = await getPublicKey();
+      if (publicKeyHex == null) {
+        throw Exception('Public key not available');
+      }
+      
+      // Amberモード判定
+      final isAmber = _ref.read(isAmberModeProvider);
+      
+      // リレーリストを取得（デフォルトリレーを使用）
+      final relays = defaultRelays;
+      
+      // Phase 8.1.3: MLS DB初期化（Key Package生成前に必須）
+      AppLogger.debug('  Step 0: MLS DB初期化中...');
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dbPath = '${appDocDir.path}/mls.db';
+      
+      await rust_api.mlsInitDb(
+        dbPath: dbPath,
+        nostrId: publicKeyHex,
+      );
+      AppLogger.debug('  ✅ MLS DB初期化完了');
+      
+      // Step 1: Key Package生成
+      AppLogger.debug('  Step 1: Key Package生成中...');
+      final keyPackageResult = await rust_api.mlsCreateKeyPackage(
+        nostrId: publicKeyHex,
+      );
+      AppLogger.debug('  ✅ Key Package生成完了');
+      AppLogger.debug('    Protocol: ${keyPackageResult.mlsProtocolVersion}');
+      AppLogger.debug('    Ciphersuite: ${keyPackageResult.ciphersuite}');
+      
+      // Step 2: 未署名イベント作成
+      AppLogger.debug('  Step 2: Kind 10443イベント作成中...');
+      final unsignedEventJson = await rust_api.createUnsignedKeyPackageEvent(
+        keyPackageResult: keyPackageResult,
+        publicKeyHex: publicKeyHex,
+        relays: relays,
+      );
+      
+      String signedEvent;
+      
+      if (isAmber) {
+        // Step 3: Amber署名
+        AppLogger.debug('  Step 3: Amberで署名中...');
+        final amberService = AmberService();
+        signedEvent = await amberService.signEventWithTimeout(
+          unsignedEventJson,
+          timeout: const Duration(minutes: 2),
+        );
+        AppLogger.debug('  ✅ Amber署名完了');
+      } else {
+        // 秘密鍵モードは現在pending
+        throw Exception('秘密鍵モードでのKey Package公開は未実装です。Amberモードをご利用ください。');
+      }
+      
+      // Step 4: リレーに送信
+      AppLogger.debug('  Step 4: リレーに送信中...');
+      final sendResult = await sendSignedEvent(signedEvent);
+      
+      AppLogger.info('✅ Key Package公開完了！');
+      AppLogger.info('   Event ID: ${sendResult.eventId}');
+      AppLogger.info('   公開先リレー数: ${relays.length}');
+      
+      return sendResult.eventId;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ Key Package公開失敗', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+  
+  /// Phase 8.3: MLSグループTODOをNostrに送信
+  /// 
+  /// Keychatパターンに従い、NIP-17 (Gift Wrap) + Amber署名を使用
+  /// 
+  /// [listenKey]: Export SecretからMLSで導出した受信用公開鍵
+  /// [encryptedContent]: MLS暗号化済みのTODO JSON（hex）
+  /// [groupId]: グループID
+  /// 
+  /// Returns: イベントID（成功時）
+  Future<String?> sendMlsGroupTodo({
+    required String listenKey,
+    required String encryptedContent,
+    required String groupId,
+  }) async {
+    try {
+      AppLogger.debug('📤 [MLS] Sending group TODO to Nostr');
+      AppLogger.debug('   Listen Key: ${listenKey.substring(0, 16)}...');
+      AppLogger.debug('   Group ID: $groupId');
+      AppLogger.debug('   Content size: ${encryptedContent.length} bytes');
+      
+      // 公開鍵を取得
+      final publicKeyHex = await getPublicKey();
+      if (publicKeyHex == null) {
+        throw Exception('Public key not available');
+      }
+      
+      final npub = await hexToNpub(publicKeyHex);
+      
+      // NIP-17 Gift Wrap用の未署名イベントを作成
+      // Kind 1059（Seal）、受信者 = listen_key
+      final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      
+      final unsignedEvent = jsonEncode({
+        'pubkey': publicKeyHex,
+        'created_at': timestamp,
+        'kind': 1059, // NIP-17 Seal
+        'tags': [
+          ['p', listenKey], // 受信者 = listen_key（グループの共有公開鍵）
+          ['group_id', groupId],
+        ],
+        'content': encryptedContent, // MLS暗号化済み
+      });
+      
+      AppLogger.debug('📄 [MLS] Created unsigned Gift Wrap event');
+      
+      // Amberで署名
+      final amberService = AmberService();
+      
+      String signedEvent;
+      try {
+        // ContentProvider経由で試行（バックグラウンド）
+        signedEvent = await amberService.signEventWithContentProvider(
+          event: unsignedEvent,
+          npub: npub,
+        );
+        AppLogger.debug('✅ [MLS] Signed via ContentProvider');
+      } on PlatformException catch (e) {
+        // UI経由にフォールバック
+        AppLogger.warning('[MLS] ContentProvider failed (${e.code}), using UI method');
+        signedEvent = await amberService.signEventWithTimeout(
+          unsignedEvent,
+          timeout: const Duration(minutes: 2),
+        );
+        AppLogger.debug('✅ [MLS] Signed via UI');
+      }
+      
+      // リレーに送信
+      final sendResult = await sendSignedEvent(signedEvent);
+      
+      AppLogger.info('✅ [MLS] Group TODO sent successfully');
+      AppLogger.info('   Event ID: ${sendResult.eventId.substring(0, 16)}...');
+      AppLogger.info('   Successful relays: ${sendResult.successfulRelays}');
+      
+      return sendResult.eventId;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] Failed to send group TODO', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+  
+  /// Phase 8.3: MLSグループTODOを受信（listen_key購読）
+  /// 
+  /// Keychatパターンに従い、NIP-17 (Gift Wrap) を受信
+  /// 
+  /// [listenKey]: Export SecretからMLSで導出した受信用公開鍵
+  /// [groupId]: グループID
+  /// [onTodoReceived]: TODO受信時のコールバック
+  Future<void> subscribeMlsGroupTodos({
+    required String listenKey,
+    required String groupId,
+    required void Function(String encryptedContent) onTodoReceived,
+  }) async {
+    try {
+      AppLogger.info('📡 [MLS] Starting subscription for group TODOs');
+      AppLogger.info('   Listen Key: ${listenKey.substring(0, 16)}...');
+      AppLogger.info('   Group ID: $groupId');
+      
+      if (_subscriptionService == null) {
+        throw Exception('Subscription service not initialized');
+      }
+      
+      // NIP-17: Kind 1059（Seal）で購読
+      // #p タグ = listen_key で受信
+      final filters = [
+        {
+          'kinds': [1059], // NIP-17 Seal
+          '#p': [listenKey], // 受信者 = listen_key
+        }
+      ];
+      
+      await _subscriptionService!.startSubscription(
+        filters: filters,
+        onEventsReceived: (events) {
+          AppLogger.debug('📥 [MLS] Received ${events.length} sealed events');
+          
+          for (final event in events) {
+            try {
+              // event_jsonをパースしてcontentを取得
+              final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
+              final encryptedContent = eventData['content'] as String;
+              
+              // group_idタグをチェック（このグループ宛か確認）
+              final tags = eventData['tags'] as List<dynamic>?;
+              if (tags != null) {
+                final groupIdTag = tags.firstWhere(
+                  (tag) => tag is List && tag.isNotEmpty && tag[0] == 'group_id',
+                  orElse: () => null,
+                );
+                
+                if (groupIdTag != null && groupIdTag[1] != groupId) {
+                  // 別のグループ宛のメッセージ
+                  AppLogger.debug('⏭️  [MLS] Skipping message for different group');
+                  continue;
+                }
+              }
+              
+              // コールバックを呼び出し
+              onTodoReceived(encryptedContent);
+              
+              AppLogger.debug('✅ [MLS] Processed TODO event: ${event.eventId.substring(0, 16)}...');
+            } catch (e) {
+              AppLogger.error('❌ [MLS] Failed to process TODO event', error: e);
+            }
+          }
+        },
+      );
+      
+      AppLogger.info('✅ [MLS] Subscription started for group $groupId');
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] Failed to subscribe to group TODOs', error: e, stackTrace: stackTrace);
+    }
   }
 }

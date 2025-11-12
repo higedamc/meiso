@@ -1,16 +1,21 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
-import '../../features/custom_list/presentation/providers/custom_list_providers_compat.dart';
-// import '../../providers/todos_provider.dart'; // 旧Provider
-import '../../features/todo/presentation/providers/todo_providers_compat.dart';
+import '../../providers/custom_lists_provider.dart';
+import '../../providers/todos_provider.dart';
+import '../../providers/nostr_provider.dart';
 import '../../services/logger_service.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/add_list_screen.dart';
+import '../../widgets/add_group_list_dialog.dart';
+import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
+import '../../bridge_generated.dart/api.dart' as rust_api;
 
 /// SOMEDAYページ（リスト管理画面）- モーダル版
 class SomedayScreen extends ConsumerWidget {
@@ -21,10 +26,41 @@ class SomedayScreen extends ConsumerWidget {
 
   final VoidCallback? onClose;
 
+  /// Pull-to-refreshで同期を実行
+  Future<void> _onRefresh(WidgetRef ref) async {
+    AppLogger.info(' [SomedayScreen] 🔄 Pull-to-refresh triggered');
+    
+    // Nostr未初期化の場合はスキップ
+    if (!ref.read(nostrInitializedProvider)) {
+      AppLogger.debug(' [SomedayScreen] Nostr未初期化のため、同期をスキップ');
+      return;
+    }
+
+    try {
+      final todoNotifier = ref.read(todosProvider.notifier);
+      final customListsNotifier = ref.read(customListsProvider.notifier);
+      
+      // Nostrから全Todoリストとカスタムリストを同期
+      await todoNotifier.syncFromNostr();
+      
+      // Phase 6.4: グループ招待を同期
+      await customListsNotifier.syncGroupInvitations();
+      
+      AppLogger.info(' [SomedayScreen] ✅ Pull-to-refresh sync completed');
+    } catch (e) {
+      AppLogger.warning(' [SomedayScreen] ⚠️ 同期エラー: $e');
+      // エラーは表示せずに静かに失敗させる（UX改善のため）
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final customListsAsync = ref.watch(customListsProviderCompat);
-    final todosAsync = ref.watch(todosProviderCompat);
+    AppLogger.debug(' [SomedayScreen] 🎨 build() called');
+    
+    final customListsAsync = ref.watch(customListsProvider);
+    AppLogger.debug(' [SomedayScreen] customListsAsync type: ${customListsAsync.runtimeType}');
+    
+    final todosAsync = ref.watch(todosProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
 
@@ -36,12 +72,15 @@ class SomedayScreen extends ConsumerWidget {
           Expanded(
             child: customListsAsync.when(
               data: (customLists) => todosAsync.when(
-                data: (todos) => _buildListContent(
-                  context,
-                  ref,
-                  customLists,
-                  todos,
-                  isDark,
+                data: (todos) => RefreshIndicator(
+                  onRefresh: () => _onRefresh(ref),
+                  child: _buildListContent(
+                    context,
+                    ref,
+                    customLists,
+                    todos,
+                    isDark,
+                  ),
                 ),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (_, __) => const Center(child: Text('エラーが発生しました')),
@@ -76,9 +115,23 @@ class SomedayScreen extends ConsumerWidget {
     Map<DateTime?, List<Todo>> todos,
     bool isDark,
   ) {
+    AppLogger.info(' [SomedayScreen] 📋 _buildListContent called with ${customLists.length} custom lists');
+    for (final list in customLists) {
+      AppLogger.debug(' [SomedayScreen]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})');
+    }
+    
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        // 同期ステータスインジケーター
+        const Padding(
+          padding: EdgeInsets.only(bottom: 16),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: SyncStatusIndicator(),
+          ),
+        ),
+        
         // MY LISTSセクション
         _buildSectionHeader('MY LISTS', isDark),
         const SizedBox(height: 16),
@@ -89,7 +142,7 @@ class SomedayScreen extends ConsumerWidget {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: customLists.length,
           onReorder: (oldIndex, newIndex) {
-            ref.read(customListsProviderNotifierCompat).reorderLists(oldIndex, newIndex);
+            ref.read(customListsProvider.notifier).reorderLists(oldIndex, newIndex);
           },
           itemBuilder: (context, index) {
             final list = customLists[index];
@@ -101,7 +154,15 @@ class SomedayScreen extends ConsumerWidget {
               isDark,
               key: ValueKey(list.id),
               showDragHandle: true, // ドラッグハンドルを表示
+              isGroup: list.isGroup, // グループリストフラグ
+              isPendingInvitation: list.isPendingInvitation, // Phase 6.4: 招待バッジ表示
               onTap: () {
+                // インビテーション待ちの場合は招待受諾ダイアログを表示（Phase 6.5で実装）
+                if (list.isPendingInvitation) {
+                  _showAcceptInvitationDialog(context, ref, list);
+                  return;
+                }
+                
                 // リスト詳細画面に遷移
                 Navigator.push(
                   context,
@@ -175,6 +236,8 @@ class SomedayScreen extends ConsumerWidget {
     Key? key,
     required VoidCallback onTap,
     bool showDragHandle = false,
+    bool isGroup = false,
+    bool isPendingInvitation = false,
   }) {
     return InkWell(
       key: key,
@@ -202,6 +265,15 @@ class SomedayScreen extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
             ],
+            // グループアイコン（グループリストの場合）
+            if (isGroup) ...[
+              Icon(
+                Icons.group,
+                size: 18,
+                color: AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 8),
+            ],
             // リスト名
             Expanded(
               child: Text(
@@ -216,6 +288,40 @@ class SomedayScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            // インビテーションバッジ（Phase 6.4: MLS招待システム）
+            if (isPendingInvitation) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.mail,
+                      size: 14,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '招待',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             // カウント
             if (count > 0)
               Container(
@@ -297,14 +403,282 @@ class SomedayScreen extends ConsumerWidget {
     return count;
   }
 
-  /// リスト追加画面を表示
+  /// リスト追加画面を表示（通常リストorグループリスト）
   void _showAddListScreen(BuildContext context, WidgetRef ref) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddListScreen(),
-        fullscreenDialog: true,
-      ),
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          title: Text(
+            'ADD LIST',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              letterSpacing: 1.2,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 通常のカスタムリスト
+              ListTile(
+                leading: const Icon(Icons.list_alt),
+                title: const Text('Personal List'),
+                subtitle: const Text('個人用のタスクリスト'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AddListScreen(),
+                      fullscreenDialog: true,
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              // グループリスト
+              ListTile(
+                leading: const Icon(Icons.group),
+                title: const Text('Group List'),
+                subtitle: const Text('共有可能なグループタスクリスト'),
+                onTap: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (context) => const AddGroupListDialog(),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  /// グループ招待受諾ダイアログを表示（Phase 6.5: MLS招待システム）
+  void _showAcceptInvitationDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          title: Row(
+            children: [
+              Icon(
+                Icons.mail,
+                color: Colors.orange,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'グループ招待',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${list.name}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (list.inviterName != null) ...[
+                Text(
+                  '招待者: ${list.inviterName}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (list.inviterNpub != null) ...[
+                Text(
+                  '公開鍵: ${list.inviterNpub!.substring(0, 16)}...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: isDark 
+                      ? AppTheme.darkTextSecondary.withOpacity(0.7) 
+                      : AppTheme.lightTextSecondary.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                'このグループリストに参加しますか？',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'キャンセル',
+                style: TextStyle(
+                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _acceptGroupInvitation(context, ref, list);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('参加する'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// グループ招待を受諾（Phase 6.5: MLS招待システム）
+  Future<void> _acceptGroupInvitation(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+  ) async {
+    try {
+      AppLogger.info('🎉 [GroupInvitation] Accepting invitation for: ${list.name}');
+      
+      // ローディングインジケータを表示
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+      
+      // Welcome Messageをデコード
+      if (list.welcomeMsg == null) {
+        throw Exception('Welcome message not found');
+      }
+      
+      final welcomeMsgBytes = base64Decode(list.welcomeMsg!);
+      
+      // MLS groupに参加
+      final nostrService = ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        throw Exception('User public key not available');
+      }
+      
+      // MLS DBを初期化（まだ初期化されていない場合）
+      AppLogger.info('🔐 [GroupInvitation] Initializing MLS DB...');
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dbPath = '${appDocDir.path}/mls.db';
+      
+      await rust_api.mlsInitDb(
+        dbPath: dbPath,
+        nostrId: userPubkey,
+      );
+      
+      AppLogger.info('📥 [GroupInvitation] Joining MLS group: ${list.id}');
+      
+      await rust_api.mlsJoinGroup(
+        nostrId: userPubkey,
+        groupId: list.id,
+        welcomeMsg: welcomeMsgBytes,
+      );
+      
+      AppLogger.info('✅ [GroupInvitation] Successfully joined MLS group');
+      
+      // リストの招待フラグをクリア
+      final updatedList = list.copyWith(
+        isPendingInvitation: false,
+        inviterNpub: null,
+        inviterName: null,
+        welcomeMsg: null,
+      );
+      
+      // ローカルストレージに保存
+      final customListsNotifier = ref.read(customListsProvider.notifier);
+      await customListsNotifier.updateList(updatedList);
+      
+      AppLogger.info('🎉 [GroupInvitation] Group invitation accepted successfully');
+      
+      // ローディングを閉じる
+      if (context.mounted) Navigator.pop(context);
+      
+      // 成功メッセージ
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ ${list.name}に参加しました'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      // 参加成功後、自動的にリスト詳細画面に遷移
+      await Future.delayed(const Duration(milliseconds: 300)); // 状態更新を待つ
+      
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ListDetailScreen(
+              customList: updatedList, // 更新後のリストを渡す
+            ),
+          ),
+        );
+      }
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [GroupInvitation] Failed to accept invitation', error: e, stackTrace: stackTrace);
+      
+      // ローディングを閉じる
+      if (context.mounted) Navigator.pop(context);
+      
+      // エラーメッセージ
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('エラー'),
+            content: Text('招待の受諾に失敗しました\n\n$e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 }
 

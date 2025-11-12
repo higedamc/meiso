@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/logger_service.dart';
 import 'nostr_provider.dart';
-import '../services/logger_service.dart';
 import 'todos_provider.dart';
-import '../services/logger_service.dart';
 import 'sync_status_provider.dart';
-import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
-import '../services/logger_service.dart';
+import 'custom_lists_provider.dart';
 
 /// アプリのライフサイクル状態を管理するProvider
 final appLifecycleProvider = StateNotifierProvider<AppLifecycleNotifier, AppLifecycleState>((ref) {
@@ -184,6 +180,16 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       // TodosProviderの同期メソッドを呼び出し
       final todosNotifier = _ref.read(todosProvider.notifier);
       await todosNotifier.syncFromNostr();
+      
+      // Phase 8.1.2: グループ招待の同期
+      try {
+        final customListsNotifier = _ref.read(customListsProvider.notifier);
+        await customListsNotifier.syncGroupInvitations();
+        AppLogger.info(' Group invitations synced after reconnect');
+      } catch (e) {
+        AppLogger.warning(' Group invitation sync failed: $e');
+        // エラーは無視（次回の同期で再試行）
+      }
       
       AppLogger.info(' Sync after reconnect completed');
       _ref.read(syncStatusProvider.notifier).clearMessage();
