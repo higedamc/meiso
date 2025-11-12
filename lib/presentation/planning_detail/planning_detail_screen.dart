@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
-// import '../../providers/todos_provider.dart'; // 旧Provider（Phase 7で置き換え）
-import '../../features/todo/presentation/providers/todo_providers_compat.dart'; // 新Provider
+import '../../providers/todos_provider.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
 import 'package:intl/intl.dart';

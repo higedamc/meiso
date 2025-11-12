@@ -42,7 +42,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final relayNotifier = ref.read(relayStatusProvider.notifier);
 
     // AppSettingsからリレーリストを取得（保存されている場合）
-    final appSettings = ref.read(appSettingsProviderCompat);
+    final appSettings = ref.read(appSettingsProvider);
     appSettings.whenData((settings) {
       if (settings.relays.isNotEmpty) {
         // 保存されたリレーリストを使用
@@ -223,7 +223,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final l10n = AppLocalizations.of(context)!;
     final relayStatuses = ref.watch(relayStatusProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
-    final appSettingsAsync = ref.watch(appSettingsProviderCompat);
+    final appSettingsAsync = ref.watch(appSettingsProvider);
     
     // Tor有効状態を取得
     final torEnabled = appSettingsAsync.maybeWhen(

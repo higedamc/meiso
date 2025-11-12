@@ -5,10 +5,7 @@ import '../services/logger_service.dart';
 import 'package:intl/intl.dart';
 import '../services/logger_service.dart';
 import '../app_theme.dart';
-import '../services/logger_service.dart';
-// import '../providers/todos_provider.dart'; // 旧Provider
-import '../features/todo/presentation/providers/todo_providers_compat.dart';
-import '../services/logger_service.dart';
+import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_item.dart';

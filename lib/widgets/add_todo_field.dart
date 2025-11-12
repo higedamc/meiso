@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app_theme.dart';
-// import '../providers/todos_provider.dart'; // 旧Provider
-import '../features/todo/presentation/providers/todo_providers_compat.dart';
+import '../providers/todos_provider.dart';
 
 /// Todo追加用のテキストフィールド
 class AddTodoField extends StatefulWidget {
