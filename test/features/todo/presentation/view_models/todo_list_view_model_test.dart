@@ -13,8 +13,8 @@ import 'package:meiso/features/todo/application/usecases/update_todo_usecase.dar
 import 'package:meiso/features/todo/domain/entities/todo.dart';
 import 'package:meiso/features/todo/domain/value_objects/todo_date.dart';
 import 'package:meiso/features/todo/domain/value_objects/todo_title.dart';
-import 'package:meiso/features/todo/presentation/state/todo_list_notifier.dart';
-import 'package:meiso/features/todo/presentation/state/todo_list_state.dart';
+import 'package:meiso/features/todo/presentation/view_models/todo_list_view_model.dart';
+import 'package:meiso/features/todo/presentation/view_models/todo_list_state.dart';
 import 'package:mocktail/mocktail.dart';
 
 // Mock Classes
@@ -58,7 +58,7 @@ void main() {
   late MockReorderTodoUseCase mockReorderTodoUseCase;
   late MockMoveTodoUseCase mockMoveTodoUseCase;
   late MockSyncFromNostrUseCase mockSyncFromNostrUseCase;
-  late TodoListNotifier notifier;
+  late TodoListViewModel notifier;
 
   setUpAll(() {
     registerFallbackValue(const NoParams());
@@ -82,8 +82,8 @@ void main() {
     mockSyncFromNostrUseCase = MockSyncFromNostrUseCase();
   });
 
-  TodoListNotifier createNotifier({bool autoLoad = true}) {
-    return TodoListNotifier(
+    TodoListViewModel createNotifier({bool autoLoad = true}) {
+      return TodoListViewModel(
       getAllTodosUseCase: mockGetAllTodosUseCase,
       createTodoUseCase: mockCreateTodoUseCase,
       updateTodoUseCase: mockUpdateTodoUseCase,
@@ -96,7 +96,7 @@ void main() {
     );
   }
 
-  group('TodoListNotifier', () {
+  group('TodoListViewModel', () {
     group('初期化', () {
       test('初期化時に自動的にloadTodosが呼ばれる', () async {
         // Arrange

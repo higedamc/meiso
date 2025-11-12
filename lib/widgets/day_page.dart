@@ -6,7 +6,8 @@ import 'package:intl/intl.dart';
 import '../services/logger_service.dart';
 import '../app_theme.dart';
 import '../services/logger_service.dart';
-import '../providers/todos_provider.dart';
+// import '../providers/todos_provider.dart'; // 旧Provider
+import '../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../services/logger_service.dart';
 import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
@@ -36,7 +37,7 @@ class DayPage extends ConsumerWidget {
     }
 
     try {
-      final todoNotifier = ref.read(todosProvider.notifier);
+      final todoNotifier = ref.read(todosProviderNotifierCompat);
       
       // 新実装（Kind 30001）: Nostrから全Todoリストを同期
       await todoNotifier.syncFromNostr();
@@ -162,9 +163,12 @@ class DayPage extends ConsumerWidget {
       padding: EdgeInsets.zero,
       itemCount: todos.length,
       onReorder: (oldIndex, newIndex) {
+        final todo = todos[oldIndex];
+        // newIndexの調整（ReorderableListViewの仕様）
+        final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
         ref
-            .read(todosProvider.notifier)
-            .reorderTodo(date, oldIndex, newIndex);
+            .read(todosProviderNotifierCompat)
+            .reorderTodo(todo.id, date, date, adjustedIndex);
       },
       itemBuilder: (context, index) {
         final todo = todos[index];

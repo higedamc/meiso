@@ -173,12 +173,12 @@ lib/
 - [x] AppConfig実装
 - [x] テストファイル作成（failure_test.dart, usecase_test.dart）
 - [x] mocktail依存関係追加
-- [ ] 依存関係インストール（`flutter pub get`）
-- [ ] テスト実行（`flutter test`）
-- [ ] ビルド確認
+- [x] 依存関係インストール（`flutter pub get`）
+- [x] テスト実行（`flutter test`） - 31個のテストケース全てパス
+- [x] ビルド確認
 
 #### ステータス
-🔄 **実装完了、確認待ち** - Oracle手動確認が必要
+✅ **完了** - 2025-11-12
 
 #### 目標
 クリーンアーキテクチャの基盤となる共通インターフェースを実装
@@ -1254,21 +1254,140 @@ final todosViewModelProvider =
 
 ---
 
-### Phase 6: 他機能への展開（6-8時間）
+### Phase 8: 他機能への展開（6-8時間）
+
+#### ステータス
+🔄 **実装中** - 2025-11-12
 
 #### 目標
-Todo機能で確立したパターンを他機能にも適用
+Todo機能で確立したパターンをCustomList・Settings機能にも適用
 
 #### 対象機能
-1. **CustomList機能** - カスタムリスト管理
+1. **CustomList機能** - カスタムリスト管理（SOMEDAYページ）
 2. **Settings機能** - アプリ設定、Amber連携、リレー管理
-3. **Calendar機能** - カレンダー統合
 
-#### 作業内容（各機能ごと）
-1. Domain層の定義（Entity, Repository, Errors）
-2. Infrastructure層の実装（RepositoryImpl, DataSources）
-3. Application層の実装（UseCases）
-4. Presentation層のリファクタリング（ViewModel, State）
+---
+
+#### Phase 8.1: CustomList機能のClean Architecture移行（3-4時間）
+
+##### 既存コード分析
+- `lib/models/custom_list.dart` - 既存エンティティ
+- `lib/providers/custom_lists_provider.dart` - 複雑なロジック（318行）
+  - ローカルストレージ（Hive）との同期
+  - AppSettingsとの連携（リスト順の保存）
+  - Nostr同期（リスト名のList受信）
+  - デフォルトリスト作成
+
+##### 実装計画
+
+**Domain層**
+```
+lib/features/custom_list/
+├── domain/
+│   ├── entities/
+│   │   └── custom_list.dart (移行)
+│   ├── value_objects/
+│   │   └── list_name.dart (NEW)
+│   ├── repositories/
+│   │   └── custom_list_repository.dart (NEW)
+│   └── errors/
+│       └── custom_list_errors.dart (NEW)
+```
+
+**Infrastructure層**
+```
+├── infrastructure/
+│   ├── datasources/
+│   │   └── custom_list_local_datasource.dart (NEW)
+│   └── repositories/
+│       └── custom_list_repository_impl.dart (NEW)
+```
+
+**Application層 - 6つのUseCases**
+```
+├── application/
+│   └── usecases/
+│       ├── create_custom_list_usecase.dart
+│       ├── update_custom_list_usecase.dart
+│       ├── delete_custom_list_usecase.dart
+│       ├── reorder_custom_lists_usecase.dart
+│       ├── get_all_custom_lists_usecase.dart
+│       └── sync_custom_lists_from_nostr_usecase.dart
+```
+
+**Presentation層**
+```
+├── presentation/
+│   ├── view_models/
+│   │   ├── custom_list_state.dart (NEW)
+│   │   └── custom_list_view_model.dart (NEW)
+│   └── providers/
+│       ├── custom_list_providers.dart (NEW)
+│       └── custom_list_providers_compat.dart (NEW - 互換レイヤー)
+```
+
+---
+
+#### Phase 8.2: Settings機能のClean Architecture移行（3-4時間）
+
+##### 既存コード分析
+- `lib/models/app_settings.dart` - 既存エンティティ
+- `lib/providers/app_settings_provider.dart` - 複雑なロジック（520行）
+  - ローカルストレージとの同期
+  - Nostr同期（NIP-78 Kind 30078）
+  - リレーリスト管理（NIP-65 Kind 10002）
+  - Amber連携
+
+##### 実装計画
+
+**Domain層**
+```
+lib/features/settings/
+├── domain/
+│   ├── entities/
+│   │   └── app_settings.dart (移行)
+│   ├── repositories/
+│   │   └── app_settings_repository.dart (NEW)
+│   └── errors/
+│       └── app_settings_errors.dart (NEW)
+```
+
+**Infrastructure層**
+```
+├── infrastructure/
+│   ├── datasources/
+│   │   ├── app_settings_local_datasource.dart (NEW)
+│   │   └── app_settings_remote_datasource.dart (NEW - Nostr)
+│   └── repositories/
+│       └── app_settings_repository_impl.dart (NEW)
+```
+
+**Application層 - 10個のUseCases**
+```
+├── application/
+│   └── usecases/
+│       ├── get_app_settings_usecase.dart
+│       ├── update_app_settings_usecase.dart
+│       ├── toggle_dark_mode_usecase.dart
+│       ├── set_week_start_day_usecase.dart
+│       ├── set_calendar_view_usecase.dart
+│       ├── toggle_notifications_usecase.dart
+│       ├── update_relays_usecase.dart
+│       ├── save_relays_to_nostr_usecase.dart
+│       ├── sync_from_nostr_usecase.dart
+│       └── sync_to_nostr_usecase.dart
+```
+
+**Presentation層**
+```
+├── presentation/
+│   ├── view_models/
+│   │   ├── app_settings_state.dart (NEW)
+│   │   └── app_settings_view_model.dart (NEW)
+│   └── providers/
+│       ├── app_settings_providers.dart (NEW)
+│       └── app_settings_providers_compat.dart (NEW - 互換レイヤー)
+```
 
 ---
 
@@ -1452,8 +1571,8 @@ Presentation → Application → Domain ← Infrastructure
 | Phase 4 | Todo Application | 3-4時間 | ✅ 完了 |
 | Phase 5 | Todo Presentation | 3-4時間 | ✅ 完了 |
 | Phase 6 | Provider統合 | 2-3時間 | ✅ 完了 |
-| Phase 7 | 他機能展開 | 6-8時間 | ⏸️ 未着手 |
-| Phase 8 | テスト・ドキュメント | 3-4時間 | ⏸️ 未着手 |
+| Phase 7 | UI統合・ViewModels | 4-5時間 | ✅ 完了 |
+| Phase 8 | 他機能展開 | 6-8時間 | ⏸️ 未着手 |
 
 ### チェックポイント
 
@@ -1498,7 +1617,7 @@ Presentation → Application → Domain ← Infrastructure
 
 **作成日**: 2025-11-12  
 **最終更新**: 2025-11-12  
-**ステータス**: 🎉 Phase 6実装完了（Todo機能のクリーンアーキテクチャ移行完了）
+**ステータス**: 🎉 Phase 7.6実装完了（未実装メソッド完全統合）
 
 ---
 
@@ -1541,3 +1660,33 @@ Presentation → Application → Domain ← Infrastructure
   - TodoListNotifierの遅延初期化対応（autoLoadパラメータ）
   - Provider依存関係の最適化
   - 全170テストケースでパス確認
+- **Phase 7完了**:
+  - ViewModels構造への移行（`presentation/state/` → `presentation/view_models/`）
+  - `TodoListNotifier` → `TodoListViewModel`に改名
+  - `todoListNotifierProvider` → `todoListViewModelProvider`に改名
+  - 互換レイヤー実装（`todo_providers_compat.dart`）
+    - `todosProviderCompat`: AsyncValue変換Provider
+    - `todosProviderNotifierCompat`: .notifier互換ラッパー
+    - `TodoListViewModelCompat`: 既存メソッド互換クラス
+    - `todosForDateProvider`: 日付別Todoリスト取得Provider
+  - 既存UI統合（24ファイル修正）
+    - import文の一括置換（11ファイル）
+    - `.notifier`アクセス修正（9ファイル、24箇所）
+    - `reorderTodo`呼び出し修正（3ファイル）
+    - `updateTodoWithRecurrence`シグネチャ修正
+  - 全170テストケースでパス確認
+  - コンパイルエラー0件達成
+- **Phase 7.6完了**:
+  - **オプションA: 暫定ハイブリッド実装**採用
+  - 互換レイヤーから旧`todosProvider`へブリッジ実装
+  - 7個の未実装メソッドを完全統合：
+    1. `manualSyncToNostr()` - 手動Nostr同期
+    2. `addTodoWithData()` - 削除Undo機能
+    3. `updateTodo()` - Todo更新
+    4. `removeLinkPreview()` - リンクプレビュー削除
+    5. `deleteRecurringInstance()` - 繰り返しタスクの1つ削除
+    6. `deleteAllRecurringInstances()` - 繰り返しタスク全削除
+    7. `updateTodoWithRecurrence()` - 繰り返しパターン更新
+  - `TodoListViewModelCompat`に`Ref`を追加
+  - 全7テストケースでパス確認
+  - コンパイルエラー0件達成

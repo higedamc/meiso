@@ -6,7 +6,8 @@ import '../app_theme.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
-import '../providers/todos_provider.dart';
+// import '../providers/todos_provider.dart'; // 旧Provider
+import '../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
@@ -147,7 +148,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                   if (isEditing)
                     Consumer(
                       builder: (context, ref, child) {
-                        final todosAsync = ref.watch(todosProvider);
+                        final todosAsync = ref.watch(todosProviderCompat);
                         return todosAsync.when(
                           data: (todos) {
                             final todoList = todos[widget.todo!.date];
@@ -435,7 +436,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
   void _moveToDate(DateTime? targetDate) {
     if (widget.todo == null) return;
 
-    ref.read(todosProvider.notifier).moveTodo(
+    ref.read(todosProviderNotifierCompat).moveTodo(
       widget.todo!.id,
       widget.todo!.date,
       targetDate,
@@ -462,14 +463,14 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     if (widget.todo == null) return;
 
     // 日付を移動
-    ref.read(todosProvider.notifier).moveTodo(
+    ref.read(todosProviderNotifierCompat).moveTodo(
       widget.todo!.id,
       widget.todo!.date,
       targetDate,
     );
 
     // カスタムリストIDを更新
-    ref.read(todosProvider.notifier).updateTodoCustomListId(
+    ref.read(todosProviderNotifierCompat).updateTodoCustomListId(
       widget.todo!.id,
       targetDate,  // 移動後の日付
       customListId,
@@ -497,7 +498,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     if (isEditing) {
       // 編集モード: タイトルと繰り返しパターンを更新
       AppLogger.debug(' Updating todo: "$text" (id: ${widget.todo!.id})');
-      await ref.read(todosProvider.notifier).updateTodoWithRecurrence(
+      await ref.read(todosProviderNotifierCompat).updateTodoWithRecurrence(
         widget.todo!.id,
         widget.todo!.date,
         text,
@@ -507,7 +508,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     } else {
       // 追加モード: 新しいTodoを作成
       AppLogger.debug(' Adding todo to list: "$text" (customListId: ${widget.customListId})');
-      await ref.read(todosProvider.notifier).addTodo(
+      await ref.read(todosProviderNotifierCompat).addTodo(
         text,
         widget.date,
         customListId: widget.customListId,
@@ -771,7 +772,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
   /// リンクプレビューを削除
   Future<void> _removeLinkPreview() async {
     if (widget.todo != null) {
-      await ref.read(todosProvider.notifier).removeLinkPreview(
+      await ref.read(todosProviderNotifierCompat).removeLinkPreview(
         widget.todo!.id,
         widget.todo!.date,
       );

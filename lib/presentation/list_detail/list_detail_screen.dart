@@ -4,7 +4,8 @@ import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/custom_lists_provider.dart';
-import '../../providers/todos_provider.dart';
+// import '../../providers/todos_provider.dart'; // 旧Provider
+import '../../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/todo_edit_screen.dart';
@@ -87,7 +88,7 @@ class ListDetailScreen extends StatelessWidget {
           Expanded(
             child: Consumer(
               builder: (context, ref, child) {
-                final todosAsync = ref.watch(todosProvider);
+                final todosAsync = ref.watch(todosProviderCompat);
                 
                 return todosAsync.when(
                   data: (allTodos) {
@@ -181,10 +182,13 @@ class ListDetailScreen extends StatelessWidget {
     // TODO: カスタムリスト内での並び替えロジックを実装
     // 現在はdate内での並び替えのみ対応
     final todo = todos[oldIndex];
-    ref.read(todosProvider.notifier).reorderTodo(
+    // newIndexの調整（ReorderableListViewの仕様）
+    final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    ref.read(todosProviderNotifierCompat).reorderTodo(
+      todo.id,
       todo.date,
-      oldIndex,
-      newIndex,
+      todo.date,
+      adjustedIndex,
     );
   }
 

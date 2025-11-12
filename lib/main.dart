@@ -19,7 +19,8 @@ import 'services/logger_service.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
-import 'providers/todos_provider.dart';
+// import 'providers/todos_provider.dart'; // 旧Provider
+import 'features/todo/presentation/providers/todo_providers_compat.dart';
 import 'providers/locale_provider.dart';
 
 void main() async {
@@ -200,7 +201,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           // Nostrからデータを同期（カスタムリストとTodoを取得）
           AppLogger.info('[復元] Nostrからデータを同期中...', tag: 'SYNC');
           try {
-            await ref.read(todosProvider.notifier).syncFromNostr();
+            await ref.read(todosProviderNotifierCompat).syncFromNostr();
             AppLogger.info('[復元] Nostr同期完了', tag: 'SYNC');
           } catch (e) {
             AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
