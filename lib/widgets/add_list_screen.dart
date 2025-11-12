@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app_theme.dart';
-import '../features/custom_list/presentation/providers/custom_list_providers_compat.dart';
+import '../providers/custom_lists_provider.dart';
 
 /// リスト追加用の全画面モーダル（TodoEditScreenと同じスタイル）
 class AddListScreen extends ConsumerStatefulWidget {

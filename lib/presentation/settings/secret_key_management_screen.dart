@@ -469,7 +469,7 @@ class _SecretKeyManagementScreenState
       final relayList = ref.read(relayStatusProvider).keys.toList();
       
       // アプリ設定からTor/プロキシ設定を取得
-      final appSettingsAsync = ref.read(appSettingsProviderCompat);
+      final appSettingsAsync = ref.read(appSettingsProvider);
       final proxyUrl = appSettingsAsync.maybeWhen(
         data: (settings) => settings.torEnabled ? settings.proxyUrl : null,
         orElse: () => null,

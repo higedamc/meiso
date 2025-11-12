@@ -424,12 +424,12 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final appSettingsAsync = ref.watch(appSettingsProviderCompat);
+    final appSettingsAsync = ref.watch(appSettingsProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final currentLocale = ref.watch(localeProvider);
 
     // Tor有効時に自動的にプロキシテストを実行
-    ref.listen<AsyncValue<AppSettings>>(appSettingsProviderCompat, (previous, next) {
+    ref.listen<AsyncValue<AppSettings>>(appSettingsProvider, (previous, next) {
       final prevSettings = previous?.value;
       final nextSettings = next.value;
       

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/calendar_provider.dart';
 import '../../providers/date_provider.dart';
-import '../../features/settings/presentation/providers/app_settings_providers_compat.dart';
-import '../../features/custom_list/presentation/providers/custom_list_providers_compat.dart';
+import '../../providers/app_settings_provider.dart';
+import '../../providers/custom_lists_provider.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
@@ -114,13 +114,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     
     if (isModalVisible) {
       // 最後に見ていたカスタムリストを取得
-      final appSettings = ref.read(appSettingsProviderCompat);
+      final appSettings = ref.read(appSettingsProvider);
       appSettings.whenData((settings) {
         final lastViewedListId = settings.lastViewedCustomListId;
         
         if (lastViewedListId != null) {
           // カスタムリストを取得
-          final customListsAsync = ref.read(customListsProviderCompat);
+          final customListsAsync = ref.read(customListsProvider);
           customListsAsync.whenData((customLists) {
             final targetList = customLists.firstWhere(
               (list) => list.id == lastViewedListId,
