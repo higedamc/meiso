@@ -34,7 +34,7 @@ class DayPage extends ConsumerWidget {
     }
 
     try {
-      final todoNotifier = ref.read(todosProviderNotifierCompat);
+      final todoNotifier = ref.read(todosProvider.notifier);
       
       // 新実装（Kind 30001）: Nostrから全Todoリストを同期
       await todoNotifier.syncFromNostr();
@@ -164,7 +164,7 @@ class DayPage extends ConsumerWidget {
         // newIndexの調整（ReorderableListViewの仕様）
         final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
         ref
-            .read(todosProviderNotifierCompat)
+            .read(todosProvider.notifier)
             .reorderTodo(todo.id, date, date, adjustedIndex);
       },
       itemBuilder: (context, index) {

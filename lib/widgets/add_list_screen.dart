@@ -202,7 +202,7 @@ class _AddListScreenState extends ConsumerState<AddListScreen> {
     }
 
     // リストを追加
-    ref.read(customListsProviderNotifierCompat).addList(text);
+    ref.read(customListsProvider.notifier).addList(text);
     
     // 画面を閉じる
     Navigator.pop(context);

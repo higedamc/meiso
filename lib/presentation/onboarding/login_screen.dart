@@ -324,7 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppLogger.info('Starting background sync...', tag: 'SYNC');
             Future.microtask(() async {
               try {
-                await ref.read(todosProviderNotifierCompat).syncFromNostr();
+                await ref.read(todosProvider.notifier).syncFromNostr();
                 AppLogger.info('Background sync completed', tag: 'SYNC');
               } catch (e) {
                 AppLogger.warning('Background sync error (continuing with local data)', error: e, tag: 'SYNC');
@@ -579,7 +579,7 @@ class _LoginScreenState extends State<LoginScreen> {
       AppLogger.info('Starting background sync...', tag: 'SYNC');
       Future.microtask(() async {
         try {
-          await ref.read(todosProviderNotifierCompat).syncFromNostr();
+          await ref.read(todosProvider.notifier).syncFromNostr();
           AppLogger.info('Background sync completed', tag: 'SYNC');
         } catch (e) {
           AppLogger.warning('Background sync error (new account, no data expected)', error: e, tag: 'SYNC');

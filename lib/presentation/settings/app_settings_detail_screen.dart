@@ -52,7 +52,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     );
 
     if (selected != null) {
-      await ref.read(appSettingsProviderNotifierCompat).setWeekStartDay(selected);
+      await ref.read(appSettingsProvider.notifier).setWeekStartDay(selected);
     }
   }
 
@@ -93,7 +93,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     );
 
     if (selected != null) {
-      await ref.read(appSettingsProviderNotifierCompat).setCalendarView(selected);
+      await ref.read(appSettingsProvider.notifier).setCalendarView(selected);
     }
   }
 
@@ -391,7 +391,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
     if (result != null) {
       final newProxyUrl = 'socks5://${result['host']}:${result['port']}';
-      await ref.read(appSettingsProviderNotifierCompat).setProxyUrl(newProxyUrl);
+      await ref.read(appSettingsProvider.notifier).setProxyUrl(newProxyUrl);
       
       if (context.mounted) {
         final snackbarL10n = AppLocalizations.of(context)!;
@@ -511,7 +511,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     value: settings.darkMode,
                     onChanged: (value) async {
                       await ref
-                          .read(appSettingsProviderNotifierCompat)
+                          .read(appSettingsProvider.notifier)
                           .toggleDarkMode();
                     },
                     secondary: Icon(
@@ -556,7 +556,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     value: settings.notificationsEnabled,
                     onChanged: (value) async {
                       await ref
-                          .read(appSettingsProviderNotifierCompat)
+                          .read(appSettingsProvider.notifier)
                           .toggleNotifications();
                     },
                     secondary: Icon(
@@ -580,7 +580,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     ),
                     value: settings.torEnabled,
                     onChanged: (value) async {
-                      await ref.read(appSettingsProviderNotifierCompat).toggleTor();
+                      await ref.read(appSettingsProvider.notifier).toggleTor();
                       
                       if (context.mounted) {
                         final snackbarL10n = AppLocalizations.of(context)!;

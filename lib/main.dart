@@ -201,7 +201,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           // Nostrからデータを同期（カスタムリストとTodoを取得）
           AppLogger.info('[復元] Nostrからデータを同期中...', tag: 'SYNC');
           try {
-            await ref.read(todosProviderNotifierCompat).syncFromNostr();
+            await ref.read(todosProvider.notifier).syncFromNostr();
             AppLogger.info('[復元] Nostr同期完了', tag: 'SYNC');
           } catch (e) {
             AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');

@@ -506,7 +506,7 @@ class _SecretKeyManagementScreenState
   /// 自動同期（バックグラウンド）
   Future<void> _autoSync() async {
     try {
-      final todoNotifier = ref.read(todosProviderNotifierCompat);
+      final todoNotifier = ref.read(todosProvider.notifier);
       
       // 新実装（Kind 30001）: Nostrから全Todoリストを同期
       await todoNotifier.syncFromNostr();
@@ -568,7 +568,7 @@ class _SecretKeyManagementScreenState
       AppLogger.debug('✅ All local data deleted');
 
       // 3. すべてのProviderをリセット
-      ref.invalidate(todosProviderCompat);
+      ref.invalidate(todosProvider);
       ref.read(nostrInitializedProvider.notifier).state = false;
       ref.read(publicKeyProvider.notifier).state = null;
       ref.invalidate(relayStatusProvider);
