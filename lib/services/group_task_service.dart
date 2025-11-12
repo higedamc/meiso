@@ -196,11 +196,11 @@ class GroupTaskService {
           AppLogger.info('📋 Processing group: ${encryptedEvent.listId} (${encryptedEvent.members.length} members)');
           
           // 2-2. contentをJSONパース（平文なので復号化不要）
-          final Map<String, dynamic> groupListJson = jsonDecode(encryptedEvent.encryptedContent);
+          final groupListJson = jsonDecode(encryptedEvent.encryptedContent) as Map<String, dynamic>;
           
           final encryptedData = groupListJson['encrypted_data'] as String;
-          final members = (groupListJson['members'] as List).map((e) => e as String).toList();
-          final encryptedKeysJson = groupListJson['encrypted_keys'] as List;
+          final members = (groupListJson['members'] as List<dynamic>).map((e) => e as String).toList();
+          final encryptedKeysJson = groupListJson['encrypted_keys'] as List<dynamic>;
           
           AppLogger.debug('📋 Found encrypted_data and ${encryptedKeysJson.length} encrypted_keys');
           
@@ -328,7 +328,7 @@ class GroupTaskService {
       AppLogger.debug('📦 Decrypted group data for ${groupList.groupName}');
       
       // 4. JSONをパースしてTodoオブジェクトに変換
-      final List<dynamic> tasksJson = jsonDecode(decryptedDataJson);
+      final tasksJson = jsonDecode(decryptedDataJson) as List<dynamic>;
       
       final todos = tasksJson.map((taskJson) {
         DateTime? date;

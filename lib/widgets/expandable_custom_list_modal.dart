@@ -46,18 +46,22 @@ class ExpandableCustomListModal extends ConsumerWidget {
                 isDark,
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Center(
+              error: (_, __) => Center(
                 child: Text(
                   'エラーが発生しました',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
                 ),
               ),
             ),
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Center(
+            error: (_, __) => Center(
               child: Text(
                 'エラーが発生しました',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                ),
               ),
             ),
           ),
@@ -82,17 +86,21 @@ class ExpandableCustomListModal extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'SOMEDAY',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: isDark ? Colors.white : Colors.black,
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.5,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.add, color: Colors.white, size: 28),
+                  icon: Icon(
+                    Icons.add,
+                    color: isDark ? Colors.white : Colors.black,
+                    size: 28,
+                  ),
                   onPressed: () => _showAddListScreen(context, ref),
                 ),
               ],
@@ -105,7 +113,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
                 // MY LISTSセクション
-                _buildSectionHeader('MY LISTS'),
+                _buildSectionHeader(context, 'MY LISTS'),
                 const SizedBox(height: 16),
                 
                 // カスタムリスト（並び替え可能）
@@ -141,7 +149,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
                 const SizedBox(height: 32),
 
                 // PLANNINGセクション
-                _buildSectionHeader('PLANNING'),
+                _buildSectionHeader(context, 'PLANNING'),
                 const SizedBox(height: 16),
                 ...PlanningCategory.values.map((category) {
                   final count = _getPlanningCategoryCount(category, todos);
@@ -174,7 +182,8 @@ class ExpandableCustomListModal extends ConsumerWidget {
   }
 
   /// セクションヘッダー
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
@@ -182,7 +191,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
         style: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: Colors.white.withOpacity(0.7),
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.7),
           letterSpacing: 1.2,
         ),
       ),
@@ -197,6 +206,9 @@ class ExpandableCustomListModal extends ConsumerWidget {
     int count, {
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -204,7 +216,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: Colors.white.withOpacity(0.2),
+              color: textColor.withOpacity(0.2),
               width: 1,
             ),
           ),
@@ -215,10 +227,10 @@ class ExpandableCustomListModal extends ConsumerWidget {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: textColor,
                   letterSpacing: 0.8,
                 ),
               ),
@@ -228,15 +240,15 @@ class ExpandableCustomListModal extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: textColor.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   count.toString(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: textColor,
                   ),
                 ),
               ),

@@ -1,7 +1,7 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
+
 import 'package:hive_flutter/hive_flutter.dart';
-import '../services/logger_service.dart';
+
 import '../bridge_generated.dart/api.dart' as rust_api;
 import '../services/logger_service.dart';
 

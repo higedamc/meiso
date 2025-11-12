@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import 'package:intl/intl.dart';
-import '../services/logger_service.dart';
+
 import '../app_theme.dart';
-import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
-import '../services/logger_service.dart';
-import 'todo_item.dart';
+import '../providers/todos_provider.dart';
 import '../services/logger_service.dart';
 import 'sync_status_indicator.dart';
-import '../services/logger_service.dart';
+import 'todo_item.dart';
 
 /// 1日分のTodoページ
 class DayPage extends ConsumerWidget {

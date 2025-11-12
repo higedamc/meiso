@@ -47,6 +47,9 @@ mixin _$SyncStatus {
   /// 現在のフェーズ名（「AppSettings同期中」「カスタムリスト同期中」など）
   String? get currentPhase => throw _privateConstructorUsedError;
 
+  /// 初回同期フラグ（ローカルストレージが空の状態からの初回起動時のみtrue）
+  bool get isInitialSync => throw _privateConstructorUsedError;
+
   /// Create a copy of SyncStatus
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -72,6 +75,7 @@ abstract class $SyncStatusCopyWith<$Res> {
     int completedSteps,
     int percentage,
     String? currentPhase,
+    bool isInitialSync,
   });
 }
 
@@ -100,6 +104,7 @@ class _$SyncStatusCopyWithImpl<$Res, $Val extends SyncStatus>
     Object? completedSteps = null,
     Object? percentage = null,
     Object? currentPhase = freezed,
+    Object? isInitialSync = null,
   }) {
     return _then(
       _value.copyWith(
@@ -143,6 +148,10 @@ class _$SyncStatusCopyWithImpl<$Res, $Val extends SyncStatus>
                 ? _value.currentPhase
                 : currentPhase // ignore: cast_nullable_to_non_nullable
                       as String?,
+            isInitialSync: null == isInitialSync
+                ? _value.isInitialSync
+                : isInitialSync // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -169,6 +178,7 @@ abstract class _$$SyncStatusImplCopyWith<$Res>
     int completedSteps,
     int percentage,
     String? currentPhase,
+    bool isInitialSync,
   });
 }
 
@@ -196,6 +206,7 @@ class __$$SyncStatusImplCopyWithImpl<$Res>
     Object? completedSteps = null,
     Object? percentage = null,
     Object? currentPhase = freezed,
+    Object? isInitialSync = null,
   }) {
     return _then(
       _$SyncStatusImpl(
@@ -239,6 +250,10 @@ class __$$SyncStatusImplCopyWithImpl<$Res>
             ? _value.currentPhase
             : currentPhase // ignore: cast_nullable_to_non_nullable
                   as String?,
+        isInitialSync: null == isInitialSync
+            ? _value.isInitialSync
+            : isInitialSync // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -258,6 +273,7 @@ class _$SyncStatusImpl implements _SyncStatus {
     this.completedSteps = 0,
     this.percentage = 0,
     this.currentPhase,
+    this.isInitialSync = false,
   });
 
   @override
@@ -306,9 +322,14 @@ class _$SyncStatusImpl implements _SyncStatus {
   @override
   final String? currentPhase;
 
+  /// 初回同期フラグ（ローカルストレージが空の状態からの初回起動時のみtrue）
+  @override
+  @JsonKey()
+  final bool isInitialSync;
+
   @override
   String toString() {
-    return 'SyncStatus(state: $state, lastSyncTime: $lastSyncTime, errorMessage: $errorMessage, message: $message, pendingItems: $pendingItems, retryCount: $retryCount, totalSteps: $totalSteps, completedSteps: $completedSteps, percentage: $percentage, currentPhase: $currentPhase)';
+    return 'SyncStatus(state: $state, lastSyncTime: $lastSyncTime, errorMessage: $errorMessage, message: $message, pendingItems: $pendingItems, retryCount: $retryCount, totalSteps: $totalSteps, completedSteps: $completedSteps, percentage: $percentage, currentPhase: $currentPhase, isInitialSync: $isInitialSync)';
   }
 
   @override
@@ -333,7 +354,9 @@ class _$SyncStatusImpl implements _SyncStatus {
             (identical(other.percentage, percentage) ||
                 other.percentage == percentage) &&
             (identical(other.currentPhase, currentPhase) ||
-                other.currentPhase == currentPhase));
+                other.currentPhase == currentPhase) &&
+            (identical(other.isInitialSync, isInitialSync) ||
+                other.isInitialSync == isInitialSync));
   }
 
   @override
@@ -349,6 +372,7 @@ class _$SyncStatusImpl implements _SyncStatus {
     completedSteps,
     percentage,
     currentPhase,
+    isInitialSync,
   );
 
   /// Create a copy of SyncStatus
@@ -372,6 +396,7 @@ abstract class _SyncStatus implements SyncStatus {
     final int completedSteps,
     final int percentage,
     final String? currentPhase,
+    final bool isInitialSync,
   }) = _$SyncStatusImpl;
 
   @override
@@ -413,6 +438,10 @@ abstract class _SyncStatus implements SyncStatus {
   /// 現在のフェーズ名（「AppSettings同期中」「カスタムリスト同期中」など）
   @override
   String? get currentPhase;
+
+  /// 初回同期フラグ（ローカルストレージが空の状態からの初回起動時のみtrue）
+  @override
+  bool get isInitialSync;
 
   /// Create a copy of SyncStatus
   /// with the given fields replaced by the non-null parameter values.

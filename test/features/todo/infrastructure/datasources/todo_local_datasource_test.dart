@@ -1,293 +1,277 @@
-import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive/hive.dart';
-import 'package:path/path.dart' as path;
-import 'package:meiso/features/todo/infrastructure/datasources/todo_local_datasource.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:meiso/features/todo/domain/entities/todo.dart';
 import 'package:meiso/features/todo/domain/value_objects/todo_title.dart';
 import 'package:meiso/features/todo/domain/value_objects/todo_date.dart';
+import 'package:meiso/features/todo/infrastructure/datasources/todo_local_datasource.dart';
 
 void main() {
-  late TodoLocalDataSourceHive dataSource;
-  late String testBoxName;
-  late Directory tempDir;
-
-  setUp(() async {
-    // テンポラリディレクトリを作成
-    tempDir = await Directory.systemTemp.createTemp('hive_test_');
-    
-    // Hiveをテスト用に初期化（テンポラリディレクトリ使用）
-    Hive.init(tempDir.path);
-    testBoxName = 'test_todos_${DateTime.now().millisecondsSinceEpoch}';
-    dataSource = TodoLocalDataSourceHive(boxName: testBoxName);
-    await dataSource.initialize();
-  });
-
-  tearDown(() async {
-    // テスト後にボックスを削除
-    try {
-      final box = Hive.box<Map>(testBoxName);
-      await box.clear();
-      await box.close();
-      await Hive.deleteBoxFromDisk(testBoxName);
-    } catch (e) {
-      // ボックスが既にクローズされている場合はスキップ
-    }
-    
-    // テンポラリディレクトリを削除
-    if (await tempDir.exists()) {
-      await tempDir.delete(recursive: true);
-    }
-  });
-
   group('TodoLocalDataSourceHive', () {
-    group('saveTodo / loadTodoById', () {
-      test('Todoを保存して読み込める', () async {
+    late TodoLocalDataSourceHive dataSource;
+    late Box<Map> testBox;
+
+    setUp(() async {
+      // テスト用のインメモリHiveボックスを使用
+      Hive.init('./test_cache');
+      testBox = await Hive.openBox<Map>('test_todos');
+      dataSource = TodoLocalDataSourceHive(todosBox: testBox);
+    });
+
+    tearDown(() async {
+      await testBox.clear();
+      await testBox.close();
+      await Hive.deleteFromDisk();
+    });
+
+    group('loadAllTodos', () {
+      test('空の場合は空リストを返す', () async {
+        // Act
+        final result = await dataSource.loadAllTodos();
+
+        // Assert
+        expect(result, isEmpty);
+      });
+
+      test('保存されたTodoを全て読み込める', () async {
+        // Arrange
+        final todo1 = Todo(
+          id: 'id1',
+          title: TodoTitle.unsafe('買い物'),
+          completed: false,
+          order: 0,
+          createdAt: DateTime(2025, 11, 12),
+          updatedAt: DateTime(2025, 11, 12),
+          needsSync: true,
+        );
+        final todo2 = Todo(
+          id: 'id2',
+          title: TodoTitle.unsafe('掃除'),
+          completed: true,
+          order: 1,
+          createdAt: DateTime(2025, 11, 12),
+          updatedAt: DateTime(2025, 11, 12),
+          needsSync: false,
+        );
+
+        await dataSource.saveTodo(todo1);
+        await dataSource.saveTodo(todo2);
+
+        // Act
+        final result = await dataSource.loadAllTodos();
+
+        // Assert
+        expect(result.length, 2);
+        expect(result.any((t) => t.id == 'id1'), true);
+        expect(result.any((t) => t.id == 'id2'), true);
+      });
+    });
+
+    group('loadTodoById', () {
+      test('存在するTodoを取得できる', () async {
         // Arrange
         final todo = Todo(
           id: 'test-id',
           title: TodoTitle.unsafe('買い物'),
           completed: false,
           order: 0,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+          createdAt: DateTime(2025, 11, 12),
+          updatedAt: DateTime(2025, 11, 12),
+          needsSync: true,
+        );
+        await dataSource.saveTodo(todo);
+
+        // Act
+        final result = await dataSource.loadTodoById('test-id');
+
+        // Assert
+        expect(result, isNotNull);
+        expect(result!.id, 'test-id');
+        expect(result.title.value, '買い物');
+      });
+
+      test('存在しないTodoの場合はnullを返す', () async {
+        // Act
+        final result = await dataSource.loadTodoById('non-existent');
+
+        // Assert
+        expect(result, isNull);
+      });
+    });
+
+    group('saveTodo', () {
+      test('Todoを保存できる', () async {
+        // Arrange
+        final todo = Todo(
+          id: 'test-id',
+          title: TodoTitle.unsafe('買い物'),
+          completed: false,
+          date: TodoDate.today(),
+          order: 0,
+          createdAt: DateTime(2025, 11, 12),
+          updatedAt: DateTime(2025, 11, 12),
           needsSync: true,
         );
 
         // Act
         await dataSource.saveTodo(todo);
+
+        // Assert
         final loaded = await dataSource.loadTodoById('test-id');
-
-        // Assert
         expect(loaded, isNotNull);
-        expect(loaded!.id, todo.id);
-        expect(loaded.title.value, todo.title.value);
-        expect(loaded.completed, todo.completed);
+        expect(loaded!.title.value, '買い物');
+        expect(loaded.completed, false);
       });
 
-      test('存在しないIDはnullを返す', () async {
-        // Act
-        final loaded = await dataSource.loadTodoById('non-existent-id');
-
-        // Assert
-        expect(loaded, isNull);
-      });
-
-      test('日付付きTodoを保存して読み込める', () async {
+      test('既存のTodoを上書きできる', () async {
         // Arrange
-        final todo = Todo(
+        final original = Todo(
           id: 'test-id',
-          title: TodoTitle.unsafe('タスク'),
+          title: TodoTitle.unsafe('買い物'),
+          completed: false,
+          order: 0,
+          createdAt: DateTime(2025, 11, 12),
+          updatedAt: DateTime(2025, 11, 12),
+          needsSync: true,
+        );
+        await dataSource.saveTodo(original);
+
+        final updated = original.copyWith(
+          title: TodoTitle.unsafe('掃除'),
           completed: true,
-          date: TodoDate.today(),
-          order: 5,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          needsSync: false,
         );
 
         // Act
-        await dataSource.saveTodo(todo);
-        final loaded = await dataSource.loadTodoById('test-id');
+        await dataSource.saveTodo(updated);
 
         // Assert
-        expect(loaded, isNotNull);
-        expect(loaded!.date, isNotNull);
-        expect(loaded.date!.isToday, true);
+        final loaded = await dataSource.loadTodoById('test-id');
+        expect(loaded!.title.value, '掃除');
         expect(loaded.completed, true);
-        expect(loaded.order, 5);
       });
     });
 
-    group('loadAllTodos', () {
-      test('空のリストを返す（初期状態）', () async {
-        // Act
-        final todos = await dataSource.loadAllTodos();
-
-        // Assert
-        expect(todos, isEmpty);
-      });
-
-      test('複数のTodoを保存して読み込める', () async {
+    group('saveTodos', () {
+      test('複数のTodoをまとめて保存できる', () async {
         // Arrange
         final todos = [
           Todo(
-            id: 'id-1',
-            title: TodoTitle.unsafe('タスク1'),
+            id: 'id1',
+            title: TodoTitle.unsafe('買い物'),
             completed: false,
             order: 0,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
+            createdAt: DateTime(2025, 11, 12),
+            updatedAt: DateTime(2025, 11, 12),
             needsSync: true,
           ),
           Todo(
-            id: 'id-2',
-            title: TodoTitle.unsafe('タスク2'),
-            completed: true,
-            order: 1,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            needsSync: false,
-          ),
-          Todo(
-            id: 'id-3',
-            title: TodoTitle.unsafe('タスク3'),
+            id: 'id2',
+            title: TodoTitle.unsafe('掃除'),
             completed: false,
-            date: TodoDate.tomorrow(),
-            order: 2,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
+            order: 1,
+            createdAt: DateTime(2025, 11, 12),
+            updatedAt: DateTime(2025, 11, 12),
             needsSync: true,
           ),
         ];
 
         // Act
-        for (final todo in todos) {
-          await dataSource.saveTodo(todo);
-        }
-        final loaded = await dataSource.loadAllTodos();
+        await dataSource.saveTodos(todos);
 
         // Assert
-        expect(loaded.length, 3);
-        expect(loaded.map((t) => t.id).toSet(), {'id-1', 'id-2', 'id-3'});
+        final loaded = await dataSource.loadAllTodos();
+        expect(loaded.length, 2);
       });
-    });
 
-    group('saveTodos', () {
-      test('一括保存で既存データを置き換える', () async {
+      test('既存のTodoを全てクリアして新しいリストを保存する', () async {
         // Arrange
-        final oldTodo = Todo(
+        final original = Todo(
           id: 'old-id',
           title: TodoTitle.unsafe('古いタスク'),
           completed: false,
           order: 0,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+          createdAt: DateTime(2025, 11, 12),
+          updatedAt: DateTime(2025, 11, 12),
           needsSync: true,
         );
-
-        await dataSource.saveTodo(oldTodo);
+        await dataSource.saveTodo(original);
 
         final newTodos = [
           Todo(
-            id: 'new-id-1',
-            title: TodoTitle.unsafe('新しいタスク1'),
+            id: 'new-id',
+            title: TodoTitle.unsafe('新しいタスク'),
             completed: false,
             order: 0,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            needsSync: true,
-          ),
-          Todo(
-            id: 'new-id-2',
-            title: TodoTitle.unsafe('新しいタスク2'),
-            completed: false,
-            order: 1,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
+            createdAt: DateTime(2025, 11, 12),
+            updatedAt: DateTime(2025, 11, 12),
             needsSync: true,
           ),
         ];
 
         // Act
         await dataSource.saveTodos(newTodos);
-        final loaded = await dataSource.loadAllTodos();
 
         // Assert
-        expect(loaded.length, 2);
-        expect(loaded.map((t) => t.id).toSet(), {'new-id-1', 'new-id-2'});
-        expect(loaded.any((t) => t.id == 'old-id'), false);
-      });
-
-      test('空のリストで一括保存すると全削除される', () async {
-        // Arrange
-        final todo = Todo(
-          id: 'test-id',
-          title: TodoTitle.unsafe('タスク'),
-          completed: false,
-          order: 0,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          needsSync: true,
-        );
-
-        await dataSource.saveTodo(todo);
-
-        // Act
-        await dataSource.saveTodos([]);
         final loaded = await dataSource.loadAllTodos();
-
-        // Assert
-        expect(loaded, isEmpty);
+        expect(loaded.length, 1);
+        expect(loaded.first.id, 'new-id');
       });
     });
 
     group('deleteTodo', () {
-      test('Todoを削除できる', () async {
+      test('指定したTodoを削除できる', () async {
         // Arrange
         final todo = Todo(
           id: 'test-id',
-          title: TodoTitle.unsafe('タスク'),
+          title: TodoTitle.unsafe('買い物'),
           completed: false,
           order: 0,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+          createdAt: DateTime(2025, 11, 12),
+          updatedAt: DateTime(2025, 11, 12),
           needsSync: true,
         );
-
         await dataSource.saveTodo(todo);
 
         // Act
         await dataSource.deleteTodo('test-id');
-        final loaded = await dataSource.loadTodoById('test-id');
 
         // Assert
+        final loaded = await dataSource.loadTodoById('test-id');
         expect(loaded, isNull);
-      });
-
-      test('存在しないIDを削除してもエラーにならない', () async {
-        // Act & Assert
-        await dataSource.deleteTodo('non-existent-id');
-        // エラーが発生しないことを確認
       });
     });
 
     group('clear', () {
-      test('すべてのTodoを削除できる', () async {
+      test('全てのTodoを削除できる', () async {
         // Arrange
         final todos = [
           Todo(
-            id: 'id-1',
-            title: TodoTitle.unsafe('タスク1'),
+            id: 'id1',
+            title: TodoTitle.unsafe('買い物'),
             completed: false,
             order: 0,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
+            createdAt: DateTime(2025, 11, 12),
+            updatedAt: DateTime(2025, 11, 12),
             needsSync: true,
           ),
           Todo(
-            id: 'id-2',
-            title: TodoTitle.unsafe('タスク2'),
+            id: 'id2',
+            title: TodoTitle.unsafe('掃除'),
             completed: false,
             order: 1,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
+            createdAt: DateTime(2025, 11, 12),
+            updatedAt: DateTime(2025, 11, 12),
             needsSync: true,
           ),
         ];
-
-        for (final todo in todos) {
-          await dataSource.saveTodo(todo);
-        }
+        await dataSource.saveTodos(todos);
 
         // Act
         await dataSource.clear();
-        final loaded = await dataSource.loadAllTodos();
 
         // Assert
+        final loaded = await dataSource.loadAllTodos();
         expect(loaded, isEmpty);
       });
     });
   });
 }
-

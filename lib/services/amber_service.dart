@@ -1,8 +1,8 @@
-import 'dart:io' show Platform;
-import '../services/logger_service.dart';
 import 'dart:async';
-import '../services/logger_service.dart';
+import 'dart:io' show Platform;
+
 import 'package:flutter/services.dart';
+
 import '../services/logger_service.dart';
 
 /// Amber連携サービス
@@ -17,7 +17,7 @@ class AmberService {
   final _amberResponseController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get amberResponseStream => _amberResponseController.stream;
   
-  StreamSubscription? _eventSubscription;
+  StreamSubscription<dynamic>? _eventSubscription;
   
   /// EventChannelのリスニングを開始
   void startListening() {
@@ -35,7 +35,7 @@ class AmberService {
           _amberResponseController.add(eventMap);
         }
       },
-      onError: (dynamic error) {
+      onError: (Object error) {
         AppLogger.error(' EventChannel error: $error');
         _amberResponseController.addError(error);
       },
@@ -177,7 +177,7 @@ class AmberService {
 
     // 署名済みイベントを待つCompleter
     final completer = Completer<String>();
-    StreamSubscription? subscription;
+    StreamSubscription<Map<String, dynamic>>? subscription;
 
     // タイムアウト処理
     final timeoutTimer = Timer(timeout, () {
@@ -214,7 +214,7 @@ class AmberService {
           }
         }
       },
-      onError: (error) {
+      onError: (Object error) {
         if (!completer.isCompleted) {
           timeoutTimer.cancel();
           subscription?.cancel();
@@ -262,7 +262,7 @@ class AmberService {
     startListening();
 
     final completer = Completer<String>();
-    StreamSubscription? subscription;
+    StreamSubscription<Map<String, dynamic>>? subscription;
 
     // タイムアウト処理
     final timeoutTimer = Timer(timeout, () {
@@ -297,7 +297,7 @@ class AmberService {
           }
         }
       },
-      onError: (error) {
+      onError: (Object error) {
         if (!completer.isCompleted) {
           timeoutTimer.cancel();
           subscription?.cancel();
@@ -345,7 +345,7 @@ class AmberService {
     startListening();
 
     final completer = Completer<String>();
-    StreamSubscription? subscription;
+    StreamSubscription<Map<String, dynamic>>? subscription;
 
     // タイムアウト処理
     final timeoutTimer = Timer(timeout, () {
@@ -380,7 +380,7 @@ class AmberService {
           }
         }
       },
-      onError: (error) {
+      onError: (Object error) {
         if (!completer.isCompleted) {
           timeoutTimer.cancel();
           subscription?.cancel();
@@ -428,13 +428,17 @@ class AmberService {
 
     try {
       AppLogger.debug(' Signing event via ContentProvider (background)...');
-      final String signedEvent = await _channel.invokeMethod(
+      final signedEvent = await _channel.invokeMethod<String>(
         'signEventWithAmberContentProvider',
         {
           'event': event,
           'npub': npub,
         },
       );
+      
+      if (signedEvent == null) {
+        throw Exception('Amber returned null');
+      }
       
       AppLogger.info(' Event signed via ContentProvider (no UI shown)');
       return signedEvent;
@@ -462,7 +466,7 @@ class AmberService {
 
     try {
       AppLogger.debug(' Encrypting via ContentProvider (background)...');
-      final String encrypted = await _channel.invokeMethod(
+      final encrypted = await _channel.invokeMethod<String>(
         'encryptNip44WithAmberContentProvider',
         {
           'plaintext': plaintext,
@@ -470,6 +474,10 @@ class AmberService {
           'npub': npub,
         },
       );
+      
+      if (encrypted == null) {
+        throw Exception('Amber returned null');
+      }
       
       AppLogger.info(' Content encrypted via ContentProvider (no UI shown)');
       return encrypted;
@@ -497,7 +505,7 @@ class AmberService {
 
     try {
       AppLogger.debug(' Decrypting via ContentProvider (background)...');
-      final String decrypted = await _channel.invokeMethod(
+      final decrypted = await _channel.invokeMethod<String>(
         'decryptNip44WithAmberContentProvider',
         {
           'ciphertext': ciphertext,
@@ -505,6 +513,10 @@ class AmberService {
           'npub': npub,
         },
       );
+      
+      if (decrypted == null) {
+        throw Exception('Amber returned null');
+      }
       
       AppLogger.info(' Content decrypted via ContentProvider (no UI shown)');
       return decrypted;
