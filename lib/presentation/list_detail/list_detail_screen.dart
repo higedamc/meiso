@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
-import '../../providers/custom_lists_provider.dart';
+import '../../features/custom_list/presentation/providers/custom_list_providers_compat.dart';
 // import '../../providers/todos_provider.dart'; // 旧Provider
 import '../../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../../widgets/todo_item.dart';
@@ -211,7 +211,7 @@ class ListDetailScreen extends StatelessWidget {
             textCapitalization: TextCapitalization.characters,
             onSubmitted: (value) {
               if (value.trim().isNotEmpty) {
-                ref.read(customListsProvider.notifier).updateList(
+                ref.read(customListsProviderNotifierCompat).updateList(
                   customList.copyWith(name: value.trim().toUpperCase()),
                 );
                 Navigator.pop(context);
@@ -227,7 +227,7 @@ class ListDetailScreen extends StatelessWidget {
               onPressed: () {
                 final text = controller.text.trim();
                 if (text.isNotEmpty) {
-                  ref.read(customListsProvider.notifier).updateList(
+                  ref.read(customListsProviderNotifierCompat).updateList(
                     customList.copyWith(name: text.toUpperCase()),
                   );
                   Navigator.pop(context);
@@ -260,7 +260,7 @@ class ListDetailScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                ref.read(customListsProvider.notifier).deleteList(customList.id);
+                ref.read(customListsProviderNotifierCompat).deleteList(customList.id);
                 Navigator.pop(context); // ダイアログを閉じる
                 Navigator.pop(context); // 詳細画面を閉じる
               },

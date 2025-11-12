@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
-import '../../providers/custom_lists_provider.dart';
+import '../../features/custom_list/presentation/providers/custom_list_providers_compat.dart';
 // import '../../providers/todos_provider.dart'; // 旧Provider
 import '../../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../../services/logger_service.dart';
@@ -23,7 +23,7 @@ class SomedayScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final customListsAsync = ref.watch(customListsProvider);
+    final customListsAsync = ref.watch(customListsProviderCompat);
     final todosAsync = ref.watch(todosProviderCompat);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
@@ -89,7 +89,7 @@ class SomedayScreen extends ConsumerWidget {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: customLists.length,
           onReorder: (oldIndex, newIndex) {
-            ref.read(customListsProvider.notifier).reorderLists(oldIndex, newIndex);
+            ref.read(customListsProviderNotifierCompat).reorderLists(oldIndex, newIndex);
           },
           itemBuilder: (context, index) {
             final list = customLists[index];

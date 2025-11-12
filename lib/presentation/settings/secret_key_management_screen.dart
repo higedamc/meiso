@@ -9,6 +9,7 @@ import '../../providers/relay_status_provider.dart';
 // import '../../providers/todos_provider.dart'; // 旧Provider
 import '../../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../features/settings/presentation/providers/app_settings_providers_compat.dart';
 import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
 
@@ -468,7 +469,7 @@ class _SecretKeyManagementScreenState
       final relayList = ref.read(relayStatusProvider).keys.toList();
       
       // アプリ設定からTor/プロキシ設定を取得
-      final appSettingsAsync = ref.read(appSettingsProvider);
+      final appSettingsAsync = ref.read(appSettingsProviderCompat);
       final proxyUrl = appSettingsAsync.maybeWhen(
         data: (settings) => settings.torEnabled ? settings.proxyUrl : null,
         orElse: () => null,

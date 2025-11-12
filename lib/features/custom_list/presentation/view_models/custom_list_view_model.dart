@@ -30,8 +30,39 @@ class CustomListViewModel extends StateNotifier<CustomListState> {
         _syncCustomListsFromNostrUseCase = syncCustomListsFromNostrUseCase,
         super(const CustomListState.initial()) {
     if (autoLoad) {
-      loadCustomLists();
+      _initialize();
     }
+  }
+  
+  /// 初期化処理
+  Future<void> _initialize() async {
+    // CustomListを読み込み
+    await loadCustomLists();
+    
+    // 空の場合はデフォルトリストを作成
+    state.maybeMap(
+      loaded: (loadedState) {
+        if (loadedState.customLists.isEmpty) {
+          AppLogger.info('[CustomListViewModel] デフォルトリスト作成中...');
+          _createDefaultLists();
+        }
+      },
+      orElse: () {},
+    );
+  }
+  
+  /// デフォルトリストを作成
+  Future<void> _createDefaultLists() async {
+    final defaultLists = ['PERSONAL', 'SHOPPING', 'WATCH'];
+    
+    for (var i = 0; i < defaultLists.length; i++) {
+      await createCustomList(
+        name: defaultLists[i],
+        order: i,
+      );
+    }
+    
+    AppLogger.info('[CustomListViewModel] デフォルトリスト作成完了');
   }
 
   final GetAllCustomListsUseCase _getAllCustomListsUseCase;

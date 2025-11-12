@@ -5,6 +5,7 @@ import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../features/settings/presentation/providers/app_settings_providers_compat.dart';
 import '../../services/logger_service.dart';
 import '../../bridge_generated.dart/api.dart' as bridge;
 
@@ -41,7 +42,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final relayNotifier = ref.read(relayStatusProvider.notifier);
 
     // AppSettingsからリレーリストを取得（保存されている場合）
-    final appSettings = ref.read(appSettingsProvider);
+    final appSettings = ref.read(appSettingsProviderCompat);
     appSettings.whenData((settings) {
       if (settings.relays.isNotEmpty) {
         // 保存されたリレーリストを使用
@@ -73,7 +74,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
     // AppSettingsにも反映（ローカルのみ）
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
-    await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+    await ref.read(appSettingsProviderNotifierCompat).updateRelays(updatedRelays);
 
     // Nostrクライアントのリレーリストをリアルタイム更新
     try {
@@ -85,7 +86,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
     // Nostrに明示的に保存（Kind 10002）
     try {
-      await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
+      await ref.read(appSettingsProviderNotifierCompat).saveRelaysToNostr(updatedRelays);
       setState(() {
         _successMessage = l10n.relayAddedAndSaved;
         _errorMessage = null;
@@ -104,7 +105,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
     // AppSettingsにも反映（ローカルのみ）
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
-    await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+    await ref.read(appSettingsProviderNotifierCompat).updateRelays(updatedRelays);
 
     // Nostrクライアントのリレーリストをリアルタイム更新
     try {
@@ -118,7 +119,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     try {
       // リレーが空の場合でも保存を試みる（削除を反映するため）
       if (updatedRelays.isNotEmpty) {
-        await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
+        await ref.read(appSettingsProviderNotifierCompat).saveRelaysToNostr(updatedRelays);
       }
       setState(() {
         _successMessage = l10n.relayRemovedAndSaved;
@@ -178,7 +179,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
       // リレーリストが異なる場合のみ更新
       
       // 1. AppSettingsを更新
-      await ref.read(appSettingsProvider.notifier).updateRelays(remoteRelays);
+      await ref.read(appSettingsProviderNotifierCompat).updateRelays(remoteRelays);
       
       // 2. UIを更新
       final relayNotifier = ref.read(relayStatusProvider.notifier);
@@ -222,7 +223,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final l10n = AppLocalizations.of(context)!;
     final relayStatuses = ref.watch(relayStatusProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
-    final appSettingsAsync = ref.watch(appSettingsProvider);
+    final appSettingsAsync = ref.watch(appSettingsProviderCompat);
     
     // Tor有効状態を取得
     final torEnabled = appSettingsAsync.maybeWhen(
