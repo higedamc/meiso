@@ -93,6 +93,9 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
   
+  # Stricter lints based on flutter_lints
+  pedantic_mono: ^1.34.0
+  
   # Testing
   mocktail: ^1.0.4
   
