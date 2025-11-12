@@ -74,7 +74,7 @@ class PlanningDetailScreen extends StatelessWidget {
           Expanded(
             child: Consumer(
               builder: (context, ref, child) {
-                final todosAsync = ref.watch(todosProviderCompat);
+                final todosAsync = ref.watch(todosProvider);
                 
                 return todosAsync.when(
                   data: (allTodos) {

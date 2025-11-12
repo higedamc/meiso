@@ -74,7 +74,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
     // AppSettingsにも反映（ローカルのみ）
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
-    await ref.read(appSettingsProviderNotifierCompat).updateRelays(updatedRelays);
+    await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
 
     // Nostrクライアントのリレーリストをリアルタイム更新
     try {
@@ -86,7 +86,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
     // Nostrに明示的に保存（Kind 10002）
     try {
-      await ref.read(appSettingsProviderNotifierCompat).saveRelaysToNostr(updatedRelays);
+      await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
       setState(() {
         _successMessage = l10n.relayAddedAndSaved;
         _errorMessage = null;
@@ -105,7 +105,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
     // AppSettingsにも反映（ローカルのみ）
     final updatedRelays = ref.read(relayStatusProvider).keys.toList();
-    await ref.read(appSettingsProviderNotifierCompat).updateRelays(updatedRelays);
+    await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
 
     // Nostrクライアントのリレーリストをリアルタイム更新
     try {
@@ -119,7 +119,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     try {
       // リレーが空の場合でも保存を試みる（削除を反映するため）
       if (updatedRelays.isNotEmpty) {
-        await ref.read(appSettingsProviderNotifierCompat).saveRelaysToNostr(updatedRelays);
+        await ref.read(appSettingsProvider.notifier).saveRelaysToNostr(updatedRelays);
       }
       setState(() {
         _successMessage = l10n.relayRemovedAndSaved;
@@ -179,7 +179,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
       // リレーリストが異なる場合のみ更新
       
       // 1. AppSettingsを更新
-      await ref.read(appSettingsProviderNotifierCompat).updateRelays(remoteRelays);
+      await ref.read(appSettingsProvider.notifier).updateRelays(remoteRelays);
       
       // 2. UIを更新
       final relayNotifier = ref.read(relayStatusProvider.notifier);
