@@ -4,7 +4,8 @@ import '../app_theme.dart';
 import '../models/custom_list.dart';
 import '../models/todo.dart';
 import '../providers/custom_lists_provider.dart';
-import '../providers/todos_provider.dart';
+// import '../providers/todos_provider.dart'; // 旧Provider
+import '../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../providers/app_settings_provider.dart';
 import '../presentation/list_detail/list_detail_screen.dart';
 import '../presentation/planning_detail/planning_detail_screen.dart';
@@ -24,7 +25,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final customListsAsync = ref.watch(customListsProvider);
-    final todosAsync = ref.watch(todosProvider);
+    final todosAsync = ref.watch(todosProviderCompat);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ClipRect(

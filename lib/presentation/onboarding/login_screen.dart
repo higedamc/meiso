@@ -8,7 +8,8 @@ import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
 import '../../services/amber_service.dart';
 import '../../providers/nostr_provider.dart';
-import '../../providers/todos_provider.dart';
+// import '../../providers/todos_provider.dart'; // 旧Provider
+import '../../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
 
 /// ログインスクリーン
@@ -323,7 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppLogger.info('Starting background sync...', tag: 'SYNC');
             Future.microtask(() async {
               try {
-                await ref.read(todosProvider.notifier).syncFromNostr();
+                await ref.read(todosProviderNotifierCompat).syncFromNostr();
                 AppLogger.info('Background sync completed', tag: 'SYNC');
               } catch (e) {
                 AppLogger.warning('Background sync error (continuing with local data)', error: e, tag: 'SYNC');
@@ -578,7 +579,7 @@ class _LoginScreenState extends State<LoginScreen> {
       AppLogger.info('Starting background sync...', tag: 'SYNC');
       Future.microtask(() async {
         try {
-          await ref.read(todosProvider.notifier).syncFromNostr();
+          await ref.read(todosProviderNotifierCompat).syncFromNostr();
           AppLogger.info('Background sync completed', tag: 'SYNC');
         } catch (e) {
           AppLogger.warning('Background sync error (new account, no data expected)', error: e, tag: 'SYNC');

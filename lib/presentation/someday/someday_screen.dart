@@ -4,7 +4,8 @@ import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/custom_lists_provider.dart';
-import '../../providers/todos_provider.dart';
+// import '../../providers/todos_provider.dart'; // 旧Provider
+import '../../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../../services/logger_service.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/add_list_screen.dart';
@@ -23,7 +24,7 @@ class SomedayScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final customListsAsync = ref.watch(customListsProvider);
-    final todosAsync = ref.watch(todosProvider);
+    final todosAsync = ref.watch(todosProviderCompat);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
 

@@ -13,11 +13,11 @@ import '../../domain/entities/todo.dart';
 import '../../domain/value_objects/todo_date.dart';
 import 'todo_list_state.dart';
 
-/// TodoリストのStateNotifier
+/// TodoリストのViewModel (StateNotifier)
 ///
 /// UseCaseを使用してTodoリストの状態を管理する
-class TodoListNotifier extends StateNotifier<TodoListState> {
-  TodoListNotifier({
+class TodoListViewModel extends StateNotifier<TodoListState> {
+  TodoListViewModel({
     required GetAllTodosUseCase getAllTodosUseCase,
     required CreateTodoUseCase createTodoUseCase,
     required UpdateTodoUseCase updateTodoUseCase,

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../app_theme.dart';
-import '../providers/todos_provider.dart';
+// import '../providers/todos_provider.dart'; // 旧Provider
+import '../features/todo/presentation/providers/todo_providers_compat.dart';
 import 'add_todo_field.dart';
 import 'todo_item.dart';
 
@@ -82,9 +83,12 @@ class TodoColumn extends StatelessWidget {
         return ReorderableListView.builder(
           itemCount: todos.length,
           onReorder: (oldIndex, newIndex) {
+            final todo = todos[oldIndex];
+            // newIndexの調整（ReorderableListViewの仕様）
+            final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
             ref
-                .read(todosProvider.notifier)
-                .reorderTodo(date, oldIndex, newIndex);
+                .read(todosProviderNotifierCompat)
+                .reorderTodo(todo.id, date, date, adjustedIndex);
           },
           itemBuilder: (context, index) {
             final todo = todos[index];

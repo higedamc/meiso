@@ -6,7 +6,8 @@ import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
-import '../../providers/todos_provider.dart';
+// import '../../providers/todos_provider.dart'; // 旧Provider
+import '../../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
@@ -504,7 +505,7 @@ class _SecretKeyManagementScreenState
   /// 自動同期（バックグラウンド）
   Future<void> _autoSync() async {
     try {
-      final todoNotifier = ref.read(todosProvider.notifier);
+      final todoNotifier = ref.read(todosProviderNotifierCompat);
       
       // 新実装（Kind 30001）: Nostrから全Todoリストを同期
       await todoNotifier.syncFromNostr();
@@ -566,7 +567,7 @@ class _SecretKeyManagementScreenState
       AppLogger.debug('✅ All local data deleted');
 
       // 3. すべてのProviderをリセット
-      ref.invalidate(todosProvider);
+      ref.invalidate(todosProviderCompat);
       ref.read(nostrInitializedProvider.notifier).state = false;
       ref.read(publicKeyProvider.notifier).state = null;
       ref.invalidate(relayStatusProvider);

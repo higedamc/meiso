@@ -14,7 +14,8 @@ import '../models/todo.dart';
 import '../services/logger_service.dart';
 import '../models/link_preview.dart';
 import '../services/logger_service.dart';
-import '../providers/todos_provider.dart';
+// import '../providers/todos_provider.dart'; // 旧Provider
+import '../features/todo/presentation/providers/todo_providers_compat.dart';
 import '../services/logger_service.dart';
 import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
@@ -144,7 +145,7 @@ class TodoItem extends StatelessWidget {
                   }
                   
                   // 内部で_syncAllTodosToNostr()を呼び出す
-                  await ref.read(todosProvider.notifier).manualSyncToNostr();
+                  await ref.read(todosProviderNotifierCompat).manualSyncToNostr();
                   
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -458,7 +459,7 @@ class TodoItem extends StatelessWidget {
                   ? tomorrow 
                   : todo.date!.add(const Duration(days: 1));
               
-              await ref.read(todosProvider.notifier).moveTodo(
+              await ref.read(todosProviderNotifierCompat).moveTodo(
                 todo.id,
                 todo.date,
                 targetDate,
@@ -479,7 +480,7 @@ class TodoItem extends StatelessWidget {
                 final result = await _showRecurringDeleteDialog(context);
                 if (result == RecurringDeleteOption.thisInstance) {
                   // このインスタンスのみ削除
-                  await ref.read(todosProvider.notifier).deleteRecurringInstance(
+                  await ref.read(todosProviderNotifierCompat).deleteRecurringInstance(
                     todo.id,
                     todo.date,
                   );
@@ -494,7 +495,7 @@ class TodoItem extends StatelessWidget {
                   return false; // Dismissibleをキャンセル（手動で削除済み）
                 } else if (result == RecurringDeleteOption.allInstances) {
                   // すべてのインスタンスを削除
-                  await ref.read(todosProvider.notifier).deleteAllRecurringInstances(
+                  await ref.read(todosProviderNotifierCompat).deleteAllRecurringInstances(
                     todo.id,
                     todo.date,
                   );
@@ -523,7 +524,7 @@ class TodoItem extends StatelessWidget {
               // 削除前にTodoを保持（元に戻す用）
               final deletedTodo = todo;
               
-              ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
+              ref.read(todosProviderNotifierCompat).deleteTodo(todo.id, todo.date);
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -534,7 +535,7 @@ class TodoItem extends StatelessWidget {
                     textColor: Colors.blue.shade300,
                     onPressed: () {
                       // 削除をキャンセルしてTodoを復元
-                      ref.read(todosProvider.notifier).addTodoWithData(deletedTodo);
+                      ref.read(todosProviderNotifierCompat).addTodoWithData(deletedTodo);
                     },
                   ),
                 ),
@@ -570,7 +571,7 @@ class TodoItem extends StatelessWidget {
                           value: todo.completed,
                           onChanged: (_) {
                             ref
-                                .read(todosProvider.notifier)
+                                .read(todosProviderNotifierCompat)
                                 .toggleTodo(todo.id, todo.date);
                           },
                           size: 22.0,

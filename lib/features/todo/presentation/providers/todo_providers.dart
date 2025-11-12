@@ -15,8 +15,8 @@ import '../../domain/repositories/todo_repository.dart';
 import '../../infrastructure/datasources/todo_local_datasource.dart';
 import '../../infrastructure/datasources/todo_remote_datasource.dart';
 import '../../infrastructure/repositories/todo_repository_impl.dart';
-import '../state/todo_list_notifier.dart';
-import '../state/todo_list_state.dart';
+import '../view_models/todo_list_view_model.dart';
+import '../view_models/todo_list_state.dart';
 
 // ============================================================================
 // Infrastructure Layer: DataSources
@@ -162,8 +162,8 @@ final getTodosByListUseCaseProvider = Provider<GetTodosByListUseCase>((ref) {
 /// 
 /// ⚠️ 注意: Hive初期化を待ってから使用してください
 /// 使用前に `todoLocalDataSourceInitializerProvider` が完了していることを確認
-final todoListNotifierProvider =
-    StateNotifierProvider<TodoListNotifier, TodoListState>((ref) {
+final todoListViewModelProvider =
+    StateNotifierProvider<TodoListViewModel, TodoListState>((ref) {
   // Hive初期化が完了するまで待つ
   final initState = ref.watch(todoLocalDataSourceInitializerProvider);
   
@@ -173,7 +173,7 @@ final todoListNotifierProvider =
     orElse: () => false,
   );
   
-  return TodoListNotifier(
+  return TodoListViewModel(
     getAllTodosUseCase: ref.watch(getAllTodosUseCaseProvider),
     createTodoUseCase: ref.watch(createTodoUseCaseProvider),
     updateTodoUseCase: ref.watch(updateTodoUseCaseProvider),
