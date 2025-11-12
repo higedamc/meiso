@@ -66,7 +66,7 @@ class _AddTodoFieldState extends State<AddTodoField> {
                   onSubmitted: (value) {
                     if (value.trim().isNotEmpty) {
                       ref
-                          .read(todosProviderNotifierCompat)
+                          .read(todosProvider.notifier)
                           .addTodo(value, widget.date);
                       _controller.clear();
                       _focusNode.requestFocus();
