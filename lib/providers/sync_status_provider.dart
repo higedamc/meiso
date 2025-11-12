@@ -55,6 +55,9 @@ class SyncStatus with _$SyncStatus {
     
     /// 現在のフェーズ名（「AppSettings同期中」「カスタムリスト同期中」など）
     String? currentPhase,
+    
+    /// 初回同期フラグ（ローカルストレージが空の状態からの初回起動時のみtrue）
+    @Default(false) bool isInitialSync,
   }) = _SyncStatus;
 }
 
@@ -143,7 +146,11 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
   /// Phase 8.5: 進捗追跡メソッド
   
   /// 同期を開始し、全体のステップ数を設定
-  void startSyncWithProgress({required int totalSteps, String? initialPhase}) {
+  void startSyncWithProgress({
+    required int totalSteps,
+    String? initialPhase,
+    bool isInitialSync = false,
+  }) {
     state = state.copyWith(
       state: SyncState.syncing,
       totalSteps: totalSteps,
@@ -151,6 +158,7 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
       percentage: 0,
       currentPhase: initialPhase,
       errorMessage: null,
+      isInitialSync: isInitialSync,
     );
   }
   
@@ -188,6 +196,7 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
       completedSteps: 0,
       percentage: 0,
       currentPhase: null,
+      isInitialSync: false,
     );
   }
 }

@@ -1,17 +1,10 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import '../../../../models/todo.dart';
-import '../../../../models/link_preview.dart';
-import '../../../../models/recurrence_pattern.dart';
+import '../../../../providers/nostr_provider.dart';
+import '../../../../providers/todos_provider.dart' as old;
 import '../../../../services/local_storage_service.dart';
 import '../../../../services/logger_service.dart';
-import '../../../../services/link_preview_service.dart';
-import '../../../../services/recurrence_parser.dart';
-import '../../../../providers/nostr_provider.dart';
-import '../../../../providers/sync_status_provider.dart';
-import '../../../../providers/custom_lists_provider.dart';
-import '../../../../providers/todos_provider.dart' as old;
 import 'todo_list_state.dart';
 
 /// TodoリストのViewModel（旧TodosNotifierと同等の機能）

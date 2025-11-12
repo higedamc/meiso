@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../models/custom_list.dart';
 import '../../../../providers/custom_lists_provider.dart' as old;
-import '../view_models/custom_list_view_model.dart';
 import 'custom_list_providers.dart';
 
 /// 旧UIとの互換性レイヤー

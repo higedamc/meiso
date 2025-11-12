@@ -9,7 +9,6 @@ import '../../services/logger_service.dart';
 import '../../services/amber_service.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/todos_provider.dart';
-import '../../providers/custom_lists_provider.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
 
 /// ログインスクリーン

@@ -87,10 +87,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         AppLogger.info(' [Todos] ローカルデータなし');
         state = AsyncValue.data({});
         
-        // ログイン済みの場合のみ優先同期
+        // ログイン済みの場合のみ優先同期（初回同期フラグ付き）
         if (_ref.read(nostrInitializedProvider)) {
-          AppLogger.debug(' [Todos] Nostr初期化済み。優先同期を開始');
-          _prioritySync();
+          AppLogger.debug(' [Todos] Nostr初期化済み。優先同期を開始（初回同期）');
+          _prioritySync(isInitialSync: true);
         } else {
           AppLogger.debug(' [Todos] Nostr未初期化（ログイン前）のため、同期をスキップ');
         }
@@ -108,14 +108,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
   
   /// 優先同期（遅延なし、初回ログイン時用）
-  Future<void> _prioritySync() async {
+  Future<void> _prioritySync({bool isInitialSync = false}) async {
     // Nostr初期化チェック（即座に）
     if (!_ref.read(nostrInitializedProvider)) {
       AppLogger.debug(' [Todos] Nostr未初期化のため、優先同期をスキップ');
       return;
     }
     
-    AppLogger.info(' [Todos] 優先同期を開始');
+    AppLogger.info(' [Todos] 優先同期を開始${isInitialSync ? "（初回同期）" : ""}');
 
     try {
       // タイムアウト付きで同期実行（60秒）
@@ -179,7 +179,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
         
         _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
-        await syncFromNostr();
+        await syncFromNostr(isInitialSync: isInitialSync);
         AppLogger.info(' [Todos] 優先同期完了');
       });
     } catch (e, stackTrace) {
@@ -2020,7 +2020,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
   
   /// Nostrからすべてのtodoを同期（Kind 30001 - Todoリスト全体を取得）
-  Future<void> syncFromNostr() async {
+  Future<void> syncFromNostr({bool isInitialSync = false}) async {
     if (!_ref.read(nostrInitializedProvider)) {
       AppLogger.warning(' Nostr未初期化のため同期をスキップ');
       return;
@@ -2033,6 +2033,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     _ref.read(syncStatusProvider.notifier).startSyncWithProgress(
       totalSteps: 3,
       initialPhase: 'AppSettings同期中...',
+      isInitialSync: isInitialSync,
     );
 
     try {

@@ -1,11 +1,9 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
-import 'package:http/http.dart' as http;
-import '../services/logger_service.dart';
-import 'package:html/parser.dart' as html_parser;
-import '../services/logger_service.dart';
+
 import 'package:html/dom.dart';
-import '../services/logger_service.dart';
+import 'package:html/parser.dart' as html_parser;
+import 'package:http/http.dart' as http;
+
 import '../models/link_preview.dart';
 import '../services/logger_service.dart';
 

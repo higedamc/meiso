@@ -14,14 +14,13 @@ class SyncLoadingOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final syncStatus = ref.watch(syncStatusProvider);
     
-    // 同期中でない場合は表示しない
-    if (syncStatus.state != SyncState.syncing) {
+    // 初回同期時のみ表示（ローカルストレージが空の状態からの初回起動時）
+    if (!syncStatus.isInitialSync) {
       return const SizedBox.shrink();
     }
     
-    // 進捗が0%の場合のみ表示（初回同期時）
-    // または totalSteps が設定されている場合（Phase 8.5.1の進捗追跡が有効）
-    if (syncStatus.totalSteps == 0 && syncStatus.percentage == 0) {
+    // 同期中でない場合は表示しない
+    if (syncStatus.state != SyncState.syncing) {
       return const SizedBox.shrink();
     }
     

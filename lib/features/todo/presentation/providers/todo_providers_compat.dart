@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../models/todo.dart';
 import '../../../../providers/todos_provider.dart' as old;
-import '../view_models/todo_list_view_model.dart';
 import 'todo_providers.dart';
 
 /// 旧UIとの互換性レイヤー
