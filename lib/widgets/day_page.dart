@@ -165,7 +165,7 @@ class DayPage extends ConsumerWidget {
         final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
         ref
             .read(todosProvider.notifier)
-            .reorderTodo(todo.id, date, date, adjustedIndex);
+            .reorderTodo(date, oldIndex, adjustedIndex);
       },
       itemBuilder: (context, index) {
         final todo = todos[index];
