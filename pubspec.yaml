@@ -36,6 +36,9 @@ dependencies:
   # State Management
   flutter_riverpod: ^2.6.1
   
+  # Functional Programming
+  dartz: ^0.10.1
+  
   # Data Models
   freezed_annotation: ^2.4.4
   json_annotation: ^4.9.0
@@ -89,6 +92,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  
+  # Testing
+  mocktail: ^1.0.4
   
   # Code Generation
   build_runner: ^2.4.13
