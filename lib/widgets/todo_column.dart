@@ -86,7 +86,7 @@ class TodoColumn extends StatelessWidget {
             // newIndexの調整（ReorderableListViewの仕様）
             final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
             ref
-                .read(todosProviderNotifierCompat)
+                .read(todosProvider.notifier)
                 .reorderTodo(todo.id, date, date, adjustedIndex);
           },
           itemBuilder: (context, index) {
