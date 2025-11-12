@@ -4,6 +4,7 @@ import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../models/app_settings.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../features/settings/presentation/providers/app_settings_providers_compat.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/proxy_status_provider.dart';
 import '../../providers/locale_provider.dart';
@@ -51,7 +52,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     );
 
     if (selected != null) {
-      await ref.read(appSettingsProvider.notifier).setWeekStartDay(selected);
+      await ref.read(appSettingsProviderNotifierCompat).setWeekStartDay(selected);
     }
   }
 
@@ -92,7 +93,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     );
 
     if (selected != null) {
-      await ref.read(appSettingsProvider.notifier).setCalendarView(selected);
+      await ref.read(appSettingsProviderNotifierCompat).setCalendarView(selected);
     }
   }
 
@@ -390,7 +391,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
     if (result != null) {
       final newProxyUrl = 'socks5://${result['host']}:${result['port']}';
-      await ref.read(appSettingsProvider.notifier).setProxyUrl(newProxyUrl);
+      await ref.read(appSettingsProviderNotifierCompat).setProxyUrl(newProxyUrl);
       
       if (context.mounted) {
         final snackbarL10n = AppLocalizations.of(context)!;
@@ -423,12 +424,12 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final appSettingsAsync = ref.watch(appSettingsProvider);
+    final appSettingsAsync = ref.watch(appSettingsProviderCompat);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final currentLocale = ref.watch(localeProvider);
 
     // Tor有効時に自動的にプロキシテストを実行
-    ref.listen<AsyncValue<AppSettings>>(appSettingsProvider, (previous, next) {
+    ref.listen<AsyncValue<AppSettings>>(appSettingsProviderCompat, (previous, next) {
       final prevSettings = previous?.value;
       final nextSettings = next.value;
       
@@ -510,7 +511,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     value: settings.darkMode,
                     onChanged: (value) async {
                       await ref
-                          .read(appSettingsProvider.notifier)
+                          .read(appSettingsProviderNotifierCompat)
                           .toggleDarkMode();
                     },
                     secondary: Icon(
@@ -555,7 +556,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     value: settings.notificationsEnabled,
                     onChanged: (value) async {
                       await ref
-                          .read(appSettingsProvider.notifier)
+                          .read(appSettingsProviderNotifierCompat)
                           .toggleNotifications();
                     },
                     secondary: Icon(
@@ -579,7 +580,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     ),
                     value: settings.torEnabled,
                     onChanged: (value) async {
-                      await ref.read(appSettingsProvider.notifier).toggleTor();
+                      await ref.read(appSettingsProviderNotifierCompat).toggleTor();
                       
                       if (context.mounted) {
                         final snackbarL10n = AppLocalizations.of(context)!;

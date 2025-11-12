@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app_theme.dart';
 import '../models/custom_list.dart';
 import '../models/todo.dart';
-import '../providers/custom_lists_provider.dart';
+import '../features/custom_list/presentation/providers/custom_list_providers_compat.dart';
 // import '../providers/todos_provider.dart'; // 旧Provider
 import '../features/todo/presentation/providers/todo_providers_compat.dart';
-import '../providers/app_settings_provider.dart';
+import '../features/settings/presentation/providers/app_settings_providers_compat.dart';
 import '../presentation/list_detail/list_detail_screen.dart';
 import '../presentation/planning_detail/planning_detail_screen.dart';
 import 'add_list_screen.dart';
@@ -24,7 +24,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final customListsAsync = ref.watch(customListsProvider);
+    final customListsAsync = ref.watch(customListsProviderCompat);
     final todosAsync = ref.watch(todosProviderCompat);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -126,7 +126,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
                     _getListTodoCount(list.id, todos),
                     onTap: () async {
                       // 最後に見たリストIDを保存
-                      await ref.read(appSettingsProvider.notifier).setLastViewedCustomListId(list.id);
+                      await ref.read(appSettingsProviderNotifierCompat).setLastViewedCustomListId(list.id);
                       
                       onListSelected();
                       if (context.mounted) {

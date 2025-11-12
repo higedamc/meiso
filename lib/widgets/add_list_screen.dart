@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app_theme.dart';
-import '../providers/custom_lists_provider.dart';
+import '../features/custom_list/presentation/providers/custom_list_providers_compat.dart';
 
 /// リスト追加用の全画面モーダル（TodoEditScreenと同じスタイル）
 class AddListScreen extends ConsumerStatefulWidget {
@@ -202,7 +202,7 @@ class _AddListScreenState extends ConsumerState<AddListScreen> {
     }
 
     // リストを追加
-    ref.read(customListsProvider.notifier).addList(text);
+    ref.read(customListsProviderNotifierCompat).addList(text);
     
     // 画面を閉じる
     Navigator.pop(context);

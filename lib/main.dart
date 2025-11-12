@@ -16,7 +16,7 @@ import 'presentation/settings/cryptography_detail_screen.dart';
 import 'bridge_generated.dart/frb_generated.dart';
 import 'services/local_storage_service.dart';
 import 'services/logger_service.dart';
-import 'providers/app_settings_provider.dart';
+import 'features/settings/presentation/providers/app_settings_providers_compat.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 // import 'providers/todos_provider.dart'; // 旧Provider
@@ -172,7 +172,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           AppLogger.info('Amberモードで公開鍵を復元しました: ${publicKey.substring(0, 16)}...', tag: 'AMBER');
           
           // アプリ設定からリレーリストとプロキシURLを取得
-          final appSettingsAsync = ref.read(appSettingsProvider);
+          final appSettingsAsync = ref.read(appSettingsProviderCompat);
           final relays = appSettingsAsync.value?.relays.isNotEmpty == true
               ? appSettingsAsync.value!.relays
               : null;
@@ -233,7 +233,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
   @override
   Widget build(BuildContext context) {
     // アプリ設定を監視してダークモード切り替え
-    final appSettingsAsync = ref.watch(appSettingsProvider);
+    final appSettingsAsync = ref.watch(appSettingsProviderCompat);
     // ロケール設定を監視
     final locale = ref.watch(localeProvider);
     

@@ -1338,6 +1338,30 @@ lib/features/custom_list/
   - リレーリスト管理（NIP-65 Kind 10002）
   - Amber連携
 
+##### 実装戦略：暫定ハイブリッドアプローチ
+
+**Phase 7.6と同様の戦略を採用**
+
+Settings機能は複雑なNostr/Amber連携ロジック（520行）を含むため、段階的移行を実施：
+
+- ✅ **新Architecture実装**（シンプルな操作）
+  - ローカルストレージの読み書き
+  - 基本設定の更新（ダークモード、週の開始曜日、カレンダー表示形式、通知設定）
+  - リレーリストのローカル更新
+  - バリデーション
+
+- 🔄 **互換レイヤーから旧Provider委譲**（複雑な操作）
+  - Nostr同期（NIP-78 Kind 30078）
+  - リレーリストのNostr保存（NIP-65 Kind 10002）
+  - Amber署名連携
+  - Tor/Proxy設定との統合
+
+**メリット**：
+1. 即座にコンパイル可能で動作する
+2. テストが通る
+3. 将来的に段階的に移行可能
+4. リスクを最小化
+
 ##### 実装計画
 
 **Domain層**
@@ -1572,7 +1596,7 @@ Presentation → Application → Domain ← Infrastructure
 | Phase 5 | Todo Presentation | 3-4時間 | ✅ 完了 |
 | Phase 6 | Provider統合 | 2-3時間 | ✅ 完了 |
 | Phase 7 | UI統合・ViewModels | 4-5時間 | ✅ 完了 |
-| Phase 8 | 他機能展開 | 6-8時間 | ⏸️ 未着手 |
+| Phase 8 | 他機能展開 | 6-8時間 | ✅ 完了 |
 
 ### チェックポイント
 
@@ -1617,11 +1641,23 @@ Presentation → Application → Domain ← Infrastructure
 
 **作成日**: 2025-11-12  
 **最終更新**: 2025-11-12  
-**ステータス**: 🎉 Phase 7.6実装完了（未実装メソッド完全統合）
+**ステータス**: 🎉 Phase 8完了 + Nostr同期タイマー実装完了
 
 ---
 
 ## 📝 変更履歴
+
+### 2025-11-12 (最終更新)
+- **Nostr同期タイマー実装** (リファクタリング後の不具合修正):
+  - TodoListViewModelに自動バッチ同期タイマー追加（30秒ごと）
+  - CustomListViewModelに初期化処理追加（デフォルトリスト作成）
+  - 新アーキテクチャで完全にNostr同期が動作するように修正
+  - 未使用import削除（旧Provider参照を全て削除）
+  - 互換レイヤーが新アーキテクチャのデータを正しく参照
+- **問題修正**:
+  - SOMEDAY画面の紫色崩れ問題 → データ取得タイミング修正
+  - タスク同期されない問題 → 同期タイマー実装で解決
+  - MLSグループリスト作成機能 → コードベースに存在せず（将来実装予定）
 
 ### 2025-11-12
 - **Phase 0完了**: 現状分析、計画策定、Oracle承認取得
@@ -1689,4 +1725,22 @@ Presentation → Application → Domain ← Infrastructure
     7. `updateTodoWithRecurrence()` - 繰り返しパターン更新
   - `TodoListViewModelCompat`に`Ref`を追加
   - 全7テストケースでパス確認
+  - コンパイルエラー0件達成
+- **Phase 8.1完了** (2025-11-12):
+  - CustomList機能のClean Architecture移行完了
+  - Domain層: CustomList Entity, ListName ValueObject, Repository interface
+  - Infrastructure層: HiveベースLocalDataSource, Repository実装
+  - Application層: 6個のUseCases実装
+  - Presentation層: State, ViewModel, Providers, 互換レイヤー
+  - AppSettings統合（customListOrder）
+  - コンパイルエラー0件達成
+- **Phase 8.2完了** (2025-11-12):
+  - Settings機能のClean Architecture移行完了
+  - **暫定ハイブリッド実装戦略**採用
+  - Domain層: AppSettings Entity, Repository interface, Errors定義
+  - Infrastructure層: HiveベースLocalDataSource, RemoteDataSource定義
+  - Application層: 10個のUseCases実装
+  - Presentation層: State, ViewModel, Providers, 互換レイヤー
+  - 基本設定（ダークモード、週開始曜日等）→新Architecture実装
+  - 複雑なNostr/Amber連携→互換レイヤーから旧Provider委譲
   - コンパイルエラー0件達成

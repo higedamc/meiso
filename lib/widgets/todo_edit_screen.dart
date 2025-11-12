@@ -6,9 +6,11 @@ import '../app_theme.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
+import '../models/custom_list.dart';
 // import '../providers/todos_provider.dart'; // 旧Provider
 import '../features/todo/presentation/providers/todo_providers_compat.dart';
-import '../providers/custom_lists_provider.dart';
+import '../features/custom_list/presentation/providers/custom_list_providers_compat.dart';
+import '../services/link_preview_service.dart';
 import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
 
@@ -358,7 +360,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
 
   /// SOMEDAY LISTのサブメニューを表示
   Future<void> _showSomedayListDialog() async {
-    final customListsAsync = ref.read(customListsProvider);
+    final customListsAsync = ref.read(customListsProviderCompat);
 
     final result = await showDialog<dynamic>(
       context: context,

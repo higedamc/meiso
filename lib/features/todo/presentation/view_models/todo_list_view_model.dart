@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/common/usecase.dart';
 import '../../../../services/logger_service.dart';
@@ -37,8 +38,45 @@ class TodoListViewModel extends StateNotifier<TodoListState> {
         _syncFromNostrUseCase = syncFromNostrUseCase,
         super(const TodoListState.initial()) {
     if (autoLoad) {
-      loadTodos();
+      _initialize();
     }
+  }
+  
+  /// 初期化処理
+  Future<void> _initialize() async {
+    // Todoリストを読み込み
+    await loadTodos();
+    
+    // 自動バッチ同期タイマーを開始（30秒ごと）
+    _startBatchSyncTimer();
+  }
+  
+  /// 自動バッチ同期タイマーを開始（30秒ごと）
+  void _startBatchSyncTimer() {
+    AppLogger.debug('[TodoListViewModel] バッチ同期タイマー起動（30秒ごと）');
+    
+    // 既存のタイマーをキャンセル
+    _batchSyncTimer?.cancel();
+    
+    // 30秒ごとに実行
+    _batchSyncTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _executeBatchSync();
+    });
+  }
+  
+  /// バッチ同期を実行
+  Future<void> _executeBatchSync() async {
+    AppLogger.info('[TodoListViewModel] バッチ同期実行中...');
+    
+    // バックグラウンドで同期（UIをブロックしない）
+    syncFromNostr();
+  }
+  
+  @override
+  void dispose() {
+    AppLogger.debug('[TodoListViewModel] dispose: バッチ同期タイマーをキャンセル');
+    _batchSyncTimer?.cancel();
+    super.dispose();
   }
 
   final GetAllTodosUseCase _getAllTodosUseCase;
@@ -49,6 +87,9 @@ class TodoListViewModel extends StateNotifier<TodoListState> {
   final ReorderTodoUseCase _reorderTodoUseCase;
   final MoveTodoUseCase _moveTodoUseCase;
   final SyncFromNostrUseCase _syncFromNostrUseCase;
+  
+  // バッチ同期用のタイマー
+  Timer? _batchSyncTimer;
 
   /// Todoリストを読み込む
   Future<void> loadTodos() async {
