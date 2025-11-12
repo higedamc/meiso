@@ -9,7 +9,7 @@ import '../../services/logger_service.dart';
 import '../../services/amber_service.dart';
 import '../../providers/nostr_provider.dart';
 // import '../../providers/todos_provider.dart'; // 旧Provider
-import '../../features/todo/presentation/providers/todo_providers_compat.dart';
+
 import '../../bridge_generated.dart/api.dart' as rust_api;
 
 /// ログインスクリーン

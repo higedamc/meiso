@@ -5,7 +5,7 @@ import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/app_settings_provider.dart';
-import '../../features/settings/presentation/providers/app_settings_providers_compat.dart';
+
 import '../../services/logger_service.dart';
 import '../../bridge_generated.dart/api.dart' as bridge;
 

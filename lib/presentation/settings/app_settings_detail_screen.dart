@@ -4,7 +4,7 @@ import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../models/app_settings.dart';
 import '../../providers/app_settings_provider.dart';
-import '../../features/settings/presentation/providers/app_settings_providers_compat.dart';
+
 import '../../providers/nostr_provider.dart';
 import '../../providers/proxy_status_provider.dart';
 import '../../providers/locale_provider.dart';

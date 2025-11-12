@@ -7,9 +7,9 @@ import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 // import '../../providers/todos_provider.dart'; // 旧Provider
-import '../../features/todo/presentation/providers/todo_providers_compat.dart';
+
 import '../../providers/app_settings_provider.dart';
-import '../../features/settings/presentation/providers/app_settings_providers_compat.dart';
+
 import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
 
