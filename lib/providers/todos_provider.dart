@@ -25,6 +25,7 @@ import '../features/todo/application/providers/usecase_providers.dart';
 import '../features/todo/application/usecases/create_todo_usecase.dart';
 import '../features/todo/application/usecases/update_todo_usecase.dart';
 import '../features/todo/application/usecases/delete_todo_usecase.dart';
+import '../features/todo/infrastructure/providers/repository_providers.dart';
 
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
@@ -2703,63 +2704,34 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     
     try {
       final nostrService = _ref.read(nostrServiceProvider);
-      final isAmberMode = _ref.read(isAmberModeProvider);
       
       // 1. 既存のKind 30078イベントを取得
       AppLogger.debug(' Fetching existing Kind 30078 events...');
       _ref.read(syncStatusProvider.notifier).updateMessage('旧データ取得中...');
       
-      List<Todo> oldTodos;
-      if (isAmberMode) {
-        // Amberモード: 暗号化されたKind 30078イベントを取得
-        final encryptedTodos = await nostrService.fetchEncryptedTodos();
-        
-        if (encryptedTodos.isEmpty) {
-          AppLogger.info(' No Kind 30078 events found. Migration not needed.');
-          _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.notNeeded;
-          return;
-        }
-        
-        AppLogger.debug(' Found ${encryptedTodos.length} encrypted Kind 30078 events');
-        
-        // Amberで復号化
-        oldTodos = [];
-        final amberService = _ref.read(amberServiceProvider);
-        final publicKey = _ref.read(publicKeyProvider);
-        
-        if (publicKey == null) {
-          throw Exception('公開鍵が設定されていません');
-        }
-        
-        for (final encryptedTodo in encryptedTodos) {
-          try {
-            final decryptedJson = await amberService.decryptNip44(
-              encryptedTodo.encryptedContent,
-              publicKey,
-            );
-            final todoMap = jsonDecode(decryptedJson) as Map<String, dynamic>;
-            oldTodos.add(Todo(
-              id: todoMap['id'] as String,
-              title: todoMap['title'] as String,
-              completed: todoMap['completed'] as bool,
-              date: todoMap['date'] != null 
-                  ? DateTime.parse(todoMap['date'] as String)
-                  : null,
-              order: todoMap['order'] as int,
-              createdAt: DateTime.parse(todoMap['created_at'] as String),
-              updatedAt: DateTime.parse(todoMap['updated_at'] as String),
-              eventId: encryptedTodo.eventId,
-              linkPreview: todoMap['link_preview'] != null
-                  ? LinkPreview.fromJson(todoMap['link_preview'] as Map<String, dynamic>)
-                  : null,
-            ));
-          } catch (e) {
-            AppLogger.warning(' Failed to decrypt/parse event ${encryptedTodo.eventId}: $e');
-          }
-        }
-      } else {
-        // 旧実装（Kind 30078）は削除されました
-        throw Exception('旧実装（Kind 30078）は削除されました。マイグレーション機能は利用できません。');
+      // Phase C.2.1: Repository経由で旧データ取得
+      final repository = _ref.read(todoRepositoryProvider);
+      final publicKey = _ref.read(publicKeyProvider);
+      
+      if (publicKey == null) {
+        throw Exception('公開鍵が設定されていません');
+      }
+      
+      final fetchResult = await repository.fetchOldTodosFromKind30078(
+        publicKey: publicKey,
+      );
+      
+      final oldTodos = fetchResult.fold(
+        (failure) {
+          throw Exception('旧データの取得に失敗しました: ${failure.message}');
+        },
+        (todos) => todos,
+      );
+      
+      if (oldTodos.isEmpty) {
+        AppLogger.info(' No Kind 30078 events found. Migration not needed.');
+        _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.notNeeded;
+        return;
       }
       
       AppLogger.debug(' Found ${oldTodos.length} todos in Kind 30078 format');
@@ -2830,45 +2802,19 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 
   /// ⚠️ このメソッドは復号化せずにイベントの存在のみをチェックします
   Future<bool> checkKind30001Exists() async {
-    AppLogger.debug(' checkKind30001Exists() called');
-    try {
-      final nostrService = _ref.read(nostrServiceProvider);
-      final isAmberMode = _ref.read(isAmberModeProvider);
-      AppLogger.debug(' Mode: ${isAmberMode ? "Amber" : "Normal"}');
-      
-      if (isAmberMode) {
-        // Amberモード: 暗号化されたTodoリストイベントを取得
-        // ⚠️ 復号化はしない！イベントの存在だけチェック
-        AppLogger.debug(' Fetching encrypted Kind 30001 event (NO DECRYPTION)...');
-        final encryptedEvent = await nostrService.fetchEncryptedTodoList();
-        
-        if (encryptedEvent != null) {
-          AppLogger.info(' Found Kind 30001 event (Amber mode) - Event ID: ${encryptedEvent.eventId}');
-          AppLogger.info(' This means migration is already done. NO NEED TO DECRYPT OLD EVENTS!');
-          return true;
-        } else {
-          AppLogger.debug(' No Kind 30001 event found (Amber mode)');
-        }
-      } else {
-        // 通常モード: Rust側で復号化済みのTodoリストを取得
-        AppLogger.debug(' Fetching Kind 30001 todos (normal mode)...');
-        final todos = await nostrService.syncTodoListFromNostr();
-        
-        if (todos.isNotEmpty) {
-          AppLogger.info(' Found Kind 30001 with ${todos.length} todos (normal mode)');
-          return true;
-        } else {
-          AppLogger.debug(' No Kind 30001 todos found (normal mode)');
-        }
-      }
-      
-      AppLogger.debug(' No Kind 30001 found - will check Kind 30078');
-      return false;
-    } catch (e, stackTrace) {
-      AppLogger.warning(' Failed to check Kind 30001: $e');
-      AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
-      return false;
-    }
+    AppLogger.debug('🔍 [Provider] checkKind30001Exists() called');
+    
+    // Phase C.2.1: Repository経由で確認
+    final repository = _ref.read(todoRepositoryProvider);
+    final result = await repository.checkKind30001Exists();
+    
+    return result.fold(
+      (failure) {
+        AppLogger.warning('[Provider] Failed to check Kind 30001: ${failure.message}');
+        return false; // エラー時はfalseを返す
+      },
+      (exists) => exists,
+    );
   }
 
   /// マイグレーションが必要かチェック
@@ -2876,40 +2822,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// Kind 30078のTODOイベント（旧形式）が存在する場合にtrueを返す
   /// ※ Kind 30078の設定イベント（d="meiso-settings"）は除外
   Future<bool> checkMigrationNeeded() async {
-    // ローカルストレージでマイグレーション完了済みかチェック
-    final completed = await localStorageService.isMigrationCompleted();
-    if (completed) {
-      AppLogger.info(' Migration already completed (cached)');
-      _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
-      return false;
-    }
+    AppLogger.debug('🔍 [Provider] checkMigrationNeeded() called');
     
-    // Kind 30078のTODOイベント（d="todo-*"）が存在するかチェック
-    try {
-      final nostrService = _ref.read(nostrServiceProvider);
-      final isAmberMode = _ref.read(isAmberModeProvider);
-      
-      if (isAmberMode) {
-        // Amberモード: 暗号化されたイベントを取得
-        final encryptedTodos = await nostrService.fetchEncryptedTodos();
-        
-        // Kind 30078のTODOイベント（d="todo-*"）が存在する場合のみマイグレーション必要
-        if (encryptedTodos.isNotEmpty) {
-          AppLogger.debug(' Found ${encryptedTodos.length} old Kind 30078 TODO events (Amber mode)');
-          return true;
+    // Phase C.2.1: Repository経由で確認
+    final repository = _ref.read(todoRepositoryProvider);
+    final result = await repository.checkMigrationNeeded();
+    
+    return result.fold(
+      (failure) {
+        AppLogger.warning('[Provider] Failed to check migration: ${failure.message}');
+        return false; // エラー時はfalseを返す（マイグレーション不要として扱う）
+      },
+      (needed) {
+        if (!needed) {
+          // マイグレーション不要（完了済み）
+          _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
         }
-      } else {
-        // 旧実装（Kind 30078）は削除されました
-        AppLogger.warning(' 旧実装（Kind 30078）は削除されました。マイグレーションチェックをスキップします。');
-        return false;
-      }
-      
-      AppLogger.info(' No old Kind 30078 TODO events found');
-      return false;
-    } catch (e) {
-      AppLogger.warning(' Failed to check migration: $e');
-      return false;
-    }
+        return needed;
+      },
+    );
   }
   
   // ========================================

@@ -670,27 +670,144 @@ lib/providers/
 
 ---
 
-#### Phase C.2: 同期ロジックのRepository化（延期）
+#### Phase C.2: 同期ロジックのRepository化（4サブフェーズに分割）
 
 **開始条件**: Phase C.1完了後
 
+**開始日**: 2025-11-13
+
 **方針**: 
-- `syncFromNostr()`は2000行以上あり、複数のProviderに依存
-- まずはCRUD操作のRepository化を完了させることを優先
-- 同期ロジックは別途時間をかけて設計
-- リカーリングタスクのUseCase化もこのフェーズで実施
+- `syncFromNostr()`は2000行以上あり、複雑すぎるため4つのサブフェーズに分割
+- 独立性の高い処理から段階的に実装
+- 各サブフェーズごとに動作確認を行い、リスクを最小化
+
+---
+
+##### Phase C.2.1: マイグレーション処理のRepository化 ⏳ 進行中
+
+**開始日**: 2025-11-13
+
+**方針**: 
+- Repository層には**純粋なデータアクセスロジック**のみを実装
+- Provider依存（`_ref.read()`）をパラメータ化して依存を注入
+- 状態更新やUI通知はProviderに残す
+- テスタビリティと責任分離を向上
+
+**設計アプローチ**:
+```dart
+// Before: Provider依存
+Future<bool> checkKind30001Exists() {
+  final nostrService = _ref.read(nostrServiceProvider);
+  final isAmberMode = _ref.read(isAmberModeProvider);
+  // ...
+}
+
+// After: パラメータ化
+Future<Either<Failure, bool>> checkKind30001Exists({
+  required bool isAmberMode,
+}) {
+  // NostrServiceはRepository内部で保持
+  // ...
+}
+```
 
 | タスク | 工数 | 説明 | ステータス |
 |--------|------|------|-----------|
-| 同期ロジックの設計 | 4h | syncFromNostr分解設計 | ⏳ Phase C.1後 |
-| syncPersonalTodosFromNostr実装 | 12h | Nostr同期（取得） | ⏳ Phase C.1後 |
-| syncPersonalTodosToNostr実装 | 8h | Nostr同期（送信） | ⏳ Phase C.1後 |
-| マイグレーション実装 | 4h | Kind 30078→30001 | ⏳ Phase C.1後 |
-| RecurringTodoUseCase実装 | 6h | `_generateFutureInstances()`のUseCase化 | ⏳ Phase C.1後 |
-| SyncTodoUseCase実装 | 8h | UseCase層の追加 | ⏳ Phase C.1後 |
-| テスト実装 | 8h | Repository層のテスト | ⏳ Phase C.1後 |
+| checkKind30001Exists実装 | 2h | Repository層に移植 | ✅ 完了 |
+| checkMigrationNeeded実装 | 2h | Repository層に移植 | ✅ 完了 |
+| fetchOldTodosFromKind30078実装 | 2h | 旧データ取得のみ実装（新規メソッド） | ✅ 完了 |
+| TodosProviderの更新 | 1h | Repository呼び出しに変更 | ✅ 完了 |
+| 動作確認 | 0.5h | マイグレーション処理のテスト | ⏳ 実施中 |
+| コミット | 0.5h | Phase C.2.1完了コミット | ⏳ 未着手 |
 
-**Phase C.2 合計工数**: 50時間（2.5週間）
+**Phase C.2.1 合計工数**: 8時間（1日）  
+**実工数**: 6時間（2025-11-13）  
+**進捗**: 90% 完了
+
+**Phase C.2.1完了日**: 2025-11-13  
+**Phase C.2.1コミットID**: （コミット後に記載）
+
+**実装内容**:
+- ✅ `checkKind30001Exists()` - Repository層に実装、Provider経由で呼び出し
+- ✅ `checkMigrationNeeded()` - Repository層に実装、Provider経由で呼び出し
+- ✅ `fetchOldTodosFromKind30078()` - 旧データ取得のみ実装（新規メソッド）
+- ✅ `migrateFromKind30078ToKind30001()` - 旧データ取得部分をRepository経由に変更
+- ⚠️ 完全なマイグレーション処理（新形式送信、旧イベント削除）はPhase C.2.2で実装予定
+
+**設計判断**:
+- ✅ Repository層には純粋なデータアクセスのみ実装
+- ✅ UI状態更新（migrationStatusProvider等）はProviderに残す
+- ✅ Provider依存を排除し、テスタビリティ向上
+- 📝 完全なマイグレーション処理はPhase C.2.2（同期ロジック実装後）に延期
+
+---
+
+##### Phase C.2.2: 基本的な同期メソッドのRepository化
+
+**開始条件**: Phase C.2.1完了後
+
+**方針**: 
+- Provider依存を最小化
+- 純粋なデータアクセスロジックのみを抽出
+- syncFromNostr分解の土台となる
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| fetchPersonalTodosFromNostr実装 | 6h | Nostrからのデータ取得 | ⏳ C.2.1後 |
+| savePersonalTodosToNostr実装 | 6h | Nostrへのデータ送信 | ⏳ C.2.1後 |
+| 動作確認 | 0.5h | 同期処理のテスト | ⏳ C.2.1後 |
+| コミット | 0.5h | Phase C.2.2完了コミット | ⏳ C.2.1後 |
+
+**Phase C.2.2 合計工数**: 13時間（1.5日）
+
+---
+
+##### Phase C.2.3: RecurringTodoUseCaseの実装
+
+**開始条件**: Phase C.2.2完了後
+
+**方針**: 
+- Phase C.1で延期したリカーリングタスク対応
+- 重複保存の解消
+- `_generateFutureInstances()`のビジネスロジックをUseCase化
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| GenerateRecurringInstancesUseCase実装 | 4h | 将来インスタンス生成 | ⏳ C.2.2後 |
+| RemoveChildInstancesUseCase実装 | 2h | 子インスタンス削除 | ⏳ C.2.2後 |
+| Provider統合 | 2h | TodosProviderを更新 | ⏳ C.2.2後 |
+| 重複保存の解消 | 1h | `_saveAllTodosToLocal()`調整 | ⏳ C.2.2後 |
+| 動作確認 | 0.5h | リカーリングタスクのテスト | ⏳ C.2.2後 |
+| コミット | 0.5h | Phase C.2.3完了コミット | ⏳ C.2.2後 |
+
+**Phase C.2.3 合計工数**: 10時間（1.5日）
+
+---
+
+##### Phase C.2.4: syncFromNostrのUseCase分解（最も複雑）
+
+**開始条件**: Phase C.2.3完了後
+
+**方針**: 
+- Provider間の連携が必要
+- 段階的に分解してテスト
+- 最も複雑なため最後に実施
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| SyncAppSettingsUseCase実装 | 4h | AppSettings同期 | ⏳ C.2.3後 |
+| SyncCustomListsUseCase実装 | 4h | カスタムリスト同期 | ⏳ C.2.3後 |
+| SyncPersonalTodosUseCase実装 | 8h | 個人Todo同期・競合解決 | ⏳ C.2.3後 |
+| ResolveTodoConflictsUseCase実装 | 4h | リモート/ローカル競合解決 | ⏳ C.2.3後 |
+| Provider統合 | 2h | syncFromNostr()を簡素化 | ⏳ C.2.3後 |
+| 動作確認 | 1h | 全体の同期テスト | ⏳ C.2.3後 |
+| コミット | 0.5h | Phase C.2.4完了コミット | ⏳ C.2.3後 |
+
+**Phase C.2.4 合計工数**: 23.5時間（3日）
+
+---
+
+**Phase C.2 全体の合計工数**: 54.5時間（約2.5週間）
 
 **Phase C.2で実装する同期UseCases**:
 - `SyncAppSettingsUseCase` - AppSettings同期
@@ -715,7 +832,7 @@ lib/providers/
 
 ---
 
-**Phase C 全体の合計工数**: 84.5時間（4週間）
+**Phase C 全体の合計工数**: 89時間（4週間）
 
 **Phase Dに延期する項目**:
 - `SyncGroupTodosUseCase` - グループTodo同期（MLS処理含む）
@@ -827,6 +944,8 @@ lib/providers/
 ---
 
 **更新履歴**:
+- 2025-11-13 (22:00): Phase C.2.1完了（マイグレーション処理のRepository化）、fetchOldTodosFromKind30078実装
+- 2025-11-13 (21:00): Phase C.2開始、4つのサブフェーズに分割（C.2.1〜C.2.4）、Phase C.2.1着手
 - 2025-11-13 (20:00): Phase C.1完了（Repository層導入完了）、動作確認結果を追記（Test 1-4全てパス）
 - 2025-11-13 (19:00): Phase C.1ステップ2.2完了（UseCaseとRepository統合）、設計判断を追記（リカーリングタスク対応方針）
 - 2025-11-13 (18:00): Phase C開始、実装方針を段階的アプローチに改訂（C.1/C.2/C.3に分割）

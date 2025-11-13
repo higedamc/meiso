@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:dartz/dartz.dart';
 import '../../../../core/common/failure.dart';
 import '../../../../models/todo.dart';
+import '../../../../models/link_preview.dart';
 import '../../../../services/local_storage_service.dart';
 import '../../../../services/amber_service.dart';
 import '../../../../services/logger_service.dart';
@@ -143,13 +146,43 @@ class TodoRepositoryImpl implements TodoRepository {
     try {
       AppLogger.debug('🔍 [Repo] Checking Kind 30001 existence...');
       
-      // TODO: Phase C - ステップ2で実装
-      // TodosProvider.checkKind30001Exists()からロジックを移植
+      // Amberモード判定（LocalStorageから取得）
+      final isAmberMode = _localStorageService.isUsingAmber();
+      AppLogger.debug('[Repo] Mode: ${isAmberMode ? "Amber" : "Normal"}');
       
-      return Left(UnexpectedFailure('Not implemented yet - Phase C Step 2'));
+      if (isAmberMode) {
+        // Amberモード: 暗号化されたTodoリストイベントを取得
+        // ⚠️ 復号化はしない！イベントの存在だけチェック
+        AppLogger.debug('[Repo] Fetching encrypted Kind 30001 event (NO DECRYPTION)...');
+        final encryptedEvent = await _nostrService.fetchEncryptedTodoList();
+        
+        if (encryptedEvent != null) {
+          AppLogger.info('✅ [Repo] Found Kind 30001 event (Amber mode) - Event ID: ${encryptedEvent.eventId}');
+          AppLogger.info('[Repo] This means migration is already done. NO NEED TO DECRYPT OLD EVENTS!');
+          return const Right(true);
+        } else {
+          AppLogger.debug('[Repo] No Kind 30001 event found (Amber mode)');
+        }
+      } else {
+        // 通常モード: Rust側で復号化済みのTodoリストを取得
+        AppLogger.debug('[Repo] Fetching Kind 30001 todos (normal mode)...');
+        final todos = await _nostrService.syncTodoListFromNostr();
+        
+        if (todos.isNotEmpty) {
+          AppLogger.info('✅ [Repo] Found Kind 30001 with ${todos.length} todos (normal mode)');
+          return const Right(true);
+        } else {
+          AppLogger.debug('[Repo] No Kind 30001 todos found (normal mode)');
+        }
+      }
+      
+      AppLogger.debug('[Repo] No Kind 30001 found - will check Kind 30078');
+      return const Right(false);
     } catch (e, stackTrace) {
-      AppLogger.error('❌ [Repo] Failed to check Kind 30001', error: e, stackTrace: stackTrace);
-      return Left(NetworkFailure('Kind 30001チェックに失敗しました: $e'));
+      AppLogger.warning('⚠️ [Repo] Failed to check Kind 30001: $e');
+      AppLogger.error('[Repo] Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      // エラーでもfalseを返す（マイグレーションチェックに進む）
+      return const Right(false);
     }
   }
   
@@ -158,13 +191,105 @@ class TodoRepositoryImpl implements TodoRepository {
     try {
       AppLogger.debug('🔍 [Repo] Checking migration needed...');
       
-      // TODO: Phase C - ステップ2で実装
-      // TodosProvider.checkMigrationNeeded()からロジックを移植
+      // ローカルストレージでマイグレーション完了済みかチェック
+      final completed = await _localStorageService.isMigrationCompleted();
+      if (completed) {
+        AppLogger.info('✅ [Repo] Migration already completed (cached)');
+        return const Right(false); // マイグレーション不要
+      }
       
-      return Left(UnexpectedFailure('Not implemented yet - Phase C Step 2'));
+      // Amberモード判定
+      final isAmberMode = _localStorageService.isUsingAmber();
+      
+      if (isAmberMode) {
+        // Amberモード: 暗号化されたKind 30078イベントを取得
+        AppLogger.debug('[Repo] Checking for old Kind 30078 events (Amber mode)...');
+        final encryptedTodos = await _nostrService.fetchEncryptedTodos();
+        
+        // Kind 30078のTODOイベント（d="todo-*"）が存在する場合のみマイグレーション必要
+        if (encryptedTodos.isNotEmpty) {
+          AppLogger.info('⚠️ [Repo] Found ${encryptedTodos.length} old Kind 30078 TODO events (Amber mode)');
+          return const Right(true); // マイグレーション必要
+        }
+      } else {
+        // 通常モード: 旧実装（Kind 30078）は削除済み
+        AppLogger.debug('[Repo] Normal mode - old Kind 30078 implementation removed');
+        return const Right(false); // マイグレーション不要
+      }
+      
+      AppLogger.info('✅ [Repo] No old Kind 30078 TODO events found');
+      return const Right(false);
     } catch (e, stackTrace) {
-      AppLogger.error('❌ [Repo] Failed to check migration', error: e, stackTrace: stackTrace);
-      return Left(NetworkFailure('マイグレーションチェックに失敗しました: $e'));
+      AppLogger.warning('⚠️ [Repo] Failed to check migration: $e');
+      AppLogger.error('[Repo] Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      // エラーでもfalseを返す（マイグレーション不要として扱う）
+      return const Right(false);
+    }
+  }
+  
+  @override
+  Future<Either<Failure, List<Todo>>> fetchOldTodosFromKind30078({
+    required String publicKey,
+  }) async {
+    try {
+      AppLogger.info('🔍 [Repo] Fetching old Kind 30078 todos for migration...');
+      
+      final isAmberMode = _localStorageService.isUsingAmber();
+      
+      if (!isAmberMode) {
+        // 通常モード: 旧実装は削除済み
+        AppLogger.info('ℹ️ [Repo] Normal mode - old Kind 30078 implementation removed');
+        return const Right([]);
+      }
+      
+      // Amberモード: 暗号化されたKind 30078イベントを取得
+      AppLogger.debug('[Repo] Fetching encrypted Kind 30078 events...');
+      final encryptedTodos = await _nostrService.fetchEncryptedTodos();
+      
+      if (encryptedTodos.isEmpty) {
+        AppLogger.info('ℹ️ [Repo] No Kind 30078 events found');
+        return const Right([]);
+      }
+      
+      AppLogger.debug('[Repo] Found ${encryptedTodos.length} encrypted Kind 30078 events');
+      
+      // Amberで復号化
+      final List<Todo> oldTodos = [];
+      
+      for (final encryptedTodo in encryptedTodos) {
+        try {
+          final decryptedJson = await _amberService.decryptNip44(
+            encryptedTodo.encryptedContent,
+            publicKey,
+          );
+          
+          final todoMap = jsonDecode(decryptedJson) as Map<String, dynamic>;
+          oldTodos.add(Todo(
+            id: todoMap['id'] as String,
+            title: todoMap['title'] as String,
+            completed: todoMap['completed'] as bool,
+            date: todoMap['date'] != null 
+                ? DateTime.parse(todoMap['date'] as String)
+                : null,
+            order: todoMap['order'] as int,
+            createdAt: DateTime.parse(todoMap['created_at'] as String),
+            updatedAt: DateTime.parse(todoMap['updated_at'] as String),
+            eventId: encryptedTodo.eventId,
+            linkPreview: todoMap['link_preview'] != null
+                ? LinkPreview.fromJson(todoMap['link_preview'] as Map<String, dynamic>)
+                : null,
+          ));
+          AppLogger.debug('[Repo] Decrypted todo: ${todoMap['title']}');
+        } catch (e) {
+          AppLogger.warning('[Repo] Failed to decrypt/parse event ${encryptedTodo.eventId}: $e');
+        }
+      }
+      
+      AppLogger.info('✅ [Repo] Successfully fetched ${oldTodos.length} todos from Kind 30078');
+      return Right(oldTodos);
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [Repo] Failed to fetch old todos', error: e, stackTrace: stackTrace);
+      return Left(NetworkFailure('旧Todoの取得に失敗しました: $e'));
     }
   }
   
@@ -173,13 +298,17 @@ class TodoRepositoryImpl implements TodoRepository {
     try {
       AppLogger.info('🔄 [Repo] Migrating from Kind 30078 to Kind 30001...');
       
-      // TODO: Phase C - ステップ2で実装
-      // TodosProvider.migrateFromKind30078ToKind30001()からロジックを移植
+      // TODO: Phase C.2.2で実装
+      // 完全なマイグレーション処理:
+      // 1. fetchOldTodosFromKind30078()で旧データ取得
+      // 2. syncPersonalTodosToNostr()で新形式送信
+      // 3. NostrService.deleteEvents()で旧イベント削除
+      // 4. LocalStorageService.setMigrationCompleted()でフラグ保存
       
-      return Left(UnexpectedFailure('Not implemented yet - Phase C Step 2'));
+      return Left(UnexpectedFailure('Not implemented yet - Phase C.2.2'));
     } catch (e, stackTrace) {
       AppLogger.error('❌ [Repo] Failed to migrate', error: e, stackTrace: stackTrace);
-      return Left(NetworkFailure('マイグレーションに失敗しました: $e'));
+      return Left(UnexpectedFailure('マイグレーションに失敗しました: $e'));
     }
   }
 }
