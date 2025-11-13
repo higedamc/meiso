@@ -484,16 +484,20 @@ class TodoRepositoryImpl implements TodoRepository {
 | タスク | 工数 | 説明 | ステータス |
 |--------|------|------|-----------|
 | CreateTodoUseCase抽出 | 8h | `addTodo()`ロジックをUseCaseに | ✅ 完了 |
-| UpdateTodoUseCase抽出 | 8h | `updateTodo()`ロジックをUseCaseに | ✅ 完了 |
+| UpdateTodoUseCase抽出 | 8h | `updateTodo()`/`toggleTodo()`ロジックをUseCaseに | ✅ 完了 |
 | DeleteTodoUseCase抽出 | 4h | `deleteTodo()`ロジックをUseCaseに | ✅ 完了 |
 | TodosProviderへの統合 | 8h | 各UseCaseをProviderから呼び出す | ✅ 完了 |
-| テスト実装 | 8h | 各UseCaseのユニットテスト | ⏳ 残作業 |
-| 動作確認 | 2h | 基本操作のテスト | ⏳ 残作業 |
-| ドキュメント更新 | 2h | READMEとSTRATEGY更新 | ⏳ 残作業 |
+| 動作確認 | 2h | 基本操作のテスト | ✅ 完了 |
+| ドキュメント更新 | 2h | STRATEGY更新 | ✅ 完了 |
+| コミット | 0.5h | git commit実施 | ✅ 完了 |
+| テスト実装 | 8h | 各UseCaseのユニットテスト | ⏳ Phase B.5で実施 |
 
-**合計工数**: 40時間（2週間）  
-**実工数**: 8時間（2025-11-13）  
-**進捗**: 60% 完了
+**合計工数**: 40.5時間（2週間）  
+**実工数**: 10.5時間（2025-11-13）  
+**進捗**: 80% 完了（コア実装完了、テスト残り）
+
+**完了日**: 2025-11-13  
+**コミットID**: ad5789d
 
 **Phase Cに延期した項目**:
 - ❌ ~~SyncTodoUseCase抽出~~ → Phase Cに延期
@@ -526,6 +530,14 @@ lib/providers/
 **動作確認中の追加修正**（2025-11-13）:
 - `toggleTodo()`メソッドがUpdateTodoUseCaseを使っていなかったため修正
 - Test 2（完了マーク）でUseCaseのログが確認できるように改善
+- 全UseCaseのログレベルを`debug`→`info`に変更（動作確認を容易に）
+
+**動作確認結果**（2025-11-13）:
+- ✅ Test 1: Todoを追加（Today/Tomorrow/Someday）→ CreateTodoUseCaseログ確認
+- ✅ Test 2: Todoを更新（タイトル変更、完了マーク）→ UpdateTodoUseCaseログ確認
+- ✅ Test 3: Todoを削除 → DeleteTodoUseCaseログ確認
+- ✅ Test 4: カスタムリストへのTodo追加 → CreateTodoUseCaseログ確認
+- ✅ 既存機能への影響なし（リグレッションゼロ）
 
 **重要な方針**:
 - ✅ MLS機能は一切変更していない（Phase Dまで保持）
