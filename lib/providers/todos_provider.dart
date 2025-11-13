@@ -2703,8 +2703,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     _ref.read(syncStatusProvider.notifier).updateMessage('データ移行準備中...');
     
     try {
-      final nostrService = _ref.read(nostrServiceProvider);
-      
       // 1. 既存のKind 30078イベントを取得
       AppLogger.debug(' Fetching existing Kind 30078 events...');
       _ref.read(syncStatusProvider.notifier).updateMessage('旧データ取得中...');
@@ -2765,24 +2763,34 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       if (oldEventIds.isNotEmpty) {
         AppLogger.debug(' Deleting ${oldEventIds.length} old Kind 30078 events...');
         _ref.read(syncStatusProvider.notifier).updateMessage('旧データ削除中...');
-        try {
-          await nostrService.deleteEvents(
-            oldEventIds,
-            reason: 'Migrated to Kind 30001 (NIP-51 Bookmark List)',
-          );
-          AppLogger.info(' Old events deleted successfully');
-        } catch (e) {
-          AppLogger.warning(' Failed to delete old events: $e');
-          // 削除失敗してもマイグレーションは成功とみなす
-        }
+        
+        // Phase C.2.2: Repository経由で削除
+        final deleteResult = await repository.deleteNostrEvents(
+          eventIds: oldEventIds,
+          reason: 'Migrated to Kind 30001 (NIP-51 Bookmark List)',
+        );
+        
+        deleteResult.fold(
+          (failure) {
+            AppLogger.warning(' Failed to delete old events: ${failure.message}');
+            // 削除失敗してもマイグレーションは成功とみなす
+          },
+          (_) {
+            AppLogger.info(' Old events deleted successfully');
+          },
+        );
       }
       
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
       _ref.read(syncStatusProvider.notifier).updateMessage('データ移行完了');
       AppLogger.debug('🎉 Migration completed successfully!');
       
-      // マイグレーション完了フラグをローカルに保存
-      await localStorageService.setMigrationCompleted();
+      // Phase C.2.2: Repository経由でマイグレーション完了フラグを保存
+      final setCompletedResult = await repository.setMigrationCompleted();
+      setCompletedResult.fold(
+        (failure) => AppLogger.warning(' Failed to save migration flag: ${failure.message}'),
+        (_) => AppLogger.info(' Migration completed flag saved'),
+      );
       
       // メッセージをクリア
       await Future.delayed(const Duration(seconds: 1));
