@@ -764,15 +764,15 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 | deleteNostrEvents実装 | 1h | Nostrイベント削除（Repository層） | ✅ 完了 |
 | setMigrationCompleted実装 | 0.5h | マイグレーション完了フラグ保存 | ✅ 完了 |
 | migrateFromKind30078ToKind30001完成 | 2h | 削除・フラグ保存をRepository経由に | ✅ 完了 |
-| 動作確認 | 0.5h | マイグレーション処理のテスト | ⏳ 実施中 |
-| コミット | 0.5h | Phase C.2.2完了コミット | ⏳ 未着手 |
+| 動作確認 | 0.5h | マイグレーション処理のテスト | ✅ 完了 |
+| コミット | 0.5h | Phase C.2.2完了コミット | ✅ 完了 |
 
 **Phase C.2.2 合計工数**: 4.5時間（0.5日）  
 **実工数**: 4時間（2025-11-13）  
-**進捗**: 90% 完了
+**進捗**: 100% 完了 ✅
 
 **Phase C.2.2完了日**: 2025-11-13  
-**Phase C.2.2コミットID**: （コミット後に記載）
+**Phase C.2.2コミットID**: a0d1842
 
 **実装内容**:
 - ✅ `deleteNostrEvents()` - Nostrイベント削除機能をRepository層に実装
