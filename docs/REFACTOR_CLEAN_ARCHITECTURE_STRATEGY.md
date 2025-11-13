@@ -518,7 +518,7 @@ class TodoRepositoryImpl implements TodoRepository {
 **実工数**: 3.5時間（2025-11-13）
 
 **Phase B.5完了日**: 2025-11-13  
-**Phase B.5コミットID**: (次のコミット)
+**Phase B.5コミットID**: 3457360
 
 **Phase B.5完了条件**:
 - ✅ TODAY→SOMEDAY画面遷移が即座（<100ms）
