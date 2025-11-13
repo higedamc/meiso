@@ -1,0 +1,213 @@
+import 'package:dartz/dartz.dart';
+import '../../../../core/common/failure.dart';
+import '../../../../models/custom_list.dart';
+import '../../../../services/local_storage_service.dart';
+import '../../../../services/logger_service.dart';
+import '../../domain/repositories/custom_list_repository.dart';
+import '../../domain/errors/custom_list_errors.dart';
+
+/// CustomListRepository実装
+/// 
+/// Phase C.3.1: ローカルCRUDのみ実装
+/// Phase C.3.2: Nostr同期を追加予定
+/// Phase D: MLS機能を追加予定
+/// 
+/// 依存関係:
+/// - LocalStorageService: ローカル永続化
+/// - NostrService: Nostr通信（Phase C.3.2で追加）
+/// - AmberService: Amber署名/復号化（Phase C.3.2で追加）
+class CustomListRepositoryImpl implements CustomListRepository {
+  final LocalStorageService _localStorageService;
+  
+  const CustomListRepositoryImpl({
+    required LocalStorageService localStorageService,
+  }) : _localStorageService = localStorageService;
+  
+  // ============================================================
+  // ローカルストレージ操作
+  // ============================================================
+  
+  @override
+  Future<Either<Failure, List<CustomList>>> loadCustomListsFromLocal() async {
+    try {
+      AppLogger.debug('📂 [CustomListRepo] Loading custom lists from local storage...');
+      
+      final lists = await _localStorageService.loadCustomLists();
+      
+      AppLogger.info('✅ [CustomListRepo] Loaded ${lists.length} custom lists from local');
+      return Right(lists);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to load custom lists from local',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('ローカルからカスタムリストの読み込みに失敗しました: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, void>> saveCustomListsToLocal(List<CustomList> lists) async {
+    try {
+      AppLogger.debug('💾 [CustomListRepo] Saving ${lists.length} custom lists to local storage...');
+      
+      await _localStorageService.saveCustomLists(lists);
+      
+      AppLogger.info('✅ [CustomListRepo] Saved ${lists.length} custom lists to local');
+      return const Right(null);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to save custom lists to local',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('ローカルへカスタムリストの保存に失敗しました: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, void>> saveCustomListToLocal(CustomList list) async {
+    try {
+      AppLogger.debug('💾 [CustomListRepo] Saving single custom list to local storage: ${list.id}');
+      
+      // 全リストを読み込み
+      final listsResult = await loadCustomListsFromLocal();
+      
+      return listsResult.fold(
+        (failure) => Left(failure),
+        (lists) async {
+          // 既存リストを更新 or 新規追加
+          final existingIndex = lists.indexWhere((l) => l.id == list.id);
+          
+          List<CustomList> updatedLists;
+          if (existingIndex != -1) {
+            // 既存リストを更新
+            updatedLists = [...lists];
+            updatedLists[existingIndex] = list;
+            AppLogger.debug('🔄 [CustomListRepo] Updated existing list: ${list.id}');
+          } else {
+            // 新規リストを追加
+            updatedLists = [...lists, list];
+            AppLogger.debug('✨ [CustomListRepo] Added new list: ${list.id}');
+          }
+          
+          // 全リストを保存
+          return saveCustomListsToLocal(updatedLists);
+        },
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to save custom list to local',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('ローカルへカスタムリストの保存に失敗しました: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, void>> deleteCustomListFromLocal(String id) async {
+    try {
+      AppLogger.debug('🗑️ [CustomListRepo] Deleting custom list from local storage: $id');
+      
+      // 全リストを読み込み
+      final listsResult = await loadCustomListsFromLocal();
+      
+      return listsResult.fold(
+        (failure) => Left(failure),
+        (lists) async {
+          // 指定IDのリストを削除
+          final updatedLists = lists.where((l) => l.id != id).toList();
+          
+          if (updatedLists.length == lists.length) {
+            AppLogger.warning('⚠️ [CustomListRepo] List not found: $id');
+            return Left(CustomListFailure.fromError(CustomListError.notFound));
+          }
+          
+          AppLogger.debug('✅ [CustomListRepo] Deleted list $id from local');
+          
+          // 全リストを保存
+          return saveCustomListsToLocal(updatedLists);
+        },
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to delete custom list from local',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('ローカルからカスタムリストの削除に失敗しました: $e'));
+    }
+  }
+  
+  // ============================================================
+  // Nostr同期操作（Phase C.3.2で実装予定）
+  // ============================================================
+  
+  @override
+  Future<Either<Failure, List<CustomList>>> syncPersonalListsFromNostr() async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+  }
+  
+  @override
+  Future<Either<Failure, void>> syncPersonalListsToNostr({
+    required List<CustomList> lists,
+    required bool isAmberMode,
+  }) async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+  }
+  
+  @override
+  Future<Either<Failure, Set<String>>> syncDeletionEvents({
+    required String publicKey,
+  }) async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+  }
+  
+  @override
+  Future<Either<Failure, void>> saveDeletedEventIds(Set<String> eventIds) async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+  }
+  
+  @override
+  Future<Either<Failure, Set<String>>> loadDeletedEventIds() async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+  }
+  
+  // ============================================================
+  // MLS操作（Phase Dで実装予定）
+  // ============================================================
+  
+  @override
+  Future<Either<Failure, CustomList>> createMlsGroup({
+    required String groupId,
+    required String groupName,
+    required List<String> keyPackages,
+  }) async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+  }
+  
+  @override
+  Future<Either<Failure, List<CustomList>>> syncGroupInvitations({
+    required String recipientPublicKey,
+  }) async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+  }
+  
+  @override
+  Future<Either<Failure, void>> addMemberToGroup({
+    required String groupId,
+    required String memberPubkey,
+  }) async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+  }
+  
+  @override
+  Future<Either<Failure, void>> removeMemberFromGroup({
+    required String groupId,
+    required String memberPubkey,
+  }) async {
+    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+  }
+}
+

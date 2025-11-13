@@ -10,6 +10,8 @@ import 'app_settings_provider.dart';
 import 'nostr_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
 import '../utils/error_handler.dart';
+// Phase C.3.1: Repository層統合
+import '../features/custom_list/infrastructure/providers/repository_providers.dart';
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -24,6 +26,10 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   }
   
   final Ref _ref;
+  
+  /// Phase C.3.1: Repository経由でローカルCRUD操作
+  /// MLS機能はProvider内に保持（Phase Dで移行予定）
+  late final _repository = _ref.read(customListRepositoryProvider);
   Timer? _invitationSyncTimer;
   
   /// Issue #80: 削除済みイベントIDのセット（kind 5で削除されたリスト）
@@ -36,21 +42,29 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       _deletedEventIds = deletedIds.toSet();
       AppLogger.info('🗑️ [CustomLists] Loaded ${_deletedEventIds.length} deleted event IDs');
       
-      // ローカルストレージから読み込み
-      final localLists = await localStorageService.loadCustomLists();
+      // Phase C.3.1: Repository経由でローカルストレージから読み込み
+      final result = await _repository.loadCustomListsFromLocal();
       
-      if (localLists.isEmpty) {
-        // ローカルにリストがない場合は、まず空の状態にする
-        // Nostrからの同期を待ってから、必要に応じてデフォルトリストを作成
-        AppLogger.info(' [CustomLists] No local lists found. Waiting for Nostr sync...');
-        state = AsyncValue.data([]);
-      } else {
-        // AppSettingsから保存された順番を適用
-        await _applySavedListOrder(localLists);
-        
-        AppLogger.info(' [CustomLists] Loaded ${localLists.length} lists from local storage');
-        state = AsyncValue.data(localLists);
-      }
+      result.fold(
+        (failure) {
+          AppLogger.warning(' [CustomLists] Failed to load lists: ${failure.message}');
+          state = AsyncValue.data([]);
+        },
+        (localLists) async {
+          if (localLists.isEmpty) {
+            // ローカルにリストがない場合は、まず空の状態にする
+            // Nostrからの同期を待ってから、必要に応じてデフォルトリストを作成
+            AppLogger.info(' [CustomLists] No local lists found. Waiting for Nostr sync...');
+            state = AsyncValue.data([]);
+          } else {
+            // AppSettingsから保存された順番を適用
+            await _applySavedListOrder(localLists);
+            
+            AppLogger.info(' [CustomLists] Loaded ${localLists.length} lists from local storage');
+            state = AsyncValue.data(localLists);
+          }
+        },
+      );
       
       // Phase 6.4: 起動時にグループ招待を同期
       // Note: Nostr初期化後に実行されるため、ここでは呼び出しのみ
@@ -100,16 +114,23 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         );
       }).toList();
       
-      // ローカルストレージに保存
-      await localStorageService.saveCustomLists(initialLists);
+      // Phase C.3.1: Repository経由でローカルストレージに保存
+      final result = await _repository.saveCustomListsToLocal(initialLists);
       
-      // 状態に反映
-      state = AsyncValue.data(initialLists);
-      
-      // AppSettingsのcustomListOrderも更新
-      await _updateCustomListOrderInSettings(initialLists);
-      
-      AppLogger.info(' [CustomLists] Created ${initialLists.length} default lists');
+      result.fold(
+        (failure) {
+          AppLogger.warning(' [CustomLists] Failed to save default lists: ${failure.message}');
+        },
+        (_) {
+          // 状態に反映
+          state = AsyncValue.data(initialLists);
+          
+          // AppSettingsのcustomListOrderも更新
+          _updateCustomListOrderInSettings(initialLists);
+          
+          AppLogger.info(' [CustomLists] Created ${initialLists.length} default lists');
+        },
+      );
     }).value;
   }
 
@@ -143,11 +164,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       final updatedLists = [...lists, newList];
       state = AsyncValue.data(updatedLists);
 
-      // ローカルストレージに保存
-      await localStorageService.saveCustomLists(updatedLists);
+      // Phase C.3.1: Repository経由でローカルストレージに保存
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
       
-      // AppSettingsのcustomListOrderも更新
-      await _updateCustomListOrderInSettings(updatedLists);
+      result.fold(
+        (failure) => AppLogger.warning(' Failed to save list: ${failure.message}'),
+        (_) {
+          // AppSettingsのcustomListOrderも更新
+          _updateCustomListOrderInSettings(updatedLists);
+        },
+      );
     }).value;
   }
 
@@ -163,12 +189,17 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
       state = AsyncValue.data(updatedLists);
 
-      // ローカルストレージに保存
-      await localStorageService.saveCustomLists(updatedLists);
+      // Phase C.3.1: Repository経由でローカルストレージに保存
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
       
-      // リスト名が変更された場合、IDも変わる可能性があるため、
-      // customListOrderも更新（ただし現在はIDは不変なので、実質影響なし）
-      await _updateCustomListOrderInSettings(updatedLists);
+      result.fold(
+        (failure) => AppLogger.warning(' Failed to update list: ${failure.message}'),
+        (_) {
+          // リスト名が変更された場合、IDも変わる可能性があるため、
+          // customListOrderも更新（ただし現在はIDは不変なので、実質影響なし）
+          _updateCustomListOrderInSettings(updatedLists);
+        },
+      );
     }).value;
   }
 
@@ -178,11 +209,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       final updatedLists = lists.where((l) => l.id != id).toList();
       state = AsyncValue.data(updatedLists);
 
-      // ローカルストレージに保存
-      await localStorageService.saveCustomLists(updatedLists);
+      // Phase C.3.1: Repository経由でローカルストレージに保存
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
       
-      // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
-      await _updateCustomListOrderInSettings(updatedLists);
+      result.fold(
+        (failure) => AppLogger.warning(' Failed to delete list: ${failure.message}'),
+        (_) {
+          // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
+          _updateCustomListOrderInSettings(updatedLists);
+        },
+      );
     }).value;
   }
 
@@ -208,11 +244,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
       state = AsyncValue.data(updatedLists);
 
-      // ローカルストレージに保存
-      await localStorageService.saveCustomLists(updatedLists);
+      // Phase C.3.1: Repository経由でローカルストレージに保存
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
       
-      // AppSettingsのcustomListOrderも更新
-      await _updateCustomListOrderInSettings(updatedLists);
+      result.fold(
+        (failure) => AppLogger.warning(' Failed to reorder lists: ${failure.message}'),
+        (_) {
+          // AppSettingsのcustomListOrderも更新
+          _updateCustomListOrderInSettings(updatedLists);
+        },
+      );
     }).value;
   }
   
@@ -319,9 +360,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       currentLists = currentState.value;
       AppLogger.debug(' [CustomLists] Using current state (${currentLists.length} lists)');
     } else {
-      // AsyncLoadingやAsyncErrorの場合は、ローカルストレージから直接読み込む
+      // AsyncLoadingやAsyncErrorの場合は、Repository経由で読み込む
       AppLogger.warning(' [CustomLists] State is ${currentState.runtimeType}, loading from local storage');
-      currentLists = await localStorageService.loadCustomLists();
+      final result = await _repository.loadCustomListsFromLocal();
+      currentLists = result.fold(
+        (failure) {
+          AppLogger.warning(' [CustomLists] Failed to load: ${failure.message}');
+          return <CustomList>[];
+        },
+        (lists) => lists,
+      );
       AppLogger.info(' [CustomLists] Loaded ${currentLists.length} lists from local storage');
       needsStateUpdate = true; // AsyncLoadingから読み込んだので、stateの更新が必要
     }
@@ -373,8 +421,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         // AppSettingsから順番を復元
         await _applySavedListOrder(filteredLists);
         
-        // ローカルストレージに保存
-        await localStorageService.saveCustomLists(filteredLists);
+        // Phase C.3.1: Repository経由でローカルストレージに保存
+        final result = await _repository.saveCustomListsToLocal(filteredLists);
+        result.fold(
+          (failure) => AppLogger.warning(' [CustomLists] Failed to save: ${failure.message}'),
+          (_) => AppLogger.debug(' [CustomLists] Saved successfully'),
+        );
       }
       
       // 状態を更新（UIに確実に通知）
@@ -476,13 +528,17 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       }
       
       if (hasChanges) {
-        // ローカルストレージに保存
-        await localStorageService.saveCustomLists(updatedLists);
+        // Phase C.3.1: Repository経由でローカルストレージに保存
+        final result = await _repository.saveCustomListsToLocal(updatedLists);
         
-        // 状態を更新
-        state = AsyncValue.data(updatedLists);
-        
-        AppLogger.info('✅ [GroupInvitations] Synced ${invitations.length} group invitations');
+        result.fold(
+          (failure) => AppLogger.warning('⚠️ [GroupInvitations] Failed to save: ${failure.message}'),
+          (_) {
+            // 状態を更新
+            state = AsyncValue.data(updatedLists);
+            AppLogger.info('✅ [GroupInvitations] Synced ${invitations.length} group invitations');
+          },
+        );
       }
       
     } catch (e, stackTrace) {
@@ -608,17 +664,25 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         groupMembers: memberPubkeys,
       );
       
-      // ローカルに追加
+      // Phase C.3.1: Repository経由でローカルに追加
       final updatedLists = [...lists, newGroupList];
-      await localStorageService.saveCustomLists(updatedLists);
-      state = AsyncValue.data(updatedLists);
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
       
-      // AppSettingsのcustomListOrderも更新
-      await _updateCustomListOrderInSettings(updatedLists);
-      
-      AppLogger.info('✅ [CustomLists] Created group list: "$normalizedName" with ${memberPubkeys.length} members');
-      
-      return newGroupList;
+      return result.fold(
+        (failure) {
+          AppLogger.error('❌ [CustomLists] Failed to save group list: ${failure.message}');
+          return null;
+        },
+        (_) {
+          state = AsyncValue.data(updatedLists);
+          
+          // AppSettingsのcustomListOrderも更新
+          _updateCustomListOrderInSettings(updatedLists);
+          
+          AppLogger.info('✅ [CustomLists] Created group list: "$normalizedName" with ${memberPubkeys.length} members');
+          return newGroupList;
+        },
+      );
     } catch (e, st) {
       AppLogger.error('❌ Failed to create group list: $e', error: e, stackTrace: st);
       return null;
@@ -737,12 +801,21 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         groupMembers: [],
       );
       
+      // Phase C.3.1: Repository経由でローカルストレージに保存
       final updatedLists = [...lists, newGroupList];
-      await localStorageService.saveCustomLists(updatedLists);
-      state = AsyncValue.data(updatedLists);
-      await _updateCustomListOrderInSettings(updatedLists);
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
       
-      return newGroupList;
+      return result.fold(
+        (failure) {
+          AppLogger.error('❌ [CustomLists] Failed to save MLS group list: ${failure.message}');
+          return null;
+        },
+        (_) {
+          state = AsyncValue.data(updatedLists);
+          _updateCustomListOrderInSettings(updatedLists);
+          return newGroupList;
+        },
+      );
     } catch (e, st) {
       final appError = ErrorHandler.classify(e, stackTrace: st);
       AppLogger.error(
@@ -792,10 +865,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       final updatedLists = [...lists];
       updatedLists[listIndex] = updatedList;
       
-      await localStorageService.saveCustomLists(updatedLists);
-      state = AsyncValue.data(updatedLists);
+      // Phase C.3.1: Repository経由でローカルストレージに保存
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
       
-      AppLogger.info('✅ Added member to group list: ${groupList.name}');
+      result.fold(
+        (failure) => AppLogger.warning('⚠️ Failed to add member: ${failure.message}'),
+        (_) {
+          state = AsyncValue.data(updatedLists);
+          AppLogger.info('✅ Added member to group list: ${groupList.name}');
+        },
+      );
     }).value;
   }
   
@@ -831,10 +910,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       final updatedLists = [...lists];
       updatedLists[listIndex] = updatedList;
       
-      await localStorageService.saveCustomLists(updatedLists);
-      state = AsyncValue.data(updatedLists);
+      // Phase C.3.1: Repository経由でローカルストレージに保存
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
       
-      AppLogger.info('✅ Removed member from group list: ${groupList.name}');
+      result.fold(
+        (failure) => AppLogger.warning('⚠️ Failed to remove member: ${failure.message}'),
+        (_) {
+          state = AsyncValue.data(updatedLists);
+          AppLogger.info('✅ Removed member from group list: ${groupList.name}');
+        },
+      );
     }).value;
   }
   
