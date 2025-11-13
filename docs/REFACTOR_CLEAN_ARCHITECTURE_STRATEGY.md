@@ -717,15 +717,15 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 | checkMigrationNeeded実装 | 2h | Repository層に移植 | ✅ 完了 |
 | fetchOldTodosFromKind30078実装 | 2h | 旧データ取得のみ実装（新規メソッド） | ✅ 完了 |
 | TodosProviderの更新 | 1h | Repository呼び出しに変更 | ✅ 完了 |
-| 動作確認 | 0.5h | マイグレーション処理のテスト | ⏳ 実施中 |
-| コミット | 0.5h | Phase C.2.1完了コミット | ⏳ 未着手 |
+| 動作確認 | 0.5h | マイグレーション処理のテスト | ✅ 完了 |
+| コミット | 0.5h | Phase C.2.1完了コミット | ✅ 完了 |
 
 **Phase C.2.1 合計工数**: 8時間（1日）  
 **実工数**: 6時間（2025-11-13）  
-**進捗**: 90% 完了
+**進捗**: 100% 完了 ✅
 
 **Phase C.2.1完了日**: 2025-11-13  
-**Phase C.2.1コミットID**: （コミット後に記載）
+**Phase C.2.1コミットID**: 481ce26
 
 **実装内容**:
 - ✅ `checkKind30001Exists()` - Repository層に実装、Provider経由で呼び出し
@@ -742,23 +742,34 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-##### Phase C.2.2: 基本的な同期メソッドのRepository化
+##### Phase C.2.2: 基本的な同期メソッドのRepository化 ⏳ 進行中
 
 **開始条件**: Phase C.2.1完了後
+
+**開始日**: 2025-11-13
 
 **方針**: 
 - Provider依存を最小化
 - 純粋なデータアクセスロジックのみを抽出
 - syncFromNostr分解の土台となる
+- `_syncAllTodosToNostr()`の処理をRepository化
+
+**実装対象**:
+1. `syncPersonalTodosToNostr()` - Kind 30001形式での送信
+2. `syncPersonalTodosFromNostr()` - Kind 30001形式での取得
+3. Phase C.2.1で延期した完全な`migrateFromKind30078ToKind30001()`の完成
 
 | タスク | 工数 | 説明 | ステータス |
 |--------|------|------|-----------|
-| fetchPersonalTodosFromNostr実装 | 6h | Nostrからのデータ取得 | ⏳ C.2.1後 |
-| savePersonalTodosToNostr実装 | 6h | Nostrへのデータ送信 | ⏳ C.2.1後 |
-| 動作確認 | 0.5h | 同期処理のテスト | ⏳ C.2.1後 |
-| コミット | 0.5h | Phase C.2.2完了コミット | ⏳ C.2.1後 |
+| syncPersonalTodosToNostr実装 | 6h | Nostrへのデータ送信（Kind 30001） | ⏳ 未着手 |
+| syncPersonalTodosFromNostr実装 | 4h | Nostrからのデータ取得（Kind 30001） | ⏳ 未着手 |
+| migrateFromKind30078ToKind30001完成 | 2h | 送信・削除を含む完全実装 | ⏳ 未着手 |
+| TodosProviderの更新 | 1h | _syncAllTodosToNostr()をRepository経由に | ⏳ 未着手 |
+| 動作確認 | 0.5h | 同期処理のテスト | ⏳ 未着手 |
+| コミット | 0.5h | Phase C.2.2完了コミット | ⏳ 未着手 |
 
-**Phase C.2.2 合計工数**: 13時間（1.5日）
+**Phase C.2.2 合計工数**: 14時間（2日）  
+**進捗**: 0% 完了
 
 ---
 
@@ -807,7 +818,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-**Phase C.2 全体の合計工数**: 54.5時間（約2.5週間）
+**Phase C.2 全体の合計工数**: 55.5時間（約2.5週間）
 
 **Phase C.2で実装する同期UseCases**:
 - `SyncAppSettingsUseCase` - AppSettings同期
@@ -832,7 +843,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-**Phase C 全体の合計工数**: 89時間（4週間）
+**Phase C 全体の合計工数**: 90時間（4週間）
 
 **Phase Dに延期する項目**:
 - `SyncGroupTodosUseCase` - グループTodo同期（MLS処理含む）
@@ -944,6 +955,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 ---
 
 **更新履歴**:
+- 2025-11-13 (22:30): Phase C.2.1完了・コミット（481ce26）、Phase C.2.2開始
 - 2025-11-13 (22:00): Phase C.2.1完了（マイグレーション処理のRepository化）、fetchOldTodosFromKind30078実装
 - 2025-11-13 (21:00): Phase C.2開始、4つのサブフェーズに分割（C.2.1〜C.2.4）、Phase C.2.1着手
 - 2025-11-13 (20:00): Phase C.1完了（Repository層導入完了）、動作確認結果を追記（Test 1-4全てパス）
