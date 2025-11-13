@@ -1102,18 +1102,37 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-#### Phase D.2: MLSグループ作成のUseCase化 ⏳ 進行中
+#### Phase D.2: MLSグループ作成のUseCase化 ✅ 完了
 
-**開始日**: 2025-11-14
+**開始日**: 2025-11-14  
+**完了日**: 2025-11-14  
+**実工数**: 1.5時間
 
-| タスク | 工数 | 説明 | ステータス |
-|--------|------|------|-----------|
-| CreateMlsGroupUseCase実装 | 3h | `mlsCreateTodoGroup()`呼び出し | ⏳ 実施中 |
-| SendGroupInvitationUseCase実装 | 3h | Welcome Message送信ロジック | ⏳ 予定 |
-| CustomListsProviderへの統合 | 1h | UseCase経由に変更 | ⏳ 予定 |
-| 動作確認 | 1h | グループ作成テスト | ⏳ 予定 |
+**実装内容**:
+1. **CreateMlsGroupUseCase** (87行)
+   - `mlsCreateTodoGroup()` Rust API呼び出し
+   - Welcome Message生成
+   - MlsGroupエンティティ作成
 
-**Phase D.2 合計工数**: 8時間
+2. **SendGroupInvitationUseCase** (104行)
+   - NIP-17 Gift Wrap経由で招待送信
+   - リトライロジック（最大2回、1秒間隔）
+   - エラーハンドリング強化
+
+3. **AutoPublishKeyPackageUseCase** (135行)
+   - KeyPackagePublishPolicy統合
+   - 7日間/3日間の判定ロジック
+   - forceUploadフラグ対応
+
+4. **UseCase Providers** (50行)
+   - 3つのUseCase Provider骨組み作成
+   - Phase D.5でRepository統合予定
+
+**Phase D.2 合計工数**: 8時間（予定） → 1.5時間（実績）
+
+**次のステップ**:
+- ⏸️ CustomListsProviderへの統合はPhase D.5（Repository実装後）に延期
+- ⏸️ 動作確認もPhase D.5で実施
 
 ---
 
@@ -1217,6 +1236,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 ---
 
 **更新履歴**:
+- 2025-11-14 (02:30): Phase D.2完了（MLS UseCases実装: CreateMlsGroup/SendInvitation/AutoPublishKeyPackage）
 - 2025-11-14 (02:00): Phase D.1完了（Domain層設計、MLS Protocol準拠のKey Package戦略確定）
 - 2025-11-14 (01:30): Phase C.3.2.2完了（カスタムリスト名抽出のRepository化、実工数5時間）
 - 2025-11-14 (00:30): Phase C.3.2構成を改訂（C.3.2.1完了、C.3.2.2方針明確化）、カスタムリスト同期の既存実装を確認
