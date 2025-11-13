@@ -11,7 +11,6 @@ import '../services/local_storage_service.dart';
 import '../services/logger_service.dart';
 import '../services/amber_service.dart';
 import '../services/link_preview_service.dart';
-import '../services/recurrence_parser.dart';
 import '../services/widget_service.dart';
 import '../services/group_task_service.dart';
 import 'nostr_provider.dart';
@@ -21,6 +20,11 @@ import 'app_settings_provider.dart';
 import '../utils/error_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
+// Phase B: UseCaseのインポート
+import '../features/todo/application/providers/usecase_providers.dart';
+import '../features/todo/application/usecases/create_todo_usecase.dart';
+import '../features/todo/application/usecases/update_todo_usecase.dart';
+import '../features/todo/application/usecases/delete_todo_usecase.dart';
 
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
@@ -296,6 +300,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   // 現在は初回起動時は空のリストから始まり、リレーサーバーからデータを同期します。
 
   /// 新しいTodoを追加（楽観的UI更新）
+  /// 
+  /// Phase B: CreateTodoUseCaseを使用してTodoを生成
   Future<void> addTodo(String title, DateTime? date, {String? customListId}) async {
     if (title.trim().isEmpty) return;
 
@@ -306,94 +312,48 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
 
     await state.whenData((todos) async {
-      final now = DateTime.now();
-      
-      // 繰り返しパターンを自動検出（TeuxDeux風）
-      final parseResult = RecurrenceParser.parse(title, date);
-      final cleanTitle = parseResult.cleanTitle;
-      final autoRecurrence = parseResult.pattern;
-      
-      if (autoRecurrence != null) {
-        AppLogger.info(' 自動検出: ${autoRecurrence.description}');
-        AppLogger.debug(' クリーンタイトル: "$cleanTitle"');
-      }
-      
-      // URLを検出してメタデータを取得（バックグラウンド）
-      final detectedUrl = LinkPreviewService.extractUrl(cleanTitle);
-      AppLogger.debug(' URL detected: $detectedUrl');
-      
-      // URLが検出された場合、即座にタイトルから削除
-      String finalTitle = cleanTitle;
-      LinkPreview? initialLinkPreview;
-      
-      if (detectedUrl != null) {
-        // URLからドメイン名を抽出
-        String domainName = detectedUrl;
-        try {
-          final uri = Uri.parse(detectedUrl);
-          domainName = uri.host;
-        } catch (e) {
-          // パースエラー時はそのままURLを使用
-        }
-        
-        finalTitle = LinkPreviewService.removeUrlFromText(cleanTitle, detectedUrl);
-        // 空になった場合（URLのみの入力）はドメイン名を使用
-        if (finalTitle.trim().isEmpty) {
-          finalTitle = domainName;
-        }
-        
-        // 一時的なリンクプレビューを作成（取得中を示す）
-        initialLinkPreview = LinkPreview(
-          url: detectedUrl,
-          title: domainName, // ドメイン名を表示
-          description: '読み込み中...', // 取得中を日本語で表示
-          imageUrl: null,
-        );
-        
-        AppLogger.debug(' Title after URL removal: "$finalTitle" (domain: $domainName)');
-      }
-      
-      final newTodo = Todo(
-        id: _uuid.v4(),
-        title: finalTitle,
-        completed: false,
+      // Phase B: CreateTodoUseCaseを使ってTodoを生成
+      final createTodoUseCase = _ref.read(createTodoUseCaseProvider);
+      final result = await createTodoUseCase(CreateTodoParams(
+        title: title,
         date: date,
-        order: _getNextOrder(todos, date),
-        createdAt: now,
-        updatedAt: now,
         customListId: customListId,
-        recurrence: autoRecurrence, // 自動検出された繰り返しパターンを設定
-        linkPreview: initialLinkPreview, // 一時的なリンクプレビューを設定
-        needsSync: true, // 同期が必要
-      );
-      
-      AppLogger.debug(' Created new Todo object:');
-      AppLogger.debug('   - id: ${newTodo.id}');
-      AppLogger.debug('   - title: ${newTodo.title}');
-      AppLogger.debug('   - date: ${newTodo.date}');
-      AppLogger.debug('   - customListId: ${newTodo.customListId}');
-      AppLogger.debug('   - order: ${newTodo.order}');
+        currentTodos: todos,
+      ));
 
-      final list = List<Todo>.from(todos[date] ?? []);
-      list.add(newTodo);
+      result.fold(
+        (failure) {
+          // エラーハンドリング
+          AppLogger.error('❌ Failed to create todo: ${failure.message}');
+          state = AsyncValue.error(failure, StackTrace.current);
+        },
+        (newTodo) async {
+          // URL検出（UseCaseで既に処理済み）
+          final detectedUrl = newTodo.linkPreview?.url;
+          final autoRecurrence = newTodo.recurrence;
 
-      final updatedTodos = {
-        ...todos,
-        date: list,
-      };
+          final list = List<Todo>.from(todos[date] ?? []);
+          list.add(newTodo);
 
-      // 【楽観的UI更新】即座にUI更新
-      state = AsyncValue.data(updatedTodos);
-      AppLogger.info(' UI updated immediately (optimistic)');
+          final updatedTodos = {
+            ...todos,
+            date: list,
+          };
 
-      // 以下、全てバックグラウンドで実行（UIをブロックしない）
-      _performBackgroundTasks(
-        newTodo: newTodo,
-        updatedTodos: updatedTodos,
-        autoRecurrence: autoRecurrence,
-        date: date,
-        detectedUrl: detectedUrl,
-        customListId: customListId,
+          // 【楽観的UI更新】即座にUI更新
+          state = AsyncValue.data(updatedTodos);
+          AppLogger.info(' UI updated immediately (optimistic)');
+
+          // 以下、全てバックグラウンドで実行（UIをブロックしない）
+          _performBackgroundTasks(
+            newTodo: newTodo,
+            updatedTodos: updatedTodos,
+            autoRecurrence: autoRecurrence,
+            date: date,
+            detectedUrl: detectedUrl,
+            customListId: customListId,
+          );
+        },
       );
     }).value;
   }
@@ -576,49 +536,56 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
 
   /// Todoを更新（楽観的UI更新）
+  /// 
+  /// Phase B: UpdateTodoUseCaseを使用してTodoを更新
   Future<void> updateTodo(Todo todo) async {
     await state.whenData((todos) async {
-      final list = List<Todo>.from(todos[todo.date] ?? []);
-      final index = list.indexWhere((t) => t.id == todo.id);
+      // Phase B: UpdateTodoUseCaseを使ってTodoを更新
+      final updateTodoUseCase = _ref.read(updateTodoUseCaseProvider);
+      final result = await updateTodoUseCase(UpdateTodoParams(
+        todo: todo,
+        currentTodos: todos,
+      ));
 
-      if (index != -1) {
-        list[index] = todo.copyWith(
-          updatedAt: DateTime.now(),
-          needsSync: true, // 同期が必要
-        );
-        state = AsyncValue.data({
-          ...todos,
-          todo.date: list,
-        });
+      result.fold(
+        (failure) {
+          // エラーハンドリング
+          AppLogger.error('❌ Failed to update todo: ${failure.message}');
+          state = AsyncValue.error(failure, StackTrace.current);
+        },
+        (updatedTodos) async {
+          // 【楽観的UI更新】即座にUI更新
+          state = AsyncValue.data(updatedTodos);
 
-        // ローカルストレージに保存（awaitする）
-        await _saveAllTodosToLocal();
-        
-        // Widgetを更新
-        await _updateWidget();
-
-        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
-        _updateUnsyncedCount();
-        
-        // グループリストのTodoの場合、グループタスクとして同期
-        if (todo.customListId != null) {
-          final customListsAsync = _ref.read(customListsProvider);
-          final isGroup = await customListsAsync.whenData((customLists) async {
-            final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
-            return list.isGroup;
-          }).value ?? false;
+          // ローカルストレージに保存（awaitする）
+          await _saveAllTodosToLocal();
           
-          if (isGroup) {
-            AppLogger.info('📤 Syncing to group list: ${todo.customListId}');
-            _syncToNostr(() async {
-              await _syncGroupToNostr(todo.customListId!);
-            });
-            return; // 通常のTodo同期はスキップ
+          // Widgetを更新
+          await _updateWidget();
+
+          // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+          _updateUnsyncedCount();
+          
+          // グループリストのTodoの場合、グループタスクとして同期
+          if (todo.customListId != null) {
+            final customListsAsync = _ref.read(customListsProvider);
+            final isGroup = await customListsAsync.whenData((customLists) async {
+              final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+              return list.isGroup;
+            }).value ?? false;
+            
+            if (isGroup) {
+              AppLogger.info('📤 Syncing to group list: ${todo.customListId}');
+              _syncToNostr(() async {
+                await _syncGroupToNostr(todo.customListId!);
+              });
+              return; // 通常のTodo同期はスキップ
+            }
           }
-        }
-        
-        _syncToNostrBackground();
-      }
+          
+          _syncToNostrBackground();
+        },
+      );
     }).value;
   }
 
@@ -827,6 +794,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
 
   /// Todoの完了状態をトグル（楽観的UI更新）
+  /// 
+  /// Phase B: UpdateTodoUseCaseを使用してTodoを更新
   Future<void> toggleTodo(String id, DateTime? date) async {
     await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
@@ -836,49 +805,63 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         final todo = list[index];
         final wasCompleted = todo.completed;
         
-        list[index] = todo.copyWith(
+        // Phase B: UpdateTodoUseCaseを使ってTodoを更新
+        final updatedTodo = todo.copyWith(
           completed: !todo.completed,
           updatedAt: DateTime.now(),
           needsSync: true, // 同期が必要
         );
-
-        // リカーリングタスクの完了時に次回のタスクを生成
-        if (!wasCompleted && todo.recurrence != null && todo.date != null) {
-          await _createNextRecurringTask(todo, todos);
-        }
-
-        state = AsyncValue.data({
-          ...todos,
-          date: list,
-        });
-
-        // ローカルストレージに保存（awaitする）
-        await _saveAllTodosToLocal();
         
-        // Widgetを更新
-        await _updateWidget();
+        final updateTodoUseCase = _ref.read(updateTodoUseCaseProvider);
+        final result = await updateTodoUseCase(UpdateTodoParams(
+          todo: updatedTodo,
+          currentTodos: todos,
+        ));
 
-        // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
-        _updateUnsyncedCount();
-        
-        // グループリストのTodoの場合、グループタスクとして同期
-        if (todo.customListId != null) {
-          final customListsAsync = _ref.read(customListsProvider);
-          final isGroup = await customListsAsync.whenData((customLists) async {
-            final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
-            return list.isGroup;
-          }).value ?? false;
-          
-          if (isGroup) {
-            AppLogger.info('📤 Syncing to group list: ${todo.customListId}');
-            _syncToNostr(() async {
-              await _syncGroupToNostr(todo.customListId!);
-            });
-            return; // 通常のTodo同期はスキップ
-          }
-        }
-        
-        _syncToNostrBackground();
+        await result.fold(
+          (failure) async {
+            // エラーハンドリング
+            AppLogger.error('❌ Failed to toggle todo: ${failure.message}');
+            state = AsyncValue.error(failure, StackTrace.current);
+          },
+          (updatedTodos) async {
+            // リカーリングタスクの完了時に次回のタスクを生成
+            if (!wasCompleted && todo.recurrence != null && todo.date != null) {
+              await _createNextRecurringTask(todo, updatedTodos);
+            }
+
+            // 【楽観的UI更新】即座にUI更新
+            state = AsyncValue.data(updatedTodos);
+
+            // ローカルストレージに保存（awaitする）
+            await _saveAllTodosToLocal();
+            
+            // Widgetを更新
+            await _updateWidget();
+
+            // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+            _updateUnsyncedCount();
+            
+            // グループリストのTodoの場合、グループタスクとして同期
+            if (todo.customListId != null) {
+              final customListsAsync = _ref.read(customListsProvider);
+              final isGroup = await customListsAsync.whenData((customLists) async {
+                final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+                return list.isGroup;
+              }).value ?? false;
+              
+              if (isGroup) {
+                AppLogger.info('📤 Syncing to group list: ${todo.customListId}');
+                _syncToNostr(() async {
+                  await _syncGroupToNostr(todo.customListId!);
+                });
+                return; // 通常のTodo同期はスキップ
+              }
+            }
+            
+            _syncToNostrBackground();
+          },
+        );
       }
     }).value;
   }
@@ -1106,26 +1089,40 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
 
   /// Todoを削除（楽観的UI更新）
+  /// 
+  /// Phase B: DeleteTodoUseCaseを使用してTodoを削除
   Future<void> deleteTodo(String id, DateTime? date) async {
     await state.whenData((todos) async {
-      final list = List<Todo>.from(todos[date] ?? []);
-      list.removeWhere((t) => t.id == id);
+      // Phase B: DeleteTodoUseCaseを使ってTodoを削除
+      final deleteTodoUseCase = _ref.read(deleteTodoUseCaseProvider);
+      final result = await deleteTodoUseCase(DeleteTodoParams(
+        id: id,
+        date: date,
+        currentTodos: todos,
+      ));
 
-      state = AsyncValue.data({
-        ...todos,
-        date: list,
-      });
+      result.fold(
+        (failure) {
+          // エラーハンドリング
+          AppLogger.error('❌ Failed to delete todo: ${failure.message}');
+          state = AsyncValue.error(failure, StackTrace.current);
+        },
+        (updatedTodos) async {
+          // 【楽観的UI更新】即座にUI更新
+          state = AsyncValue.data(updatedTodos);
 
-      // ローカルストレージに保存（awaitする）
-      await _saveAllTodosToLocal();
-      
-      // Widgetを更新
-      await _updateWidget();
+          // ローカルストレージに保存（awaitする）
+          await _saveAllTodosToLocal();
+          
+          // Widgetを更新
+          await _updateWidget();
 
-      // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
-      // 削除後の全TODOリストを送信（Replaceable eventなので古いイベントは自動的に置き換わる）
-      _updateUnsyncedCount();
-      _syncToNostrBackground();
+          // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
+          // 削除後の全TODOリストを送信（Replaceable eventなので古いイベントは自動的に置き換わる）
+          _updateUnsyncedCount();
+          _syncToNostrBackground();
+        },
+      );
     }).value;
   }
 
