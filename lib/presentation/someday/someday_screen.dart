@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
@@ -16,7 +14,9 @@ import '../../widgets/add_group_list_dialog.dart';
 import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
-import '../../bridge_generated.dart/api.dart' as rust_api;
+// Phase D.5: MLS UseCase統合
+import '../../features/mls/application/providers/usecase_providers.dart';
+import '../../features/mls/application/usecases/accept_group_invitation_usecase.dart';
 
 /// SOMEDAYページ（リスト管理画面）- モーダル版
 class SomedayScreen extends ConsumerWidget {
@@ -566,7 +566,7 @@ class SomedayScreen extends ConsumerWidget {
     );
   }
 
-  /// グループ招待を受諾（Phase 6.5: MLS招待システム）
+  /// グループ招待を受諾（Phase 6.5 + Phase D.5: MLS招待システム + UseCase統合）
   Future<void> _acceptGroupInvitation(
     BuildContext context,
     WidgetRef ref,
@@ -589,9 +589,7 @@ class SomedayScreen extends ConsumerWidget {
         throw Exception('Welcome message not found');
       }
       
-      final welcomeMsgBytes = base64Decode(list.welcomeMsg!);
-      
-      // MLS groupに参加
+      // 公開鍵を取得
       final nostrService = ref.read(nostrServiceProvider);
       final userPubkey = await nostrService.getPublicKey();
       
@@ -599,66 +597,75 @@ class SomedayScreen extends ConsumerWidget {
         throw Exception('User public key not available');
       }
       
-      // MLS DBを初期化（まだ初期化されていない場合）
-      AppLogger.info('🔐 [GroupInvitation] Initializing MLS DB...');
-      final appDocDir = await getApplicationDocumentsDirectory();
-      final dbPath = '${appDocDir.path}/mls.db';
-      
-      await rust_api.mlsInitDb(
-        dbPath: dbPath,
-        nostrId: userPubkey,
-      );
-      
-      AppLogger.info('📥 [GroupInvitation] Joining MLS group: ${list.id}');
-      
-      await rust_api.mlsJoinGroup(
-        nostrId: userPubkey,
+      // Phase D.5: AcceptGroupInvitationUseCaseを使用
+      final acceptInvitationUseCase = ref.read(acceptGroupInvitationUseCaseProvider);
+      final result = await acceptInvitationUseCase(AcceptGroupInvitationParams(
+        publicKey: userPubkey,
         groupId: list.id,
-        welcomeMsg: welcomeMsgBytes,
+        welcomeMessage: list.welcomeMsg!,
+      ));
+      
+      await result.fold(
+        (failure) async {
+          AppLogger.error('❌ [GroupInvitation] Failed: ${failure.message}');
+          throw Exception(failure.message);
+        },
+        (mlsGroup) async {
+          AppLogger.info('✅ [GroupInvitation] Successfully joined MLS group');
+          AppLogger.info('🔑 [GroupInvitation] Key Package auto-published (forceUpload=true)');
+          
+          // リストの招待フラグをクリア
+          final updatedList = list.copyWith(
+            isPendingInvitation: false,
+            inviterNpub: null,
+            inviterName: null,
+            welcomeMsg: null,
+          );
+          
+          // ローカルストレージに保存
+          final customListsNotifier = ref.read(customListsProvider.notifier);
+          await customListsNotifier.updateList(updatedList);
+          
+          AppLogger.info('🎉 [GroupInvitation] Group invitation accepted successfully');
+          
+          // ローディングを閉じる
+          if (context.mounted) Navigator.pop(context);
+          
+          // 成功メッセージ
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('✅ ${list.name}に参加しました'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          
+          // Phase D.5: グループタスクを同期（リスト内容が見えるように）
+          AppLogger.info('🔄 [GroupInvitation] Syncing group todos...');
+          try {
+            await ref.read(todosProvider.notifier).syncGroupTodos(list.id);
+            AppLogger.info('✅ [GroupInvitation] Group todos synced');
+          } catch (e) {
+            AppLogger.warning('⚠️ [GroupInvitation] Failed to sync group todos: $e');
+            // エラーは無視（後で手動同期可能）
+          }
+          
+          // 参加成功後、自動的にリスト詳細画面に遷移
+          await Future.delayed(const Duration(milliseconds: 300)); // 状態更新を待つ
+          
+          if (context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ListDetailScreen(
+                  customList: updatedList, // 更新後のリストを渡す
+                ),
+              ),
+            );
+          }
+        },
       );
-      
-      AppLogger.info('✅ [GroupInvitation] Successfully joined MLS group');
-      
-      // リストの招待フラグをクリア
-      final updatedList = list.copyWith(
-        isPendingInvitation: false,
-        inviterNpub: null,
-        inviterName: null,
-        welcomeMsg: null,
-      );
-      
-      // ローカルストレージに保存
-      final customListsNotifier = ref.read(customListsProvider.notifier);
-      await customListsNotifier.updateList(updatedList);
-      
-      AppLogger.info('🎉 [GroupInvitation] Group invitation accepted successfully');
-      
-      // ローディングを閉じる
-      if (context.mounted) Navigator.pop(context);
-      
-      // 成功メッセージ
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ ${list.name}に参加しました'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-      
-      // 参加成功後、自動的にリスト詳細画面に遷移
-      await Future.delayed(const Duration(milliseconds: 300)); // 状態更新を待つ
-      
-      if (context.mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ListDetailScreen(
-              customList: updatedList, // 更新後のリストを渡す
-            ),
-          ),
-        );
-      }
       
     } catch (e, stackTrace) {
       AppLogger.error('❌ [GroupInvitation] Failed to accept invitation', error: e, stackTrace: stackTrace);

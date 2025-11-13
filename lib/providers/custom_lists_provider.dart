@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -7,10 +6,14 @@ import '../models/custom_list.dart';
 // Phase 8.4: group_task_service.dart は kind: 30001廃止により未使用
 import 'app_settings_provider.dart';
 import 'nostr_provider.dart';
-import '../bridge_generated.dart/api.dart' as rust_api;
 import '../utils/error_handler.dart';
 // Phase C.3.1: Repository層統合
 import '../features/custom_list/infrastructure/providers/repository_providers.dart';
+// Phase D.5: MLS UseCase統合
+import '../features/mls/application/providers/usecase_providers.dart';
+import '../features/mls/application/usecases/create_mls_group_usecase.dart';
+import '../features/mls/application/usecases/send_group_invitation_usecase.dart';
+import '../features/mls/application/usecases/sync_group_invitations_usecase.dart';
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -512,87 +515,84 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       AppLogger.info('📥 [GroupInvitations] Syncing group invitations...');
       
-      // Rust APIを呼び出してグループ招待を取得
-      final resultJson = await rust_api.syncGroupInvitations(
-        recipientPublicKeyHex: userPubkey,
-        clientId: null,
-      );
+      // Phase D.5: SyncGroupInvitationsUseCaseを使用
+      final syncInvitationsUseCase = _ref.read(syncGroupInvitationsUseCaseProvider);
+      final result = await syncInvitationsUseCase(SyncGroupInvitationsParams(
+        recipientPublicKey: userPubkey,
+      ));
       
-      final result = jsonDecode(resultJson) as Map<String, dynamic>;
-      final invitations = result['invitations'] as List<dynamic>;
-      
-      AppLogger.info('✅ [GroupInvitations] Found ${invitations.length} pending invitations');
-      
-      if (invitations.isEmpty) {
-        return;
-      }
-      
-      // 現在のリストを取得
-      final currentLists = await state.whenData((lists) => lists).value ?? [];
-      final updatedLists = List<CustomList>.from(currentLists);
-      bool hasChanges = false;
-      
-      for (final invitationData in invitations) {
-        final invitation = invitationData as Map<String, dynamic>;
-        final groupId = invitation['group_id'] as String;
-        final groupName = invitation['group_name'] as String;
-        final welcomeMsg = invitation['welcome_msg'] as String;
-        final inviterPubkey = invitation['inviter_pubkey'] as String;
-        final inviterName = invitation['inviter_name'] as String?;
-        
-        // 既にこのグループのリストが存在するか確認
-        final existingIndex = updatedLists.indexWhere((list) => list.id == groupId);
-        
-        if (existingIndex == -1) {
-          // 新しい招待として追加
-          AppLogger.info('📨 [GroupInvitations] New invitation: $groupName from ${inviterPubkey.substring(0, 16)}...');
+      await result.fold(
+        (failure) async {
+          AppLogger.error('❌ [GroupInvitations] Sync failed: ${failure.message}');
+        },
+        (invitations) async {
+          AppLogger.info('✅ [GroupInvitations] Found ${invitations.length} pending invitations');
           
-          final newList = CustomList(
-            id: groupId,
-            name: groupName.toUpperCase(),
-            order: _getNextOrder(updatedLists),
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            isGroup: true,
-            isPendingInvitation: true,
-            inviterNpub: inviterPubkey, // hex形式（npub変換は後で必要に応じて）
-            inviterName: inviterName,
-            welcomeMsg: welcomeMsg,
-            groupMembers: [], // 招待受諾後に設定
-          );
-          
-          updatedLists.add(newList);
-          hasChanges = true;
-        } else {
-          // 既存のリストを更新（招待情報を追加）
-          final existingList = updatedLists[existingIndex];
-          if (!existingList.isPendingInvitation) {
-            AppLogger.info('📨 [GroupInvitations] Updating existing list with invitation: $groupName');
-            
-            updatedLists[existingIndex] = existingList.copyWith(
-              isPendingInvitation: true,
-              inviterNpub: inviterPubkey,
-              inviterName: inviterName,
-              welcomeMsg: welcomeMsg,
-            );
-            hasChanges = true;
+          if (invitations.isEmpty) {
+            return;
           }
-        }
-      }
-      
-      if (hasChanges) {
-        // Phase C.3.1: Repository経由でローカルストレージに保存
-        final result = await _repository.saveCustomListsToLocal(updatedLists);
-        
-        result.fold(
-          (failure) => AppLogger.warning('⚠️ [GroupInvitations] Failed to save: ${failure.message}'),
-          (_) {
-            // 状態を更新
-            state = AsyncValue.data(updatedLists);
-            AppLogger.info('✅ [GroupInvitations] Synced ${invitations.length} group invitations');
-          },
-        );
-      }
+          
+          // 現在のリストを取得
+          final currentLists = await state.whenData((lists) => lists).value ?? [];
+          final updatedLists = List<CustomList>.from(currentLists);
+          bool hasChanges = false;
+          
+          for (final invitation in invitations) {
+            // 既にこのグループのリストが存在するか確認
+            final existingIndex = updatedLists.indexWhere((list) => list.id == invitation.groupId);
+            
+            if (existingIndex == -1) {
+              // 新しい招待として追加
+              AppLogger.info('📨 [GroupInvitations] New invitation: ${invitation.groupName} from ${invitation.inviterPubkey.substring(0, 16)}...');
+              
+              final newList = CustomList(
+                id: invitation.groupId,
+                name: invitation.groupName.toUpperCase(),
+                order: _getNextOrder(updatedLists),
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+                isGroup: true,
+                isPendingInvitation: true,
+                inviterNpub: invitation.inviterPubkey, // hex形式（npub変換は後で必要に応じて）
+                inviterName: invitation.inviterName,
+                welcomeMsg: invitation.welcomeMessage,
+                groupMembers: [], // 招待受諾後に設定
+              );
+              
+              updatedLists.add(newList);
+              hasChanges = true;
+            } else {
+              // 既存のリストを更新（招待情報を追加）
+              final existingList = updatedLists[existingIndex];
+              if (!existingList.isPendingInvitation) {
+                AppLogger.info('📨 [GroupInvitations] Updating existing list with invitation: ${invitation.groupName}');
+                
+                updatedLists[existingIndex] = existingList.copyWith(
+                  isPendingInvitation: true,
+                  inviterNpub: invitation.inviterPubkey,
+                  inviterName: invitation.inviterName,
+                  welcomeMsg: invitation.welcomeMessage,
+                );
+                hasChanges = true;
+              }
+            }
+          }
+          
+          if (hasChanges) {
+            // Phase C.3.1: Repository経由でローカルストレージに保存
+            final saveResult = await _repository.saveCustomListsToLocal(updatedLists);
+            
+            saveResult.fold(
+              (failure) => AppLogger.warning('⚠️ [GroupInvitations] Failed to save: ${failure.message}'),
+              (_) {
+                // 状態を更新
+                state = AsyncValue.data(updatedLists);
+                AppLogger.info('✅ [GroupInvitations] Synced ${invitations.length} group invitations');
+              },
+            );
+          }
+        },
+      );
       
     } catch (e, stackTrace) {
       AppLogger.error('❌ [GroupInvitations] Failed to sync group invitations', error: e, stackTrace: stackTrace);
@@ -764,7 +764,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       AppLogger.info('🔐 [CustomLists] Creating MLS group: "$normalizedName"');
       AppLogger.info('   Members: ${memberNpubs.length}');
       
-      // MLSグループを作成
+      // Phase D.5: CreateMlsGroupUseCaseを使用
       final nostrService = _ref.read(nostrServiceProvider);
       final userPubkey = await nostrService.getPublicKey();
       
@@ -772,53 +772,64 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         throw Exception('User public key not available');
       }
       
-      // Phase 8.2.1: タイムアウト付きでMLSグループ作成
-      final welcomeMsgBytes = await ErrorHandler.withTimeout(
-        operation: () => rust_api.mlsCreateTodoGroup(
-          nostrId: userPubkey,
-          groupId: groupId,
-          groupName: normalizedName,
-          keyPackages: keyPackages,
-        ),
-        operationName: 'mlsCreateTodoGroup',
-        timeout: const Duration(seconds: 30),
+      final createGroupUseCase = _ref.read(createMlsGroupUseCaseProvider);
+      final groupResult = await createGroupUseCase(CreateMlsGroupParams(
+        publicKey: userPubkey,
+        groupId: groupId,
+        groupName: normalizedName,
+        keyPackages: keyPackages,
+      ));
+      
+      final String welcomeMsgBase64 = await groupResult.fold(
+        (failure) {
+          throw Exception(failure.message);
+        },
+        (mlsGroup) {
+          AppLogger.info('✅ [CustomLists] MLS group created');
+          if (mlsGroup.welcomeMessage == null) {
+            throw Exception('Welcome message is null');
+          }
+          return mlsGroup.welcomeMessage!; // MlsGroupエンティティからwelcomeMessageを取得
+        },
       );
       
-      AppLogger.info('✅ [CustomLists] MLS group created (Welcome: ${welcomeMsgBytes.length} bytes)');
-      
       // Phase 8.4: Welcome Messageを各メンバーに送信
-      final welcomeMsgBase64 = base64Encode(welcomeMsgBytes);
       
       AppLogger.info('📤 [CustomLists] Sending invitations to ${memberNpubs.length} members...');
       
       int successCount = 0;
       int failCount = 0;
       
+      // Phase D.5: SendGroupInvitationUseCaseを使用
+      final sendInvitationUseCase = _ref.read(sendGroupInvitationUseCaseProvider);
+      
       for (int i = 0; i < memberNpubs.length; i++) {
         final npub = memberNpubs[i];
         try {
           AppLogger.info('📤 [CustomLists] Sending invitation ${i + 1}/${memberNpubs.length} to ${npub.substring(0, 20)}...');
           
-          // Phase 8.2.1: リトライ付きで招待送信
-          final eventId = await ErrorHandler.retryWithBackoff<String?>(
-            operation: () => nostrService.sendGroupInvitation(
-              recipientNpub: npub,
-              groupId: groupId,
-              groupName: normalizedName,
-              welcomeMsgBase64: welcomeMsgBase64,
-            ),
-            operationName: 'sendGroupInvitation',
-            maxAttempts: 2,
-            initialDelay: const Duration(seconds: 1),
-          );
+          final invitationResult = await sendInvitationUseCase(SendGroupInvitationParams(
+            recipientNpub: npub,
+            groupId: groupId,
+            groupName: normalizedName,
+            welcomeMessage: welcomeMsgBase64,
+          ));
           
-          if (eventId != null) {
-            AppLogger.info('  ✅ Invitation sent successfully! Event ID: ${eventId.substring(0, 16)}...');
-            successCount++;
-          } else {
-            AppLogger.warning('  ⚠️ Invitation failed (returned null)');
-            failCount++;
-          }
+          await invitationResult.fold(
+            (failure) {
+              AppLogger.warning('  ⚠️ Invitation failed: ${failure.message}');
+              failCount++;
+            },
+            (result) {
+              if (result.success && result.eventId != null) {
+                AppLogger.info('  ✅ Invitation sent successfully! Event ID: ${result.eventId!.substring(0, 16)}...');
+                successCount++;
+              } else {
+                AppLogger.warning('  ⚠️ Invitation failed (returned null)');
+                failCount++;
+              }
+            },
+          );
         } catch (e) {
           final appError = ErrorHandler.classify(e);
           AppLogger.error(

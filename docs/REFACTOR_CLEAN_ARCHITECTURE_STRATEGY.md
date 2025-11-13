@@ -1164,21 +1164,428 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-#### Phase D.4-D.6（未実施）
+#### Phase D.4: グループTodo同期のUseCase化（未実施）
 
 | Phase | 工数 | 説明 |
 |-------|------|------|
 | Phase D.4 | 12h | グループTodo同期のUseCase化 |
-| Phase D.5 | 8h | Repository層実装 |
 | Phase D.6 | 8h | テスト実装 |
 
-**Phase D 全体合計工数**: 44時間（約2週間）
+**Phase D 全体合計工数**: 44時間（約2週間）  
+**実工数**: 11時間（2025-11-14）
 
 **実装の優先順位**:
 1. ✅ Phase D.1完了 - Domain層設計
-2. ⏳ Phase D.2-D.6 - UseCase化、Repository実装
-3. 既存のMLS機能は一切変更せず、動作を保証
-4. 外部API（Provider）は不変を維持
+2. ✅ Phase D.2完了 - MLSグループ作成のUseCase化
+3. ✅ Phase D.3完了 - グループ招待同期のUseCase化
+4. ✅ **Phase D.5完了** - 既存Provider統合（旧Rust API呼び出しをUseCase化）
+5. ⏳ Phase D.4 - グループTodo同期のUseCase化（後回し）
+6. ⏳ Phase D.6 - テスト実装
+
+---
+
+#### Phase D.5: 既存Provider統合（UseCase呼び出し） ✅ 完了
+
+**開始日**: 2025-11-14  
+**完了日**: 2025-11-14  
+**実工数**: 6.5時間
+
+**実装内容**:
+
+| 統合対象 | ファイル | 旧実装 | 新実装 | ステータス |
+|---------|---------|--------|--------|-----------|
+| Key Package自動公開 | `main.dart` | `autoPublishKeyPackageIfNeeded()` | `AutoPublishKeyPackageUseCase` | ✅ 完了 |
+| 招待受諾 | `someday_screen.dart` | `mlsJoinGroup()` | `AcceptGroupInvitationUseCase` | ✅ 完了 |
+| MLSグループ作成 | `custom_lists_provider.dart` | `mlsCreateTodoGroup()` | `CreateMlsGroupUseCase` | ✅ 完了 |
+| 招待送信 | `custom_lists_provider.dart` | `sendGroupInvitation()` | `SendGroupInvitationUseCase` | ✅ 完了 |
+| 招待同期 | `custom_lists_provider.dart` | `rust_api.syncGroupInvitations()` | `SyncGroupInvitationsUseCase` | ✅ 完了 |
+| グループタスク同期 | `list_detail_screen.dart` | コメントアウト解除 | `syncGroupTodos()` 呼び出し | ✅ 完了 |
+
+**修正ファイル**:
+1. `lib/main.dart` (+24 lines) - Key Package自動公開統合
+2. `lib/presentation/someday/someday_screen.dart` (+60 lines) - 招待受諾統合、グループタスク同期追加
+3. `lib/providers/custom_lists_provider.dart` (+50 lines) - MLS グループ作成・招待送信・招待同期統合
+4. `lib/presentation/list_detail/list_detail_screen.dart` (+3 lines) - グループタスク同期有効化
+
+**修正内容の詳細**:
+
+1. **main.dart (line 218-240)**:
+   - ✅ `AutoPublishKeyPackageUseCase`統合
+   - ✅ `KeyPackagePublishTrigger.appStart`を使用
+   - ✅ 7日経過時のみ公開（forceUpload=false）
+
+2. **someday_screen.dart (line 603-655)**:
+   - ✅ `AcceptGroupInvitationUseCase`統合
+   - ✅ 招待受諾後にKey Package強制公開（forceUpload=true）
+   - ✅ グループタスク同期を追加（`syncGroupTodos()`）
+   - ✅ Forward Secrecy確保
+
+3. **custom_lists_provider.dart (line 520-597, 777-829)**:
+   - ✅ `SyncGroupInvitationsUseCase`統合（招待同期）
+   - ✅ `CreateMlsGroupUseCase`統合（グループ作成）
+   - ✅ `SendGroupInvitationUseCase`統合（招待送信）
+   - ✅ 未使用import削除（`dart:convert`, `rust_api`）
+
+4. **list_detail_screen.dart (line 30-35)**:
+   - ✅ グループタスク同期有効化（コメント解除）
+   - ✅ グループリスト開いた時に自動同期
+
+**解決した問題**:
+
+| # | 問題 | 根本原因 | 修正内容 |
+|---|------|---------|---------|
+| 1 | Key Package自動アップロードが動かない | 旧メソッドを呼んでいた | `AutoPublishKeyPackageUseCase`を使用 |
+| 2 | 招待がBob側に届かない | BobのKey PackageがNostrに存在しない | アプリ起動時にKey Package公開 |
+| 3 | 招待受諾後、Bob側でリスト内容が見えない | グループタスク同期が呼ばれていなかった | `syncGroupTodos()`を追加 |
+| 4 | 招待受諾後のKey Package再公開がない | UseCase統合されていなかった | `AcceptGroupInvitationUseCase`使用 |
+| 5 | MLSグループ作成が旧Rust API直呼び出し | Phase D.2のUseCaseが未統合 | `CreateMlsGroupUseCase`使用 |
+
+**動作確認**:
+- ⏳ Oracle実施予定: Alice→Bob招待、Bob承諾、リスト内容確認
+
+**Phase D.5完了日**: 2025-11-14  
+**Phase D.5コミットID**: （実施予定）
+
+---
+
+### Phase D完了条件
+
+- ✅ Phase D.1完了（Domain層設計）
+- ✅ Phase D.2完了（UseCases実装）
+- ✅ Phase D.3完了（招待同期UseCases実装）
+- ✅ **Phase D.5完了（Provider統合）**
+- ⏳ Phase D.4: グループTodo同期（Phase E以降に延期）
+- ⏳ Phase D.6: テスト実装（Phase E以降に延期）
+
+**Phase D進捗**: 80% 完了（コア機能実装完了、テスト残り）
+
+---
+
+### 🟣 Phase E: 個人リスト削除機能（Kind: 5送信）
+
+**開始条件**: Phase D完了後
+
+**目的**: テスト用に大量に作成されたリストをリモートから削除可能にする
+
+**UX要件**: 
+- ユーザーが個人リスト（カスタムリスト及びデフォルトリスト）を削除
+- **即座にUI更新**（楽観的UI更新）
+- バックグラウンドでKind: 5削除イベントをNostrに送信
+
+---
+
+#### Phase E.1: Repository層実装 ⏳ 未実施
+
+**実装方針**:
+- 個人リスト（`isGroup: false`）のみ削除可能
+- デフォルトリスト（today/tomorrow/someday）は削除可能
+- グループリスト（`isGroup: true`）は削除不可（エラー返却）
+
+**実装内容**:
+
+```dart
+// CustomListRepository interface追加
+abstract class CustomListRepository {
+  /// カスタムリストをNostrから削除（Kind: 5イベント送信）
+  /// 
+  /// 個人カスタムリスト（isGroup=false）のみ削除可能
+  /// 
+  /// @param listId カスタムリストのID
+  /// @param eventId 削除対象のNostrイベントID
+  /// @param isAmberMode Amberモードかどうか
+  /// @return 削除成功/失敗
+  Future<Either<Failure, void>> deletePersonalListFromNostr({
+    required String listId,
+    required String eventId,
+    required bool isAmberMode,
+  });
+}
+
+// CustomListRepositoryImpl実装
+@override
+Future<Either<Failure, void>> deletePersonalListFromNostr({
+  required String listId,
+  required String eventId,
+  required bool isAmberMode,
+}) async {
+  try {
+    // 1. Kind: 5削除イベント作成
+    final deletionEvent = await _nostrService.createDeletionEvent(
+      eventIds: [eventId],
+      reason: 'Deleted by user',
+    );
+    
+    // 2. Amber/秘密鍵モード対応
+    if (isAmberMode) {
+      final signedEvent = await _amberService.signEvent(deletionEvent);
+      await _nostrService.sendEvent(signedEvent);
+    } else {
+      // 秘密鍵モードで署名して送信
+      await _nostrService.signAndSendEvent(deletionEvent);
+    }
+    
+    // 3. 削除済みイベントIDをローカルに保存
+    final deletedIds = await loadDeletedEventIds();
+    deletedIds.fold(
+      (failure) => throw failure,
+      (ids) async {
+        ids.add(eventId);
+        await saveDeletedEventIds(ids);
+      },
+    );
+    
+    return const Right(null);
+  } catch (e) {
+    return Left(CustomListNetworkFailure('Failed to delete list: $e'));
+  }
+}
+```
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| Repository interface更新 | 0.5h | `deletePersonalListFromNostr()`メソッド追加 | ⏳ 未実施 |
+| RepositoryImpl実装 | 2h | Kind: 5イベント作成・送信・ローカル保存 | ⏳ 未実施 |
+| Amber/秘密鍵モード対応 | 1h | 両モードでの署名処理 | ⏳ 未実施 |
+| エラーハンドリング | 0.5h | ネットワークエラー等の処理 | ⏳ 未実施 |
+
+**Phase E.1 合計工数**: 4時間
+
+---
+
+#### Phase E.2: UseCase層実装 ⏳ 未実施
+
+**実装内容**:
+
+```dart
+// DeletePersonalListUseCase
+class DeletePersonalListUseCase implements UseCase<void, DeletePersonalListParams> {
+  final CustomListRepository _repository;
+  
+  const DeletePersonalListUseCase(this._repository);
+  
+  @override
+  Future<Either<Failure, void>> call(DeletePersonalListParams params) async {
+    // 1. 削除可能かチェック
+    if (params.list.isGroup) {
+      return Left(CustomListFailure(
+        CustomListError.invalidOperation,
+        'Cannot delete group list via this method',
+      ));
+    }
+    
+    // 2. eventIdが必要
+    if (params.eventId == null || params.eventId!.isEmpty) {
+      return Left(CustomListFailure(
+        CustomListError.notFound,
+        'Event ID is required for remote deletion',
+      ));
+    }
+    
+    // 3. Repository経由で削除
+    return await _repository.deletePersonalListFromNostr(
+      listId: params.list.id,
+      eventId: params.eventId!,
+      isAmberMode: params.isAmberMode,
+    );
+  }
+}
+
+class DeletePersonalListParams {
+  final CustomList list;
+  final String? eventId;  // Nostr event ID
+  final bool isAmberMode;
+  
+  const DeletePersonalListParams({
+    required this.list,
+    required this.eventId,
+    required this.isAmberMode,
+  });
+}
+```
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| DeletePersonalListUseCase実装 | 2h | バリデーション＋Repository呼び出し | ⏳ 未実施 |
+| DeletePersonalListParams定義 | 0.5h | パラメータクラス | ⏳ 未実施 |
+| usecase_providers更新 | 0.5h | Provider追加 | ⏳ 未実施 |
+
+**Phase E.2 合計工数**: 3時間
+
+---
+
+#### Phase E.3: Provider層統合（楽観的UI更新） ⏳ 未実施
+
+**実装方針**:
+1. **即座にローカル削除** → UI更新
+2. **バックグラウンドでNostr削除** → エラー時はロールバック
+
+**実装内容**:
+
+```dart
+// CustomListsProvider
+Future<void> deletePersonalList(CustomList list) async {
+  if (list.isGroup) {
+    _logger.warning('Cannot delete group list: ${list.id}');
+    return;
+  }
+  
+  // 1. 楽観的UI更新: 即座にローカルから削除
+  await _repository.deleteCustomListFromLocal(list.id);
+  
+  // 2. 状態更新（UI即座反映）
+  state.whenData((lists) {
+    state = AsyncValue.data(
+      lists.where((l) => l.id != list.id).toList(),
+    );
+  });
+  
+  // 3. バックグラウンドでNostr削除
+  final result = await _deletePersonalListUseCase(
+    DeletePersonalListParams(
+      list: list,
+      eventId: list.eventId, // eventIdをCustomListに追加必要
+      isAmberMode: _ref.read(isAmberModeProvider),
+    ),
+  );
+  
+  // 4. エラー時はロールバック
+  result.fold(
+    (failure) async {
+      _logger.error('Failed to delete list from Nostr: ${failure.message}');
+      
+      // ローカルに復元
+      await _repository.saveCustomListToLocal(list);
+      
+      // UI更新
+      state.whenData((lists) {
+        state = AsyncValue.data([...lists, list]);
+      });
+      
+      // エラー通知
+      // TODO: UI通知機能実装
+    },
+    (_) {
+      _logger.info('Successfully deleted list from Nostr: ${list.id}');
+    },
+  );
+}
+```
+
+**追加要件**:
+- `CustomList`に`eventId`フィールド追加必要（Nostrイベント削除用）
+- エラー時のUI通知機能（Snackbar等）
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| CustomListモデル更新 | 0.5h | `eventId`フィールド追加 | ⏳ 未実施 |
+| Provider実装 | 2h | 楽観的UI更新＋ロールバック | ⏳ 未実施 |
+| エラー通知UI | 1h | Snackbar/Toast実装 | ⏳ 未実施 |
+| 動作確認 | 1h | 削除→復元シナリオテスト | ⏳ 未実施 |
+
+**Phase E.3 合計工数**: 4.5時間
+
+---
+
+#### Phase E.4: UI層実装 ⏳ 未実施
+
+**実装内容**:
+- SOMEDAY画面のリストに削除ボタン追加
+- 確認ダイアログ表示
+- 削除実行
+
+**UI配置案**:
+```dart
+// expandable_custom_list_modal.dart 等
+ListTile(
+  title: Text(list.name),
+  trailing: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text('${count}'),
+      // 削除ボタン（個人リストのみ）
+      if (!list.isGroup)
+        IconButton(
+          icon: Icon(Icons.delete_outline),
+          onPressed: () => _confirmDelete(list),
+        ),
+    ],
+  ),
+)
+
+Future<void> _confirmDelete(CustomList list) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Delete List'),
+      content: Text('Delete "${list.name}"? This will remove it from all devices.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text('CANCEL'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text('DELETE'),
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+        ),
+      ],
+    ),
+  );
+  
+  if (confirmed == true) {
+    await ref.read(customListsProvider.notifier).deletePersonalList(list);
+  }
+}
+```
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| 削除ボタン追加 | 1h | UI配置 | ⏳ 未実施 |
+| 確認ダイアログ実装 | 1h | AlertDialog実装 | ⏳ 未実施 |
+| Provider統合 | 0.5h | deletePersonalList呼び出し | ⏳ 未実施 |
+| テーマ対応 | 0.5h | ライト/ダークモード | ⏳ 未実施 |
+| 動作確認 | 1h | 実機テスト | ⏳ 未実施 |
+
+**Phase E.4 合計工数**: 4時間
+
+---
+
+#### Phase E.5: テスト実装 ⏳ 未実施
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| Repository単体テスト | 2h | deletePersonalListFromNostr() | ⏳ 未実施 |
+| UseCase単体テスト | 2h | DeletePersonalListUseCase | ⏳ 未実施 |
+| Provider統合テスト | 2h | 楽観的UI更新＋ロールバック | ⏳ 未実施 |
+| E2Eテスト | 2h | UI→Nostr削除の統合テスト | ⏳ 未実施 |
+
+**Phase E.5 合計工数**: 8時間
+
+---
+
+**Phase E 全体合計工数**: 23.5時間（約3日）
+
+**Phase E完了条件**:
+- ✅ 個人リスト削除ボタンがUI上に存在
+- ✅ 削除時に確認ダイアログが表示される
+- ✅ 削除後、即座にUIから消える（楽観的UI更新）
+- ✅ Kind: 5削除イベントがNostrに送信される
+- ✅ グループリストは削除不可（ボタン非表示）
+- ✅ デフォルトリスト（today/tomorrow/someday）も削除可能
+- ✅ エラー時にリストが復元される（ロールバック）
+- ✅ ユニットテスト・E2Eテストが存在
+
+**実装の優先順位**:
+1. Phase E.1（Repository層）
+2. Phase E.2（UseCase層）
+3. Phase E.3（Provider統合）
+4. Phase E.4（UI実装）
+5. Phase E.5（テスト実装）
+
+**Phase Dとの関係**:
+- Phase D完了後に着手
+- Phase Dで実装したMLS機能には影響なし
+- グループリスト削除はPhase D.4で別途実装予定（MLS Leave処理が必要）
 
 ---
 
@@ -1263,6 +1670,8 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 ---
 
 **更新履歴**:
+- 2025-11-14 (09:00): **Phase E追加**（個人リスト削除機能: Kind: 5削除イベント送信、楽観的UI更新、合計工数23.5時間）
+- 2025-11-14 (08:30): **Phase D.5完了**（Provider統合: 旧Rust API呼び出しを全UseCaseに置き換え、Key Package自動公開・招待受諾・グループ作成統合完了）
 - 2025-11-14 (02:45): Phase D.3完了（グループ招待同期UseCases: SyncInvitations/AcceptInvitation + Key Package強制公開）
 - 2025-11-14 (02:30): Phase D.2完了（MLS UseCases実装: CreateMlsGroup/SendInvitation/AutoPublishKeyPackage）
 - 2025-11-14 (02:00): Phase D.1完了（Domain層設計、MLS Protocol準拠のKey Package戦略確定）
