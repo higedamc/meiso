@@ -963,9 +963,11 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-###### Phase C.3.2.2: カスタムリスト名抽出のRepository化（Option D）
+###### Phase C.3.2.2: カスタムリスト名抽出のRepository化（Option D） ✅ 完了
 
 **開始条件**: Phase C.3.2.1完了後
+
+**開始日**: 2025-11-13
 
 **方針決定の経緯**:
 - 当初は「カスタムリストメタデータの独立送信機能」を想定（10時間）
@@ -981,31 +983,64 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 | タスク | 工数 | 説明 | ステータス |
 |--------|------|------|-----------|
-| Repository interfaceメソッド追加 | 1h | `fetchCustomListNamesFromNostr()` | ⏳ 実施予定 |
-| RepositoryImpl実装 | 3h | `_fetchEncryptedEventsForListNames()`の移植 | ⏳ 実施予定 |
-| Provider統合 | 1h | Repository経由に変更 | ⏳ 実施予定 |
-| 動作確認 | 0.5h | リスト名抽出のテスト | ⏳ 実施予定 |
-| コミット | 0.5h | Phase C.3.2.2完了 | ⏳ 実施予定 |
+| Repository interfaceメソッド追加 | 1h | `fetchCustomListNamesFromNostr()` | ✅ 完了 |
+| RepositoryImpl実装 | 3h | `_fetchEncryptedEventsForListNames()`の移植 | ✅ 完了 |
+| CustomListsProviderメソッド追加 | 0.5h | `fetchCustomListNamesFromNostr()` | ✅ 完了 |
+| TodosProvider統合 | 0.5h | Repository経由に変更 | ✅ 完了 |
+| リンターエラー修正 | 0.5h | 未使用import削除、deprecated削除 | ✅ 完了 |
+| コミット | 0.5h | Phase C.3.2.2完了 | ⏳ 実施中 |
 
-**Phase C.3.2.2 合計工数**: 6時間（0.75日）
+**Phase C.3.2.2 合計工数**: 6時間  
+**実工数**: 5時間（2025-11-13）  
+**進捗**: 100% 完了 ✅
+
+**Phase C.3.2.2完了日**: 2025-11-13  
+**Phase C.3.2.2コミットID**: (実施中)
+
+**実装内容**:
+1. **Repository interface** (`custom_list_repository.dart`)
+   - ✅ `fetchCustomListNamesFromNostr()` メソッド追加（58行）
+   - ✅ 既存メソッドのコメント更新（Phase D用）
+
+2. **Repository実装** (`custom_list_repository_impl.dart`)
+   - ✅ `fetchCustomListNamesFromNostr()` 実装（47行）
+   - ✅ `rust_api.fetchTodoListNamesOnly()`使用
+   - ✅ ErrorHandlerによるタイムアウト処理（5秒）
+   - ✅ title tag優先、fallbackでlist_idから抽出
+
+3. **CustomListsProvider**
+   - ✅ `fetchCustomListNamesFromNostr()` 公開メソッド追加（29行）
+   - ✅ Repository経由でリスト名を取得
+   - ✅ エラーハンドリング実装
+
+4. **TodosProvider**
+   - ✅ `_fetchEncryptedEventsForListNames()` 削除
+   - ✅ CustomListsProviderのメソッドを使用するよう変更（2箇所）
+   - ✅ 未使用import（ErrorHandler）削除
 
 **重要な設計判断**:
 - ✅ カスタムリストは既に`kind 30001`, d tag = `meiso-list-xxx`で送信済み
 - ✅ 新規の送信機能は不要
-- ✅ 既存の抽出ロジックをRepository化するのみ
+- ✅ 既存の抽出ロジックをRepository化
+- ✅ Provider間の依存を整理（TodosProvider → CustomListsProvider → Repository）
+- ✅ ErrorHandler依存をTodosProviderから削除
 
 ---
 
 **Phase C.3.2 全体の合計工数**: 10時間（1.5日）  
-**Phase C.3.2.1実工数**: 3時間（2025-11-13完了）  
-**Phase C.3.2.2予定工数**: 6時間
+**実工数**: 8時間（2025-11-13完了）
+- Phase C.3.2.1: 3時間
+- Phase C.3.2.2: 5時間
 
 ---
 
 **Phase C.3 全体の合計工数**: 22時間（1週間）  
-**Phase C.3.1実工数**: 10時間（2025-11-13完了）  
-**Phase C.3.2.1実工数**: 3時間（2025-11-13完了）  
-**Phase C.3.2.2予定**: 6時間
+**実工数**: 18時間（2025-11-13完了）
+- Phase C.3.1: 10時間
+- Phase C.3.2: 8時間
+
+**Phase C.3完了日**: 2025-11-14  
+**Phase C.3最終コミットID**: (Phase C.3.2.2実施中)
 
 ---
 
@@ -1121,6 +1156,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 ---
 
 **更新履歴**:
+- 2025-11-14 (01:30): Phase C.3.2.2完了（カスタムリスト名抽出のRepository化、実工数5時間）
 - 2025-11-14 (00:30): Phase C.3.2構成を改訂（C.3.2.1完了、C.3.2.2方針明確化）、カスタムリスト同期の既存実装を確認
 - 2025-11-14 (00:10): Phase C.3.2.1完了（削除イベント同期のRepository化、コミット: be9955b）
 - 2025-11-13 (23:50): Phase C.3.1完了（CustomListRepository実装、15箇所のローカルストレージ操作をRepository化）

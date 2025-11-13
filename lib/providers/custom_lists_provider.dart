@@ -290,6 +290,41 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     return lists.map((l) => l.order).reduce((a, b) => a > b ? a : b) + 1;
   }
   
+  /// Phase C.3.2.2: Nostrからカスタムリスト名を取得（Repository経由）
+  /// 
+  /// Kind 30001イベントのd tag（meiso-list-xxx）とtitle tagから
+  /// カスタムリスト名のリストを抽出する
+  Future<List<String>> fetchCustomListNamesFromNostr() async {
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+
+      if (userPubkey == null) {
+        AppLogger.warning('⚠️ [CustomLists] User pubkey not available, returning empty list');
+        return [];
+      }
+
+      AppLogger.info('📋 [CustomLists] Fetching custom list names from Nostr...');
+
+      // Phase C.3.2.2: Repository経由でリスト名を取得
+      final result = await _repository.fetchCustomListNamesFromNostr(publicKey: userPubkey);
+
+      return result.fold(
+        (failure) {
+          AppLogger.error('❌ [CustomLists] Failed to fetch list names: ${failure.message}');
+          return <String>[];
+        },
+        (listNames) {
+          AppLogger.info('✅ [CustomLists] Fetched ${listNames.length} custom list names');
+          return listNames;
+        },
+      );
+    } catch (e, st) {
+      AppLogger.error('❌ [CustomLists] Failed to fetch list names', error: e, stackTrace: st);
+      return <String>[];
+    }
+  }
+
   /// Issue #80: kind 5削除イベントを同期
   /// Phase C.3.2.1: Repository経由で実装
   Future<void> syncDeletionEvents() async {

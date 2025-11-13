@@ -25,17 +25,29 @@ abstract class CustomListRepository {
   Future<Either<Failure, void>> deleteCustomListFromLocal(String id);
   
   // ============================================================
-  // Nostr同期操作（Phase C.3.2で実装予定）
+  // Nostr同期操作（Phase C.3.2.2で実装）
   // ============================================================
   
-  /// Nostrから個人カスタムリストを同期
+  /// Nostrからカスタムリスト名を取得
   /// 
-  /// 実装予定: Phase C.3.2
+  /// Kind 30001イベントのd tag（meiso-list-xxx）とtitle tagから
+  /// カスタムリスト名のリストを抽出する
+  /// 
+  /// Phase C.3.2.2: `_fetchEncryptedEventsForListNames()`を移植
+  Future<Either<Failure, List<String>>> fetchCustomListNamesFromNostr({
+    required String publicKey,
+  });
+  
+  /// Nostrから個人カスタムリストを同期（Phase Dで実装予定）
+  /// 
+  /// Note: 現在はカスタムリストはTodoと一緒に暗黙的に送信されるため、
+  /// 独立した送信機能は不要。将来の拡張用に定義のみ残す。
   Future<Either<Failure, List<CustomList>>> syncPersonalListsFromNostr();
   
-  /// Nostrへ個人カスタムリストを送信
+  /// Nostrへ個人カスタムリストを送信（Phase Dで実装予定）
   /// 
-  /// 実装予定: Phase C.3.2
+  /// Note: 現在はカスタムリストはTodoと一緒に暗黙的に送信されるため、
+  /// 独立した送信機能は不要。将来の拡張用に定義のみ残す。
   Future<Either<Failure, void>> syncPersonalListsToNostr({
     required List<CustomList> lists,
     required bool isAmberMode,
