@@ -651,7 +651,7 @@ lib/providers/
 **進捗**: 100% 完了
 
 **Phase C.1完了日**: 2025-11-13  
-**Phase C.1コミットID**: （コミット後に記載）
+**Phase C.1コミットID**: d7ae902
 
 **重要な設計判断**:
 - ✅ UseCaseがRepository経由でローカル保存（単一Todo）
