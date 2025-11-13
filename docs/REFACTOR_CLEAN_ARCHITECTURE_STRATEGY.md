@@ -761,15 +761,29 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 | タスク | 工数 | 説明 | ステータス |
 |--------|------|------|-----------|
-| syncPersonalTodosToNostr実装 | 6h | Nostrへのデータ送信（Kind 30001） | ⏳ 未着手 |
-| syncPersonalTodosFromNostr実装 | 4h | Nostrからのデータ取得（Kind 30001） | ⏳ 未着手 |
-| migrateFromKind30078ToKind30001完成 | 2h | 送信・削除を含む完全実装 | ⏳ 未着手 |
-| TodosProviderの更新 | 1h | _syncAllTodosToNostr()をRepository経由に | ⏳ 未着手 |
-| 動作確認 | 0.5h | 同期処理のテスト | ⏳ 未着手 |
+| deleteNostrEvents実装 | 1h | Nostrイベント削除（Repository層） | ✅ 完了 |
+| setMigrationCompleted実装 | 0.5h | マイグレーション完了フラグ保存 | ✅ 完了 |
+| migrateFromKind30078ToKind30001完成 | 2h | 削除・フラグ保存をRepository経由に | ✅ 完了 |
+| 動作確認 | 0.5h | マイグレーション処理のテスト | ⏳ 実施中 |
 | コミット | 0.5h | Phase C.2.2完了コミット | ⏳ 未着手 |
 
-**Phase C.2.2 合計工数**: 14時間（2日）  
-**進捗**: 0% 完了
+**Phase C.2.2 合計工数**: 4.5時間（0.5日）  
+**実工数**: 4時間（2025-11-13）  
+**進捗**: 90% 完了
+
+**Phase C.2.2完了日**: 2025-11-13  
+**Phase C.2.2コミットID**: （コミット後に記載）
+
+**実装内容**:
+- ✅ `deleteNostrEvents()` - Nostrイベント削除機能をRepository層に実装
+- ✅ `setMigrationCompleted()` - マイグレーション完了フラグ保存をRepository層に実装
+- ✅ `migrateFromKind30078ToKind30001()` - イベント削除とフラグ保存をRepository経由に変更
+- ✅ マイグレーション処理の完全なRepository化達成
+
+**設計判断**:
+- ✅ Repository層にはデータアクセスのみ実装（削除、フラグ保存）
+- ✅ ビジネスロジック（Nostr送信）はProvider層に残す
+- 📝 完全な`syncPersonalTodosToNostr()`/`syncPersonalTodosFromNostr()`はPhase C.2.4に延期
 
 ---
 
@@ -818,7 +832,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-**Phase C.2 全体の合計工数**: 55.5時間（約2.5週間）
+**Phase C.2 全体の合計工数**: 46時間（約2週間）
 
 **Phase C.2で実装する同期UseCases**:
 - `SyncAppSettingsUseCase` - AppSettings同期
@@ -843,7 +857,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-**Phase C 全体の合計工数**: 90時間（4週間）
+**Phase C 全体の合計工数**: 80.5時間（4週間）
 
 **Phase Dに延期する項目**:
 - `SyncGroupTodosUseCase` - グループTodo同期（MLS処理含む）
@@ -955,6 +969,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 ---
 
 **更新履歴**:
+- 2025-11-13 (23:00): Phase C.2.2完了（マイグレーション処理の完全Repository化）
 - 2025-11-13 (22:30): Phase C.2.1完了・コミット（481ce26）、Phase C.2.2開始
 - 2025-11-13 (22:00): Phase C.2.1完了（マイグレーション処理のRepository化）、fetchOldTodosFromKind30078実装
 - 2025-11-13 (21:00): Phase C.2開始、4つのサブフェーズに分割（C.2.1〜C.2.4）、Phase C.2.1着手

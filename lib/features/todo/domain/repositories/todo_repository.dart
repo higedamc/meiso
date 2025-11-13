@@ -72,6 +72,19 @@ abstract class TodoRepository {
     required String publicKey,
   });
   
+  /// Nostrイベントを削除（Kind 5）
+  /// 
+  /// Phase C.2.2: マイグレーション処理で使用
+  Future<Either<Failure, void>> deleteNostrEvents({
+    required List<String> eventIds,
+    required String reason,
+  });
+  
+  /// マイグレーション完了フラグを保存
+  /// 
+  /// Phase C.2.2: マイグレーション処理で使用
+  Future<Either<Failure, void>> setMigrationCompleted();
+  
   /// Kind 30078 → Kind 30001 へマイグレーション実行
   /// 
   /// Phase C.2.2で完全実装予定

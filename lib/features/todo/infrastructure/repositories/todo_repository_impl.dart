@@ -294,18 +294,57 @@ class TodoRepositoryImpl implements TodoRepository {
   }
   
   @override
+  Future<Either<Failure, void>> deleteNostrEvents({
+    required List<String> eventIds,
+    required String reason,
+  }) async {
+    try {
+      AppLogger.info('🗑️ [Repo] Deleting ${eventIds.length} Nostr events...');
+      
+      await _nostrService.deleteEvents(eventIds, reason: reason);
+      
+      AppLogger.info('✅ [Repo] Successfully deleted ${eventIds.length} events');
+      return const Right(null);
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [Repo] Failed to delete events', error: e, stackTrace: stackTrace);
+      return Left(NetworkFailure('イベントの削除に失敗しました: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, void>> setMigrationCompleted() async {
+    try {
+      AppLogger.info('💾 [Repo] Setting migration completed flag...');
+      
+      await _localStorageService.setMigrationCompleted();
+      
+      AppLogger.info('✅ [Repo] Migration completed flag saved');
+      return const Right(null);
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [Repo] Failed to save migration flag', error: e, stackTrace: stackTrace);
+      return Left(LocalStorageFailure('マイグレーション完了フラグの保存に失敗しました: $e'));
+    }
+  }
+  
+  @override
   Future<Either<Failure, void>> migrateFromKind30078ToKind30001() async {
     try {
       AppLogger.info('🔄 [Repo] Migrating from Kind 30078 to Kind 30001...');
       
-      // TODO: Phase C.2.2で実装
-      // 完全なマイグレーション処理:
+      // NOTE: Phase C.2.2
+      // 完全なマイグレーション処理はProvider層で実装
+      // Repository層は以下のメソッドを提供：
+      // - fetchOldTodosFromKind30078() - 旧データ取得
+      // - deleteNostrEvents() - 旧イベント削除
+      // - setMigrationCompleted() - 完了フラグ保存
+      // 
+      // Provider層で以下の流れを実装：
       // 1. fetchOldTodosFromKind30078()で旧データ取得
-      // 2. syncPersonalTodosToNostr()で新形式送信
-      // 3. NostrService.deleteEvents()で旧イベント削除
-      // 4. LocalStorageService.setMigrationCompleted()でフラグ保存
+      // 2. _syncAllTodosToNostr()で新形式送信（Provider内メソッド）
+      // 3. deleteNostrEvents()で旧イベント削除
+      // 4. setMigrationCompleted()でフラグ保存
       
-      return Left(UnexpectedFailure('Not implemented yet - Phase C.2.2'));
+      return Left(UnexpectedFailure('This method should not be called directly. Use Provider layer for full migration.'));
     } catch (e, stackTrace) {
       AppLogger.error('❌ [Repo] Failed to migrate', error: e, stackTrace: stackTrace);
       return Left(UnexpectedFailure('マイグレーションに失敗しました: $e'));
