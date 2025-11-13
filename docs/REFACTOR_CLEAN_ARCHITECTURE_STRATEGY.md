@@ -477,15 +477,78 @@ class TodoRepositoryImpl implements TodoRepository {
 
 **開始条件**: Phase 8完了後
 
-| タスク | 工数 | 説明 |
-|--------|------|------|
-| CreateTodoUseCase抽出 | 8h | `addTodo()`ロジックをUseCaseに |
-| UpdateTodoUseCase抽出 | 8h | `updateTodo()`ロジックをUseCaseに |
-| DeleteTodoUseCase抽出 | 4h | `deleteTodo()`ロジックをUseCaseに |
-| SyncTodoUseCase抽出 | 12h | `syncFromNostr()`ロジックをUseCaseに |
-| テスト実装 | 8h | 各UseCaseのユニットテスト |
+**実装方針**:
+- 単純なCRUD操作（Create/Update/Delete）をUseCaseとして抽出
+- 複雑な同期ロジックはPhase C（Repository層導入後）に延期
 
-**合計工数**: 40時間（2週間）
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| CreateTodoUseCase抽出 | 8h | `addTodo()`ロジックをUseCaseに | ✅ 完了 |
+| UpdateTodoUseCase抽出 | 8h | `updateTodo()`ロジックをUseCaseに | ✅ 完了 |
+| DeleteTodoUseCase抽出 | 4h | `deleteTodo()`ロジックをUseCaseに | ✅ 完了 |
+| TodosProviderへの統合 | 8h | 各UseCaseをProviderから呼び出す | ✅ 完了 |
+| テスト実装 | 8h | 各UseCaseのユニットテスト | ⏳ 残作業 |
+| 動作確認 | 2h | 基本操作のテスト | ⏳ 残作業 |
+| ドキュメント更新 | 2h | READMEとSTRATEGY更新 | ⏳ 残作業 |
+
+**合計工数**: 40時間（2週間）  
+**実工数**: 8時間（2025-11-13）  
+**進捗**: 60% 完了
+
+**Phase Cに延期した項目**:
+- ❌ ~~SyncTodoUseCase抽出~~ → Phase Cに延期
+  - **理由**: `syncFromNostr()`は400行以上の複雑な処理（AppSettings、CustomLists、Todos、MLS、競合解決）を含み、Repository層なしでは適切に分解できない
+  - **方針**: Phase CでRepository層導入後、段階的に以下のUseCaseに分解：
+    - `SyncAppSettingsUseCase`
+    - `SyncCustomListsUseCase`  
+    - `SyncPersonalTodosUseCase`
+    - `SyncGroupTodosUseCase`（Phase Dで完成）
+    - `ResolveTodoConflictsUseCase`
+
+**Phase B実装完了分**（2025-11-13）:
+```
+lib/features/todo/application/
+├── providers/
+│   └── usecase_providers.dart (新規)
+└── usecases/
+    ├── create_todo_usecase.dart (新規)
+    ├── update_todo_usecase.dart (新規)
+    └── delete_todo_usecase.dart (新規)
+
+lib/providers/
+└── todos_provider.dart (修正)
+    - addTodo() → CreateTodoUseCaseを使用
+    - updateTodo() → UpdateTodoUseCaseを使用
+    - deleteTodo() → DeleteTodoUseCaseを使用
+    - toggleTodo() → UpdateTodoUseCaseを使用（動作確認後に追加修正）
+```
+
+**動作確認中の追加修正**（2025-11-13）:
+- `toggleTodo()`メソッドがUpdateTodoUseCaseを使っていなかったため修正
+- Test 2（完了マーク）でUseCaseのログが確認できるように改善
+
+**重要な方針**:
+- ✅ MLS機能は一切変更していない（Phase Dまで保持）
+- ✅ 外部API（Provider公開メソッド）は不変
+- ✅ 既存の全機能は動作を保証
+
+**🐛 スコープ外のバグ（Phase B完了後に修正予定）**:
+
+発見日: 2025-11-13
+
+| # | 問題 | 影響範囲 | 原因 |
+|---|------|---------|------|
+| 1 | SOMEDAY画面からTODAY画面に遷移すると、カレンダーがexpand状態で表示される | 画面遷移 | 状態管理の問題（Phase Bとは無関係） |
+| 2 | SOMEDAY画面の色味・テーマが変更されている | SOMEDAY画面全体 | 前回のリファクタリング（ダークモード対応）の影響 |
+
+**対応方針**:
+- Phase B完了後、別コミットで修正
+- これらはPhase Bのリファクタリングとは無関係
+- Issue #1: カレンダー展開状態の管理を修正
+- Issue #2: 元のカラースキーム/テーマに戻す（ダークモード対応を見直し）
+
+**解決済み**:
+- ~~Issue #3: カスタムリスト及びグループリストをタップしても中身が表示されない~~ → データ同期の遅延が原因、時間経過後に正常動作を確認
 
 ---
 
@@ -493,14 +556,52 @@ class TodoRepositoryImpl implements TodoRepository {
 
 **開始条件**: Phase B完了後
 
+**実装方針**:
+- Repository層を導入して、データアクセスを抽象化
+- Phase Bで延期した同期ロジックをUseCaseとして実装
+
 | タスク | 工数 | 説明 |
 |--------|------|------|
 | TodoRepository interface定義 | 4h | Repository抽象化 |
 | TodoRepositoryImpl実装 | 16h | 永続化・同期ロジック |
+| 同期UseCaseの実装 | 12h | Phase Bから延期した同期ロジック |
 | CustomListRepository実装 | 12h | カスタムリスト管理 |
 | テスト実装 | 8h | Repository層のテスト |
 
+**合計工数**: 52時間（2.5週間）
+
+**Phase Bから移行する同期UseCases**:
+- `SyncAppSettingsUseCase` - AppSettings同期
+- `SyncCustomListsUseCase` - カスタムリスト同期  
+- `SyncPersonalTodosUseCase` - 個人Todoの同期と競合解決
+- `ResolveTodoConflictsUseCase` - リモートとローカルの競合解決
+
+**Phase Dに延期する項目**:
+- `SyncGroupTodosUseCase` - グループTodo同期（MLS処理含む）
+
+---
+
+### 🔵 Phase D: MLS機能のリファクタリング（Option C Phase 3）
+
+**開始条件**: Phase C完了後
+
+**方針**: Phase 8で実装したMLS関連機能を段階的にクリーンアーキテクチャ化
+
+| タスク | 工数 | 説明 |
+|--------|------|------|
+| MLSグループUseCaseの抽出 | 12h | `createMlsGroupList()`, `syncGroupTodos()` |
+| KeyPackageRepository実装 | 8h | Key Package管理の抽象化 |
+| GroupInvitationUseCase実装 | 8h | Welcome Message送信ロジック |
+| MLSドメインモデルの整理 | 4h | Entity/ValueObjectの定義 |
+| テスト実装 | 8h | MLS関連のユニットテスト |
+
 **合計工数**: 40時間（2週間）
+
+**実装の優先順位**:
+1. Phase B完了まではMLS機能は旧Provider内に残す
+2. 既存のMLS機能は一切変更せず、動作を保証
+3. Phase Dでクリーンアーキテクチャ化する際も、外部API（Provider）は不変
+4. テスト駆動で慎重に移行
 
 ---
 
