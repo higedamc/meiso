@@ -875,10 +875,10 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 **Phase C.3.1 合計工数**: 12時間（1.5日）  
 **実工数**: 10時間（2025-11-13）  
-**進捗**: 100% 完了（コミット待ち）
+**進捗**: 100% 完了 ✅
 
 **Phase C.3.1完了日**: 2025-11-13  
-**Phase C.3.1コミット予定**: c3-1-complete
+**Phase C.3.1コミットID**: dbd5cfa
 
 **実装内容**:
 1. **Domain層**
