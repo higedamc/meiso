@@ -240,15 +240,15 @@ class ExpandableCustomListModal extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: textColor.withOpacity(0.2),
+                  color: AppTheme.primaryPurple.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   count.toString(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: textColor,
+                    color: AppTheme.primaryPurple,
                   ),
                 ),
               ),

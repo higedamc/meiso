@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
+import '../../providers/calendar_provider.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../providers/nostr_provider.dart';
@@ -64,35 +65,38 @@ class SomedayScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
 
+    // 楽観的UI更新: 前回のデータがあればそれを使用
+    final customLists = customListsAsync.valueOrNull;
+    final todos = todosAsync.valueOrNull;
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Column(
         children: [
           // リストコンテンツ（ヘッダーなし）
           Expanded(
-            child: customListsAsync.when(
-              data: (customLists) => todosAsync.when(
-                data: (todos) => RefreshIndicator(
-                  onRefresh: () => _onRefresh(ref),
-                  child: _buildListContent(
-                    context,
-                    ref,
-                    customLists,
-                    todos,
-                    isDark,
+            child: customLists != null && todos != null
+                ? RefreshIndicator(
+                    onRefresh: () => _onRefresh(ref),
+                    child: _buildListContent(
+                      context,
+                      ref,
+                      customLists,
+                      todos,
+                      isDark,
+                    ),
+                  )
+                : const Center(
+                    child: CircularProgressIndicator(),
                   ),
-                ),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, __) => const Center(child: Text('エラーが発生しました')),
-              ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Center(child: Text('エラーが発生しました')),
-            ),
           ),
 
           // ボトムナビゲーション
           BottomNavigation(
             onTodayTap: () {
+              // BUG FIX: カレンダー展開状態をリセット
+              ref.read(calendarVisibleProvider.notifier).state = false;
+              
               if (onClose != null) {
                 onClose!();
               }

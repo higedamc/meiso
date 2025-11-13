@@ -109,49 +109,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _showSomeday() {
-    // モーダルが既に表示されている場合は、最後に見たカスタムリストに直接ジャンプ
-    final isModalVisible = ref.read(customListModalVisibleProvider);
+    // SOMEDAY画面（フルスクリーン）を表示
+    setState(() {
+      _showingSomeday = true;
+    });
     
-    if (isModalVisible) {
-      // 最後に見ていたカスタムリストを取得
-      final appSettings = ref.read(appSettingsProvider);
-      appSettings.whenData((settings) {
-        final lastViewedListId = settings.lastViewedCustomListId;
-        
-        if (lastViewedListId != null) {
-          // カスタムリストを取得
-          final customListsAsync = ref.read(customListsProvider);
-          customListsAsync.whenData((customLists) {
-            final targetList = customLists.firstWhere(
-              (list) => list.id == lastViewedListId,
-              orElse: () => customLists.first,
-            );
-            
-            // モーダルを閉じる
-            ref.read(customListModalVisibleProvider.notifier).state = false;
-            
-            // リスト詳細画面に遷移
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ListDetailScreen(
-                  customList: targetList,
-                ),
-              ),
-            );
-          });
-        } else {
-          // 最後に見たリストがない場合は、モーダルを閉じる
-          ref.read(customListModalVisibleProvider.notifier).state = false;
-        }
-      });
-    } else {
-      // モーダルを表示
-      ref.read(customListModalVisibleProvider.notifier).state = true;
-      
-      // カレンダーは閉じる
-      ref.read(calendarVisibleProvider.notifier).state = false;
-    }
+    // カレンダーとモーダルは閉じる
+    ref.read(calendarVisibleProvider.notifier).state = false;
+    ref.read(customListModalVisibleProvider.notifier).state = false;
   }
 
   void _onDateTabTap(int index) {
