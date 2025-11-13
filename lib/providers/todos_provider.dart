@@ -1854,6 +1854,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   /// すべてのTodoをローカルストレージに保存
   Future<void> _saveAllTodosToLocal() async {
+    AppLogger.debug('💾 [Provider] _saveAllTodosToLocal() called');
     state.whenData((todos) async {
       final allTodos = <Todo>[];
       
@@ -1862,8 +1863,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         allTodos.addAll(dateGroup);
       }
       
+      AppLogger.debug('💾 [Provider] Saving ${allTodos.length} todos to local storage');
       try {
         await localStorageService.saveTodos(allTodos);
+        AppLogger.info('✅ [Provider] Saved ${allTodos.length} todos to local storage');
       } catch (e) {
         AppLogger.warning(' ローカル保存エラー: $e');
       }

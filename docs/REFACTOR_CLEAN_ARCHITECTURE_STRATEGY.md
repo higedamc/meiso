@@ -608,25 +608,114 @@ lib/providers/
 
 **開始条件**: Phase B完了後
 
+**開始日**: 2025-11-13
+
 **実装方針**:
-- Repository層を導入して、データアクセスを抽象化
-- Phase Bで延期した同期ロジックをUseCaseとして実装
+- Repository層を段階的に導入して、データアクセスを抽象化
+- まずはCRUD操作のRepository化を優先
+- 複雑な同期ロジック（syncFromNostr）は Phase C.2 に延期
 
-| タスク | 工数 | 説明 |
-|--------|------|------|
-| TodoRepository interface定義 | 4h | Repository抽象化 |
-| TodoRepositoryImpl実装 | 16h | 永続化・同期ロジック |
-| 同期UseCaseの実装 | 12h | Phase Bから延期した同期ロジック |
-| CustomListRepository実装 | 12h | カスタムリスト管理 |
-| テスト実装 | 8h | Repository層のテスト |
+---
 
-**合計工数**: 52時間（2.5週間）
+#### Phase C.1: CRUD操作のRepository化 ⏳ 進行中
 
-**Phase Bから移行する同期UseCases**:
+**方針**: 
+- 純粋なデータアクセスメソッド（ローカルストレージのみ）をRepository層に移植
+- 既存UseCaseをRepository層と統合
+- Provider依存の複雑なロジックは後回し
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| **ステップ1: インターフェース定義** | 2h | TodoRepository抽象化 | ✅ 完了 |
+| - TodoRepository interface | 1h | ローカルCRUD + 同期メソッド定義 | ✅ 完了 |
+| - TodoRepositoryImpl骨組み | 1h | 基本構造とローカルCRUD実装 | ✅ 完了 |
+| **ステップ2.1: ローカルCRUD実装** | 4h | 純粋なデータアクセスのみ | ✅ 完了 |
+| - loadTodosFromLocal実装 | 0.5h | LocalStorageService呼び出し | ✅ 完了 |
+| - saveTodosToLocal実装 | 0.5h | LocalStorageService呼び出し | ✅ 完了 |
+| - saveTodoToLocal実装 | 0.5h | 単一Todo保存 | ✅ 完了 |
+| - deleteTodoFromLocal実装 | 0.5h | 単一Todo削除 | ✅ 完了 |
+| - repository_providers実装 | 1h | DI設定 | ✅ 完了 |
+| - リンターエラー修正 | 1h | 型エラー等修正 | ✅ 完了 |
+| **ステップ2.2: UseCaseとRepository統合** | 6h | CRUD UseCaseの更新 | ✅ 完了 |
+| - CreateTodoUseCaseの更新 | 2h | Repository経由でローカル保存 | ✅ 完了 |
+| - UpdateTodoUseCaseの更新 | 2h | Repository経由でローカル保存 | ✅ 完了 |
+| - DeleteTodoUseCaseの更新 | 2h | Repository経由でローカル削除 | ✅ 完了 |
+| **ステップ2.3: Provider確認と調整** | 2h | 動作保証のための最小限の調整 | ✅ 完了 |
+| - `_saveAllTodosToLocal()`保持 | 0.5h | リカーリングタスク対応（重複保存あり） | ✅ 完了 |
+| - Provider動作確認 | 1h | UseCaseとProviderの連携確認 | ✅ 完了 |
+| - 動作確認 | 0.5h | 全CRUD操作のテスト（Test 1-4完了） | ✅ 完了 |
+| **コミット** | 0.5h | Phase C.1完了コミット | ⏳ 実施中 |
+
+**Phase C.1 合計工数**: 12.5時間（1.5日）  
+**実工数**: 10.5時間（2025-11-13）  
+**進捗**: 100% 完了
+
+**Phase C.1完了日**: 2025-11-13  
+**Phase C.1コミットID**: （コミット後に記載）
+
+**重要な設計判断**:
+- ✅ UseCaseがRepository経由でローカル保存（単一Todo）
+- ✅ Provider側の`_saveAllTodosToLocal()`は保持（リカーリングタスクの将来インスタンス対応）
+- ⚠️ 一部重複保存あり（CreateTodoUseCase保存後、Providerでも全Todo保存）
+- 📝 リカーリングタスクのUseCase化はPhase C.2に延期
+- ✅ 最小限の変更で動作を保証することを優先
+
+**動作確認結果（2025-11-13）**:
+- ✅ Test 1: Todo追加（CreateTodoUseCase → Repository.saveTodoToLocal）
+- ✅ Test 2: Todo更新（UpdateTodoUseCase → Repository.saveTodoToLocal）
+- ✅ Test 3: Todo削除（DeleteTodoUseCase → Repository.deleteTodoFromLocal）
+- ✅ Test 4: リカーリングタスク（`_saveAllTodosToLocal()`で全Todo保存）
+- ✅ アプリ再起動後もデータが永続化されている
+- ✅ 既存機能への影響なし（リグレッションゼロ）
+
+---
+
+#### Phase C.2: 同期ロジックのRepository化（延期）
+
+**開始条件**: Phase C.1完了後
+
+**方針**: 
+- `syncFromNostr()`は2000行以上あり、複数のProviderに依存
+- まずはCRUD操作のRepository化を完了させることを優先
+- 同期ロジックは別途時間をかけて設計
+- リカーリングタスクのUseCase化もこのフェーズで実施
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| 同期ロジックの設計 | 4h | syncFromNostr分解設計 | ⏳ Phase C.1後 |
+| syncPersonalTodosFromNostr実装 | 12h | Nostr同期（取得） | ⏳ Phase C.1後 |
+| syncPersonalTodosToNostr実装 | 8h | Nostr同期（送信） | ⏳ Phase C.1後 |
+| マイグレーション実装 | 4h | Kind 30078→30001 | ⏳ Phase C.1後 |
+| RecurringTodoUseCase実装 | 6h | `_generateFutureInstances()`のUseCase化 | ⏳ Phase C.1後 |
+| SyncTodoUseCase実装 | 8h | UseCase層の追加 | ⏳ Phase C.1後 |
+| テスト実装 | 8h | Repository層のテスト | ⏳ Phase C.1後 |
+
+**Phase C.2 合計工数**: 50時間（2.5週間）
+
+**Phase C.2で実装する同期UseCases**:
 - `SyncAppSettingsUseCase` - AppSettings同期
 - `SyncCustomListsUseCase` - カスタムリスト同期  
 - `SyncPersonalTodosUseCase` - 個人Todoの同期と競合解決
 - `ResolveTodoConflictsUseCase` - リモートとローカルの競合解決
+
+---
+
+#### Phase C.3: CustomListRepository実装（延期）
+
+**開始条件**: Phase C.2完了後
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| CustomListRepository interface | 2h | Repository抽象化 | ⏳ Phase C.2後 |
+| CustomListRepositoryImpl実装 | 10h | カスタムリスト管理 | ⏳ Phase C.2後 |
+| CustomListUseCases実装 | 6h | UseCase層の追加 | ⏳ Phase C.2後 |
+| テスト実装 | 4h | テスト | ⏳ Phase C.2後 |
+
+**Phase C.3 合計工数**: 22時間（1週間）
+
+---
+
+**Phase C 全体の合計工数**: 84.5時間（4週間）
 
 **Phase Dに延期する項目**:
 - `SyncGroupTodosUseCase` - グループTodo同期（MLS処理含む）
@@ -738,6 +827,9 @@ lib/providers/
 ---
 
 **更新履歴**:
+- 2025-11-13 (20:00): Phase C.1完了（Repository層導入完了）、動作確認結果を追記（Test 1-4全てパス）
+- 2025-11-13 (19:00): Phase C.1ステップ2.2完了（UseCaseとRepository統合）、設計判断を追記（リカーリングタスク対応方針）
+- 2025-11-13 (18:00): Phase C開始、実装方針を段階的アプローチに改訂（C.1/C.2/C.3に分割）
 - 2025-11-13 (16:40): Phase B.5完了（楽観的UI更新、状態管理整理、バグ1-4修正）
 - 2025-11-13 (17:00): Phase B.5追加（楽観的UI更新の実装、Issue #4対応）
 - 2025-11-13 (14:00): Phase B完了（UseCases抽出）を記録

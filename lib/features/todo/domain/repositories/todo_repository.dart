@@ -1,61 +1,92 @@
 import 'package:dartz/dartz.dart';
 import '../../../../core/common/failure.dart';
-import '../entities/todo.dart';
+import '../../../../models/todo.dart';
+import '../../../../models/app_settings.dart';
+import '../../../../models/custom_list.dart';
 
-/// TodoリポジトリのDomain層インターフェース
+/// TodoRepositoryインターフェース
 /// 
-/// Infrastructure層で実装される。
-/// データの永続化・同期の詳細を抽象化。
+/// データアクセス層の抽象化。
+/// TodosProviderから呼び出され、実装はInfrastructure層（TodoRepositoryImpl）で行う。
+/// 
+/// 責務:
+/// - ローカルストレージへのアクセス（永続化）
+/// - Nostrリレーとの同期（リモート）
+/// - データの取得・保存・削除
+/// 
+/// Phase C: 個人Todo同期のみ実装
+/// Phase D: グループTodo同期（MLS）を追加
 abstract class TodoRepository {
-  /// すべてのTodoを取得（ローカルキャッシュから）
-  Future<Either<Failure, List<Todo>>> getAllTodos();
-
-  /// 特定の日付のTodoを取得
+  // ============================================================
+  // ローカルストレージ操作
+  // ============================================================
+  
+  /// ローカルストレージから全Todoを読み込み
+  Future<Either<Failure, List<Todo>>> loadTodosFromLocal();
+  
+  /// ローカルストレージに全Todoを保存
+  Future<Either<Failure, void>> saveTodosToLocal(List<Todo> todos);
+  
+  /// ローカルストレージに単一Todoを保存
+  Future<Either<Failure, void>> saveTodoToLocal(Todo todo);
+  
+  /// ローカルストレージから単一Todoを削除
+  Future<Either<Failure, void>> deleteTodoFromLocal(String id);
+  
+  // ============================================================
+  // Nostr同期操作（個人Todo）
+  // ============================================================
+  
+  /// Nostrから個人Todoを同期取得（Kind 30001）
   /// 
-  /// [date] がnullの場合はSomedayタスクを取得
-  Future<Either<Failure, List<Todo>>> getTodosByDate(DateTime? date);
-
-  /// 特定のカスタムリストのTodoを取得
-  Future<Either<Failure, List<Todo>>> getTodosByListId(String listId);
-
-  /// 特定のTodoを取得
-  Future<Either<Failure, Todo>> getTodoById(String id);
-
-  /// Todoを作成
+  /// 返り値:
+  /// - Right<SyncResult>: 同期結果（Todos、AppSettings、CustomLists）
+  /// - Left<Failure>: 同期エラー
+  Future<Either<Failure, PersonalTodoSyncResult>> syncPersonalTodosFromNostr();
+  
+  /// Nostrへ個人Todoを送信（Kind 30001）
   /// 
-  /// ローカルに保存し、バックグラウンドでNostrに同期。
-  Future<Either<Failure, Todo>> createTodo(Todo todo);
-
-  /// Todoを更新
-  /// 
-  /// ローカルに保存し、バックグラウンドでNostrに同期。
-  Future<Either<Failure, Todo>> updateTodo(Todo todo);
-
-  /// Todoを削除
-  /// 
-  /// ローカルから削除し、バックグラウンドでNostrからも削除。
-  Future<Either<Failure, void>> deleteTodo(String id);
-
-  /// NostrリレーからTodoを同期（取得）
-  /// 
-  /// リモートからデータを取得し、ローカルに反映。
-  Future<Either<Failure, List<Todo>>> syncFromNostr();
-
-  /// TodoをNostrリレーに送信（同期）
-  /// 
-  /// 指定したTodoをリモートに送信。
-  Future<Either<Failure, void>> syncToNostr(Todo todo);
-
-  /// ローカルストレージに保存
-  Future<Either<Failure, void>> saveLocal(List<Todo> todos);
-
-  /// ローカルストレージから読み込み
-  Future<Either<Failure, List<Todo>>> loadLocal();
-
-  /// 複数のTodoの並び順を更新
-  Future<Either<Failure, List<Todo>>> reorderTodos(List<Todo> todos);
-
-  /// Todoを別の日付に移動
-  Future<Either<Failure, Todo>> moveTodo(String id, DateTime? newDate);
+  /// パラメータ:
+  /// - todos: 送信するTodoリスト
+  /// - isAmberMode: Amber署名を使用するか
+  Future<Either<Failure, void>> syncPersonalTodosToNostr({
+    required List<Todo> todos,
+    required bool isAmberMode,
+  });
+  
+  // ============================================================
+  // マイグレーション関連
+  // ============================================================
+  
+  /// Kind 30001（新形式）の存在確認
+  Future<Either<Failure, bool>> checkKind30001Exists();
+  
+  /// Kind 30078（旧形式）からマイグレーションが必要か確認
+  Future<Either<Failure, bool>> checkMigrationNeeded();
+  
+  /// Kind 30078 → Kind 30001 へマイグレーション実行
+  Future<Either<Failure, void>> migrateFromKind30078ToKind30001();
+  
+  // ============================================================
+  // Phase Dで実装予定（MLS関連）
+  // ============================================================
+  // TODO: Phase D
+  // Future<Either<Failure, List<Todo>>> syncGroupTodosFromMls(String groupId);
+  // Future<Either<Failure, void>> syncGroupTodosToMls(String groupId, List<Todo> todos);
 }
 
+/// 個人Todo同期の結果
+/// 
+/// Nostrから取得したデータの集合。
+/// AppSettingsとCustomListsも同時に取得するため、まとめて返す。
+class PersonalTodoSyncResult {
+  final List<Todo> todos;
+  final AppSettings? appSettings;
+  final List<CustomList> customLists;
+  
+  const PersonalTodoSyncResult({
+    required this.todos,
+    this.appSettings,
+    required this.customLists,
+  });
+}
