@@ -64,7 +64,18 @@ abstract class TodoRepository {
   /// Kind 30078（旧形式）からマイグレーションが必要か確認
   Future<Either<Failure, bool>> checkMigrationNeeded();
   
+  /// Kind 30078（旧形式）からTodoデータを取得
+  /// 
+  /// Phase C.2.1: マイグレーション用の旧データ取得
+  /// Phase C.2.2: 完全なマイグレーション処理実装後に統合
+  Future<Either<Failure, List<Todo>>> fetchOldTodosFromKind30078({
+    required String publicKey,
+  });
+  
   /// Kind 30078 → Kind 30001 へマイグレーション実行
+  /// 
+  /// Phase C.2.2で完全実装予定
+  /// （fetchOldTodos + 新形式送信 + 旧イベント削除）
   Future<Either<Failure, void>> migrateFromKind30078ToKind30001();
   
   // ============================================================
