@@ -7,6 +7,7 @@ import '../../../../providers/nostr_provider.dart';
 import '../../domain/repositories/custom_list_repository.dart';
 import '../../domain/errors/custom_list_errors.dart';
 import '../../../../bridge_generated.dart/api.dart' as rust_api;
+import '../../../../utils/error_handler.dart';
 
 /// CustomListRepository実装
 /// 
@@ -149,12 +150,65 @@ class CustomListRepositoryImpl implements CustomListRepository {
   }
   
   // ============================================================
-  // Nostr同期操作（Phase C.3.2で実装予定）
+  // Nostr同期操作（Phase C.3.2.2で実装）
   // ============================================================
   
   @override
+  Future<Either<Failure, List<String>>> fetchCustomListNamesFromNostr({
+    required String publicKey,
+  }) async {
+    try {
+      AppLogger.info('📋 [CustomListRepo] Fetching custom list names from Nostr...');
+      
+      // Phase 8.5.2: 軽量APIを使用（contentを取得しない）
+      final listNamesData = await ErrorHandler.withTimeout<List<rust_api.TodoListName>>(
+        operation: () => rust_api.fetchTodoListNamesOnly(publicKeyHex: publicKey),
+        operationName: 'fetchTodoListNamesOnly',
+        timeout: const Duration(seconds: 5),
+        defaultValue: <rust_api.TodoListName>[],
+      );
+      
+      if (listNamesData.isEmpty) {
+        AppLogger.debug('📋 [CustomListRepo] No list names found, returning empty list');
+        return const Right([]);
+      }
+      
+      // list_idからリスト名を抽出
+      final List<String> listNames = [];
+      for (final data in listNamesData) {
+        String listName;
+        
+        // titleタグがあればそれを使用
+        if (data.title != null && data.title!.isNotEmpty) {
+          listName = data.title!;
+        } else if (data.listId.startsWith('meiso-list-')) {
+          // titleがない場合、list_idから名前を抽出
+          listName = data.listId.substring('meiso-list-'.length);
+        } else {
+          listName = data.listId;
+        }
+        
+        // 重複チェック
+        if (!listNames.contains(listName)) {
+          listNames.add(listName);
+        }
+      }
+      
+      AppLogger.info('✅ [CustomListRepo] Fetched ${listNames.length} custom list names');
+      return Right(listNames);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to fetch custom list names',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListNetworkFailure('カスタムリスト名の取得に失敗しました: $e'));
+    }
+  }
+  
+  @override
   Future<Either<Failure, List<CustomList>>> syncPersonalListsFromNostr() async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
   
   @override
@@ -162,7 +216,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
     required List<CustomList> lists,
     required bool isAmberMode,
   }) async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
   
   @override

@@ -17,7 +17,6 @@ import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
 import 'app_settings_provider.dart';
-import '../utils/error_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
 // Phase B: UseCaseのインポート
@@ -1967,58 +1966,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
   
-  /// Phase 8.5.1: 暗号化イベントからカスタムリスト名を抽出（並列同期用）
-  /// Phase 8.5.2: 軽量版リスト名取得（最適化済み）
-  Future<List<String>> _fetchEncryptedEventsForListNames() async {
-    final nostrService = _ref.read(nostrServiceProvider);
-    
-    try {
-      final userPubkey = await nostrService.getPublicKey();
-      if (userPubkey == null) {
-        AppLogger.warning('⚠️ [Sync] 公開鍵がないため、リスト名取得をスキップ');
-        return [];
-      }
-      
-      // Phase 8.5.2: 新しい軽量APIを使用（contentを取得しない）
-      final listNamesData = await ErrorHandler.withTimeout<List<rust_api.TodoListName>>(
-        operation: () => rust_api.fetchTodoListNamesOnly(publicKeyHex: userPubkey),
-        operationName: 'fetchTodoListNamesOnly',
-        timeout: const Duration(seconds: 5),
-        defaultValue: <rust_api.TodoListName>[],
-      );
-      
-      if (listNamesData.isEmpty) {
-        AppLogger.debug('📋 [Sync] リスト名なし、空リスト返却');
-        return [];
-      }
-      
-      // list_idからリスト名を抽出
-      final List<String> listNames = [];
-      for (final data in listNamesData) {
-        String listName;
-        
-        // titleタグがあればそれを使用
-        if (data.title != null && data.title!.isNotEmpty) {
-          listName = data.title!;
-        } else if (data.listId.startsWith('meiso-list-')) {
-          // titleがない場合、list_idから名前を抽出
-          listName = data.listId.substring('meiso-list-'.length);
-        } else {
-          listName = data.listId;
-        }
-        
-        if (!listNames.contains(listName)) {
-          listNames.add(listName);
-        }
-      }
-      
-      AppLogger.info('✅ [Sync] リスト名取得完了: ${listNames.length}件（軽量API使用）');
-      return listNames;
-    } catch (e) {
-      AppLogger.error('❌ [Sync] カスタムリスト名抽出エラー', error: e);
-      return [];
-    }
-  }
+  // Phase C.3.2.2: _fetchEncryptedEventsForListNames()削除
+  // CustomListsProvider.fetchCustomListNamesFromNostr()に統合
   
   /// Nostrからすべてのtodoを同期（Kind 30001 - Todoリスト全体を取得）
   Future<void> syncFromNostr({bool isInitialSync = false}) async {
@@ -2053,7 +2002,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }),
         
         // 2. 暗号化Todoリストイベント取得（カスタムリスト名抽出のため）
-        _fetchEncryptedEventsForListNames().then((listNames) {
+        // Phase C.3.2.2: CustomListsProviderのRepository経由メソッドを使用
+        _ref.read(customListsProvider.notifier).fetchCustomListNamesFromNostr().then((listNames) {
           AppLogger.info('✅ [Sync] カスタムリスト名抽出完了: ${listNames.length}件');
           return listNames;
         }).catchError((e) {
