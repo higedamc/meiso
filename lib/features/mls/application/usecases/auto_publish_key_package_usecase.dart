@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
-import '../../../core/common/usecase.dart';
-import '../../../core/common/failure.dart';
+import '../../../../core/common/usecase.dart';
+import '../../../../core/common/failure.dart';
+import '../../domain/errors/mls_errors.dart';
 import '../../domain/repositories/key_package_repository.dart';
 import '../../domain/value_objects/key_package_publish_policy.dart';
 import '../../../../services/logger_service.dart';
@@ -120,7 +121,10 @@ class AutoPublishKeyPackageUseCase
         error: e,
         stackTrace: st,
       );
-      return Left(Failure('Key Package自動公開中にエラーが発生しました: $e'));
+      return Left(KeyPackageFailure(
+        MlsError.unknown,
+        'Key Package自動公開中にエラーが発生しました: $e',
+      ));
     }
   }
 }

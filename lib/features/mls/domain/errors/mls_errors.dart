@@ -1,4 +1,4 @@
-import '../../../core/common/failure.dart';
+import '../../../../core/common/failure.dart';
 
 /// MLSエラーコード
 /// 

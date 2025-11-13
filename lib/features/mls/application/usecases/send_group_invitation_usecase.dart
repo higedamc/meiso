@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
-import '../../../core/common/usecase.dart';
-import '../../../core/common/failure.dart';
+import '../../../../core/common/usecase.dart';
+import '../../../../core/common/failure.dart';
 import '../../domain/repositories/mls_group_repository.dart';
 import '../../../../services/logger_service.dart';
 import '../../../../utils/error_handler.dart';

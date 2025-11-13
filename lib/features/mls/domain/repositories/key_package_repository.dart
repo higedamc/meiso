@@ -1,5 +1,5 @@
 import 'package:dartz/dartz.dart';
-import '../../../core/common/failure.dart';
+import '../../../../core/common/failure.dart';
 import '../entities/key_package.dart';
 
 /// Key Package Repository Interface

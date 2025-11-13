@@ -1136,11 +1136,38 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-#### Phase D.3-D.6（未実施）
+#### Phase D.3: グループ招待同期のUseCase化 ✅ 完了
+
+**開始日**: 2025-11-14  
+**完了日**: 2025-11-14  
+**実工数**: 1時間
+
+**実装内容**:
+1. **SyncGroupInvitationsUseCase** (88行)
+   - Rust API経由でNostrから招待を取得
+   - GroupInvitationエンティティに変換
+   - ローカルストレージに保存
+
+2. **AcceptGroupInvitationUseCase** (135行)
+   - Welcome Message処理
+   - MLSグループ参加
+   - 招待削除
+   - **Key Package強制公開**（forceUpload=true）
+   - Forward Secrecy確保
+
+3. **UseCase Providers更新** (+20行)
+   - 2つのUseCase Provider追加
+
+**Phase D.3 合計工数**: 6時間（予定） → 1時間（実績）
+
+**重要な設計**: 招待受諾時にKey Packageを強制公開することで、MLS Protocol推奨のForward Secrecyを実現。
+
+---
+
+#### Phase D.4-D.6（未実施）
 
 | Phase | 工数 | 説明 |
 |-------|------|------|
-| Phase D.3 | 6h | グループ招待同期のUseCase化 |
 | Phase D.4 | 12h | グループTodo同期のUseCase化 |
 | Phase D.5 | 8h | Repository層実装 |
 | Phase D.6 | 8h | テスト実装 |
@@ -1236,6 +1263,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 ---
 
 **更新履歴**:
+- 2025-11-14 (02:45): Phase D.3完了（グループ招待同期UseCases: SyncInvitations/AcceptInvitation + Key Package強制公開）
 - 2025-11-14 (02:30): Phase D.2完了（MLS UseCases実装: CreateMlsGroup/SendInvitation/AutoPublishKeyPackage）
 - 2025-11-14 (02:00): Phase D.1完了（Domain層設計、MLS Protocol準拠のKey Package戦略確定）
 - 2025-11-14 (01:30): Phase C.3.2.2完了（カスタムリスト名抽出のRepository化、実工数5時間）
