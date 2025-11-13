@@ -3,25 +3,33 @@ import '../../../../core/common/failure.dart';
 import '../../../../models/custom_list.dart';
 import '../../../../services/local_storage_service.dart';
 import '../../../../services/logger_service.dart';
+import '../../../../providers/nostr_provider.dart';
 import '../../domain/repositories/custom_list_repository.dart';
 import '../../domain/errors/custom_list_errors.dart';
+import '../../../../bridge_generated.dart/api.dart' as rust_api;
 
 /// CustomListRepository実装
 /// 
-/// Phase C.3.1: ローカルCRUDのみ実装
-/// Phase C.3.2: Nostr同期を追加予定
+/// Phase C.3.1: ローカルCRUD実装済み
+/// Phase C.3.2.1: 削除イベント同期実装
+/// Phase C.3.2.2: カスタムリストNostr送信実装予定
 /// Phase D: MLS機能を追加予定
 /// 
 /// 依存関係:
 /// - LocalStorageService: ローカル永続化
 /// - NostrService: Nostr通信（Phase C.3.2で追加）
-/// - AmberService: Amber署名/復号化（Phase C.3.2で追加）
+/// - AmberService: Amber署名/復号化（Phase C.3.2.2で追加予定）
 class CustomListRepositoryImpl implements CustomListRepository {
   final LocalStorageService _localStorageService;
+  // Phase C.3.2.2で使用予定
+  // ignore: unused_field
+  final NostrService _nostrService;
   
   const CustomListRepositoryImpl({
     required LocalStorageService localStorageService,
-  }) : _localStorageService = localStorageService;
+    required NostrService nostrService,
+  }) : _localStorageService = localStorageService,
+       _nostrService = nostrService;
   
   // ============================================================
   // ローカルストレージ操作
@@ -161,17 +169,68 @@ class CustomListRepositoryImpl implements CustomListRepository {
   Future<Either<Failure, Set<String>>> syncDeletionEvents({
     required String publicKey,
   }) async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+    try {
+      AppLogger.info('🗑️ [CustomListRepo] Syncing deletion events (kind 5)...');
+      
+      // Rust APIを呼び出してkind 5削除イベントを取得
+      final deletedIds = await rust_api.fetchDeletionEventsForPubkeyWithClientId(
+        publicKeyHex: publicKey,
+        clientId: null,
+      );
+      
+      if (deletedIds.isNotEmpty) {
+        AppLogger.info('✅ [CustomListRepo] Synced ${deletedIds.length} deletion events');
+        return Right(deletedIds.toSet());
+      } else {
+        AppLogger.info('ℹ️ [CustomListRepo] No deletion events found');
+        return Right(<String>{});
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to sync deletion events',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListNetworkFailure('削除イベントの同期に失敗しました: $e'));
+    }
   }
   
   @override
   Future<Either<Failure, void>> saveDeletedEventIds(Set<String> eventIds) async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+    try {
+      AppLogger.debug('💾 [CustomListRepo] Saving ${eventIds.length} deleted event IDs...');
+      
+      await _localStorageService.saveDeletedEventIds(eventIds.toList());
+      
+      AppLogger.info('✅ [CustomListRepo] Saved ${eventIds.length} deleted event IDs');
+      return const Right(null);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to save deleted event IDs',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('削除イベントIDの保存に失敗しました: $e'));
+    }
   }
   
   @override
   Future<Either<Failure, Set<String>>> loadDeletedEventIds() async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase C.3.2'));
+    try {
+      AppLogger.debug('📂 [CustomListRepo] Loading deleted event IDs...');
+      
+      final eventIds = await _localStorageService.loadDeletedEventIds();
+      
+      AppLogger.info('✅ [CustomListRepo] Loaded ${eventIds.length} deleted event IDs');
+      return Right(eventIds.toSet());
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to load deleted event IDs',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('削除イベントIDの読み込みに失敗しました: $e'));
+    }
   }
   
   // ============================================================
