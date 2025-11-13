@@ -22,6 +22,10 @@ import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/todos_provider.dart';
 import 'providers/locale_provider.dart';
 import 'widgets/sync_loading_overlay.dart'; // Phase 8.5.1
+// Phase D.5: MLS UseCase統合
+import 'features/mls/application/providers/usecase_providers.dart';
+import 'features/mls/application/usecases/auto_publish_key_package_usecase.dart';
+import 'features/mls/domain/value_objects/key_package_publish_policy.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -208,9 +212,28 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             // エラーがあってもアプリ起動は継続
           }
           
-          // Phase 8.1: Key Package自動公開
+          // Phase 8.1 + Phase D.5: Key Package自動公開（UseCase統合）
           try {
-            await nostrService.autoPublishKeyPackageIfNeeded();
+            AppLogger.info('[復元] Key Package自動公開チェック...', tag: 'MLS');
+            final autoPublishUseCase = ref.read(autoPublishKeyPackageUseCaseProvider);
+            final result = await autoPublishUseCase(AutoPublishKeyPackageParams(
+              publicKey: publicKey,
+              trigger: KeyPackagePublishTrigger.appStart,
+              forceUpload: false, // 7日経過時のみ公開
+            ));
+            
+            result.fold(
+              (failure) {
+                AppLogger.warning('[復元] Key Package自動公開エラー: ${failure.message}', tag: 'MLS');
+              },
+              (eventId) {
+                if (eventId != null) {
+                  AppLogger.info('[復元] Key Package自動公開成功: ${eventId.substring(0, 16)}...', tag: 'MLS');
+                } else {
+                  AppLogger.debug('[復元] Key Package は最新（公開スキップ）', tag: 'MLS');
+                }
+              },
+            );
           } catch (e) {
             AppLogger.warning('[復元] Key Package自動公開エラー', error: e, tag: 'MLS');
             // エラーは無視（必須ではない）
