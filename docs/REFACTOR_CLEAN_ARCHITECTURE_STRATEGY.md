@@ -922,25 +922,90 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-##### Phase C.3.2: Nostr同期 Repository化（Phase Dに延期）
+##### Phase C.3.2: Nostr同期 Repository化
 
-**方針**: 
-- `syncListsFromNostr()`, `syncDeletionEvents()`のロジックをRepository層に移植
-- Phase Dの前に実装するか、Phase D内で統合するか要検討
+**開始条件**: Phase C.3.1完了後
+
+**開始日**: 2025-11-13
+
+**実装方針**:
+- Phase C.3.2を2つのサブフェーズに分割
+- C.3.2.1: 削除イベント同期のRepository化（完了）
+- C.3.2.2: カスタムリスト名抽出のRepository化（実施予定）
+
+---
+
+###### Phase C.3.2.1: 削除イベント同期のRepository化 ✅ 完了
+
+**開始日**: 2025-11-13
 
 | タスク | 工数 | 説明 | ステータス |
 |--------|------|------|-----------|
-| syncPersonalListsFromNostr実装 | 4h | Nostrからリスト取得 | ⏳ Phase D前 |
-| syncPersonalListsToNostr実装 | 3h | Nostrへリスト送信 | ⏳ Phase D前 |
-| syncDeletionEvents実装 | 2h | Kind 5削除イベント同期 | ⏳ Phase D前 |
-| Provider統合 | 1h | Repository経由に変更 | ⏳ Phase D前 |
+| syncDeletionEventsメソッド追加 | 1h | Repository層に実装 | ✅ 完了 |
+| loadDeletedEventIds実装 | 1h | Repository層に実装 | ✅ 完了 |
+| saveDeletedEventIds実装 | 1h | Repository層に実装 | ✅ 完了 |
+| Provider統合 | 0.5h | Repository経由に変更（2箇所） | ✅ 完了 |
+| コミット | 0.5h | Phase C.3.2.1完了 | ✅ 完了 |
 
-**Phase C.3.2 合計工数**: 10時間（1.5日）
+**Phase C.3.2.1 合計工数**: 4時間  
+**実工数**: 3時間（2025-11-13）  
+**進捗**: 100% 完了 ✅
+
+**Phase C.3.2.1完了日**: 2025-11-13  
+**Phase C.3.2.1コミットID**: be9955b
+
+**実装内容**:
+- ✅ `syncDeletionEvents()`: Kind 5削除イベントをNostrから取得（62行）
+- ✅ `saveDeletedEventIds()`: 削除済みイベントIDをローカル保存
+- ✅ `loadDeletedEventIds()`: 削除済みイベントIDをローカルから読み込み
+- ✅ NostrService注入（repository_providers更新）
+- ✅ Provider統合: `_initialize()`と`syncDeletionEvents()`をRepository経由に
+
+---
+
+###### Phase C.3.2.2: カスタムリスト名抽出のRepository化（Option D）
+
+**開始条件**: Phase C.3.2.1完了後
+
+**方針決定の経緯**:
+- 当初は「カスタムリストメタデータの独立送信機能」を想定（10時間）
+- コード調査の結果、カスタムリストは既にTodoと一緒に暗黙的に送信されていることが判明
+  - d tag = `meiso-list-{list_id}` でリストが識別される
+  - title tag にリスト名が含まれる
+  - 受信時に`_fetchEncryptedEventsForListNames()`でリスト名を抽出
+- **新機能の実装は不要**、既存ロジックのRepository化のみ
+
+**実装方針**:
+- `_fetchEncryptedEventsForListNames()`（todos_provider.dart）をRepository層に移植
+- Provider間の依存を解消（TodosProvider → CustomListsProvider）
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| Repository interfaceメソッド追加 | 1h | `fetchCustomListNamesFromNostr()` | ⏳ 実施予定 |
+| RepositoryImpl実装 | 3h | `_fetchEncryptedEventsForListNames()`の移植 | ⏳ 実施予定 |
+| Provider統合 | 1h | Repository経由に変更 | ⏳ 実施予定 |
+| 動作確認 | 0.5h | リスト名抽出のテスト | ⏳ 実施予定 |
+| コミット | 0.5h | Phase C.3.2.2完了 | ⏳ 実施予定 |
+
+**Phase C.3.2.2 合計工数**: 6時間（0.75日）
+
+**重要な設計判断**:
+- ✅ カスタムリストは既に`kind 30001`, d tag = `meiso-list-xxx`で送信済み
+- ✅ 新規の送信機能は不要
+- ✅ 既存の抽出ロジックをRepository化するのみ
+
+---
+
+**Phase C.3.2 全体の合計工数**: 10時間（1.5日）  
+**Phase C.3.2.1実工数**: 3時間（2025-11-13完了）  
+**Phase C.3.2.2予定工数**: 6時間
 
 ---
 
 **Phase C.3 全体の合計工数**: 22時間（1週間）  
-**Phase C.3.1実工数**: 10時間（2025-11-13完了）
+**Phase C.3.1実工数**: 10時間（2025-11-13完了）  
+**Phase C.3.2.1実工数**: 3時間（2025-11-13完了）  
+**Phase C.3.2.2予定**: 6時間
 
 ---
 
@@ -1056,6 +1121,8 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 ---
 
 **更新履歴**:
+- 2025-11-14 (00:30): Phase C.3.2構成を改訂（C.3.2.1完了、C.3.2.2方針明確化）、カスタムリスト同期の既存実装を確認
+- 2025-11-14 (00:10): Phase C.3.2.1完了（削除イベント同期のRepository化、コミット: be9955b）
 - 2025-11-13 (23:50): Phase C.3.1完了（CustomListRepository実装、15箇所のローカルストレージ操作をRepository化）
 - 2025-11-13 (23:00): Phase C.2.2完了（マイグレーション処理の完全Repository化）
 - 2025-11-13 (22:30): Phase C.2.1完了・コミット（481ce26）、Phase C.2.2開始
