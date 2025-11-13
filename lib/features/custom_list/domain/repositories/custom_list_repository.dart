@@ -42,24 +42,20 @@ abstract class CustomListRepository {
   });
   
   // ============================================================
-  // 削除イベント同期（Phase C.3.2で実装予定）
+  // 削除イベント同期（Phase C.3.2.1で実装）
   // ============================================================
   
   /// Kind 5削除イベントを同期
   /// 
-  /// 実装予定: Phase C.3.2
+  /// Nostrから削除イベント（Kind 5）を取得し、削除済みイベントIDのセットを返す
   Future<Either<Failure, Set<String>>> syncDeletionEvents({
     required String publicKey,
   });
   
   /// 削除済みイベントIDをローカルに保存
-  /// 
-  /// 実装予定: Phase C.3.2
   Future<Either<Failure, void>> saveDeletedEventIds(Set<String> eventIds);
   
   /// 削除済みイベントIDをローカルから読み込み
-  /// 
-  /// 実装予定: Phase C.3.2
   Future<Either<Failure, Set<String>>> loadDeletedEventIds();
   
   // ============================================================

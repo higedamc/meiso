@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../services/logger_service.dart';
 import '../models/custom_list.dart';
-import '../services/local_storage_service.dart';
 // Phase 8.4: group_task_service.dart は kind: 30001廃止により未使用
 import 'app_settings_provider.dart';
 import 'nostr_provider.dart';
@@ -37,15 +36,23 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
   Future<void> _initialize() async {
     try {
-      // Issue #80: 削除済みイベントIDを読み込み
-      final deletedIds = await localStorageService.loadDeletedEventIds();
-      _deletedEventIds = deletedIds.toSet();
-      AppLogger.info('🗑️ [CustomLists] Loaded ${_deletedEventIds.length} deleted event IDs');
+      // Issue #80: Phase C.3.2.1 - Repository経由で削除済みイベントIDを読み込み
+      final deletedIdsResult = await _repository.loadDeletedEventIds();
+      deletedIdsResult.fold(
+        (failure) {
+          AppLogger.warning('🗑️ [CustomLists] Failed to load deleted event IDs: ${failure.message}');
+          _deletedEventIds = {};
+        },
+        (deletedIds) {
+          _deletedEventIds = deletedIds;
+          AppLogger.info('🗑️ [CustomLists] Loaded ${_deletedEventIds.length} deleted event IDs');
+        },
+      );
       
       // Phase C.3.1: Repository経由でローカルストレージから読み込み
-      final result = await _repository.loadCustomListsFromLocal();
+      final listsResult = await _repository.loadCustomListsFromLocal();
       
-      result.fold(
+      listsResult.fold(
         (failure) {
           AppLogger.warning(' [CustomLists] Failed to load lists: ${failure.message}');
           state = AsyncValue.data([]);
@@ -284,6 +291,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   }
   
   /// Issue #80: kind 5削除イベントを同期
+  /// Phase C.3.2.1: Repository経由で実装
   Future<void> syncDeletionEvents() async {
     try {
       final nostrService = _ref.read(nostrServiceProvider);
@@ -296,19 +304,29 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       AppLogger.info('🗑️ [CustomLists] Syncing deletion events (kind 5)...');
       
-      // Rust APIを呼び出してkind 5削除イベントを取得
-      final deletedIds = await rust_api.fetchDeletionEventsForPubkeyWithClientId(
-        publicKeyHex: userPubkey,
-        clientId: null,
-      );
+      // Phase C.3.2.1: Repository経由で削除イベントを取得
+      final syncResult = await _repository.syncDeletionEvents(publicKey: userPubkey);
       
-      if (deletedIds.isNotEmpty) {
-        _deletedEventIds.addAll(deletedIds);
-        await localStorageService.saveDeletedEventIds(_deletedEventIds.toList());
-        AppLogger.info('✅ [CustomLists] Synced ${deletedIds.length} deletion events (total: ${_deletedEventIds.length})');
-      } else {
-        AppLogger.info('ℹ️ [CustomLists] No deletion events found');
-      }
+      await syncResult.fold(
+        (failure) {
+          AppLogger.error('❌ [CustomLists] Failed to sync deletion events: ${failure.message}');
+        },
+        (deletedIds) async {
+          if (deletedIds.isNotEmpty) {
+            _deletedEventIds.addAll(deletedIds);
+            
+            // Repository経由で保存
+            final saveResult = await _repository.saveDeletedEventIds(_deletedEventIds);
+            
+            saveResult.fold(
+              (failure) => AppLogger.error('❌ [CustomLists] Failed to save deletion events: ${failure.message}'),
+              (_) => AppLogger.info('✅ [CustomLists] Synced ${deletedIds.length} deletion events (total: ${_deletedEventIds.length})'),
+            );
+          } else {
+            AppLogger.info('ℹ️ [CustomLists] No deletion events found');
+          }
+        },
+      );
     } catch (e, st) {
       AppLogger.error('❌ [CustomLists] Failed to sync deletion events', error: e, stackTrace: st);
     }
