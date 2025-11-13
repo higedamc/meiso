@@ -3,6 +3,7 @@ import '../../../../core/common/usecase.dart';
 import '../../../../core/common/failure.dart';
 import '../../../../models/todo.dart';
 import '../../../../services/logger_service.dart';
+import '../../domain/repositories/todo_repository.dart';
 
 /// DeleteTodoUseCaseのパラメータ
 class DeleteTodoParams {
@@ -19,15 +20,18 @@ class DeleteTodoParams {
 
 /// Todoを削除するUseCase
 /// 
+/// Phase C.1: Repository層統合
+/// 
 /// 責務:
 /// - Todoの存在確認
 /// - リストからTodoを削除
+/// - ローカルストレージから削除（Repository経由）
 /// - 削除後のTodoリストを返す
-/// 
-/// 注意:
-/// - ローカルストレージ保存やNostr同期は行わない（Provider層の責務）
-/// - Phase CでRepository層導入時に、これらの処理も移動予定
 class DeleteTodoUseCase implements UseCase<Map<DateTime?, List<Todo>>, DeleteTodoParams> {
+  final TodoRepository _repository;
+  
+  DeleteTodoUseCase(this._repository);
+  
   @override
   Future<Either<Failure, Map<DateTime?, List<Todo>>>> call(DeleteTodoParams params) async {
     try {
@@ -52,7 +56,22 @@ class DeleteTodoUseCase implements UseCase<Map<DateTime?, List<Todo>>, DeleteTod
         params.date: list,
       };
 
-      AppLogger.info('✅ Todo deleted successfully');
+      // Phase C.1: Repository経由でローカルから削除
+      AppLogger.debug('🗑️ Deleting todo from local storage via Repository...');
+      final deleteResult = await _repository.deleteTodoFromLocal(params.id);
+      
+      // 削除失敗時はエラーを返す
+      if (deleteResult.isLeft()) {
+        return deleteResult.fold(
+          (failure) {
+            AppLogger.error('❌ Failed to delete todo from local: ${failure.message}');
+            return Left(failure);
+          },
+          (_) => Right(updatedTodos), // これは到達しない
+        );
+      }
+      
+      AppLogger.info('✅ Todo deleted from local storage');
       return Right(updatedTodos);
     } catch (e, stackTrace) {
       AppLogger.error('❌ DeleteTodoUseCase failed: $e', error: e, stackTrace: stackTrace);

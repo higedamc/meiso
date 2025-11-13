@@ -3,6 +3,7 @@ import '../../../../core/common/usecase.dart';
 import '../../../../core/common/failure.dart';
 import '../../../../models/todo.dart';
 import '../../../../services/logger_service.dart';
+import '../../domain/repositories/todo_repository.dart';
 
 /// UpdateTodoUseCaseのパラメータ
 class UpdateTodoParams {
@@ -17,15 +18,18 @@ class UpdateTodoParams {
 
 /// Todoを更新するUseCase
 /// 
+/// Phase C.1: Repository層統合
+/// 
 /// 責務:
 /// - Todoの存在確認
 /// - updatedAtとneedsSyncの更新
+/// - ローカルストレージへの永続化（Repository経由）
 /// - 更新後のTodoリストを返す
-/// 
-/// 注意:
-/// - ローカルストレージ保存やNostr同期は行わない（Provider層の責務）
-/// - Phase CでRepository層導入時に、これらの処理も移動予定
 class UpdateTodoUseCase implements UseCase<Map<DateTime?, List<Todo>>, UpdateTodoParams> {
+  final TodoRepository _repository;
+  
+  UpdateTodoUseCase(this._repository);
+  
   @override
   Future<Either<Failure, Map<DateTime?, List<Todo>>>> call(UpdateTodoParams params) async {
     try {
@@ -52,7 +56,23 @@ class UpdateTodoUseCase implements UseCase<Map<DateTime?, List<Todo>>, UpdateTod
         params.todo.date: list,
       };
 
-      AppLogger.info('✅ Todo updated successfully');
+      // Phase C.1: Repository経由でローカルに保存
+      AppLogger.debug('💾 Saving updated todo to local storage via Repository...');
+      final updatedTodo = list[index];
+      final saveResult = await _repository.saveTodoToLocal(updatedTodo);
+      
+      // 保存失敗時はエラーを返す
+      if (saveResult.isLeft()) {
+        return saveResult.fold(
+          (failure) {
+            AppLogger.error('❌ Failed to save updated todo to local: ${failure.message}');
+            return Left(failure);
+          },
+          (_) => Right(updatedTodos), // これは到達しない
+        );
+      }
+      
+      AppLogger.info('✅ Todo updated and saved to local storage');
       return Right(updatedTodos);
     } catch (e, stackTrace) {
       AppLogger.error('❌ UpdateTodoUseCase failed: $e', error: e, stackTrace: stackTrace);

@@ -8,6 +8,7 @@ import '../../../../models/recurrence_pattern.dart';
 import '../../../../services/recurrence_parser.dart';
 import '../../../../services/link_preview_service.dart';
 import '../../../../services/logger_service.dart';
+import '../../domain/repositories/todo_repository.dart';
 
 /// CreateTodoUseCaseのパラメータ
 class CreateTodoParams {
@@ -26,14 +27,20 @@ class CreateTodoParams {
 
 /// 新しいTodoを作成するUseCase
 /// 
+/// Phase C.1: Repository層統合
+/// 
 /// 責務:
 /// - タイトルのバリデーション
 /// - 繰り返しパターンの自動検出
 /// - URLの検出とリンクプレビュー準備
 /// - Todoオブジェクトの生成
 /// - orderの計算
+/// - ローカルストレージへの永続化（Repository経由）
 class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
+  final TodoRepository _repository;
   final _uuid = const Uuid();
+  
+  CreateTodoUseCase(this._repository);
 
   @override
   Future<Either<Failure, Todo>> call(CreateTodoParams params) async {
@@ -117,6 +124,27 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
       AppLogger.info('   - customListId: ${newTodo.customListId}');
       AppLogger.info('   - order: ${newTodo.order}');
 
+      // Phase C.1: Repository経由でローカルに保存
+      AppLogger.info('💾 [UseCase] Saving todo to local storage via Repository...');
+      AppLogger.debug('[UseCase] Repository instance: $_repository');
+      AppLogger.debug('[UseCase] About to call _repository.saveTodoToLocal()');
+      
+      final saveResult = await _repository.saveTodoToLocal(newTodo);
+      
+      AppLogger.debug('[UseCase] saveTodoToLocal() returned, checking result...');
+      
+      // 保存失敗時はエラーを返す
+      if (saveResult.isLeft()) {
+        return saveResult.fold(
+          (failure) {
+            AppLogger.error('❌ [UseCase] Failed to save todo to local: ${failure.message}');
+            return Left(failure);
+          },
+          (_) => Right(newTodo), // これは到達しない
+        );
+      }
+      
+      AppLogger.info('✅ [UseCase] Todo saved to local storage successfully');
       return Right(newTodo);
     } catch (e, stackTrace) {
       AppLogger.error('❌ CreateTodoUseCase failed: $e', error: e, stackTrace: stackTrace);
