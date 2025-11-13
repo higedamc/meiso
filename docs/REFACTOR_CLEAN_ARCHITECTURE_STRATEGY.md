@@ -1055,23 +1055,84 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 **開始条件**: Phase C完了後
 
+**開始日**: 2025-11-14
+
 **方針**: Phase 8で実装したMLS関連機能を段階的にクリーンアーキテクチャ化
 
-| タスク | 工数 | 説明 |
-|--------|------|------|
-| MLSグループUseCaseの抽出 | 12h | `createMlsGroupList()`, `syncGroupTodos()` |
-| KeyPackageRepository実装 | 8h | Key Package管理の抽象化 |
-| GroupInvitationUseCase実装 | 8h | Welcome Message送信ロジック |
-| MLSドメインモデルの整理 | 4h | Entity/ValueObjectの定義 |
-| テスト実装 | 8h | MLS関連のユニットテスト |
+---
 
-**合計工数**: 40時間（2週間）
+#### Phase D.1: Domain層設計 ✅ 完了
+
+**完了日**: 2025-11-14  
+**実工数**: 2時間
+
+**実装内容**:
+1. **KeyPackagePublishPolicy** (117行)
+   - MLS Protocol準拠（RFC 9420）
+   - 有効期限: 7日間（maxKeyPackageLifetime）
+   - 推奨更新閾値: 3日間（recommendedRefreshThreshold）
+   - 5つの公開トリガー定義
+
+2. **Entities** (3ファイル)
+   - `MlsGroup` (45行) - MLSグループ情報
+   - `GroupInvitation` (66行) - 招待情報、期限切れ判定
+   - `KeyPackage` (58行) - Key Package、期限管理
+
+3. **Errors** (160行)
+   - `MlsError` enum（17種類のエラーコード）
+   - 5つのFailureクラス（Group/Invitation/KeyPackage/Member/Crypto/Network）
+
+4. **Repository Interfaces** (2ファイル)
+   - `KeyPackageRepository` (93行) - 10メソッド
+   - `MlsGroupRepository` (143行) - 15メソッド
+
+**Key Package公開戦略**（MLS Protocol準拠）:
+| タイミング | forceUpload | 判定ロジック | 頻度 |
+|-----------|-------------|------------|------|
+| アプリ起動時 | false | 7日経過 → 公開 | 週1回 |
+| アカウント作成時 | false | 常に公開 | 初回のみ |
+| 招待受諾時 | **true** | 即座に公開 | 都度 |
+| グループメッセージ送信前 | false | 3日経過 → 公開してから送信 | 最大3日ごと |
+| 手動公開（Settings） | **true** | 即座に公開 | 手動 |
+
+**KeyChatとの比較**:
+- KeyChat: 30日間有効期限 → ⚠️ MLS Protocol非準拠
+- Meiso: 7日間有効期限 → ✅ RFC 9420準拠（**4.3倍改善**）
+- Forward Secrecy向上: 3日ごとに更新（アクティブユーザー）
+
+---
+
+#### Phase D.2: MLSグループ作成のUseCase化 ⏳ 進行中
+
+**開始日**: 2025-11-14
+
+| タスク | 工数 | 説明 | ステータス |
+|--------|------|------|-----------|
+| CreateMlsGroupUseCase実装 | 3h | `mlsCreateTodoGroup()`呼び出し | ⏳ 実施中 |
+| SendGroupInvitationUseCase実装 | 3h | Welcome Message送信ロジック | ⏳ 予定 |
+| CustomListsProviderへの統合 | 1h | UseCase経由に変更 | ⏳ 予定 |
+| 動作確認 | 1h | グループ作成テスト | ⏳ 予定 |
+
+**Phase D.2 合計工数**: 8時間
+
+---
+
+#### Phase D.3-D.6（未実施）
+
+| Phase | 工数 | 説明 |
+|-------|------|------|
+| Phase D.3 | 6h | グループ招待同期のUseCase化 |
+| Phase D.4 | 12h | グループTodo同期のUseCase化 |
+| Phase D.5 | 8h | Repository層実装 |
+| Phase D.6 | 8h | テスト実装 |
+
+**Phase D 全体合計工数**: 44時間（約2週間）
 
 **実装の優先順位**:
-1. Phase B完了まではMLS機能は旧Provider内に残す
-2. 既存のMLS機能は一切変更せず、動作を保証
-3. Phase Dでクリーンアーキテクチャ化する際も、外部API（Provider）は不変
-4. テスト駆動で慎重に移行
+1. ✅ Phase D.1完了 - Domain層設計
+2. ⏳ Phase D.2-D.6 - UseCase化、Repository実装
+3. 既存のMLS機能は一切変更せず、動作を保証
+4. 外部API（Provider）は不変を維持
 
 ---
 
@@ -1156,6 +1217,7 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 ---
 
 **更新履歴**:
+- 2025-11-14 (02:00): Phase D.1完了（Domain層設計、MLS Protocol準拠のKey Package戦略確定）
 - 2025-11-14 (01:30): Phase C.3.2.2完了（カスタムリスト名抽出のRepository化、実工数5時間）
 - 2025-11-14 (00:30): Phase C.3.2構成を改訂（C.3.2.1完了、C.3.2.2方針明確化）、カスタムリスト同期の既存実装を確認
 - 2025-11-14 (00:10): Phase C.3.2.1完了（削除イベント同期のRepository化、コミット: be9955b）
