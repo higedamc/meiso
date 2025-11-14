@@ -14,6 +14,7 @@ import '../features/mls/application/providers/usecase_providers.dart';
 import '../features/mls/application/usecases/create_mls_group_usecase.dart';
 import '../features/mls/application/usecases/send_group_invitation_usecase.dart';
 import '../features/mls/application/usecases/sync_group_invitations_usecase.dart';
+import '../bridge_generated.dart/api.dart' as rust_api;
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -552,6 +553,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
                 createdAt: DateTime.now(),
                 updatedAt: DateTime.now(),
                 isGroup: true,
+                isMlsGroup: true, // Phase D.4: MLSグループフラグ
                 isPendingInvitation: true,
                 inviterNpub: invitation.inviterPubkey, // hex形式（npub変換は後で必要に応じて）
                 inviterName: invitation.inviterName,
@@ -766,18 +768,43 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       // Phase D.5: CreateMlsGroupUseCaseを使用
       final nostrService = _ref.read(nostrServiceProvider);
-      final userPubkey = await nostrService.getPublicKey();
+      final userPubkeyHex = await nostrService.getPublicKey();
       
-      if (userPubkey == null) {
+      if (userPubkeyHex == null) {
         throw Exception('User public key not available');
+      }
+      
+      // Phase D.7: memberPubkeysをHEX形式に変換（Alice自身 + 招待メンバー）
+      AppLogger.info('🔍 [DEBUG] userPubkeyHex (Alice HEX): ${userPubkeyHex.substring(0, 20)}...');
+      AppLogger.info('🔍 [DEBUG] memberNpubs (招待メンバー npub): ${memberNpubs.length} members');
+      
+      // npub → HEX変換
+      final List<String> memberPubkeysHex = [];
+      for (int i = 0; i < memberNpubs.length; i++) {
+        try {
+          final hexKey = await rust_api.npubToHex(npub: memberNpubs[i]);
+          memberPubkeysHex.add(hexKey);
+          AppLogger.info('   [$i] ${memberNpubs[i].substring(0, 20)}... → ${hexKey.substring(0, 20)}...');
+        } catch (e) {
+          AppLogger.error('Failed to convert npub to hex: ${memberNpubs[i]}', error: e);
+          throw Exception('Failed to convert member npub to hex: $e');
+        }
+      }
+      
+      // Phase D.7: 全メンバー（HEX形式）
+      final allMemberPubkeys = [userPubkeyHex, ...memberPubkeysHex];
+      AppLogger.info('🔍 [DEBUG] allMemberPubkeys (全メンバー HEX): ${allMemberPubkeys.length} members');
+      for (int i = 0; i < allMemberPubkeys.length; i++) {
+        AppLogger.info('   [$i] ${allMemberPubkeys[i].substring(0, 20)}...');
       }
       
       final createGroupUseCase = _ref.read(createMlsGroupUseCaseProvider);
       final groupResult = await createGroupUseCase(CreateMlsGroupParams(
-        publicKey: userPubkey,
+        publicKey: userPubkeyHex, // Phase D.7: HEX形式で渡す（MLS処理用）
         groupId: groupId,
         groupName: normalizedName,
         keyPackages: keyPackages,
+        memberPubkeys: allMemberPubkeys, // Phase D.7: npub形式のメンバーリスト
       ));
       
       final String welcomeMsgBase64 = await groupResult.fold(
@@ -855,6 +882,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       }
       
       // ローカルにグループリストを作成
+      // Phase D.7 バグ修正: groupMembersにAlice自身と招待メンバーを含める
       final newGroupList = CustomList(
         id: groupId,
         name: normalizedName,
@@ -862,7 +890,8 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         createdAt: now,
         updatedAt: now,
         isGroup: true,
-        groupMembers: [],
+        isMlsGroup: true, // Phase D.4: MLSグループフラグ
+        groupMembers: allMemberPubkeys, // Phase D.7: Alice + 招待メンバー
       );
       
       // Phase C.3.1: Repository経由でローカルストレージに保存

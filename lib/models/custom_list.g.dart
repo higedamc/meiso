@@ -14,6 +14,7 @@ _$CustomListImpl _$$CustomListImplFromJson(Map<String, dynamic> json) =>
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       isGroup: json['isGroup'] as bool? ?? false,
+      isMlsGroup: json['isMlsGroup'] as bool? ?? false,
       groupMembers:
           (json['groupMembers'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -33,6 +34,7 @@ Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
       'isGroup': instance.isGroup,
+      'isMlsGroup': instance.isMlsGroup,
       'groupMembers': instance.groupMembers,
       'isPendingInvitation': instance.isPendingInvitation,
       'inviterNpub': instance.inviterNpub,

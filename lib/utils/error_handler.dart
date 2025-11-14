@@ -257,7 +257,7 @@ class ErrorHandler {
         onTimeout: () {
           AppLogger.warning('⏱️ [$operationName] Operation timed out after ${timeout.inSeconds}s');
           if (defaultValue != null) {
-            return defaultValue;
+            return defaultValue!;
           }
           throw TimeoutException('$operationName timed out after ${timeout.inSeconds}s');
         },

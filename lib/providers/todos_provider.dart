@@ -2810,6 +2810,30 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     try {
       AppLogger.info('🔄 Syncing group todos for group: $groupId');
       
+      // Phase D.4: グループリストの種類を判定（MLS or 非MLS）
+      final customListsAsync = _ref.read(customListsProvider);
+      final customList = await customListsAsync.whenData((lists) {
+        return lists.firstWhere(
+          (list) => list.id == groupId,
+          orElse: () => throw Exception('Group list not found: $groupId'),
+        );
+      }).value;
+      
+      if (customList == null) {
+        AppLogger.error('❌ Group list not found: $groupId');
+        return;
+      }
+      
+      // Phase D.4: MLSグループの場合は別ロジック
+      if (customList.isMlsGroup) {
+        AppLogger.info('📱 [MLS] Syncing MLS group todos: ${customList.name}');
+        await _syncMlsGroupTodos(groupId);
+        return;
+      }
+      
+      // 非MLSグループの既存ロジック
+      AppLogger.info('🔐 [Non-MLS] Syncing non-MLS group todos: ${customList.name}');
+      
       // 公開鍵を取得
       var publicKey = _ref.read(publicKeyProvider);
       var npub = _ref.read(nostrPublicKeyProvider);
@@ -2889,6 +2913,76 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
     } catch (e, st) {
       AppLogger.error('❌ Failed to sync group todos: $e', error: e, stackTrace: st);
+    }
+  }
+  
+  /// MLSグループタスクを同期（Phase D.4）
+  /// 
+  /// アーキテクチャ（TODO管理アプリ最適化）:
+  /// 1. listen_key取得（Export Secretから決定的に導出）
+  /// 2. Nostrからlisten_key宛のイベント取得
+  /// 3. 各イベントをMLS復号化
+  /// 4. TODOデータをパース
+  /// 5. ローカルDB保存
+  Future<void> _syncMlsGroupTodos(String groupId) async {
+    try {
+      AppLogger.info('📱 [MLS] Starting MLS group todos sync for: $groupId');
+      
+      // 公開鍵を取得
+      var publicKey = _ref.read(publicKeyProvider);
+      
+      if (publicKey == null) {
+        final nostrService = _ref.read(nostrServiceProvider);
+        publicKey = await nostrService.getPublicKey();
+        if (publicKey == null) {
+          throw Exception('公開鍵が設定されていません');
+        }
+      }
+      
+      // Step 1: listen_key取得（Export Secretから導出）
+      AppLogger.info('📱 [MLS] Step 1: Getting listen_key from Export Secret...');
+      final listenKey = await rust_api.mlsGetListenKey(
+        nostrId: publicKey,
+        groupId: groupId,
+      );
+      AppLogger.info('📱 [MLS] Listen key: ${listenKey.substring(0, 16)}...');
+      
+      // Step 2: Nostrからlisten_key宛のイベント取得
+      // TODO: Rust APIで実装予定
+      // - kind: 104（MLSグループメッセージ）
+      // - pタグ: listen_key
+      AppLogger.warning('⚠️ [MLS] Step 2-5 not implemented yet');
+      AppLogger.info('📱 [MLS] Next steps:');
+      AppLogger.info('   2. Fetch events from Nostr (kind: 104, p: $listenKey)');
+      AppLogger.info('   3. Decrypt each event with mls_decrypt_todo()');
+      AppLogger.info('   4. Parse TODO data (JSON)');
+      AppLogger.info('   5. Save to local DB');
+      
+      // 一旦、既存タスクをクリア（次回実装で置き換え）
+      await state.whenData((todos) async {
+        final updated = Map<DateTime?, List<Todo>>.from(todos);
+        
+        // 既存のMLSグループタスクを削除
+        for (final dateKey in updated.keys) {
+          updated[dateKey] = updated[dateKey]!
+              .where((t) => t.customListId != groupId)
+              .toList();
+        }
+        
+        // ローカルストレージに保存
+        final allTodos = <Todo>[];
+        for (final dateGroup in updated.values) {
+          allTodos.addAll(dateGroup);
+        }
+        await localStorageService.saveTodos(allTodos);
+        
+        state = AsyncValue.data(updated);
+        
+        AppLogger.info('📱 [MLS] Listen key retrieved, waiting for Rust API implementation');
+      }).value;
+      
+    } catch (e, st) {
+      AppLogger.error('❌ [MLS] Failed to sync MLS group todos: $e', error: e, stackTrace: st);
     }
   }
   

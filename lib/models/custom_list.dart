@@ -25,6 +25,11 @@ class CustomList with _$CustomList {
     /// グループリストかどうか（マルチパーティ暗号化使用）
     @Default(false) bool isGroup,
     
+    /// MLSグループかどうか（Phase D.4: MLS Protocol使用）
+    /// true: MLSグループ（OpenMLS）
+    /// false: 非MLSグループ（独自AES-256暗号化）
+    @Default(false) bool isMlsGroup,
+    
     /// グループメンバーの公開鍵リスト（hex形式）
     @Default([]) List<String> groupMembers,
     

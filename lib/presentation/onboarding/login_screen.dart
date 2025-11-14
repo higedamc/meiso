@@ -10,6 +10,9 @@ import '../../services/amber_service.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
+import '../../features/mls/application/providers/usecase_providers.dart';
+import '../../features/mls/application/usecases/auto_publish_key_package_usecase.dart';
+import '../../features/mls/domain/value_objects/key_package_publish_policy.dart';
 
 /// ログインスクリーン
 /// AmberまたはNostr秘密鍵生成でログイン
@@ -318,6 +321,34 @@ class _LoginScreenState extends State<LoginScreen> {
             AppLogger.debug('Navigating to home screen via GoRouter...', tag: 'ROUTER');
             context.go('/');
             AppLogger.debug('GoRouter navigation triggered', tag: 'ROUTER');
+            
+            // 🔥 Phase D.7: 初回Key Package公開（Amber署名あり）
+            AppLogger.info('[Login] Publishing initial Key Package...', tag: 'MLS');
+            Future.microtask(() async {
+              try {
+                final autoPublishUseCase = ref.read(autoPublishKeyPackageUseCaseProvider);
+                final result = await autoPublishUseCase(AutoPublishKeyPackageParams(
+                  publicKey: publicKeyHex,
+                  trigger: KeyPackagePublishTrigger.accountCreation,
+                  forceUpload: true, // 初回は必ず公開
+                ));
+                
+                result.fold(
+                  (failure) {
+                    AppLogger.warning('[Login] Key Package publish failed: ${failure.message}', tag: 'MLS');
+                  },
+                  (eventId) {
+                    if (eventId != null) {
+                      AppLogger.info('[Login] ✅ Key Package published: ${eventId.substring(0, 16)}...', tag: 'MLS');
+                    } else {
+                      AppLogger.info('[Login] Key Package publish skipped (already up-to-date)', tag: 'MLS');
+                    }
+                  },
+                );
+              } catch (e) {
+                AppLogger.warning('[Login] Key Package publish error', error: e, tag: 'MLS');
+              }
+            });
             
             // バックグラウンドでNostrからデータを同期（カスタムリストとTodoを取得）
             AppLogger.info('Starting background sync...', tag: 'SYNC');

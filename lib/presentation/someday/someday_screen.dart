@@ -17,6 +17,7 @@ import '../planning_detail/planning_detail_screen.dart';
 // Phase D.5: MLS UseCase統合
 import '../../features/mls/application/providers/usecase_providers.dart';
 import '../../features/mls/application/usecases/accept_group_invitation_usecase.dart';
+import '../../bridge_generated.dart/api.dart' as rust_api;
 
 /// SOMEDAYページ（リスト管理画面）- モーダル版
 class SomedayScreen extends ConsumerWidget {
@@ -591,16 +592,16 @@ class SomedayScreen extends ConsumerWidget {
       
       // 公開鍵を取得
       final nostrService = ref.read(nostrServiceProvider);
-      final userPubkey = await nostrService.getPublicKey();
+      final userPubkeyHex = await nostrService.getPublicKey();
       
-      if (userPubkey == null) {
+      if (userPubkeyHex == null) {
         throw Exception('User public key not available');
       }
       
       // Phase D.5: AcceptGroupInvitationUseCaseを使用
       final acceptInvitationUseCase = ref.read(acceptGroupInvitationUseCaseProvider);
       final result = await acceptInvitationUseCase(AcceptGroupInvitationParams(
-        publicKey: userPubkey,
+        publicKey: userPubkeyHex, // Phase D.7: HEX形式で渡す（MLS処理用）
         groupId: list.id,
         welcomeMessage: list.welcomeMsg!,
       ));
@@ -615,11 +616,13 @@ class SomedayScreen extends ConsumerWidget {
           AppLogger.info('🔑 [GroupInvitation] Key Package auto-published (forceUpload=true)');
           
           // リストの招待フラグをクリア
+          // Phase D.7 バグ修正: Bob自身をgroupMembersに含める（HEX形式）
           final updatedList = list.copyWith(
             isPendingInvitation: false,
             inviterNpub: null,
             inviterName: null,
             welcomeMsg: null,
+            groupMembers: [userPubkeyHex], // Bob自身を追加（HEX形式、他のメンバーは同期時に更新）
           );
           
           // ローカルストレージに保存

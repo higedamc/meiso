@@ -39,6 +39,11 @@ mixin _$CustomList {
   /// グループリストかどうか（マルチパーティ暗号化使用）
   bool get isGroup => throw _privateConstructorUsedError;
 
+  /// MLSグループかどうか（Phase D.4: MLS Protocol使用）
+  /// true: MLSグループ（OpenMLS）
+  /// false: 非MLSグループ（独自AES-256暗号化）
+  bool get isMlsGroup => throw _privateConstructorUsedError;
+
   /// グループメンバーの公開鍵リスト（hex形式）
   List<String> get groupMembers => throw _privateConstructorUsedError;
 
@@ -78,6 +83,7 @@ abstract class $CustomListCopyWith<$Res> {
     DateTime createdAt,
     DateTime updatedAt,
     bool isGroup,
+    bool isMlsGroup,
     List<String> groupMembers,
     bool isPendingInvitation,
     String? inviterNpub,
@@ -107,6 +113,7 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
     Object? createdAt = null,
     Object? updatedAt = null,
     Object? isGroup = null,
+    Object? isMlsGroup = null,
     Object? groupMembers = null,
     Object? isPendingInvitation = null,
     Object? inviterNpub = freezed,
@@ -138,6 +145,10 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
             isGroup: null == isGroup
                 ? _value.isGroup
                 : isGroup // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            isMlsGroup: null == isMlsGroup
+                ? _value.isMlsGroup
+                : isMlsGroup // ignore: cast_nullable_to_non_nullable
                       as bool,
             groupMembers: null == groupMembers
                 ? _value.groupMembers
@@ -181,6 +192,7 @@ abstract class _$$CustomListImplCopyWith<$Res>
     DateTime createdAt,
     DateTime updatedAt,
     bool isGroup,
+    bool isMlsGroup,
     List<String> groupMembers,
     bool isPendingInvitation,
     String? inviterNpub,
@@ -209,6 +221,7 @@ class __$$CustomListImplCopyWithImpl<$Res>
     Object? createdAt = null,
     Object? updatedAt = null,
     Object? isGroup = null,
+    Object? isMlsGroup = null,
     Object? groupMembers = null,
     Object? isPendingInvitation = null,
     Object? inviterNpub = freezed,
@@ -240,6 +253,10 @@ class __$$CustomListImplCopyWithImpl<$Res>
         isGroup: null == isGroup
             ? _value.isGroup
             : isGroup // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        isMlsGroup: null == isMlsGroup
+            ? _value.isMlsGroup
+            : isMlsGroup // ignore: cast_nullable_to_non_nullable
                   as bool,
         groupMembers: null == groupMembers
             ? _value.groupMembers
@@ -276,6 +293,7 @@ class _$CustomListImpl implements _CustomList {
     required this.createdAt,
     required this.updatedAt,
     this.isGroup = false,
+    this.isMlsGroup = false,
     this.groupMembers = const [],
     this.isPendingInvitation = false,
     this.inviterNpub,
@@ -312,6 +330,13 @@ class _$CustomListImpl implements _CustomList {
   @JsonKey()
   final bool isGroup;
 
+  /// MLSグループかどうか（Phase D.4: MLS Protocol使用）
+  /// true: MLSグループ（OpenMLS）
+  /// false: 非MLSグループ（独自AES-256暗号化）
+  @override
+  @JsonKey()
+  final bool isMlsGroup;
+
   /// グループメンバーの公開鍵リスト（hex形式）
   @override
   @JsonKey()
@@ -336,7 +361,7 @@ class _$CustomListImpl implements _CustomList {
 
   @override
   String toString() {
-    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg)';
+    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, isMlsGroup: $isMlsGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg)';
   }
 
   @override
@@ -352,6 +377,8 @@ class _$CustomListImpl implements _CustomList {
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt) &&
             (identical(other.isGroup, isGroup) || other.isGroup == isGroup) &&
+            (identical(other.isMlsGroup, isMlsGroup) ||
+                other.isMlsGroup == isMlsGroup) &&
             const DeepCollectionEquality().equals(
               other.groupMembers,
               groupMembers,
@@ -376,6 +403,7 @@ class _$CustomListImpl implements _CustomList {
     createdAt,
     updatedAt,
     isGroup,
+    isMlsGroup,
     const DeepCollectionEquality().hash(groupMembers),
     isPendingInvitation,
     inviterNpub,
@@ -405,6 +433,7 @@ abstract class _CustomList implements CustomList {
     required final DateTime createdAt,
     required final DateTime updatedAt,
     final bool isGroup,
+    final bool isMlsGroup,
     final List<String> groupMembers,
     final bool isPendingInvitation,
     final String? inviterNpub,
@@ -438,6 +467,12 @@ abstract class _CustomList implements CustomList {
   /// グループリストかどうか（マルチパーティ暗号化使用）
   @override
   bool get isGroup;
+
+  /// MLSグループかどうか（Phase D.4: MLS Protocol使用）
+  /// true: MLSグループ（OpenMLS）
+  /// false: 非MLSグループ（独自AES-256暗号化）
+  @override
+  bool get isMlsGroup;
 
   /// グループメンバーの公開鍵リスト（hex形式）
   @override

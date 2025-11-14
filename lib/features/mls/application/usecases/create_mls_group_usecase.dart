@@ -12,12 +12,14 @@ class CreateMlsGroupParams {
   final String groupId;
   final String groupName;
   final List<String> keyPackages;
+  final List<String> memberPubkeys; // Phase D.7: メンバー公開鍵リスト追加
   
   const CreateMlsGroupParams({
     required this.publicKey,
     required this.groupId,
     required this.groupName,
     required this.keyPackages,
+    required this.memberPubkeys, // Phase D.7: 必須パラメータ
   });
 }
 
@@ -35,7 +37,7 @@ class CreateMlsGroupUseCase implements UseCase<MlsGroup, CreateMlsGroupParams> {
     try {
       AppLogger.info('🔐 [CreateMlsGroupUseCase] Creating MLS group: "${params.groupName}"');
       AppLogger.info('   Group ID: ${params.groupId}');
-      AppLogger.info('   Members: ${params.keyPackages.length}');
+      AppLogger.info('   Members: ${params.memberPubkeys.length}'); // Phase D.7: memberPubkeys使用
       
       // MLSグループを作成（Welcome Message生成）
       final welcomeResult = await _repository.createMlsGroup(
@@ -59,7 +61,7 @@ class CreateMlsGroupUseCase implements UseCase<MlsGroup, CreateMlsGroupParams> {
           final mlsGroup = MlsGroup(
             groupId: params.groupId,
             groupName: params.groupName,
-            memberPubkeys: [], // メンバーリストは後で更新
+            memberPubkeys: params.memberPubkeys, // Phase D.7: メンバーリストを設定
             welcomeMessage: welcomeMessage,
             createdAt: now,
             updatedAt: now,
