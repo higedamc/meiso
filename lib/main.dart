@@ -20,6 +20,7 @@ import 'providers/app_settings_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/todos_provider.dart';
+import 'providers/custom_lists_provider.dart';
 import 'providers/locale_provider.dart';
 import 'widgets/sync_loading_overlay.dart'; // Phase 8.5.1
 // Phase D.5: MLS UseCase統合
@@ -210,6 +211,16 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           } catch (e) {
             AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
             // エラーがあってもアプリ起動は継続
+          }
+          
+          // Phase 8.1.3: グループ招待の自動同期（Issue #116修正）
+          try {
+            AppLogger.info('[復元] グループ招待を同期中...', tag: 'MLS');
+            await ref.read(customListsProvider.notifier).syncGroupInvitations();
+            AppLogger.info('[復元] グループ招待同期完了', tag: 'MLS');
+          } catch (e) {
+            AppLogger.warning('[復元] グループ招待同期エラー', error: e, tag: 'MLS');
+            // エラーは無視（必須ではない）
           }
           
           // Phase 8.1 + Phase D.5: Key Package自動公開（UseCase統合）

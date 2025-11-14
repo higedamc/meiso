@@ -1272,10 +1272,12 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
-#### Phase D.7: 初回ログイン時のKey Package自動公開（Amberモード） 🔥 Critical
+#### Phase D.7: 初回ログイン時のKey Package自動公開（Amberモード） ✅ 完了（戦略B）
 
 **開始日**: 2025-11-14  
+**完了日**: 2025-11-14  
 **優先度**: 🔥 Critical（Phase 8.1完了に必須）
+**実装方法**: 戦略B（完璧版）- Nostr初期化完了を確実に待つ
 
 **目的**: MLS_BETA_ROADMAP.md Phase 8.1要件「自動Key Package管理」を完全実装（Amberモードのみ）
 
@@ -1284,6 +1286,13 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 - `main.dart`でのアプリ起動時統合のみでは、初回ログインでは動作しない
   - 理由: 初回ログイン時はAmber署名が必要だが、バックグラウンド実行で失敗
   - 結果: Key Packageが公開されず、他ユーザーから取得不可能
+
+**実装完了（戦略B: 完璧版）** ✅
+
+**戦略Aから戦略Bへの変更理由**:
+- **発見**: Settings画面の既存Key Package公開ボタンは正常動作
+- **原因**: Nostr初期化完了前にKey Package公開を実行していた
+- **解決**: `nostrInitializedProvider`を監視し、初期化完了後に公開
 
 **実装方針**:
 
@@ -1849,6 +1858,7 @@ Future<void> _confirmDelete(CustomList list) async {
 ---
 
 **更新履歴**:
+- 2025-11-14 (18:00): **🐛 Phase 8.1.1バグ修正 #3**（Critical: Rust ↔ Flutter間のJSON命名不一致を修正。`inviter_npub`→`inviter_pubkey`, `welcome_msg_base64`→`welcome_msg`。Rustは2件取得成功、Flutter側でパースエラー。mls_group_repository_impl.dartの`_parseGroupInvitation()`を修正。Bobが2件の招待を正しく受信できることを確認。Takeawayセクションを3つのドキュメントに追加）
 - 2025-11-14 (17:00): **🐛 Phase D.5バグ修正 #2**（Critical: アプリ初回起動時にグループ招待同期が欠落していた問題を修正。main.dartにsyncGroupInvitations()を追加。Phase B.5 Issue #3と同じ根本原因（同期タイミングの問題）。これにより、初回起動時にもグループリストが表示されるようになる）
 - 2025-11-14 (16:30): **📝 Phase D.7/D.8修正**（方針明確化: Phase D.7はAmberモードのみ（3時間）、秘密鍵生成ログインはPhase D.8に延期（2時間、段階的廃止予定のため優先度低））
 - 2025-11-14 (15:00): **🐛 Phase D.7追加**（Critical: 初回ログイン時のKey Package自動公開実装、Oracle実機テストで発見されたバグ修正、MLS_BETA_ROADMAP.md Phase 8.1完了に必須）

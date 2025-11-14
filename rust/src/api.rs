@@ -1296,9 +1296,28 @@ pub fn send_signed_event_with_client_id(event_json: String, client_id: Option<St
         println!("🔍 Event kind: {}", event.kind);
         println!("🔍 Event ID: {}", event.id.to_hex());
         println!("🔍 Event pubkey: {}...", &event.pubkey.to_hex()[..16]);
+        println!("🔍 Event tags:");
+        for tag in event.tags.iter() {
+            let tag_vec = tag.clone().to_vec();
+            if let Some(tag_name) = tag_vec.first() {
+                println!("      - {}: {:?}", tag_name, tag_vec.get(1));
+            }
+        }
         
         // リレーに送信（改善されたエラーハンドリング）
-        client.send_event_with_result(event).await
+        let result = client.send_event_with_result(event.clone()).await?;
+        
+        println!("✅ Event sent successfully");
+        println!("   Success: {}", result.success);
+        println!("   Successful relays: {}", result.successful_relays);
+        if result.failed_relays > 0 {
+            println!("⚠️ Failed relays: {}", result.failed_relays);
+        }
+        if result.timed_out {
+            println!("⚠️ Some relays timed out");
+        }
+        
+        Ok(result)
     })
 }
 
@@ -2999,6 +3018,10 @@ pub fn sync_group_invitations(
             .context("Failed to parse recipient public key")?;
         
         println!("📥 Syncing group invitations for: {}", recipient_pubkey.to_hex());
+        println!("🔍 Filter conditions:");
+        println!("   Kind: 30078");
+        println!("   #p tag (searching for): {}", recipient_pubkey.to_hex());
+        println!("   Limit: 50");
         
         // Kind 30078イベントをフィルタ（pタグで自分宛）
         let filter = Filter::new()
@@ -3023,6 +3046,14 @@ pub fn sync_group_invitations(
                 println!("  [{}] Event ID: {}", i + 1, event.id.to_hex().chars().take(16).collect::<String>());
                 println!("      From: {}", event.pubkey.to_hex().chars().take(16).collect::<String>());
                 println!("      Created: {}", event.created_at.as_u64());
+                println!("      Kind: {}", event.kind.as_u16());
+                println!("      Tags:");
+                for tag in event.tags.iter() {
+                    let tag_vec = tag.clone().to_vec();
+                    if let Some(tag_name) = tag_vec.first() {
+                        println!("        - {}: {:?}", tag_name, tag_vec.get(1));
+                    }
+                }
             }
         }
         
@@ -3160,7 +3191,7 @@ pub fn create_unsigned_group_invitation_event(
     let d_tag_value = format!("group-invitation-{}-{}", group_id, recipient_pubkey.to_hex());
     
     let mut tags = Vec::new();
-    tags.push(vec!["d".to_string(), d_tag_value]);
+    tags.push(vec!["d".to_string(), d_tag_value.clone()]);
     tags.push(vec!["p".to_string(), recipient_pubkey.to_hex()]);
     tags.push(vec!["client".to_string(), "meiso".to_string()]);
     
@@ -3177,6 +3208,10 @@ pub fn create_unsigned_group_invitation_event(
     let event_json = serde_json::to_string(&unsigned_event)?;
     
     println!("✅ Created unsigned group invitation event");
+    println!("   Kind: 30078");
+    println!("   Recipient pubkey (hex): {}", recipient_pubkey.to_hex());
+    println!("   #p tag: {}", recipient_pubkey.to_hex());
+    println!("   #d tag: {}", d_tag_value.chars().take(50).collect::<String>());
     Ok(event_json)
 }
 

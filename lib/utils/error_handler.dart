@@ -252,16 +252,24 @@ class ErrorHandler {
     T? defaultValue,
   }) async {
     try {
-      return await operation().timeout(
-        timeout,
-        onTimeout: () {
-          AppLogger.warning('⏱️ [$operationName] Operation timed out after ${timeout.inSeconds}s');
-          if (defaultValue != null) {
+      // defaultValueの有無で処理を分岐（型エラー回避）
+      if (defaultValue != null) {
+        return await operation().timeout(
+          timeout,
+          onTimeout: () {
+            AppLogger.warning('⏱️ [$operationName] Operation timed out after ${timeout.inSeconds}s (returning default value)');
             return defaultValue;
-          }
-          throw TimeoutException('$operationName timed out after ${timeout.inSeconds}s');
-        },
-      );
+          },
+        );
+      } else {
+        return await operation().timeout(
+          timeout,
+          onTimeout: () {
+            AppLogger.warning('⏱️ [$operationName] Operation timed out after ${timeout.inSeconds}s');
+            throw TimeoutException('$operationName timed out after ${timeout.inSeconds}s');
+          },
+        );
+      }
     } catch (e, stackTrace) {
       AppLogger.error(
         '❌ [$operationName] Operation failed',

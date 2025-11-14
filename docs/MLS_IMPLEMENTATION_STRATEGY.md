@@ -822,12 +822,30 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
 
 ---
 
-## 現在の進捗（2025-11-11 終了時点）
+## 現在の進捗（2025-11-14 終了時点）
 
 ### 🎉 完了 ✅ Phase 1-7完了！MLS PoC成功！
 
 **実デバイス間での2人グループテスト完全成功！**
 **アプリ内完結型招待システム完全実装！**
+
+### 🐛 Phase 8.1.1 バグ修正完了（2025-11-14）
+
+**問題**: Bob側がAliceからのグループ招待を受信できない
+
+**根本原因**: Rust ↔ Flutter間のJSONフィールド名の不一致
+- Rust側: `inviter_pubkey` / `welcome_msg`
+- Flutter側期待: `inviter_npub` / `welcome_msg_base64`
+- エラー: `type 'Null' is not a subtype of type 'String' in type cast`
+
+**修正内容**:
+1. `mls_group_repository_impl.dart`の`_parseGroupInvitation()`メソッドを修正
+   - `inviter_npub` → `inviter_pubkey`
+   - `welcome_msg_base64` → `welcome_msg`
+2. `main.dart`で`syncGroupInvitations()`を追加（Phase D.5バグ修正 #2）
+   - 初回起動時にグループ招待が自動同期されるように
+
+**修正結果**: Bobが2件の招待を正しく受信・表示できることを確認 ✅
 
 ---
 
@@ -982,7 +1000,7 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
 - ⏭️ Phase 5: Amberモード動作確認
 - ⏭️ Option A（完全実装）への移行判断
 
-### コミット履歴（Phase 1-7）
+### コミット履歴（Phase 1-7 + Phase 8.1.1）
 ```
 5eb738b - WIP: fiatjaf方式（Phase1保存ポイント）
 8a83dd4 - WIP: MLS PoC Phase 1 基礎実装
@@ -1002,6 +1020,7 @@ f796e1c - feat: Phase 6.4-6.5 - グループ招待UI実装完了
 8663691 - fix: グループ招待受諾時のMLS DB初期化エラー修正
 24e23c7 - feat: MLSテストダイアログ内にKey Package公開ボタン追加
 aa2ab37 - fix: グループ招待受諾後に自動的にリスト詳細画面に遷移
+[TBD]   - fix: Phase 8.1.1 - Rust/FlutterのJSON命名不一致を修正（2025-11-14）
 ```
 
 **ロールバックポイント**: 
@@ -1180,4 +1199,53 @@ _MlsTestDialog // 統合テストダイアログ
 - 相手がWelcome Messageを受信してグループに参加
 - 相手が送信したTODOを復号化
 - 双方向のTODO共有を確認
+
+---
+
+## 📚 Takeaways - 学んだ教訓
+
+### Phase 8.1.1: Rust ↔ Flutter間のデータインターフェース（2025-11-14）
+
+**問題の本質**:
+- Rustが正しくデータを取得していても、Flutter側でパースエラーが発生すると無視される
+- 「データが存在しない」のではなく「データが読み取れない」という根本的な違い
+
+**学び**:
+
+1. **命名規則の統一が最重要**
+   - Rust側とFlutter側でフィールド名を統一する
+   - `inviter_pubkey` vs `inviter_npub` のような微妙な違いが致命的
+   - コードレビュー時に両側のインターフェースを確認する
+
+2. **エラーログの読み方**
+   - `type 'Null' is not a subtype of type 'String' in type cast` は「フィールドが存在しない」のサイン
+   - パースエラーは無視されやすい（例外をキャッチして空配列を返すため）
+   - `Found 2 pending invitations` → `Parsed 0 invitations successfully` のような流れに注目
+
+3. **データフロー全体の検証**
+   - Rust取得 → JSON変換 → Flutterパース の各段階を確認
+   - リレーからデータが取れていることと、アプリで使えることは別問題
+   - 中間のログ（`Found X events` / `Parsed Y successfully`）が重要
+
+4. **リグレッション防止**
+   - 今後はRust側でフィールド名を変更する際、Flutter側も同時に確認
+   - ユニットテストでJSON変換を確認する
+   - E2Eテストでエンドツーエンドのデータフローを検証
+
+5. **デバッグの優先順位**
+   - ✅ まずRust側のログでデータ取得を確認
+   - ✅ 次にFlutter側のパース成功/失敗を確認
+   - ✅ 最後にUI表示を確認
+   - ❌ UI表示だけ見て「データがない」と判断するのは危険
+
+**今後の対策**:
+- [ ] Rust ↔ Flutter間のインターフェーステスト追加
+- [ ] JSON Schema定義の導入検討
+- [ ] コード生成ツール（json_serializable等）の活用
+- [ ] フィールド名の命名規則をドキュメント化
+
+**影響範囲**:
+- Phase 8.1（MLS Beta）完了の最後のブロッカーを解消
+- 他のMLS関連機能にも同じ問題が潜んでいる可能性
+- グループTodo同期、Key Package取得なども要確認
 

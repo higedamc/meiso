@@ -1949,7 +1949,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.info('✅ [Background] グループ系同期完了');
       
       // バックグラウンド同期の完了を通知
+      AppLogger.debug('🔍 [Background] Calling syncSuccess()...');
       _ref.read(syncStatusProvider.notifier).syncSuccess();
+      AppLogger.debug('🔍 [Background] syncSuccess() completed');
     } catch (e) {
       AppLogger.error('❌ [Background] グループ系同期エラー', error: e);
       
