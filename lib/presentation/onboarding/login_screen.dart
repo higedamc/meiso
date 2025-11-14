@@ -10,6 +10,9 @@ import '../../services/amber_service.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
+import '../../features/mls/application/providers/usecase_providers.dart';
+import '../../features/mls/application/usecases/auto_publish_key_package_usecase.dart';
+import '../../features/mls/domain/value_objects/key_package_publish_policy.dart';
 
 /// ログインスクリーン
 /// AmberまたはNostr秘密鍵生成でログイン
@@ -27,6 +30,61 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _amberService.dispose();
     super.dispose();
+  }
+
+  /// Nostr初期化完了後にKey Packageを公開（Phase D.7: 戦略B）
+  Future<void> _publishKeyPackageAfterInit(WidgetRef ref, String publicKeyHex) async {
+    const maxWaitSeconds = 10;
+    const checkIntervalMs = 500;
+    final startTime = DateTime.now();
+    
+    AppLogger.info('[Login] Waiting for Nostr initialization...', tag: 'MLS');
+    
+    // Nostr初期化完了を待つ（ポーリング、最大10秒）
+    while (true) {
+      final isInitialized = ref.read(nostrInitializedProvider);
+      
+      if (isInitialized) {
+        AppLogger.info('[Login] Nostr initialized, publishing Key Package...', tag: 'MLS');
+        break;
+      }
+      
+      final elapsed = DateTime.now().difference(startTime).inSeconds;
+      if (elapsed >= maxWaitSeconds) {
+        AppLogger.warning('[Login] Nostr initialization timeout (${maxWaitSeconds}s), aborting Key Package publish', tag: 'MLS');
+        return;
+      }
+      
+      await Future<void>.delayed(const Duration(milliseconds: checkIntervalMs));
+    }
+    
+    // Key Package公開を実行
+    try {
+      final autoPublishUseCase = ref.read(autoPublishKeyPackageUseCaseProvider);
+      final result = await autoPublishUseCase(AutoPublishKeyPackageParams(
+        publicKey: publicKeyHex,
+        trigger: KeyPackagePublishTrigger.accountCreation,
+        forceUpload: true, // 初回は必ず公開
+      ));
+      
+      result.fold(
+        (failure) {
+          AppLogger.warning('[Login] Key Package publish failed: ${failure.message}', tag: 'MLS');
+          // TODO: UI通知（Snackbar）を表示
+        },
+        (eventId) {
+          if (eventId != null) {
+            AppLogger.info('[Login] ✅ Key Package published: ${eventId.substring(0, 16)}...', tag: 'MLS');
+            // TODO: Success通知（Snackbar）を表示（オプション）
+          } else {
+            AppLogger.debug('[Login] Key Package publish returned null (unexpected)', tag: 'MLS');
+          }
+        },
+      );
+    } catch (e, st) {
+      AppLogger.warning('[Login] Key Package publish error', error: e, stackTrace: st, tag: 'MLS');
+      // TODO: UI通知（Snackbar）を表示
+    }
   }
 
   @override
@@ -318,6 +376,10 @@ class _LoginScreenState extends State<LoginScreen> {
             AppLogger.debug('Navigating to home screen via GoRouter...', tag: 'ROUTER');
             context.go('/');
             AppLogger.debug('GoRouter navigation triggered', tag: 'ROUTER');
+            
+            // 🔥 Phase D.7: 初回Key Package公開（Amberモード）
+            // 戦略B: Nostr初期化完了を確実に待つ（タイムアウト10秒）
+            _publishKeyPackageAfterInit(ref, publicKeyHex);
             
             // バックグラウンドでNostrからデータを同期（カスタムリストとTodoを取得）
             AppLogger.info('Starting background sync...', tag: 'SYNC');

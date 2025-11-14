@@ -254,20 +254,16 @@ fvm flutter run
 - **データモデル**: Freezed でイミュータブルに
 - **MVP優先**: Phase1ではRepositoryレイヤーは作成せず、Provider に集約
 
-### Phase 2への移行
+### Clean Architecture移行（進行中）
 
-1. **Rustセットアップ**
-   - flutter_rust_bridge の導入
-   - rust-nostr の統合
-   
-2. **Nostr機能実装**
-   - イベント作成/送信
-   - NIP-44暗号化/復号
-   - リレー接続管理
-   
-3. **Amber統合**
-   - Intent連携
-   - 署名フロー実装
+**📚 正式ドキュメント**: `docs/REFACTOR_CLEAN_ARCHITECTURE_STRATEGY.md`
+
+Meisoは段階的にClean Architectureへ移行中です（Phase B〜D実施中）：
+- ✅ Phase B: CRUD UseCases実装
+- ✅ Phase C: Repository層導入
+- 🔄 Phase D: MLS機能のClean Architecture化
+
+**注意**: 旧計画書（Phase 0-8）は`docs/_archive/`に移動済み。実際の実装はREFACTOR戦略に基づきます。
 
 ## 変更履歴
 
