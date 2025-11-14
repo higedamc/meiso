@@ -82,23 +82,36 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
 
   /// 同期開始
   void startSync({int itemCount = 1}) {
+    final oldPendingItems = state.pendingItems;
+    final newPendingItems = state.pendingItems + itemCount;
+    
+    print('🔍 [SyncStatus] startSync() called: pendingItems: $oldPendingItems → $newPendingItems');
+    
     state = state.copyWith(
       state: SyncState.syncing,
-      pendingItems: state.pendingItems + itemCount,
+      pendingItems: newPendingItems,
     );
+    
+    print('🔍 [SyncStatus] startSync() completed: current pendingItems: ${state.pendingItems}');
   }
 
   /// 同期成功
   void syncSuccess({int itemCount = 1}) {
+    final oldPendingItems = state.pendingItems;
     final newPendingItems = (state.pendingItems - itemCount).clamp(0, 9999);
+    final newState = newPendingItems > 0 ? SyncState.syncing : SyncState.success;
+    
+    print('🔍 [SyncStatus] syncSuccess() called: pendingItems: $oldPendingItems → $newPendingItems, state → $newState');
     
     state = state.copyWith(
-      state: newPendingItems > 0 ? SyncState.syncing : SyncState.success,
+      state: newState,
       lastSyncTime: DateTime.now(),
       pendingItems: newPendingItems,
       retryCount: 0,
       errorMessage: null,
     );
+    
+    print('🔍 [SyncStatus] syncSuccess() completed: current pendingItems: ${state.pendingItems}, current state: ${state.state}');
   }
 
   /// 同期エラー
