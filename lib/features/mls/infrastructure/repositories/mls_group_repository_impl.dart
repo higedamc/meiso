@@ -452,9 +452,9 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
     return GroupInvitation(
       groupId: map['group_id'] as String,
       groupName: map['group_name'] as String,
-      inviterPubkey: map['inviter_npub'] as String,
+      inviterPubkey: map['inviter_pubkey'] as String, // Rust側のフィールド名に合わせる
       inviterName: map['inviter_name'] as String?,
-      welcomeMessage: map['welcome_msg_base64'] as String,
+      welcomeMessage: map['welcome_msg'] as String, // Rust側のフィールド名に合わせる
       receivedAt: DateTime.now(), // 現在時刻を使用
       isPending: true, // 新規取得した招待はペンディング状態
     );

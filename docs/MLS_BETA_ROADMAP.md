@@ -113,6 +113,7 @@
 | 2 | アプリ起動時の自動公開も機能せず | Amber署名プロンプトが一度も表示されない | 🔴 High | Phase D.7 |
 | 3 | Alice→Bob招待時、Key Package取得失敗 | Bobが手動公開しない限り常に失敗 | 🔥 Critical | Phase D.7 |
 | 4 | アプリ初回起動時にグループリストが表示されない | `main.dart`で`syncGroupInvitations()`が実行されていない | 🔥 Critical | ✅ 修正済み（2025-11-14） |
+| 5 | Bob側が招待を受け取れない（Rust/Flutter JSON不一致） | Rustは2件取得、Flutterでパース失敗（`inviter_npub`/`welcome_msg_base64`が存在しない） | 🔥 Critical | ✅ 修正済み（2025-11-14） |
 
 **根本原因（問題1-3）**:
 - `login_screen.dart`の初回ログイン時にKey Package公開処理が**完全に欠落**
@@ -125,6 +126,13 @@
 - Pull-to-refresh実行後、またはフォアグラウンド復帰後に初めて表示される
 - Phase B.5 Issue #3（データ同期の遅延）と同じ根本原因
 - **修正**: `main.dart` Line 215-223に`syncGroupInvitations()`を追加（2025-11-14）
+
+**根本原因（問題5）**: ✅ 修正済み
+- Rust側（`api.rs`）: `inviter_pubkey` / `welcome_msg` というフィールド名で返却
+- Flutter側（`mls_group_repository_impl.dart`）: `inviter_npub` / `welcome_msg_base64` を期待
+- JSONフィールド名の不一致により、`type 'Null' is not a subtype of type 'String' in type cast`エラー
+- Rustは`Found 2 pending invitations`を出力するが、Flutter側は`Parsed 0 invitations successfully`
+- **修正**: Flutter側の`_parseGroupInvitation()`メソッドでフィールド名をRust側に合わせた（2025-11-14）
 
 **修正計画（Phase D.7）**:
 1. **Amberログイン時のKey Package公開追加**（`login_screen.dart`） ← 🔥 優先実装
