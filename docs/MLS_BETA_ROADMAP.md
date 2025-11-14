@@ -72,7 +72,7 @@
 
 ### 8.1 アプリ内招待システムの完全自動化
 
-**現状**: MLSテストダイアログで手動操作が必要
+**現状（2025-11-14）**: ❌ **重大なバグ発見 - 初回ログイン時のKey Package公開が欠落**
 
 **Beta版要件**:
 1. **通常のグループリスト作成フローへの統合**
@@ -80,10 +80,11 @@
    - npub入力だけでKey Package自動取得
    - Welcome Message自動送信
 
-2. **自動Key Package管理**
-   - アプリ起動時にKey Packageを自動公開/更新
-   - 有効期限管理（30日ごとに自動更新）
-   - バックグラウンド公開
+2. **自動Key Package管理** ← ❌ **未完了（Critical）**
+   - ❌ **初回ログイン時にKey Packageを自動公開** ← 🔥 **欠落発見**
+   - ⚠️ アプリ起動時にKey Packageを自動公開/更新（実装済みだが初回で機能せず）
+   - ✅ 有効期限管理（7日ごとに自動更新、MLS Protocol準拠）
+   - ⚠️ バックグラウンド公開（実装済みだがAmber署名で失敗）
 
 3. **招待フロー改善**
    - Alice: 「グループリスト作成」→ メンバーのnpub入力 → 自動招待
@@ -91,19 +92,60 @@
 
 **実装タスク**:
 - [x] `CustomListsNotifier.createGroupList()`をMLS対応に拡張
-- [x] Key Package自動公開（起動時 + 24時間ごと）
 - [x] `AddGroupListDialog`でnpub入力 → KP自動取得
 - [x] Welcome Message自動送信（Kind 30078）
-- [x] トグルボタンでLegacy/MLS選択可能
+- [x] トグルボタンでLegacy/MLS選択可能（Phase 8.4で削除済み）
+- [ ] 🔥 **初回ログイン時のKey Package自動公開（Phase D.7）** ← **次のステップ**
 - [ ] Key Package未公開時のUX改善（Keychat参考）
 - [ ] 招待通知の自動同期（Pull-to-refresh不要に）
 
 **実装済み（2025-11-11）**:
-- Phase 8.1完了: AddGroupListDialogからMLS招待統合
-- Key Package自動公開（起動時 + 24時間キャッシュ）
-- npub入力 → Key Package自動取得 → MLSグループ作成
-- Welcome Message自動送信（Amber署名 + Kind 30078）
-- Legacy/MLSトグルボタン実装（後方互換性確保）
+- ✅ AddGroupListDialogからMLS招待統合
+- ✅ npub入力 → Key Package自動取得 → MLSグループ作成
+- ✅ Welcome Message自動送信（Amber署名 + Kind 30078）
+- ✅ Legacy/MLSトグルボタン実装（Phase 8.4で削除）
+
+**🐛 Oracle実機テストで発見された問題（2025-11-14）**:
+
+| # | 問題 | 発見状況 | 影響 | 修正 |
+|---|------|---------|------|------|
+| 1 | 初回Amberログイン時にKey Package公開されない | Alice/Bob共に手動公開が必要だった | 🔥 Critical | Phase D.7 |
+| 2 | アプリ起動時の自動公開も機能せず | Amber署名プロンプトが一度も表示されない | 🔴 High | Phase D.7 |
+| 3 | Alice→Bob招待時、Key Package取得失敗 | Bobが手動公開しない限り常に失敗 | 🔥 Critical | Phase D.7 |
+| 4 | アプリ初回起動時にグループリストが表示されない | `main.dart`で`syncGroupInvitations()`が実行されていない | 🔥 Critical | ✅ 修正済み（2025-11-14） |
+
+**根本原因（問題1-3）**:
+- `login_screen.dart`の初回ログイン時にKey Package公開処理が**完全に欠落**
+- `main.dart`でのアプリ起動時統合は実装済みだが、初回ログインではまだNostr初期化前なので動作しない
+- バックグラウンド実行のため、Amber署名失敗を見逃していた
+
+**根本原因（問題4）**: ✅ 修正済み
+- `main.dart`の`_restoreNostrConnection()`で`syncFromNostr()`のみ実行
+- **`syncGroupInvitations()`が実行されていない** → グループ招待がローカルに保存されない
+- Pull-to-refresh実行後、またはフォアグラウンド復帰後に初めて表示される
+- Phase B.5 Issue #3（データ同期の遅延）と同じ根本原因
+- **修正**: `main.dart` Line 215-223に`syncGroupInvitations()`を追加（2025-11-14）
+
+**修正計画（Phase D.7）**:
+1. **Amberログイン時のKey Package公開追加**（`login_screen.dart`） ← 🔥 優先実装
+2. `KeyPackagePublishTrigger.accountCreation`を追加
+3. Amber署名プロンプトを確実に表示（UI上で実行）
+
+**Phase D.8（将来実装）**:
+- 新規秘密鍵生成時のKey Package公開追加（`login_screen.dart`）
+- Amberモード完全動作確認後に実装予定
+- 秘密鍵ログインは段階的廃止を検討中のため優先度低
+
+**Phase 8.1完了条件（修正版）**:
+- ✅ 通常のグループリスト作成フローからMLS招待が使える
+- ✅ **アプリ初回起動時にグループリストが表示される** ← ✅ 修正済み（2025-11-14）
+- ❌ **Key Package自動管理（初回ログイン時が欠落）** ← Phase D.7で修正予定
+- ⏳ TODO送受信が完全に動作（Phase D.4で実装予定）
+- ✅ MLSグループとkind: 30001の統合/廃止完了
+- ⏳ エラーハンドリング完備（Phase 8.2）
+- ⏳ 3人グループでの動作確認
+
+**詳細**: `docs/REFACTOR_CLEAN_ARCHITECTURE_STRATEGY.md` の Phase D.7 を参照
 
 ---
 
@@ -507,23 +549,29 @@ Future<void> _createGroup() async {
 
 ### 必須要件（Must Have）
 - ✅ 通常のグループリスト作成フローからMLS招待が使える
-- ✅ Key Package自動管理（手動操作不要）
-- [ ] TODO送受信が完全に動作
+- ❌ **Key Package自動管理（手動操作不要）** ← 🔥 **Phase D.7で修正中**
+  - ❌ 初回ログイン時のKey Package公開が欠落
+  - ⚠️ アプリ起動時の自動公開は実装済みだが初回で機能せず
+- ⏳ TODO送受信が完全に動作（Phase D.4で実装予定）
 - ✅ MLSグループとkind: 30001の統合/廃止完了
-- [ ] エラーハンドリング完備
-- [ ] 3人グループでの動作確認
+- ⏳ エラーハンドリング完備（Phase 8.2）
+- ⏳ 3人グループでの動作確認（Phase D.7完了後に実施）
 
 ### 推奨要件（Should Have）
 - ✅ バックグラウンド同期
 - ✅ オフライン対応
 - ✅ パフォーマンス最適化
-- ✅ ユーザードキュメント
+- ⏸️ ユーザードキュメント（Phase D完了後）
 
 ### 将来検討（Nice to Have）
 - ⏸️ Option A移行（完全なKeychat実装移植）
 - ⏸️ グループ管理機能（メンバー追加/削除）
 - ⏸️ グループ権限管理
 - ⏸️ メッセージ履歴管理
+
+**Phase 8進捗**: 70% 完了（Phase D.7完了後に85%達成見込み）
+
+**ブロッカー**: Phase D.7（初回ログイン時のKey Package公開）が完了するまで、実機テストが正常に行えない
 
 ---
 
