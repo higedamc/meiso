@@ -4,11 +4,21 @@ Nostrプロトコルを活用した個人用タスク管理アプリ
 
 ## 現在のステータス
 
-🚀 **MLS PoC完了！Beta版へ移行中** (2025-11-11)
+🏗️ **Clean Architecture実装中（Phase D.7）** (2025-11-15)
 
-Phase 1-7が完了し、MLSベースのグループTODOリスト機能のProof of Conceptが成功しました。
-実デバイス間での2人グループテスト、アプリ内完結型招待システムが完全動作しています。
-現在、PoCからBeta版への移行（Phase 8）を進めています。
+- ✅ Phase A-C完了: UseCases抽出、Repository層導入（52時間）
+- 🔄 Phase D進行中: MLS機能のClean Architecture化（11時間/44時間）
+- 📊 進捗: 75% 完了
+
+**採用アプローチ**: ハイブリッド方式（既存Provider保持 + 内部リファクタリング）  
+詳細: [CLEAN_ARCHITECTURE_IMPLEMENTATION_STATUS.md](docs/CLEAN_ARCHITECTURE_IMPLEMENTATION_STATUS.md)
+
+---
+
+🚀 **MLS Beta版完成** (2025-11-14)
+
+Phase 1-8完了。MLSベースのグループTODOリスト機能が完全動作しています。
+実デバイス間での2人グループテスト、アプリ内完結型招待システム、Key Package自動管理が実装済み。
 
 ## コンセプト
 
