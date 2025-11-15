@@ -375,7 +375,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     required String? customListId,
   }) async {
     try {
-      // Phase C.2.3: リカーリングタスクの場合、将来のインスタンスを事前生成
+      // Phase C.2.3: リカーリングタスクの場合、将来のインスタンスを事前生成（90日分）
       if (autoRecurrence != null && date != null) {
         final generateUseCase = _ref.read(generateRecurringInstancesUseCaseProvider);
         final generateResult = await generateUseCase(GenerateRecurringInstancesParams(
@@ -390,7 +390,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           (updatedTodosWithRecurring) {
             // 生成したインスタンスで状態更新
             updatedTodos = updatedTodosWithRecurring;
-            AppLogger.info('[Todos] ✅ Recurring instances generated');
+            // 🐛 Fix: state に反映させないと _saveAllTodosToLocal() が古い state を保存してしまう
+            state = AsyncValue.data(updatedTodos);
+            AppLogger.info('[Todos] ✅ Recurring instances generated (90 days)');
           },
         );
         
@@ -897,13 +899,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             state = AsyncValue.error(failure, StackTrace.current);
           },
           (updatedTodos) async {
-            // スマートな再生成: 残りインスタンスが7日分以下の場合のみ次の30日分を生成
+            // スマートな再生成: 残りインスタンスが21日分以下の場合のみ次の90日分を生成
             if (!wasCompleted && todo.recurrence != null && todo.date != null) {
               final remainingInstances = _countRemainingRecurringInstances(todo, updatedTodos);
               
-              // 残り7日分以下になったら次の30日分を追加生成
-              if (remainingInstances <= 7) {
-                AppLogger.info('[Todos] 🔄 残りインスタンス: $remainingInstances件 → 次の30日分を生成します');
+              // 残り21日分以下になったら次の90日分を追加生成
+              if (remainingInstances <= 21) {
+                AppLogger.info('[Todos] 🔄 残りインスタンス: $remainingInstances件 → 次の90日分を生成します');
                 await _createNextRecurringTask(todo, updatedTodos);
               } else {
                 AppLogger.debug('[Todos] ⏭️ 残りインスタンス: $remainingInstances件 → 再生成スキップ');
@@ -947,9 +949,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }).value;
   }
 
-  /// Phase C.2.3: リカーリングタスクの次回インスタンスを生成（30日分）
+  /// Phase C.2.3: リカーリングタスクの次回インスタンスを生成（90日分）
   /// 
-  /// タスク完了時に将来のインスタンスを再生成します。
+  /// タスク完了時に将来のインスタンスを再生成します（残り21日分以下の場合）。
   Future<void> _createNextRecurringTask(
     Todo originalTodo,
     Map<DateTime?, List<Todo>> todos,
@@ -959,7 +961,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
 
     AppLogger.debug('[Todos] リカーリングタスク完了: ${originalTodo.title}');
-    AppLogger.debug('[Todos] 将来のインスタンスを再生成します（30日分）');
+    AppLogger.debug('[Todos] 将来のインスタンスを再生成します（90日分）');
 
     // 親タスクのIDを特定（このタスクが子インスタンスの場合は親IDを使用）
     final parentId = originalTodo.parentRecurringId ?? originalTodo.id;
@@ -1014,9 +1016,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   // - GenerateRecurringInstancesUseCase
   // - RemoveChildInstancesUseCase
 
-  /// リカーリングタスクの残りインスタンス数を数える（30日以内）
+  /// リカーリングタスクの残りインスタンス数を数える（90日以内）
   /// 
-  /// スマートな再生成のために使用。残りが7日分以下になったら追加生成する。
+  /// スマートな再生成のために使用。残りが21日分以下になったら追加生成する。
   int _countRemainingRecurringInstances(
     Todo todo,
     Map<DateTime?, List<Todo>> todos,
@@ -1029,23 +1031,27 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final parentId = todo.parentRecurringId ?? todo.id;
     
     final now = DateTime.now();
-    final thirtyDaysLater = now.add(const Duration(days: 30));
+    final ninetyDaysLater = now.add(const Duration(days: 90));
     
     int count = 0;
     
     // 全ての日付から未完了の子インスタンスを数える
+    final today = DateTime(now.year, now.month, now.day);
+    
     for (final dateGroup in todos.values) {
       for (final task in dateGroup) {
         // 条件:
         // 1. 同じ親タスクIDを持つ、または同じタスク自身
         // 2. 未完了
-        // 3. 日付が現在から30日以内
+        // 3. 日付が今日以降、90日以内
         if ((task.parentRecurringId == parentId || task.id == parentId) &&
             !task.completed &&
-            task.date != null &&
-            task.date!.isAfter(now) &&
-            !task.date!.isAfter(thirtyDaysLater)) {
-          count++;
+            task.date != null) {
+          final taskDate = DateTime(task.date!.year, task.date!.month, task.date!.day);
+          // 今日以降 かつ 90日以内
+          if (!taskDate.isBefore(today) && !taskDate.isAfter(ninetyDaysLater)) {
+            count++;
+          }
         }
       }
     }
