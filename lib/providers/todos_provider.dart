@@ -102,7 +102,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
       
-      // 自動バッチ同期タイマーを開始（30秒ごと）
+      // 自動バッチ同期タイマーを開始（5秒ごと）
       _startBatchSyncTimer();
       
     } catch (e) {
@@ -418,8 +418,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       
       // 🔥 Phase Performance.1: バッチ同期タイマーに追加（即座の同期を避ける）
-      // 通常のTodo同期は30秒後のバッチ同期で実行される
-      AppLogger.info('📦 Adding to batch sync queue (will sync in 30 seconds)');
+      // 通常のTodo同期は5秒後のバッチ同期で実行される
+      AppLogger.info('📦 Adding to batch sync queue (will sync in 5 seconds)');
       _startBatchSyncTimer();
     } catch (e, stackTrace) {
       AppLogger.error('❌ Background task failed: $e', error: e, stackTrace: stackTrace);
@@ -1429,15 +1429,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     });
   }
 
-  /// 自動バッチ同期タイマーを開始（30秒ごと）
+  /// 自動バッチ同期タイマーを開始（5秒ごと）
   void _startBatchSyncTimer() {
-    AppLogger.debug(' Starting batch sync timer (every 30 seconds)');
+    AppLogger.debug(' Starting batch sync timer (every 5 seconds)');
     
     // 既存のタイマーをキャンセル
     _batchSyncTimer?.cancel();
     
-    // 30秒ごとに実行
-    _batchSyncTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    // 5秒ごとに実行
+    _batchSyncTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       _executeBatchSync();
     });
   }
