@@ -376,12 +376,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // リカーリングタスクの場合、将来のインスタンスを事前生成
       if (autoRecurrence != null && date != null) {
         await _generateFutureInstances(newTodo, updatedTodos);
+        // 生成したインスタンスをローカルに保存
+        AppLogger.debug(' Saving recurring instances to local storage...');
+        await _saveAllTodosToLocal();
+        AppLogger.info(' Recurring instances saved');
       }
-
-      // ローカルストレージに保存
-      AppLogger.debug(' Saving to local storage (background)...');
-      await _saveAllTodosToLocal();
-      AppLogger.info(' Local save complete');
       
       // Widgetを更新
       await _updateWidget();
