@@ -25,6 +25,8 @@ import '../features/todo/application/usecases/create_todo_usecase.dart';
 import '../features/todo/application/usecases/update_todo_usecase.dart';
 import '../features/todo/application/usecases/delete_todo_usecase.dart';
 import '../features/todo/infrastructure/providers/repository_providers.dart';
+// MLS: グループ管理用Repositoryのインポート
+import '../features/mls/infrastructure/providers/repository_providers.dart' as mls_providers;
 
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
@@ -2812,7 +2814,27 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     try {
       AppLogger.info('🔄 Syncing group todos for group: $groupId');
       
-      // 公開鍵を取得
+      // 1. ローカルからMLSグループを読み込む（存在確認）
+      final mlsGroupRepo = _ref.read(mls_providers.mlsGroupRepositoryProvider);
+      final loadResult = await mlsGroupRepo.loadMlsGroupFromLocal(groupId: groupId);
+      
+      final mlsGroup = loadResult.fold(
+        (failure) {
+          AppLogger.warning('⚠️ Failed to load MLS group from local: $groupId');
+          return null;
+        },
+        (group) => group,
+      );
+      
+      if (mlsGroup == null) {
+        AppLogger.warning('⚠️ MLS Group not found in local storage: $groupId');
+        AppLogger.info('💡 Hint: Make sure the group invitation was accepted successfully');
+        return;
+      }
+      
+      AppLogger.info('✅ MLS Group found in local storage: ${mlsGroup.groupName}');
+      
+      // 2. 公開鍵を取得
       var publicKey = _ref.read(publicKeyProvider);
       var npub = _ref.read(nostrPublicKeyProvider);
       
@@ -2838,17 +2860,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
       
-      // グループリストを取得
+      // 3. リレーからグループタスクイベントを取得
+      AppLogger.info('📥 Fetching my group task lists from relays...');
       final groupLists = await groupTaskService.fetchMyGroupTaskLists(
         publicKey: publicKey,
         npub: npub,
       );
       final groupList = groupLists.where((g) => g.groupId == groupId).firstOrNull;
       
+      // 4. イベントが存在しない場合でもエラーにしない（新規グループは空）
       if (groupList == null) {
-        AppLogger.warning('⚠️ Group not found: $groupId');
+        AppLogger.info('📭 No group task events found for: $groupId');
+        AppLogger.info('💡 This is normal for newly created/joined groups');
+        AppLogger.info('✅ Group todos synced (0 todos)');
         return;
       }
+      
+      AppLogger.info('📦 Fetched ${groupLists.length} group task lists');
+      AppLogger.info('🔍 Found group task event for: $groupId');
       
       // グループタスクを復号化
       final groupTodos = await groupTaskService.decryptGroupTaskList(
