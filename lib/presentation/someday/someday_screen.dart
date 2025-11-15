@@ -572,17 +572,22 @@ class SomedayScreen extends ConsumerWidget {
     WidgetRef ref,
     CustomList list,
   ) async {
+    bool isLoadingDialogShown = false;
+    
     try {
       AppLogger.info('🎉 [GroupInvitation] Accepting invitation for: ${list.name}');
       
-      // ローディングインジケータを表示
+      // ローディングインジケータを表示（rootNavigator使用で安定性向上）
       showDialog(
         context: context,
         barrierDismissible: false,
+        useRootNavigator: true, // アプリのライフサイクルに影響されない
         builder: (context) => const Center(
           child: CircularProgressIndicator(),
         ),
       );
+      isLoadingDialogShown = true;
+      AppLogger.debug('📱 [GroupInvitation] Loading dialog shown');
       
       // Welcome Messageをデコード
       if (list.welcomeMsg == null) {
@@ -623,23 +628,12 @@ class SomedayScreen extends ConsumerWidget {
           );
           
           // ローカルストレージに保存
+          AppLogger.debug('💾 [GroupInvitation] Updating custom list...');
           final customListsNotifier = ref.read(customListsProvider.notifier);
           await customListsNotifier.updateList(updatedList);
+          AppLogger.debug('✅ [GroupInvitation] Custom list updated');
           
           AppLogger.info('🎉 [GroupInvitation] Group invitation accepted successfully');
-          
-          // ローディングを閉じる
-          if (context.mounted) Navigator.pop(context);
-          
-          // 成功メッセージ
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('✅ ${list.name}に参加しました'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
           
           // Phase D.5: グループタスクを同期（リスト内容が見えるように）
           AppLogger.info('🔄 [GroupInvitation] Syncing group todos...');
@@ -651,18 +645,28 @@ class SomedayScreen extends ConsumerWidget {
             // エラーは無視（後で手動同期可能）
           }
           
-          // 参加成功後、自動的にリスト詳細画面に遷移
-          await Future.delayed(const Duration(milliseconds: 300)); // 状態更新を待つ
-          
+          // ローディングを閉じる（rootNavigatorを使用）
+          AppLogger.debug('🔓 [GroupInvitation] Closing loading dialog... context.mounted=${context.mounted}');
           if (context.mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ListDetailScreen(
-                  customList: updatedList, // 更新後のリストを渡す
-                ),
+            Navigator.of(context, rootNavigator: true).pop();
+            isLoadingDialogShown = false;
+            AppLogger.debug('✅ [GroupInvitation] Loading dialog closed');
+          } else {
+            AppLogger.warning('⚠️ [GroupInvitation] Context not mounted, cannot close loading dialog');
+          }
+          
+          // 成功メッセージ（自動遷移は行わず、ユーザーが自分でタップできるように）
+          if (context.mounted) {
+            AppLogger.debug('📢 [GroupInvitation] Showing success snackbar');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('✅ ${list.name}に参加しました。リストをタップして開いてください。'),
+                duration: const Duration(seconds: 4),
               ),
             );
+            AppLogger.info('✅ [GroupInvitation] Invitation accepted successfully - user can now tap the list');
+          } else {
+            AppLogger.warning('⚠️ [GroupInvitation] Context not mounted, cannot show snackbar');
           }
         },
       );
@@ -670,8 +674,12 @@ class SomedayScreen extends ConsumerWidget {
     } catch (e, stackTrace) {
       AppLogger.error('❌ [GroupInvitation] Failed to accept invitation', error: e, stackTrace: stackTrace);
       
-      // ローディングを閉じる
-      if (context.mounted) Navigator.pop(context);
+      // ローディングを閉じる（エラー時も確実に閉じる、rootNavigatorを使用）
+      AppLogger.debug('🔓 [GroupInvitation] Closing loading dialog (error case)... isLoadingDialogShown=$isLoadingDialogShown, context.mounted=${context.mounted}');
+      if (isLoadingDialogShown && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        AppLogger.debug('✅ [GroupInvitation] Loading dialog closed (error case)');
+      }
       
       // エラーメッセージ
       if (context.mounted) {
