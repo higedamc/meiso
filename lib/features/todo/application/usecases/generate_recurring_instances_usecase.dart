@@ -9,7 +9,7 @@ import '../../domain/repositories/todo_repository.dart';
 
 /// リカーリングタスクの将来インスタンスを生成するUseCase
 /// 
-/// 親タスクの繰り返しパターンに基づいて、30日以内の将来のインスタンスを自動生成します。
+/// 親タスクの繰り返しパターンに基づいて、90日以内の将来のインスタンスを自動生成します。
 class GenerateRecurringInstancesUseCase
     implements UseCase<Map<DateTime?, List<Todo>>, GenerateRecurringInstancesParams> {
   final TodoRepository _repository;
@@ -41,11 +41,11 @@ class GenerateRecurringInstancesUseCase
 
       DateTime? currentDate = originalTodo.date;
       int generatedCount = 0;
-      const maxInstances = 50; // 最大50個まで生成（無限ループ防止）
+      const maxInstances = 150; // 最大150個まで生成（無限ループ防止）
       final now = DateTime.now();
-      final thirtyDaysLater = now.add(const Duration(days: 30));
+      final ninetyDaysLater = now.add(const Duration(days: 90));
 
-      // 30日以内の将来のインスタンスを生成
+      // 90日以内の将来のインスタンスを生成
       while (generatedCount < maxInstances) {
         final nextDate = originalTodo.recurrence!.calculateNextDate(currentDate!);
 
@@ -54,9 +54,9 @@ class GenerateRecurringInstancesUseCase
           break; // 繰り返し終了
         }
 
-        // 30日以内の日付のみ生成
-        if (nextDate.isAfter(thirtyDaysLater)) {
-          AppLogger.debug('[GenerateRecurringInstances] 30日以内の範囲を超えたため終了');
+        // 90日以内の日付のみ生成
+        if (nextDate.isAfter(ninetyDaysLater)) {
+          AppLogger.debug('[GenerateRecurringInstances] 90日以内の範囲を超えたため終了');
           break;
         }
 
