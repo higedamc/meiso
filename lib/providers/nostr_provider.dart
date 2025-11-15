@@ -951,7 +951,57 @@ class NostrService {
     }
   }
   
-  /// Phase 8.3: MLSグループTODOを受信（listen_key購読）
+  /// Phase 8.3: MLSグループTODOイベントを取得（一度に全て取得）
+  /// 
+  /// Listen Keyで受信したKind 1059イベントを全て取得
+  /// 
+  /// [listenKey]: Export SecretからMLSで導出した受信用公開鍵
+  /// [groupId]: グループID（フィルタリング用）
+  Future<List<rust_api.ReceivedEvent>> fetchMlsGroupTodoEvents({
+    required String listenKey,
+    required String groupId,
+  }) async {
+    try {
+      AppLogger.info('📥 [MLS] Fetching MLS group todo events');
+      AppLogger.info('   Listen Key: ${listenKey.substring(0, 16)}...');
+      AppLogger.info('   Group ID: $groupId');
+      
+      if (_subscriptionService == null) {
+        throw Exception('Subscription service not initialized');
+      }
+      
+      // NIP-17: Kind 1059（Seal）で取得
+      // #p タグ = listen_key で受信
+      final filters = [
+        {
+          'kinds': [1059], // NIP-17 Seal
+          '#p': [listenKey], // 受信者 = listen_key
+        }
+      ];
+      
+      final events = <rust_api.ReceivedEvent>[];
+      
+      await _subscriptionService!.startSubscription(
+        filters: filters,
+        onEventsReceived: (receivedEvents) {
+          AppLogger.debug('📦 [MLS] Received ${receivedEvents.length} sealed events');
+          events.addAll(receivedEvents);
+        },
+      );
+      
+      // 少し待機してイベント受信を待つ（最大3秒）
+      await Future<void>.delayed(const Duration(seconds: 3));
+      
+      AppLogger.info('📦 [MLS] Fetched ${events.length} sealed events for listen key');
+      
+      return events;
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [MLS] Failed to fetch MLS group todo events', error: e, stackTrace: stackTrace);
+      return [];
+    }
+  }
+  
+  /// Phase 8.3: MLSグループTODOを受信（listen_key購読 - リアルタイム）
   /// 
   /// Keychatパターンに従い、NIP-17 (Gift Wrap) を受信
   /// 
