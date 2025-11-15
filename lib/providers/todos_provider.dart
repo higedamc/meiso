@@ -897,9 +897,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             state = AsyncValue.error(failure, StackTrace.current);
           },
           (updatedTodos) async {
-            // リカーリングタスクの完了時に次回のタスクを生成
+            // スマートな再生成: 残りインスタンスが7日分以下の場合のみ次の30日分を生成
             if (!wasCompleted && todo.recurrence != null && todo.date != null) {
-              await _createNextRecurringTask(todo, updatedTodos);
+              final remainingInstances = _countRemainingRecurringInstances(todo, updatedTodos);
+              
+              // 残り7日分以下になったら次の30日分を追加生成
+              if (remainingInstances <= 7) {
+                AppLogger.info('[Todos] 🔄 残りインスタンス: $remainingInstances件 → 次の30日分を生成します');
+                await _createNextRecurringTask(todo, updatedTodos);
+              } else {
+                AppLogger.debug('[Todos] ⏭️ 残りインスタンス: $remainingInstances件 → 再生成スキップ');
+              }
             }
 
             // 【楽観的UI更新】即座にUI更新
@@ -1005,6 +1013,46 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   // UseCaseに移行したため削除しました。
   // - GenerateRecurringInstancesUseCase
   // - RemoveChildInstancesUseCase
+
+  /// リカーリングタスクの残りインスタンス数を数える（30日以内）
+  /// 
+  /// スマートな再生成のために使用。残りが7日分以下になったら追加生成する。
+  int _countRemainingRecurringInstances(
+    Todo todo,
+    Map<DateTime?, List<Todo>> todos,
+  ) {
+    if (todo.recurrence == null) {
+      return 0;
+    }
+
+    // 親タスクのIDを特定
+    final parentId = todo.parentRecurringId ?? todo.id;
+    
+    final now = DateTime.now();
+    final thirtyDaysLater = now.add(const Duration(days: 30));
+    
+    int count = 0;
+    
+    // 全ての日付から未完了の子インスタンスを数える
+    for (final dateGroup in todos.values) {
+      for (final task in dateGroup) {
+        // 条件:
+        // 1. 同じ親タスクIDを持つ、または同じタスク自身
+        // 2. 未完了
+        // 3. 日付が現在から30日以内
+        if ((task.parentRecurringId == parentId || task.id == parentId) &&
+            !task.completed &&
+            task.date != null &&
+            task.date!.isAfter(now) &&
+            !task.date!.isAfter(thirtyDaysLater)) {
+          count++;
+        }
+      }
+    }
+    
+    AppLogger.debug('[Todos] リカーリングタスク残りインスタンス数: $count (parentId: $parentId)');
+    return count;
+  }
 
   /// Todoを削除（楽観的UI更新）
   /// 
