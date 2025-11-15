@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../usecases/create_todo_usecase.dart';
 import '../usecases/update_todo_usecase.dart';
 import '../usecases/delete_todo_usecase.dart';
+import '../usecases/generate_recurring_instances_usecase.dart';
+import '../usecases/remove_child_instances_usecase.dart';
 import '../../infrastructure/providers/repository_providers.dart';
 
 /// CreateTodoUseCaseのProvider
@@ -28,3 +30,18 @@ final deleteTodoUseCaseProvider = Provider<DeleteTodoUseCase>((ref) {
   return DeleteTodoUseCase(repository);
 });
 
+/// GenerateRecurringInstancesUseCaseのProvider
+/// 
+/// Phase C.2.3: リカーリングタスクの将来インスタンス生成
+final generateRecurringInstancesUseCaseProvider = Provider<GenerateRecurringInstancesUseCase>((ref) {
+  final repository = ref.watch(todoRepositoryProvider);
+  return GenerateRecurringInstancesUseCase(repository);
+});
+
+/// RemoveChildInstancesUseCaseのProvider
+/// 
+/// Phase C.2.3: リカーリングタスクの子インスタンス削除
+final removeChildInstancesUseCaseProvider = Provider<RemoveChildInstancesUseCase>((ref) {
+  final repository = ref.watch(todoRepositoryProvider);
+  return RemoveChildInstancesUseCase(repository);
+});

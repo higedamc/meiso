@@ -19,11 +19,13 @@ import 'custom_lists_provider.dart';
 import 'app_settings_provider.dart';
 import 'package:path_provider/path_provider.dart';
 import '../bridge_generated.dart/api.dart' as rust_api;
-// Phase B: UseCaseのインポート
+// Phase B & C.2.3: UseCaseのインポート
 import '../features/todo/application/providers/usecase_providers.dart';
 import '../features/todo/application/usecases/create_todo_usecase.dart';
 import '../features/todo/application/usecases/update_todo_usecase.dart';
 import '../features/todo/application/usecases/delete_todo_usecase.dart';
+import '../features/todo/application/usecases/generate_recurring_instances_usecase.dart';
+import '../features/todo/application/usecases/remove_child_instances_usecase.dart';
 import '../features/todo/infrastructure/providers/repository_providers.dart';
 // MLS: グループ管理用Repositoryのインポート
 import '../features/mls/infrastructure/providers/repository_providers.dart' as mls_providers;
@@ -373,9 +375,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     required String? customListId,
   }) async {
     try {
-      // リカーリングタスクの場合、将来のインスタンスを事前生成
+      // Phase C.2.3: リカーリングタスクの場合、将来のインスタンスを事前生成
       if (autoRecurrence != null && date != null) {
-        await _generateFutureInstances(newTodo, updatedTodos);
+        final generateUseCase = _ref.read(generateRecurringInstancesUseCaseProvider);
+        final generateResult = await generateUseCase(GenerateRecurringInstancesParams(
+          parentTodo: newTodo,
+          currentTodos: updatedTodos,
+        ));
+        
+        generateResult.fold(
+          (failure) {
+            AppLogger.error('❌ Failed to generate recurring instances: ${failure.message}');
+          },
+          (updatedTodosWithRecurring) {
+            // 生成したインスタンスで状態更新
+            updatedTodos = updatedTodosWithRecurring;
+            AppLogger.info('[Todos] ✅ Recurring instances generated');
+          },
+        );
+        
         // 生成したインスタンスをローカルに保存
         AppLogger.debug(' Saving recurring instances to local storage...');
         await _saveAllTodosToLocal();
@@ -723,12 +741,60 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           date: list,
         });
 
-        // リカーリングタスクの場合、将来のインスタンスを事前生成
+        // Phase C.2.3: リカーリングタスクの場合、将来のインスタンスを事前生成
         if (recurrence != null && date != null) {
-          await _generateFutureInstances(updatedTodo, todos);
+          // 既存の子インスタンスを削除
+          final removeUseCase = _ref.read(removeChildInstancesUseCaseProvider);
+          final removeResult = await removeUseCase(RemoveChildInstancesParams(
+            parentId: id,
+            currentTodos: todos,
+          ));
+          
+          removeResult.fold(
+            (failure) {
+              AppLogger.error('❌ Failed to remove child instances: ${failure.message}');
+            },
+            (todosAfterRemove) {
+              todos = todosAfterRemove;
+              AppLogger.debug('[Todos] ✅ Child instances removed');
+            },
+          );
+          
+          // 新しいインスタンスを生成
+          final generateUseCase = _ref.read(generateRecurringInstancesUseCaseProvider);
+          final generateResult = await generateUseCase(GenerateRecurringInstancesParams(
+            parentTodo: updatedTodo,
+            currentTodos: todos,
+          ));
+          
+          generateResult.fold(
+            (failure) {
+              AppLogger.error('❌ Failed to generate recurring instances: ${failure.message}');
+            },
+            (updatedTodosWithRecurring) {
+              todos = updatedTodosWithRecurring;
+              state = AsyncValue.data(todos);
+              AppLogger.info('[Todos] ✅ Recurring instances generated');
+            },
+          );
         } else if (recurrence == null) {
-          // 繰り返しを解除した場合、子タスクを削除
-          await _removeChildInstances(id, todos);
+          // Phase C.2.3: 繰り返しを解除した場合、子タスクを削除
+          final removeUseCase = _ref.read(removeChildInstancesUseCaseProvider);
+          final removeResult = await removeUseCase(RemoveChildInstancesParams(
+            parentId: id,
+            currentTodos: todos,
+          ));
+          
+          removeResult.fold(
+            (failure) {
+              AppLogger.error('❌ Failed to remove child instances: ${failure.message}');
+            },
+            (todosAfterRemove) {
+              todos = todosAfterRemove;
+              state = AsyncValue.data(todos);
+              AppLogger.debug('[Todos] ✅ Child instances removed (recurrence disabled)');
+            },
+          );
         }
 
         // ローカルストレージに保存（awaitする）
@@ -873,7 +939,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }).value;
   }
 
-  /// リカーリングタスクの次回インスタンスを生成（30日分）
+  /// Phase C.2.3: リカーリングタスクの次回インスタンスを生成（30日分）
+  /// 
+  /// タスク完了時に将来のインスタンスを再生成します。
   Future<void> _createNextRecurringTask(
     Todo originalTodo,
     Map<DateTime?, List<Todo>> todos,
@@ -882,8 +950,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       return;
     }
 
-    AppLogger.debug(' リカーリングタスク完了: ${originalTodo.title}');
-    AppLogger.debug(' 将来のインスタンスを再生成します（30日分）');
+    AppLogger.debug('[Todos] リカーリングタスク完了: ${originalTodo.title}');
+    AppLogger.debug('[Todos] 将来のインスタンスを再生成します（30日分）');
 
     // 親タスクのIDを特定（このタスクが子インスタンスの場合は親IDを使用）
     final parentId = originalTodo.parentRecurringId ?? originalTodo.id;
@@ -903,70 +971,26 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     // 親タスクが見つからない場合は、完了したタスク自身を使用
     parentTask ??= originalTodo;
 
-    AppLogger.debug(' 親タスクID: ${parentTask.id}');
-    AppLogger.debug(' 元のタスクの日付: ${parentTask.date}');
+    AppLogger.debug('[Todos] 親タスクID: ${parentTask.id}');
+    AppLogger.debug('[Todos] 元のタスクの日付: ${parentTask.date}');
     
-    DateTime? currentDate = originalTodo.date; // 完了したタスクの日付から開始
-    int generatedCount = 0;
-    const maxInstances = 50; // 最大50個まで生成（無限ループ防止）
-    final now = DateTime.now();
-    final thirtyDaysLater = now.add(const Duration(days: 30));
-
-    // 30日以内の将来のインスタンスを生成
-    while (generatedCount < maxInstances) {
-      final nextDate = parentTask.recurrence!.calculateNextDate(currentDate!);
-      
-      if (nextDate == null) {
-        AppLogger.info(' 繰り返し終了');
-        break; // 繰り返し終了
-      }
-
-      // 30日以内の日付のみ生成
-      if (nextDate.isAfter(thirtyDaysLater)) {
-        AppLogger.debug(' 30日以内の範囲を超えたため終了');
-        break;
-      }
-
-      // 既に同じタイトルのタスクが存在するかチェック
-      final existingTasks = todos[nextDate] ?? [];
-      final alreadyExists = existingTasks.any((t) => 
-        t.parentRecurringId == parentId ||
-        (t.title == parentTask!.title && t.recurrence != null && t.id != parentId && !t.completed)
-      );
-
-      if (!alreadyExists) {
-        // 新しいインスタンスを生成
-        final newTodo = Todo(
-          id: _uuid.v4(),
-          title: parentTask.title,
-          completed: false,
-          date: nextDate,
-          order: _getNextOrder(todos, nextDate),
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          recurrence: parentTask.recurrence,
-          parentRecurringId: parentId,
-          linkPreview: parentTask.linkPreview,
-          needsSync: true, // 同期が必要
-        );
-
-        final list = List<Todo>.from(todos[nextDate] ?? []);
-        list.add(newTodo);
-        todos[nextDate] = list;
-
-        generatedCount++;
-        AppLogger.info(' インスタンス生成: ${nextDate.month}/${nextDate.day}');
-      } else {
-        AppLogger.debug(' インスタンス既存: ${nextDate.month}/${nextDate.day}');
-      }
-
-      currentDate = nextDate;
-    }
-
-    AppLogger.debug(' 合計${generatedCount}個のインスタンスを生成しました');
-
-    // 状態を更新（この時点でUIに反映）
-    state = AsyncValue.data(Map.from(todos));
+    // Phase C.2.3: GenerateRecurringInstancesUseCaseを使用
+    final generateUseCase = _ref.read(generateRecurringInstancesUseCaseProvider);
+    final generateResult = await generateUseCase(GenerateRecurringInstancesParams(
+      parentTodo: parentTask,
+      currentTodos: todos,
+    ));
+    
+    generateResult.fold(
+      (failure) {
+        AppLogger.error('❌ Failed to generate next recurring instances: ${failure.message}');
+      },
+      (updatedTodos) {
+        // 状態を更新（この時点でUIに反映）
+        state = AsyncValue.data(updatedTodos);
+        AppLogger.info('[Todos] ✅ Next recurring instances generated');
+      },
+    );
     
     // ローカルに保存
     await _saveAllTodosToLocal();
@@ -977,123 +1001,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     });
   }
 
-  /// リカーリングタスクの将来のインスタンスを事前生成（30日分）
-  Future<void> _generateFutureInstances(
-    Todo originalTodo,
-    Map<DateTime?, List<Todo>> todos,
-  ) async {
-    if (originalTodo.recurrence == null || originalTodo.date == null) {
-      return;
-    }
-
-    AppLogger.debug(' 将来のインスタンスを生成開始: ${originalTodo.title}');
-    AppLogger.debug(' 元のタスクの日付: ${originalTodo.date}');
-    
-    // 元のタスクが含まれているか確認
-    final originalDateTasks = todos[originalTodo.date] ?? [];
-    final originalTaskExists = originalDateTasks.any((t) => t.id == originalTodo.id);
-    AppLogger.debug(' 元のタスクが存在: $originalTaskExists (${originalDateTasks.length}件のタスク)');
-
-    DateTime? currentDate = originalTodo.date;
-    int generatedCount = 0;
-    const maxInstances = 50; // 最大50個まで生成（無限ループ防止）
-    final now = DateTime.now();
-    final thirtyDaysLater = now.add(const Duration(days: 30));
-
-    // 既存の子インスタンスを削除
-    await _removeChildInstances(originalTodo.id, todos);
-    
-    // 削除後に元のタスクがまだ存在するか確認
-    final afterRemoveTasks = todos[originalTodo.date] ?? [];
-    final originalTaskStillExists = afterRemoveTasks.any((t) => t.id == originalTodo.id);
-    AppLogger.debug(' 削除後の元のタスク存在: $originalTaskStillExists (${afterRemoveTasks.length}件のタスク)');
-
-    // 30日以内の将来のインスタンスを生成
-    while (generatedCount < maxInstances) {
-      final nextDate = originalTodo.recurrence!.calculateNextDate(currentDate!);
-      
-      if (nextDate == null) {
-        AppLogger.info(' 繰り返し終了');
-        break; // 繰り返し終了
-      }
-
-      // 30日以内の日付のみ生成
-      if (nextDate.isAfter(thirtyDaysLater)) {
-        AppLogger.debug(' 30日以内の範囲を超えたため終了');
-        break;
-      }
-
-      // 既に同じタイトルのタスクが存在するかチェック
-      final existingTasks = todos[nextDate] ?? [];
-      final alreadyExists = existingTasks.any((t) => 
-        t.parentRecurringId == originalTodo.id ||
-        (t.title == originalTodo.title && t.recurrence != null && t.id != originalTodo.id)
-      );
-
-      if (!alreadyExists) {
-        // 新しいインスタンスを生成
-        final newTodo = Todo(
-          id: _uuid.v4(),
-          title: originalTodo.title,
-          completed: false,
-          date: nextDate,
-          order: _getNextOrder(todos, nextDate),
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          recurrence: originalTodo.recurrence,
-          parentRecurringId: originalTodo.id,
-          linkPreview: originalTodo.linkPreview,
-          needsSync: true, // 同期が必要
-        );
-
-        final list = List<Todo>.from(todos[nextDate] ?? []);
-        list.add(newTodo);
-        todos[nextDate] = list;
-
-        generatedCount++;
-        AppLogger.info(' インスタンス生成: ${nextDate.month}/${nextDate.day}');
-      }
-
-      currentDate = nextDate;
-    }
-
-    AppLogger.debug(' 合計${generatedCount}個のインスタンスを生成しました');
-    
-    // 最終的に元のタスクが含まれているか確認
-    final finalTasks = todos[originalTodo.date] ?? [];
-    final finalTaskExists = finalTasks.any((t) => t.id == originalTodo.id);
-    AppLogger.debug(' 最終的な元のタスク存在: $finalTaskExists (${finalTasks.length}件のタスク)');
-
-    // 状態を更新
-    state = AsyncValue.data(Map.from(todos));
-  }
-
-  /// 親タスクの子インスタンスを削除
-  Future<void> _removeChildInstances(
-    String parentId,
-    Map<DateTime?, List<Todo>> todos,
-  ) async {
-    AppLogger.debug(' 子インスタンスを削除: $parentId');
-    
-    int removedCount = 0;
-    for (final date in todos.keys) {
-      final list = List<Todo>.from(todos[date] ?? []);
-      final originalLength = list.length;
-      
-      list.removeWhere((t) => t.parentRecurringId == parentId);
-      
-      if (list.length < originalLength) {
-        removedCount += originalLength - list.length;
-        todos[date] = list;
-      }
-    }
-
-    AppLogger.debug(' ${removedCount}個の子インスタンスを削除しました');
-
-    if (removedCount > 0) {
-      state = AsyncValue.data(Map.from(todos));
-    }
-  }
+  // Phase C.2.3: _generateFutureInstances() と _removeChildInstances() は
+  // UseCaseに移行したため削除しました。
+  // - GenerateRecurringInstancesUseCase
+  // - RemoveChildInstancesUseCase
 
   /// Todoを削除（楽観的UI更新）
   /// 
