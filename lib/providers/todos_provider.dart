@@ -347,14 +347,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.info(' UI updated immediately (optimistic)');
 
           // 以下、全てバックグラウンドで実行（UIをブロックしない）
-          _performBackgroundTasks(
-            newTodo: newTodo,
-            updatedTodos: updatedTodos,
-            autoRecurrence: autoRecurrence,
-            date: date,
-            detectedUrl: detectedUrl,
-            customListId: customListId,
-          );
+          // Future.microtaskで真のバックグラウンド実行
+          Future.microtask(() {
+            _performBackgroundTasks(
+              newTodo: newTodo,
+              updatedTodos: updatedTodos,
+              autoRecurrence: autoRecurrence,
+              date: date,
+              detectedUrl: detectedUrl,
+              customListId: customListId,
+            );
+          });
         },
       );
     }).value;
