@@ -2830,35 +2830,122 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
       
-      // 3. リレーからグループタスクイベントを取得
-      AppLogger.info('📥 Fetching my group task lists from relays...');
-      final groupLists = await groupTaskService.fetchMyGroupTaskLists(
+      // 3. Phase 8.3: MLSグループTODOを同期
+      await _initMlsIfNeeded();
+      await _syncMlsGroupTodos(
+        groupId: groupId,
         publicKey: publicKey,
-        npub: npub,
       );
-      final groupList = groupLists.where((g) => g.groupId == groupId).firstOrNull;
       
-      // 4. イベントが存在しない場合でもエラーにしない（新規グループは空）
-      if (groupList == null) {
-        AppLogger.info('📭 No group task events found for: $groupId');
-        AppLogger.info('💡 This is normal for newly created/joined groups');
-        AppLogger.info('✅ Group todos synced (0 todos)');
+      AppLogger.info('✅ [syncGroupTodos] Completed MLS group todos sync for: $groupId');
+    } catch (e, st) {
+      AppLogger.error('❌ [syncGroupTodos] Failed to sync group todos: $e', error: e, stackTrace: st);
+    }
+  }
+  
+  /// Phase 8.3: MLSグループTODOを同期（受信・復号化）
+  Future<void> _syncMlsGroupTodos({
+    required String groupId,
+    required String publicKey,
+  }) async {
+    try {
+      AppLogger.info('🔐 [MLS] Syncing MLS group todos for: $groupId');
+      
+      // 1. Listen Keyを取得
+      final listenKey = await rust_api.mlsGetListenKey(
+        nostrId: publicKey,
+        groupId: groupId,
+      );
+      AppLogger.info('🔑 [MLS] Listen Key: ${listenKey.substring(0, 16)}...');
+      
+      // 2. Listen Keyでイベントを取得（Kind 1059）
+      final nostrService = _ref.read(nostrServiceProvider);
+      final events = await nostrService.fetchMlsGroupTodoEvents(
+        listenKey: listenKey,
+        groupId: groupId,
+      );
+      
+      if (events.isEmpty) {
+        AppLogger.info('📭 [MLS] No MLS group todo events found for: $groupId');
+        AppLogger.info('💡 [MLS] This is normal for newly created/joined groups');
         return;
       }
       
-      AppLogger.info('📦 Fetched ${groupLists.length} group task lists');
-      AppLogger.info('🔍 Found group task event for: $groupId');
+      AppLogger.info('📦 [MLS] Fetched ${events.length} MLS group todo events');
       
-      // グループタスクを復号化
-      final groupTodos = await groupTaskService.decryptGroupTaskList(
-        groupList: groupList,
-        publicKey: publicKey,
-        npub: npub,
-      );
+      // 3. 各イベントをMLS復号化
+      final groupTodos = <Todo>[];
+      for (final event in events) {
+        try {
+          // event_jsonをパースしてcontentを取得
+          final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
+          final encryptedContent = eventData['content'] as String;
+          
+          // group_idタグをチェック（このグループ宛か確認）
+          final tags = eventData['tags'] as List<dynamic>?;
+          bool isForThisGroup = false;
+          if (tags != null) {
+            final groupIdTag = tags.firstWhere(
+              (tag) => tag is List && tag.isNotEmpty && tag[0] == 'group_id',
+              orElse: () => null,
+            );
+            
+            if (groupIdTag != null && groupIdTag[1] == groupId) {
+              isForThisGroup = true;
+            }
+          }
+          
+          if (!isForThisGroup) {
+            AppLogger.debug('⏭️  [MLS] Skipping event for different group');
+            continue;
+          }
+          
+          // MLS復号化
+          final (decryptedJson, sender, _) = await rust_api.mlsDecryptTodo(
+            nostrId: publicKey,
+            groupId: groupId,
+            encryptedMsg: encryptedContent,
+          );
+          
+          AppLogger.debug('🔓 [MLS] Decrypted todo from $sender');
+          
+          // JSONをパースしてTodoオブジェクトに変換
+          final todoData = jsonDecode(decryptedJson) as Map<String, dynamic>;
+          
+          DateTime? date;
+          final dateStr = todoData['date'] as String?;
+          if (dateStr != null) {
+            date = DateTime.parse(dateStr);
+          }
+          
+          final todo = Todo(
+            id: todoData['id'] as String,
+            title: todoData['title'] as String,
+            completed: todoData['completed'] as bool? ?? false,
+            date: date,
+            order: todoData['order'] as int? ?? 0,
+            createdAt: DateTime.parse(todoData['created_at'] as String),
+            updatedAt: DateTime.parse(todoData['updated_at'] as String),
+            customListId: todoData['custom_list_id'] as String?,
+            recurrence: todoData['recurrence'] != null 
+                ? RecurrencePattern.fromJson(todoData['recurrence'] as Map<String, dynamic>)
+                : null,
+            parentRecurringId: todoData['parent_recurring_id'] as String?,
+            needsSync: false,
+          );
+          
+          groupTodos.add(todo);
+          
+          AppLogger.debug('✅ [MLS] Parsed todo: ${todo.title}');
+        } catch (e) {
+          AppLogger.error('❌ [MLS] Failed to decrypt/parse event: $e', error: e);
+          // エラーでも他のイベントは処理続行
+        }
+      }
       
-      AppLogger.info('✅ Decrypted ${groupTodos.length} todos from group');
+      AppLogger.info('✅ [MLS] Decrypted ${groupTodos.length} todos from group');
       
-      // 既存のグループタスクを削除
+      // 4. 既存のグループタスクを削除して、新しいタスクを追加
       await state.whenData((todos) async {
         final updated = Map<DateTime?, List<Todo>>.from(todos);
         
@@ -2885,11 +2972,83 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         
         state = AsyncValue.data(updated);
         
-        AppLogger.info('✅ Group todos synced to local storage');
+        AppLogger.info('✅ [MLS] Group todos synced to local storage');
       }).value;
       
     } catch (e, st) {
-      AppLogger.error('❌ Failed to sync group todos: $e', error: e, stackTrace: st);
+      AppLogger.error('❌ [MLS] Failed to sync MLS group todos: $e', error: e, stackTrace: st);
+    }
+  }
+  
+  /// グループタスクを同期（旧fiatjaf方式 - 互換性のため残す）
+  Future<void> _syncLegacyGroupTodos({
+    required String groupId,
+    required String publicKey,
+    required String npub,
+  }) async {
+    try {
+      AppLogger.info('🔄 [Legacy] Syncing legacy group todos for: $groupId');
+      
+      // リレーからグループタスクイベントを取得
+      AppLogger.info('📥 [Legacy] Fetching my group task lists from relays...');
+      final groupLists = await groupTaskService.fetchMyGroupTaskLists(
+        publicKey: publicKey,
+        npub: npub,
+      );
+      final groupList = groupLists.where((g) => g.groupId == groupId).firstOrNull;
+      
+      // イベントが存在しない場合でもエラーにしない（新規グループは空）
+      if (groupList == null) {
+        AppLogger.info('📭 [Legacy] No group task events found for: $groupId');
+        AppLogger.info('💡 [Legacy] This is normal for newly created/joined groups');
+        AppLogger.info('✅ [Legacy] Group todos synced (0 todos)');
+        return;
+      }
+      
+      AppLogger.info('📦 [Legacy] Fetched ${groupLists.length} group task lists');
+      AppLogger.info('🔍 [Legacy] Found group task event for: $groupId');
+      
+      // グループタスクを復号化
+      final groupTodos = await groupTaskService.decryptGroupTaskList(
+        groupList: groupList,
+        publicKey: publicKey,
+        npub: npub,
+      );
+      
+      AppLogger.info('✅ [Legacy] Decrypted ${groupTodos.length} todos from group');
+      
+      // 既存のグループタスクを削除して、新しいタスクを追加
+      await state.whenData((todos) async {
+        final updated = Map<DateTime?, List<Todo>>.from(todos);
+        
+        // グループIDが一致するタスクを削除
+        for (final dateKey in updated.keys) {
+          updated[dateKey] = updated[dateKey]!
+              .where((t) => t.customListId != groupId)
+              .toList();
+        }
+        
+        // 新しいグループタスクを追加
+        for (final todo in groupTodos) {
+          final dateKey = todo.date;
+          updated[dateKey] ??= [];
+          updated[dateKey]!.add(todo);
+        }
+        
+        // ローカルストレージに保存
+        final allTodos = <Todo>[];
+        for (final dateGroup in updated.values) {
+          allTodos.addAll(dateGroup);
+        }
+        await localStorageService.saveTodos(allTodos);
+        
+        state = AsyncValue.data(updated);
+        
+        AppLogger.info('✅ [Legacy] Group todos synced to local storage');
+      }).value;
+      
+    } catch (e, st) {
+      AppLogger.error('❌ [Legacy] Failed to sync legacy group todos: $e', error: e, stackTrace: st);
     }
   }
   
