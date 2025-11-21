@@ -23,6 +23,7 @@ _$CustomListImpl _$$CustomListImplFromJson(Map<String, dynamic> json) =>
       inviterNpub: json['inviterNpub'] as String?,
       inviterName: json['inviterName'] as String?,
       welcomeMsg: json['welcomeMsg'] as String?,
+      eventId: json['eventId'] as String?,
     );
 
 Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
@@ -38,4 +39,5 @@ Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
       'inviterNpub': instance.inviterNpub,
       'inviterName': instance.inviterName,
       'welcomeMsg': instance.welcomeMsg,
+      'eventId': instance.eventId,
     };

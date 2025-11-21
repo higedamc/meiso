@@ -117,10 +117,10 @@ class ExpandableCustomListModal extends ConsumerWidget {
                 
                 // カスタムリスト（並び替え可能）
                 ...customLists.map((list) {
-                  return _buildListItem(
+                  return _buildCustomListItem(
                     context,
                     ref,
-                    list.name,
+                    list,
                     _getListTodoCount(list.id, todos),
                     onTap: () async {
                       // 最後に見たリストIDを保存
@@ -142,6 +142,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
                         );
                       }
                     },
+                    onDelete: () => _confirmDeleteList(context, ref, list),
                   );
                 }),
 
@@ -257,6 +258,84 @@ class ExpandableCustomListModal extends ConsumerWidget {
     );
   }
 
+  /// カスタムリスト専用のリストアイテム（削除ボタン付き）
+  /// 
+  /// Phase E.5: リスト削除機能
+  Widget _buildCustomListItem(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+    int count, {
+    required VoidCallback onTap,
+    required VoidCallback onDelete,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: textColor.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // リスト名
+            Expanded(
+              child: Text(
+                list.name,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            // カウント
+            if (count > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  count.toString(),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryPurple,
+                  ),
+                ),
+              ),
+            // 削除ボタン（Personal Listのみ、グループリストは非表示）
+            if (!list.isGroup && !list.isPendingInvitation) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 20,
+                  color: textColor.withOpacity(0.5),
+                ),
+                onPressed: onDelete,
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+                tooltip: 'Delete list',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   /// カスタムリストのTodo数を取得
   int _getListTodoCount(String listId, Map<DateTime?, List<Todo>> todos) {
     int count = 0;
@@ -288,6 +367,76 @@ class ExpandableCustomListModal extends ConsumerWidget {
     }
 
     return count;
+  }
+
+  /// リスト削除の確認ダイアログ
+  /// 
+  /// Phase E.5: リスト削除機能
+  Future<void> _confirmDeleteList(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+  ) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        title: Text(
+          'DELETE LIST',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            letterSpacing: 1.2,
+          ),
+        ),
+        content: Text(
+          'Delete "${list.name}"?\n\nThis will remove the list and all its tasks from all devices.',
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text(
+              'DELETE',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed == true) {
+      // リストを削除
+      await ref.read(customListsProvider.notifier).deleteList(list.id);
+      
+      // TODO削除も実行（Phase E.5.1で実装予定）
+      // そのリストに属する全てのTODOも削除する
+      final todosNotifier = ref.read(todosProvider.notifier);
+      await todosNotifier.deleteAllTodosInList(list.id);
+    }
   }
 
   /// リスト追加画面を表示（通常リストorグループリスト）

@@ -9,11 +9,16 @@ import 'nostr_provider.dart';
 import '../utils/error_handler.dart';
 // Phase C.3.1: Repository層統合
 import '../features/custom_list/infrastructure/providers/repository_providers.dart';
+// Phase E.6: Custom List UseCase統合
+import '../features/custom_list/application/providers/usecase_providers.dart';
+import '../features/custom_list/application/usecases/delete_personal_list_usecase.dart';
 // Phase D.5: MLS UseCase統合
-import '../features/mls/application/providers/usecase_providers.dart';
+import '../features/mls/application/providers/usecase_providers.dart' as mls_usecase;
 import '../features/mls/application/usecases/create_mls_group_usecase.dart';
 import '../features/mls/application/usecases/send_group_invitation_usecase.dart';
 import '../features/mls/application/usecases/sync_group_invitations_usecase.dart';
+// Rust FFI
+import '../bridge_generated.dart/api.dart' as rust_api;
 
 /// カスタムリストを管理するProvider
 final customListsProvider =
@@ -214,19 +219,49 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   }
 
   /// リストを削除
+  /// 
+  /// Phase E.3: Personal Listの場合、Nostr削除も実行（楽観的UI更新）
+  /// 
+  /// 動作:
+  /// 1. 即座にローカル削除 → UI更新
+  /// 2. Personal Listの場合、バックグラウンドでNostr削除（Kind 5）
+  /// 3. エラー時はロールバック
   Future<void> deleteList(String id) async {
     await state.whenData((lists) async {
+      // 削除対象リストを取得
+      final targetList = lists.firstWhere(
+        (l) => l.id == id,
+        orElse: () => throw Exception('List not found: $id'),
+      );
+      
+      // 1. 楽観的UI更新: 即座にローカルから削除
       final updatedLists = lists.where((l) => l.id != id).toList();
       state = AsyncValue.data(updatedLists);
+      
+      AppLogger.info(' [CustomLists] Deleting list locally: ${targetList.name} (id: $id)');
 
       // Phase C.3.1: Repository経由でローカルストレージに保存
-      final result = await _repository.saveCustomListsToLocal(updatedLists);
+      final localResult = await _repository.deleteCustomListFromLocal(id);
       
-      result.fold(
-        (failure) => AppLogger.warning(' Failed to delete list: ${failure.message}'),
-        (_) {
+      await localResult.fold(
+        (failure) async {
+          AppLogger.warning(' [CustomLists] Failed to delete from local storage: ${failure.message}');
+          // ローカル削除失敗時はロールバック
+          state = AsyncValue.data(lists);
+        },
+        (_) async {
           // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
           _updateCustomListOrderInSettings(updatedLists);
+          
+          // 2. Personal Listの場合、バックグラウンドでNostr削除（Phase E.6）
+          if (!targetList.isGroup) {
+            AppLogger.info('📤 [CustomLists] Deleting personal list from Nostr: ${targetList.name}');
+            
+            // Phase E.6: Nostrから動的にeventIdを取得してKind 5削除イベント送信
+            _deletePersonalListFromNostr(targetList, lists);
+          } else if (targetList.isGroup) {
+            AppLogger.debug('ℹ️  [CustomLists] Group list deleted locally: ${targetList.name}');
+          }
         },
       );
     }).value;
@@ -516,7 +551,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       AppLogger.info('📥 [GroupInvitations] Syncing group invitations...');
       
       // Phase D.5: SyncGroupInvitationsUseCaseを使用
-      final syncInvitationsUseCase = _ref.read(syncGroupInvitationsUseCaseProvider);
+      final syncInvitationsUseCase = _ref.read(mls_usecase.syncGroupInvitationsUseCaseProvider);
       final result = await syncInvitationsUseCase(SyncGroupInvitationsParams(
         recipientPublicKey: userPubkey,
       ));
@@ -781,7 +816,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         throw Exception('User public key not available');
       }
       
-      final createGroupUseCase = _ref.read(createMlsGroupUseCaseProvider);
+      final createGroupUseCase = _ref.read(mls_usecase.createMlsGroupUseCaseProvider);
       final groupResult = await createGroupUseCase(CreateMlsGroupParams(
         publicKey: userPubkey,
         groupId: groupId,
@@ -810,7 +845,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       int failCount = 0;
       
       // Phase D.5: SendGroupInvitationUseCaseを使用
-      final sendInvitationUseCase = _ref.read(sendGroupInvitationUseCaseProvider);
+      final sendInvitationUseCase = _ref.read(mls_usecase.sendGroupInvitationUseCaseProvider);
       
       for (int i = 0; i < memberNpubs.length; i++) {
         final npub = memberNpubs[i];
@@ -1119,6 +1154,101 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       AppLogger.error('❌ Failed to sync group lists from Nostr: $e', error: e, stackTrace: st);
     }
     */
+  }
+
+  /// Personal ListをNostrから削除（Phase E.6）
+  /// 
+  /// 動作:
+  /// 1. RustからeventIdを動的に取得
+  /// 2. DeletePersonalListUseCaseでKind 5削除イベント送信
+  /// 3. エラー時はロールバック
+  Future<void> _deletePersonalListFromNostr(
+    CustomList targetList,
+    List<CustomList> originalLists,
+  ) async {
+    try {
+      // 1. NostrからeventIdを検索
+      AppLogger.debug('🔍 [CustomLists] Searching for event ID: list_id=${targetList.id}');
+      
+      final nostrService = _ref.read(nostrServiceProvider);
+      final publicKey = await nostrService.getPublicKey();
+      
+      if (publicKey == null) {
+        AppLogger.warning('⚠️  [CustomLists] Public key not available');
+        return;
+      }
+      
+      final eventId = await rust_api.findPersonalListEventId(
+        listId: targetList.id,
+        publicKeyHex: publicKey,
+      );
+      
+      if (eventId == null) {
+        AppLogger.warning('⚠️  [CustomLists] Event ID not found for list: ${targetList.name}');
+        AppLogger.info('ℹ️  [CustomLists] List was deleted locally, but no Nostr event exists');
+        return;
+      }
+      
+      AppLogger.info('✅ [CustomLists] Found event ID: ${eventId.substring(0, 16)}...');
+      
+      // 2. DeletePersonalListUseCaseでKind 5削除イベント送信
+      final deleteUseCase = _ref.read(deletePersonalListUseCaseProvider);
+      final isAmberMode = _ref.read(isAmberModeProvider);
+      
+      final result = await deleteUseCase(DeletePersonalListParams(
+        list: targetList,
+        eventId: eventId,
+        isAmberMode: isAmberMode,
+      ));
+      
+      // 3. エラー時はロールバック
+      await result.fold(
+        (failure) async {
+          AppLogger.error('❌ [CustomLists] Failed to delete from Nostr: ${failure.message}');
+          
+          // ローカルに復元
+          AppLogger.info('♻️  [CustomLists] Rolling back: restoring list to local storage');
+          final restoreResult = await _repository.saveCustomListToLocal(targetList);
+          
+          await restoreResult.fold(
+            (restoreFailure) {
+              AppLogger.error('❌ [CustomLists] Failed to restore list: ${restoreFailure.message}');
+            },
+            (_) {
+              // UI更新: リストを復元
+              final currentState = state.valueOrNull ?? [];
+              final restoredLists = [...currentState, targetList]
+                ..sort((a, b) => a.order.compareTo(b.order));
+              state = AsyncValue.data(restoredLists);
+              
+              AppLogger.info('✅ [CustomLists] List restored after Nostr deletion failure: ${targetList.name}');
+            },
+          );
+        },
+        (_) {
+          AppLogger.info('✅ [CustomLists] Successfully deleted personal list from Nostr: ${targetList.name}');
+        },
+      );
+    } catch (e, stack) {
+      AppLogger.error('❌ [CustomLists] Unexpected error during Nostr deletion: $e');
+      AppLogger.error('Stack trace: $stack');
+      
+      // ローカルに復元
+      final restoreResult = await _repository.saveCustomListToLocal(targetList);
+      await restoreResult.fold(
+        (failure) {
+          AppLogger.error('❌ [CustomLists] Failed to restore list: ${failure.message}');
+        },
+        (_) {
+          final currentState = state.valueOrNull ?? [];
+          final restoredLists = [...currentState, targetList]
+            ..sort((a, b) => a.order.compareTo(b.order));
+          state = AsyncValue.data(restoredLists);
+          
+          AppLogger.info('♻️  [CustomLists] List restored after unexpected error: ${targetList.name}');
+        },
+      );
+    }
   }
 }
 

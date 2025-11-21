@@ -1173,6 +1173,46 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }).value;
   }
 
+  /// リストに属する全てのTodoを削除
+  /// 
+  /// Phase E.5: リスト削除時に使用
+  /// カスタムリストを削除する際、そのリストに属する全てのTODOも削除
+  Future<void> deleteAllTodosInList(String listId) async {
+    await state.whenData((todos) async {
+      AppLogger.info('🗑️  [Todos] Deleting all todos in list: $listId');
+      
+      int deletedCount = 0;
+      final updatedTodos = Map<DateTime?, List<Todo>>.from(todos);
+      
+      for (final dateKey in updatedTodos.keys) {
+        final dateList = List<Todo>.from(updatedTodos[dateKey] ?? []);
+        final originalLength = dateList.length;
+        
+        // 該当リストのTodoを削除
+        dateList.removeWhere((t) => t.customListId == listId);
+        
+        if (dateList.length < originalLength) {
+          deletedCount += originalLength - dateList.length;
+          updatedTodos[dateKey] = dateList;
+        }
+      }
+
+      AppLogger.info('✅ [Todos] Deleted $deletedCount todos from list: $listId');
+
+      state = AsyncValue.data(updatedTodos);
+
+      // ローカルストレージに保存
+      await _saveAllTodosToLocal();
+      
+      // Widgetを更新
+      await _updateWidget();
+
+      // バックグラウンドでNostr同期
+      _updateUnsyncedCount();
+      _syncToNostrBackground();
+    }).value;
+  }
+
   /// Todoを並び替え（楽観的UI更新）
   Future<void> reorderTodo(
     DateTime? date,

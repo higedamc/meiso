@@ -522,48 +522,59 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
                   const Divider(height: 1),
 
-                  // 週の開始曜日
+                  // 週の開始曜日（ステージング版では無効化）
                   ListTile(
-                    leading:
-                        Icon(Icons.calendar_today, color: Colors.purple.shade700),
-                    title: Text(l10n.weekStartDay),
-                    subtitle: Text(_getWeekDayName(context, settings.weekStartDay)),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => _showWeekStartDayDialog(
-                        context, ref, settings.weekStartDay),
-                  ),
-
-                  const Divider(height: 1),
-
-                  // カレンダー表示形式
-                  ListTile(
-                    leading:
-                        Icon(Icons.view_week, color: Colors.purple.shade700),
-                    title: Text(l10n.calendarView),
+                    enabled: false,
+                    leading: Icon(Icons.calendar_today, color: Colors.grey.shade400),
+                    title: Text(
+                      l10n.weekStartDay,
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
                     subtitle: Text(
-                        settings.calendarView == 'week' ? l10n.weekView : l10n.monthView),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => _showCalendarViewDialog(
-                        context, ref, settings.calendarView),
+                      '${_getWeekDayName(context, settings.weekStartDay)} (開発中)',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                    onTap: null,
                   ),
 
                   const Divider(height: 1),
 
-                  // 通知設定
+                  // カレンダー表示形式（ステージング版では無効化）
+                  ListTile(
+                    enabled: false,
+                    leading: Icon(Icons.view_week, color: Colors.grey.shade400),
+                    title: Text(
+                      l10n.calendarView,
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    subtitle: Text(
+                      '${settings.calendarView == 'week' ? l10n.weekView : l10n.monthView} (開発中)',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                    onTap: null,
+                  ),
+
+                  const Divider(height: 1),
+
+                  // 通知設定（ステージング版では無効化）
                   SwitchListTile(
-                    title: Text(l10n.notifications),
-                    subtitle: Text(l10n.notificationsSubtitle),
+                    title: Text(
+                      l10n.notifications,
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    subtitle: Text(
+                      '${l10n.notificationsSubtitle} (開発中)',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
                     value: settings.notificationsEnabled,
-                    onChanged: (value) async {
-                      await ref
-                          .read(appSettingsProvider.notifier)
-                          .toggleNotifications();
-                    },
+                    onChanged: null,
                     secondary: Icon(
                       settings.notificationsEnabled
                           ? Icons.notifications_active
                           : Icons.notifications_off,
-                      color: Colors.purple.shade700,
+                      color: Colors.grey.shade400,
                     ),
                   ),
 

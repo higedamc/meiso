@@ -2335,6 +2335,75 @@ pub fn fetch_deletion_events_for_pubkey_with_client_id(
     })
 }
 
+/// Personal ListのeventIDを検索（d tagから）
+/// 
+/// Phase E.6: リスト削除時にeventIDを動的に取得
+/// 
+/// 引数:
+/// - list_id: カスタムリストのID (例: "abc123")
+/// - public_key_hex: ユーザーの公開鍵（hex形式）
+/// 
+/// 戻り値:
+/// - Ok(Some(event_id)): イベントが見つかった場合
+/// - Ok(None): イベントが見つからない場合
+/// - Err: エラー
+pub fn find_personal_list_event_id(
+    list_id: String,
+    public_key_hex: String,
+) -> Result<Option<String>> {
+    find_personal_list_event_id_with_client_id(list_id, public_key_hex, None)
+}
+
+pub fn find_personal_list_event_id_with_client_id(
+    list_id: String,
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Option<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // d tag = "meiso-list-{list_id}"
+        let d_tag = format!("meiso-list-{}", list_id);
+        
+        println!("🔍 [Rust] Searching for Personal List event: d={}", d_tag);
+        
+        // Kind 30001でd tagが一致するイベントを検索
+        let filter = Filter::new()
+            .kind(Kind::ParameterizedReplaceable(30001))
+            .author(public_key)
+            .identifier(d_tag.clone());
+        
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+        
+        println!("📥 [Rust] Found {} events for d={}", events.len(), d_tag);
+        
+        if events.is_empty() {
+            println!("⚠️  [Rust] No event found for list_id={}", list_id);
+            return Ok(None);
+        }
+        
+        // 最新のイベント（created_atが最大）を取得
+        let latest_event = events
+            .iter()
+            .max_by_key(|e| e.created_at);
+        
+        if let Some(event) = latest_event {
+            let event_id = event.id.to_hex();
+            println!("✅ [Rust] Found event ID: {} (created_at: {})", &event_id[..16], event.created_at);
+            Ok(Some(event_id))
+        } else {
+            Ok(None)
+        }
+    })
+}
+
 // ========================================
 // Subscription & キャッシュ関連API
 // ========================================
