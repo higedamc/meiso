@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -870,9 +871,92 @@ class NostrService {
     }
   }
   
-  /// Phase 8.3: MLSグループTODOをNostrに送信
+  /// Phase 9.1: タイムスタンプをランダム化（±2日）
   /// 
-  /// Keychatパターンに従い、NIP-17 (Gift Wrap) + Amber署名を使用
+  /// NIP-17仕様に従い、アクティビティパターンの追跡を防ぐ
+  int _randomizeTimestamp() {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final twoDaysInSeconds = 2 * 24 * 60 * 60; // 172800秒
+    final random = Random.secure();
+    
+    // -2日 ～ +2日の範囲でランダム化
+    final offset = random.nextInt(twoDaysInSeconds * 2) - twoDaysInSeconds;
+    final randomizedTimestamp = now + offset;
+    
+    AppLogger.debug('🎲 [NIP-17] Randomized timestamp: $now → $randomizedTimestamp (offset: ${offset}s)');
+    
+    return randomizedTimestamp;
+  }
+  
+  /// Phase 9.1: NIP-17 Gift Wrapでイベント送信（エフェメラル鍵署名）
+  /// 
+  /// # Parameters
+  /// - [content]: MLS暗号化済みのコンテンツ
+  /// - [kind]: イベントKind（通常は1059）
+  /// - [tags]: イベントタグ（最小化推奨）
+  /// - [randomizeTimestamp]: タイムスタンプをランダム化するか（デフォルト: true）
+  /// 
+  /// # Returns
+  /// - イベントID（成功時）、null（失敗時）
+  /// 
+  /// # Security
+  /// - エフェメラル鍵で署名（送信者匿名化）
+  /// - タイムスタンプランダム化（±2日）
+  /// - タグ最小化（メタデータ保護）
+  Future<String?> sendGiftWrappedEvent({
+    required String content,
+    required int kind,
+    required List<List<String>> tags,
+    bool randomizeTimestamp = true,
+  }) async {
+    try {
+      AppLogger.debug('🎁 [NIP-17] Sending Gift Wrapped event');
+      AppLogger.debug('   Kind: $kind');
+      AppLogger.debug('   Tags: ${tags.length}');
+      
+      // 1. タイムスタンプをランダム化（±2日）
+      final timestamp = randomizeTimestamp ? _randomizeTimestamp() : DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      
+      // 2. 未署名イベント作成
+      final unsignedEvent = jsonEncode({
+        'content': content,
+        'kind': kind,
+        'tags': tags,
+        'created_at': timestamp,
+      });
+      
+      AppLogger.debug('📄 [NIP-17] Created unsigned Gift Wrap event');
+      
+      // 3. Rust側でエフェメラル鍵署名（秘密鍵はRust内のみ）
+      final signedEventJson = await rust_api.signEventWithEphemeralKey(
+        unsignedEventJson: unsignedEvent,
+      );
+      
+      AppLogger.debug('✅ [NIP-17] Event signed with ephemeral key');
+      
+      // 4. リレー送信
+      final sendResult = await rust_api.sendSignedEvent(
+        eventJson: signedEventJson,
+      );
+      
+      AppLogger.info('✅ [NIP-17] Gift wrapped event sent');
+      AppLogger.info('   Event ID: ${sendResult.eventId.substring(0, 16)}...');
+      AppLogger.info('   Successful relays: ${sendResult.successfulRelays}');
+      
+      return sendResult.eventId;
+      
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [NIP-17] Failed to send gift wrapped event', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+  
+  /// Phase 9.1: MLSグループTODOをNostrに送信（NIP-17 Gift Wrap + エフェメラル鍵署名）
+  /// 
+  /// Phase 8.3からの改善:
+  /// - ✅ エフェメラル鍵で署名（送信者匿名化）
+  /// - ✅ タイムスタンプランダム化（±2日）
+  /// - ⚠️ `group_id`タグは残す（Phase 9.2で削除予定）
   /// 
   /// [listenKey]: Export SecretからMLSで導出した受信用公開鍵
   /// [encryptedContent]: MLS暗号化済みのTODO JSON（hex）
@@ -885,65 +969,28 @@ class NostrService {
     required String groupId,
   }) async {
     try {
-      AppLogger.debug('📤 [MLS] Sending group TODO to Nostr');
+      AppLogger.debug('📤 [MLS] Sending group TODO to Nostr (Phase 9.1)');
       AppLogger.debug('   Listen Key: ${listenKey.substring(0, 16)}...');
       AppLogger.debug('   Group ID: $groupId');
       AppLogger.debug('   Content size: ${encryptedContent.length} bytes');
       
-      // 公開鍵を取得
-      final publicKeyHex = await getPublicKey();
-      if (publicKeyHex == null) {
-        throw Exception('Public key not available');
-      }
-      
-      final npub = await hexToNpub(publicKeyHex);
-      
-      // NIP-17 Gift Wrap用の未署名イベントを作成
-      // Kind 1059（Seal）、受信者 = listen_key
-      final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      
-      final unsignedEvent = jsonEncode({
-        'pubkey': publicKeyHex,
-        'created_at': timestamp,
-        'kind': 1059, // NIP-17 Seal
-        'tags': [
+      // Phase 9.1: NIP-17 Gift Wrap（エフェメラル鍵署名 + タイムスタンプランダム化）
+      final eventId = await sendGiftWrappedEvent(
+        content: encryptedContent,
+        kind: 1059, // NIP-17 Seal
+        tags: [
           ['p', listenKey], // 受信者 = listen_key（グループの共有公開鍵）
-          ['group_id', groupId],
+          ['group_id', groupId], // ⚠️ Phase 9.2で削除予定
         ],
-        'content': encryptedContent, // MLS暗号化済み
-      });
+        randomizeTimestamp: true, // ✅ タイムスタンプランダム化
+      );
       
-      AppLogger.debug('📄 [MLS] Created unsigned Gift Wrap event');
-      
-      // Amberで署名
-      final amberService = AmberService();
-      
-      String signedEvent;
-      try {
-        // ContentProvider経由で試行（バックグラウンド）
-        signedEvent = await amberService.signEventWithContentProvider(
-          event: unsignedEvent,
-          npub: npub,
-        );
-        AppLogger.debug('✅ [MLS] Signed via ContentProvider');
-      } on PlatformException catch (e) {
-        // UI経由にフォールバック
-        AppLogger.warning('[MLS] ContentProvider failed (${e.code}), using UI method');
-        signedEvent = await amberService.signEventWithTimeout(
-          unsignedEvent,
-          timeout: const Duration(minutes: 2),
-        );
-        AppLogger.debug('✅ [MLS] Signed via UI');
+      if (eventId != null) {
+        AppLogger.info('✅ [MLS] Group TODO sent with Phase 9.1 privacy');
+        AppLogger.info('   Event ID: ${eventId.substring(0, 16)}...');
       }
       
-      // リレーに送信
-      final sendResult = await sendSignedEvent(signedEvent);
-      
-      AppLogger.info('✅ [MLS] Group TODO sent successfully');
-      AppLogger.info('   Event ID: ${sendResult.eventId.substring(0, 16)}...');
-      AppLogger.info('   Successful relays: ${sendResult.successfulRelays}');
-      
-      return sendResult.eventId;
+      return eventId;
       
     } catch (e, stackTrace) {
       AppLogger.error('❌ [MLS] Failed to send group TODO', error: e, stackTrace: stackTrace);

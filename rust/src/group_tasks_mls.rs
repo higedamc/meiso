@@ -1,5 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::time::{SystemTime, UNIX_EPOCH};
 use crate::mls::{RUNTIME, STORE};
 
 /// Result type for adding members to MLS group
@@ -16,6 +18,59 @@ pub struct KeyPackageResult {
     pub mls_protocol_version: String,
     pub ciphersuite: String,
     pub extensions: String,
+}
+
+/// Result type for MLS group info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MlsGroupInfo {
+    pub group_id: String,
+    pub group_name: String,
+    pub member_pubkeys: Vec<String>,
+    pub epoch: u64,
+}
+
+/// Phase D.8: Create an unsigned Nostr event (NIP-EE compliant)
+/// 
+/// # Arguments
+/// * `sender_pubkey` - The sender's Nostr public key (hex)
+/// * `todo_json` - JSON string of the TODO item
+/// * `action` - The action type (add | update | delete | toggle | reorder | move)
+/// * `todo_id` - Unique identifier for the TODO
+/// * `list_id` - The group/list ID
+/// 
+/// # Returns
+/// * JSON string of the unsigned Nostr event
+fn create_unsigned_event(
+    sender_pubkey: &str,
+    todo_json: &str,
+    action: &str,
+    todo_id: &str,
+    list_id: &str,
+) -> Result<String> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)?
+        .as_secs();
+    
+    let event = json!({
+        "kind": 30078,
+        "pubkey": sender_pubkey,
+        "created_at": now,
+        "tags": [
+            ["d", todo_id],
+            ["list_id", list_id],
+            ["action", action]
+        ],
+        "content": todo_json
+        // NO "sig" field - unsigned event as per NIP-EE
+    });
+    
+    println!("📝 [Phase D.8] Created unsigned Nostr event:");
+    println!("   Kind: 30078");
+    println!("   Action: {}", action);
+    println!("   TODO ID: {}", todo_id);
+    println!("   List ID: {}", list_id);
+    
+    Ok(serde_json::to_string(&event)?)
 }
 
 /// Create a new MLS TODO group
@@ -56,26 +111,37 @@ pub fn create_mls_todo_group(
             "enabled".to_string(),
         )?;
         
-        // Add members if any
-        if !key_packages.is_empty() {
-            let (_queued_msg, welcome) = user.add_members(group_id.clone(), key_packages)?;
+        // Phase D.9.1: Key Packagesが空の場合は警告を出すが、テスト目的で許容
+        if key_packages.is_empty() {
+            println!("⚠️ [MLS] Creating 1-person group (no other members)");
+            println!("⚠️ [MLS] Note: 1-person groups are only for testing purposes");
+            println!("⚠️ [MLS] In production, group lists require at least 2 people (self + 1 other member)");
             
-            // Commit the changes
-            user.self_commit(group_id)?;
-            
-            return Ok(welcome);
+            // 1人グループの場合はWelcome Messageは空（メンバー追加なし）
+            println!("✅ [MLS] Welcome message generated: 0 bytes (1-person group)");
+            return Ok(vec![]); // 空のWelcome Message
         }
         
-        Ok(vec![])
+        // Add members (2人以上のグループ)
+        let (_queued_msg, welcome) = user.add_members(group_id.clone(), key_packages)?;
+        
+        // Commit the changes
+        user.self_commit(group_id)?;
+        
+        println!("✅ [MLS] Welcome message generated: {} bytes", welcome.len());
+        
+        Ok(welcome)
     })
 }
 
-/// Encrypt and add a TODO to an MLS group
+/// Phase D.8: Encrypt and add a TODO to an MLS group (NIP-EE compliant)
 /// 
 /// # Arguments
 /// * `nostr_id` - The user's Nostr public key
 /// * `group_id` - The group ID
 /// * `todo_json` - JSON string of the TODO item
+/// * `action` - The action type (add | update | delete | toggle | reorder | move)
+/// * `todo_id` - Unique identifier for the TODO
 /// 
 /// # Returns
 /// * Encrypted message (hex) to be sent to the group via Nostr
@@ -83,6 +149,8 @@ pub fn add_todo_to_mls_group(
     nostr_id: String,
     group_id: String,
     todo_json: String,
+    action: String,
+    todo_id: String,
 ) -> Result<String> {
     let rt = RUNTIME.as_ref();
     rt.block_on(async {
@@ -96,14 +164,23 @@ pub fn add_todo_to_mls_group(
             .get_mut(&nostr_id)
             .ok_or_else(|| anyhow::anyhow!("User {} not found", nostr_id))?;
         
+        // Phase D.8: Wrap TODO in unsigned Nostr event (NIP-EE compliant)
+        let unsigned_event = create_unsigned_event(
+            &nostr_id,
+            &todo_json,
+            &action,
+            &todo_id,
+            &group_id,
+        )?;
+        
         // Encrypt message using MLS
-        let (encrypt_msg, _listen_key) = user.create_message(group_id, todo_json)?;
+        let (encrypt_msg, _listen_key) = user.create_message(group_id, unsigned_event)?;
         
         Ok(encrypt_msg)
     })
 }
 
-/// Decrypt a TODO from an MLS group message
+/// Phase D.8: Decrypt a TODO from an MLS group message (NIP-EE compliant)
 /// 
 /// # Arguments
 /// * `nostr_id` - The user's Nostr public key
@@ -111,12 +188,12 @@ pub fn add_todo_to_mls_group(
 /// * `encrypted_msg` - Encrypted message (hex) from Nostr event
 /// 
 /// # Returns
-/// * Tuple of (decrypted_json, sender_pubkey, listen_key)
+/// * Tuple of (todo_content, action, todo_id, sender_pubkey, listen_key)
 pub fn decrypt_todo_from_mls_group(
     nostr_id: String,
     group_id: String,
     encrypted_msg: String,
-) -> Result<(String, String, String)> {
+) -> Result<(String, String, String, String, String)> {
     let rt = RUNTIME.as_ref();
     rt.block_on(async {
         let mut store = STORE.lock().await;
@@ -132,7 +209,56 @@ pub fn decrypt_todo_from_mls_group(
         // Decrypt message
         let (decrypt_msg, sender, listen_key) = user.decrypt_msg(group_id, encrypted_msg)?;
         
-        Ok((decrypt_msg, sender, listen_key))
+        // Phase D.8: Parse unsigned Nostr event
+        let event: serde_json::Value = serde_json::from_str(&decrypt_msg)?;
+        
+        // Extract metadata from tags
+        let tags = event["tags"]
+            .as_array()
+            .ok_or_else(|| anyhow::anyhow!("tags not found in event"))?;
+        
+        let action = tags
+            .iter()
+            .find(|tag| tag[0].as_str() == Some("action"))
+            .and_then(|tag| tag[1].as_str())
+            .unwrap_or("");
+        
+        let todo_id = tags
+            .iter()
+            .find(|tag| tag[0].as_str() == Some("d"))
+            .and_then(|tag| tag[1].as_str())
+            .unwrap_or("");
+        
+        let sender_pubkey = event["pubkey"]
+            .as_str()
+            .unwrap_or("");
+        
+        let todo_content = event["content"]
+            .as_str()
+            .unwrap_or("{}");
+        
+        println!("📥 [Phase D.8] Decrypted unsigned Nostr event:");
+        println!("   Kind: {}", event["kind"]);
+        println!("   Action: {}", action);
+        println!("   TODO ID: {}", todo_id);
+        println!("   Sender: {}...", &sender_pubkey[..16.min(sender_pubkey.len())]);
+        
+        // Phase D.8: Backward compatibility - detect old format
+        // If action is empty, it's Phase 9.1 format (direct TODO JSON)
+        if action.is_empty() {
+            println!("ℹ️  [Phase D.8] Detected Phase 9.1 format (direct TODO JSON)");
+            // Return original decrypted message as todo_content
+            Ok((decrypt_msg, String::new(), String::new(), sender, listen_key))
+        } else {
+            // Phase D.8 format (unsigned Nostr event)
+            Ok((
+                todo_content.to_string(),
+                action.to_string(),
+                todo_id.to_string(),
+                sender_pubkey.to_string(),
+                listen_key,
+            ))
+        }
     })
 }
 
@@ -208,6 +334,31 @@ pub fn join_mls_group(
         user.update(nostr_id, false).await?;
         
         Ok(())
+    })
+}
+
+/// Get MLS group info
+/// 
+/// # Arguments
+/// * `nostr_id` - The user's Nostr public key
+/// * `group_id` - The group ID
+/// 
+/// # Returns
+/// * MlsGroupInfo containing group name, member pubkeys, and epoch
+pub fn get_mls_group_info(nostr_id: String, group_id: String) -> Result<MlsGroupInfo> {
+    let rt = RUNTIME.as_ref();
+    rt.block_on(async {
+        let store = STORE.lock().await;
+        let store = store
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("MLS store not initialized"))?;
+        
+        let user = store
+            .users
+            .get(&nostr_id)
+            .ok_or_else(|| anyhow::anyhow!("User {} not found", nostr_id))?;
+        
+        user.get_group_info(group_id)
     })
 }
 

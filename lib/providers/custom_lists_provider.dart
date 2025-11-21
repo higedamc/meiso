@@ -521,6 +521,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         recipientPublicKey: userPubkey,
       ));
       
+      // 🔥 Phase D.9.1: fold()の両方のコールバックをasyncに統一
       await result.fold(
         (failure) async {
           AppLogger.error('❌ [GroupInvitations] Sync failed: ${failure.message}');
@@ -532,8 +533,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             return;
           }
           
-          // 現在のリストを取得
-          final currentLists = await state.whenData((lists) => lists).value ?? [];
+          // 🔥 Phase D.9.1: state.whenData()をvalueOrNullに変更（Phase D.5と同じ修正）
+          // stateがloadingの場合もデータを取得できるようにする
+          final currentLists = state.valueOrNull ?? <CustomList>[];
           final updatedLists = List<CustomList>.from(currentLists);
           bool hasChanges = false;
           
@@ -596,6 +598,13 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
     } catch (e, stackTrace) {
       AppLogger.error('❌ [GroupInvitations] Failed to sync group invitations', error: e, stackTrace: stackTrace);
+      
+      // 🔥 Phase D.9.1: エラー時もstateを保持（Phase D.5と同じ修正）
+      // stateがloadingのまま残ると無限ローディングが発生する
+      final currentLists = state.valueOrNull ?? <CustomList>[];
+      state = AsyncValue.data(currentLists);
+      
+      AppLogger.info('✅ [GroupInvitations] State restored to data after error');
     }
   }
   

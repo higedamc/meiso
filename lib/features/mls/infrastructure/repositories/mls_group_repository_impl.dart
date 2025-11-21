@@ -219,6 +219,15 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
       
       AppLogger.info('[MlsGroupRepo] MLS group created (Welcome: ${welcomeMsgBytes.length} bytes)');
       
+      // Phase D.9.1: Welcome Message検証（緩和版）
+      // 0バイトの場合は1人グループ（テスト目的）として許容
+      if (welcomeMsgBytes.isEmpty) {
+        AppLogger.warning('⚠️ [MlsGroupRepo] Welcome Message is empty (0 bytes)');
+        AppLogger.warning('⚠️ [MlsGroupRepo] This indicates a 1-person group (testing only)');
+        AppLogger.warning('⚠️ [MlsGroupRepo] Production group lists require at least 2 people (self + 1 other member)');
+        // エラーを投げずに続行（Phase D.9.1）
+      }
+      
       // Welcome MessageをBase64エンコード
       final welcomeMsgBase64 = base64Encode(welcomeMsgBytes);
       
@@ -378,55 +387,71 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
     try {
       AppLogger.info('[MlsGroupRepo] Accepting group invitation: $groupId');
       
-      // Welcome MessageをBase64デコード
-      final welcomeMsgBytes = base64Decode(welcomeMessage);
+      // 🔥 Phase D.9.1: Welcome Message検証（緩和版）
+      AppLogger.debug('[MlsGroupRepo] Welcome Message validation:');
+      AppLogger.debug('   Base64 length: ${welcomeMessage.length} chars');
       
+      if (welcomeMessage.isEmpty) {
+        AppLogger.warning('⚠️ [MlsGroupRepo] Welcome Message is empty (will try to proceed)');
+        // ⚠️ エラーを投げずに続行（Phase D.9.1）
+      }
+      
+      // Welcome MessageをBase64デコード
+      final welcomeMsgBytes = welcomeMessage.isNotEmpty 
+          ? base64Decode(welcomeMessage) 
+          : <int>[]; // ⚠️ 空の場合は空リスト（Phase D.9.1）
+      AppLogger.debug('   Decoded bytes: ${welcomeMsgBytes.length} bytes');
+      
+      if (welcomeMsgBytes.isEmpty) {
+        AppLogger.warning('⚠️ [MlsGroupRepo] Decoded Welcome Message is empty (0 bytes)');
+        AppLogger.warning('⚠️ [MlsGroupRepo] This may cause mlsJoinGroup to fail...');
+        // ⚠️ エラーを投げずに続行（Phase D.9.1）
+      }
+      
+      // 🔥 Phase D.9: タイムアウト追加（無限待機バグ修正）
       // MLSグループに参加
-      await rust_api.mlsJoinGroup(
-        nostrId: publicKey,
-        groupId: groupId,
-        welcomeMsg: welcomeMsgBytes,
+      AppLogger.debug('[MlsGroupRepo] Calling mlsJoinGroup with timeout...');
+      await ErrorHandler.withTimeout(
+        operation: () => rust_api.mlsJoinGroup(
+          nostrId: publicKey,
+          groupId: groupId,
+          welcomeMsg: welcomeMsgBytes,
+        ),
+        operationName: 'mlsJoinGroup',
+        timeout: const Duration(seconds: 30),
       );
       
       AppLogger.info('[MlsGroupRepo] Group invitation accepted successfully');
       
-      // 参加後のMLSグループを取得
-      // Note: グループ情報はローカルストレージから読み込む
-      // （招待データがCustomListとして保存されているため）
-      final groupResult = await loadMlsGroupFromLocal(groupId: groupId);
-      
-      return groupResult.fold(
-        (failure) {
-          AppLogger.warning('[MlsGroupRepo] Group not found after acceptance, creating placeholder');
-          // グループが見つからない場合はプレースホルダーを作成
-          final now = DateTime.now();
-          final mlsGroup = MlsGroup(
-            groupId: groupId,
-            groupName: 'Unknown Group', // 後でNostrから取得
-            memberPubkeys: [],
-            welcomeMessage: welcomeMessage,
-            createdAt: now,
-            updatedAt: now,
-          );
-          return Right(mlsGroup);
-        },
-        (group) {
-          if (group == null) {
-            // nullの場合もプレースホルダーを作成
-            final now = DateTime.now();
-            final mlsGroup = MlsGroup(
-              groupId: groupId,
-              groupName: 'Unknown Group',
-              memberPubkeys: [],
-              welcomeMessage: welcomeMessage,
-              createdAt: now,
-              updatedAt: now,
-            );
-            return Right(mlsGroup);
-          }
-          return Right(group);
-        },
+      // Phase D.6: Rust側から実際のMLSグループ情報を取得
+      // Welcome Message処理後、Rust側のMLS状態（メンバーリスト等）を取得
+      AppLogger.debug('[MlsGroupRepo] Calling mlsGetGroupInfo with timeout...');
+      final groupInfo = await ErrorHandler.withTimeout(
+        operation: () => rust_api.mlsGetGroupInfo(
+          nostrId: publicKey,
+          groupId: groupId,
+        ),
+        operationName: 'mlsGetGroupInfo',
+        timeout: const Duration(seconds: 10),
       );
+      
+      AppLogger.info('[MlsGroupRepo] Retrieved MLS group info from Rust:');
+      AppLogger.info('   Group Name: ${groupInfo.groupName}');
+      AppLogger.info('   Members: ${groupInfo.memberPubkeys.length}');
+      AppLogger.info('   Epoch: ${groupInfo.epoch}');
+      
+      // MlsGroupエンティティを作成
+      final now = DateTime.now();
+      final mlsGroup = MlsGroup(
+        groupId: groupInfo.groupId,
+        groupName: groupInfo.groupName,
+        memberPubkeys: groupInfo.memberPubkeys,
+        welcomeMessage: welcomeMessage,
+        createdAt: now,
+        updatedAt: now,
+      );
+      
+      return Right(mlsGroup);
       
     } catch (e, st) {
       AppLogger.error(

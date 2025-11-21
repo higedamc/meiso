@@ -2840,6 +2840,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.info('✅ [syncGroupTodos] Completed MLS group todos sync for: $groupId');
     } catch (e, st) {
       AppLogger.error('❌ [syncGroupTodos] Failed to sync group todos: $e', error: e, stackTrace: st);
+      
+      // 🔥 Phase D.5.1 Critical Fix: エラー時もstateを更新
+      // stateがloadingのまま残ると無限ローディングが発生する
+      // 現在のデータを保持してdata状態に戻す
+      final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
+      state = AsyncValue.data(currentTodos);
+      
+      AppLogger.info('✅ [syncGroupTodos] State restored to data after error');
     }
   }
   
@@ -2900,43 +2908,95 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             continue;
           }
           
-          // MLS復号化
-          final (decryptedJson, sender, _) = await rust_api.mlsDecryptTodo(
+          // Phase D.8: MLS復号化（NIP-EE完全準拠、拡張された戻り値）
+          final (todoContent, action, todoId, senderPubkey, _) = await rust_api.mlsDecryptTodo(
             nostrId: publicKey,
             groupId: groupId,
             encryptedMsg: encryptedContent,
           );
           
-          AppLogger.debug('🔓 [MLS] Decrypted todo from $sender');
-          
-          // JSONをパースしてTodoオブジェクトに変換
-          final todoData = jsonDecode(decryptedJson) as Map<String, dynamic>;
-          
-          DateTime? date;
-          final dateStr = todoData['date'] as String?;
-          if (dateStr != null) {
-            date = DateTime.parse(dateStr);
+          // Phase D.8: 後方互換性チェック
+          if (action.isEmpty) {
+            // Phase 9.1形式（直接TODO JSON）
+            AppLogger.debug('ℹ️  [Phase D.8] Detected Phase 9.1 format from $senderPubkey');
+            
+            final todoData = jsonDecode(todoContent) as Map<String, dynamic>;
+            
+            DateTime? date;
+            final dateStr = todoData['date'] as String?;
+            if (dateStr != null) {
+              date = DateTime.parse(dateStr);
+            }
+            
+            final todo = Todo(
+              id: todoData['id'] as String,
+              title: todoData['title'] as String,
+              completed: todoData['completed'] as bool? ?? false,
+              date: date,
+              order: todoData['order'] as int? ?? 0,
+              createdAt: DateTime.parse(todoData['created_at'] as String),
+              updatedAt: DateTime.parse(todoData['updated_at'] as String),
+              customListId: todoData['custom_list_id'] as String?,
+              recurrence: todoData['recurrence'] != null 
+                  ? RecurrencePattern.fromJson(todoData['recurrence'] as Map<String, dynamic>)
+                  : null,
+              parentRecurringId: todoData['parent_recurring_id'] as String?,
+              needsSync: false,
+            );
+            
+            groupTodos.add(todo);
+            AppLogger.debug('✅ [Phase 9.1] Parsed todo: ${todo.title}');
+          } else {
+            // Phase D.8形式（未署名Nostrイベント）
+            AppLogger.debug('📥 [Phase D.8] Decrypted event:');
+            AppLogger.debug('   Action: $action');
+            AppLogger.debug('   TODO ID: $todoId');
+            AppLogger.debug('   Sender: ${senderPubkey.substring(0, 16)}...');
+            
+            // アクション別処理（Phase D.8）
+            // 現在はaddアクションのみ実装（update/delete/toggleは将来実装）
+            switch (action) {
+              case 'add':
+                final todoData = jsonDecode(todoContent) as Map<String, dynamic>;
+                
+                DateTime? date;
+                final dateStr = todoData['date'] as String?;
+                if (dateStr != null) {
+                  date = DateTime.parse(dateStr);
+                }
+                
+                final todo = Todo(
+                  id: todoId,  // Phase D.8: Nostrイベントのtagsから取得したID
+                  title: todoData['title'] as String,
+                  completed: todoData['completed'] as bool? ?? false,
+                  date: date,
+                  order: todoData['order'] as int? ?? 0,
+                  createdAt: DateTime.parse(todoData['created_at'] as String),
+                  updatedAt: DateTime.parse(todoData['updated_at'] as String),
+                  customListId: todoData['custom_list_id'] as String?,
+                  recurrence: todoData['recurrence'] != null 
+                      ? RecurrencePattern.fromJson(todoData['recurrence'] as Map<String, dynamic>)
+                      : null,
+                  parentRecurringId: todoData['parent_recurring_id'] as String?,
+                  needsSync: false,
+                );
+                
+                groupTodos.add(todo);
+                AppLogger.debug('✅ [Phase D.8] Parsed todo (action: add): ${todo.title}');
+                break;
+              
+              case 'update':
+              case 'toggle':
+              case 'delete':
+              case 'reorder':
+              case 'move':
+                AppLogger.warning('⚠️ [Phase D.8] Action "$action" not yet implemented, skipping');
+                break;
+              
+              default:
+                AppLogger.warning('⚠️ [Phase D.8] Unknown action: $action');
+            }
           }
-          
-          final todo = Todo(
-            id: todoData['id'] as String,
-            title: todoData['title'] as String,
-            completed: todoData['completed'] as bool? ?? false,
-            date: date,
-            order: todoData['order'] as int? ?? 0,
-            createdAt: DateTime.parse(todoData['created_at'] as String),
-            updatedAt: DateTime.parse(todoData['updated_at'] as String),
-            customListId: todoData['custom_list_id'] as String?,
-            recurrence: todoData['recurrence'] != null 
-                ? RecurrencePattern.fromJson(todoData['recurrence'] as Map<String, dynamic>)
-                : null,
-            parentRecurringId: todoData['parent_recurring_id'] as String?,
-            needsSync: false,
-          );
-          
-          groupTodos.add(todo);
-          
-          AppLogger.debug('✅ [MLS] Parsed todo: ${todo.title}');
         } catch (e) {
           AppLogger.error('❌ [MLS] Failed to decrypt/parse event: $e', error: e);
           // エラーでも他のイベントは処理続行
@@ -2946,34 +3006,42 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.info('✅ [MLS] Decrypted ${groupTodos.length} todos from group');
       
       // 4. 既存のグループタスクを削除して、新しいタスクを追加
-      await state.whenData((todos) async {
-        final updated = Map<DateTime?, List<Todo>>.from(todos);
-        
-        // グループIDが一致するタスクを削除
-        for (final dateKey in updated.keys) {
-          updated[dateKey] = updated[dateKey]!
-              .where((t) => t.customListId != groupId)
-              .toList();
-        }
-        
-        // 新しいグループタスクを追加
-        for (final todo in groupTodos) {
-          final dateKey = todo.date;
-          updated[dateKey] ??= [];
-          updated[dateKey]!.add(todo);
-        }
-        
-        // ローカルストレージに保存
-        final allTodos = <Todo>[];
-        for (final dateGroup in updated.values) {
-          allTodos.addAll(dateGroup);
-        }
-        await localStorageService.saveTodos(allTodos);
-        
-        state = AsyncValue.data(updated);
-        
-        AppLogger.info('✅ [MLS] Group todos synced to local storage');
-      }).value;
+      // 
+      // 🐛 Phase D.5.1 Critical Fix:
+      // state.whenData()はstateがdataの場合のみ実行される。
+      // stateがloadingやerrorの場合は実行されず、stateは更新されない。
+      // これにより無限ローディングが発生する。
+      // 
+      // 修正: state.valueOrNullでデータを取得し、nullの場合は空のMapから開始
+      final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
+      final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
+      
+      // グループIDが一致するタスクを削除
+      for (final dateKey in updated.keys) {
+        updated[dateKey] = updated[dateKey]!
+            .where((t) => t.customListId != groupId)
+            .toList();
+      }
+      
+      // 新しいグループタスクを追加
+      for (final todo in groupTodos) {
+        final dateKey = todo.date;
+        updated[dateKey] ??= [];
+        updated[dateKey]!.add(todo);
+      }
+      
+      // ローカルストレージに保存
+      final allTodos = <Todo>[];
+      for (final dateGroup in updated.values) {
+        allTodos.addAll(dateGroup);
+      }
+      await localStorageService.saveTodos(allTodos);
+      
+      // 🔥 重要: state.whenData()ではなく直接更新
+      // これにより、stateがloading/errorの場合でも確実にdataに更新される
+      state = AsyncValue.data(updated);
+      
+      AppLogger.info('✅ [MLS] Group todos synced to local storage');
       
     } catch (e, st) {
       AppLogger.error('❌ [MLS] Failed to sync MLS group todos: $e', error: e, stackTrace: st);
@@ -3323,14 +3391,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           'parent_recurring_id': todo.parentRecurringId,
         });
         
-        // MLS暗号化
+        // Phase D.8: MLS暗号化（NIP-EE完全準拠）
         final encryptedMsg = await rust_api.mlsAddTodo(
           nostrId: publicKey,
           groupId: groupId,
           todoJson: todoJson,
+          action: 'add',        // Phase D.8: アクション指定
+          todoId: todo.id,      // Phase D.8: TODO ID指定
         );
         
-        AppLogger.debug('🔒 [MLS] Encrypted todo: ${todo.title.substring(0, 20)}... (${encryptedMsg.length} bytes)');
+        AppLogger.debug('🔒 [Phase D.8] Encrypted todo (action: add): ${todo.title.substring(0, 20)}... (${encryptedMsg.length} bytes)');
         
         // Export SecretからListen Keyを取得
         final listenKey = await rust_api.mlsGetListenKey(
@@ -3531,7 +3601,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
   
-  /// MLS TODO暗号化テスト
+  /// Phase D.8: MLS TODO暗号化テスト（NIP-EE完全準拠）
   Future<String> encryptMlsTodo({
     required String groupId,
     required String todoJson,
@@ -3546,24 +3616,29 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         throw Exception('User public key not available');
       }
       
-      AppLogger.debug('🔒 [MLS] TODO暗号化: groupId=$groupId');
+      AppLogger.debug('🔒 [Phase D.8] TODO暗号化: groupId=$groupId');
+      
+      // Phase D.8: テスト用のTODO IDを生成
+      final testTodoId = 'test_${DateTime.now().millisecondsSinceEpoch}';
       
       final encrypted = await rust_api.mlsAddTodo(
         nostrId: userPubkey,
         groupId: groupId,
         todoJson: todoJson,
+        action: 'add',           // Phase D.8: テスト用はaddアクション
+        todoId: testTodoId,      // Phase D.8: テスト用ID
       );
       
-      AppLogger.debug('✅ [MLS] TODO暗号化完了: ${encrypted.length}文字');
+      AppLogger.debug('✅ [Phase D.8] TODO暗号化完了: ${encrypted.length}文字 (action: add, todoId: $testTodoId)');
       
       return encrypted;
     } catch (e, stackTrace) {
-      AppLogger.error('❌ [MLS] TODO暗号化エラー', error: e, stackTrace: stackTrace);
+      AppLogger.error('❌ [Phase D.8] TODO暗号化エラー', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
   
-  /// MLS TODO復号化テスト
+  /// Phase D.8: MLS TODO復号化テスト（NIP-EE完全準拠）
   Future<String> decryptMlsTodo({
     required String groupId,
     required String encryptedMsg,
@@ -3578,19 +3653,29 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         throw Exception('User public key not available');
       }
       
-      AppLogger.debug('🔓 [MLS] TODO復号化: groupId=$groupId');
+      AppLogger.debug('🔓 [Phase D.8] TODO復号化: groupId=$groupId');
       
-      final result = await rust_api.mlsDecryptTodo(
+      // Phase D.8: 拡張された戻り値を取得
+      final (todoContent, action, todoId, senderPubkey, _) = await rust_api.mlsDecryptTodo(
         nostrId: userPubkey,
         groupId: groupId,
         encryptedMsg: encryptedMsg,
       );
       
-      AppLogger.debug('✅ [MLS] TODO復号化完了: sender=${result.$2}');
+      if (action.isEmpty) {
+        // Phase 9.1形式
+        AppLogger.debug('✅ [Phase D.8] TODO復号化完了 (Phase 9.1形式): sender=$senderPubkey');
+      } else {
+        // Phase D.8形式
+        AppLogger.debug('✅ [Phase D.8] TODO復号化完了:');
+        AppLogger.debug('   Action: $action');
+        AppLogger.debug('   TODO ID: $todoId');
+        AppLogger.debug('   Sender: ${senderPubkey.substring(0, 16)}...');
+      }
       
-      return result.$1; // decrypted_json
+      return todoContent; // todo_content (JSON)
     } catch (e, stackTrace) {
-      AppLogger.error('❌ [MLS] TODO復号化エラー', error: e, stackTrace: stackTrace);
+      AppLogger.error('❌ [Phase D.8] TODO復号化エラー', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }

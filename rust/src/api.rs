@@ -1274,6 +1274,118 @@ pub fn init_nostr_client_with_pubkey_and_id(
     })
 }
 
+/// Phase 9.1: NIP-17エフェメラル鍵でイベントに署名（秘密鍵はRust内のみ）
+/// 
+/// # Parameters
+/// - `unsigned_event_json`: 未署名イベントJSON文字列
+/// 
+/// # Returns
+/// - 署名済みイベントJSON文字列
+/// 
+/// # Security
+/// - エフェメラル鍵はRust側のスコープ内のみに存在
+/// - 署名後に自動的にdrop（メモリクリア）
+/// - Flutter側に秘密鍵は一切渡さない
+/// 
+/// # Example
+/// ```json
+/// // Input (unsigned event):
+/// {
+///   "content": "encrypted_content",
+///   "kind": 1059,
+///   "tags": [["p", "listen_key"]],
+///   "created_at": 1700000000
+/// }
+/// 
+/// // Output (signed event):
+/// {
+///   "id": "event_id",
+///   "pubkey": "ephemeral_pubkey",  // ← ランダム鍵
+///   "created_at": 1700000000,
+///   "kind": 1059,
+///   "tags": [["p", "listen_key"]],
+///   "content": "encrypted_content",
+///   "sig": "signature"
+/// }
+/// ```
+pub fn sign_event_with_ephemeral_key(
+    unsigned_event_json: String,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        // 1. 未署名イベントJSONをパース
+        let unsigned_event: serde_json::Value = serde_json::from_str(&unsigned_event_json)
+            .context("Failed to parse unsigned event JSON")?;
+        
+        // 2. エフェメラル鍵を生成（OsRng使用）
+        let ephemeral_keys = Keys::generate();
+        
+        println!("🔐 [NIP-17] Generated ephemeral keypair");
+        println!("   Ephemeral pubkey: {}...", &ephemeral_keys.public_key().to_hex()[..16]);
+        
+        // 3. イベントフィールドを取得
+        let content = unsigned_event["content"]
+            .as_str()
+            .context("Missing or invalid 'content' field")?
+            .to_string();
+        
+        let kind = unsigned_event["kind"]
+            .as_u64()
+            .context("Missing or invalid 'kind' field")?;
+        
+        // tagsをパース
+        let tags_array = unsigned_event["tags"]
+            .as_array()
+            .context("Missing or invalid 'tags' field")?;
+        
+        let mut tags = Vec::new();
+        for tag in tags_array {
+            let tag_vec: Vec<String> = tag
+                .as_array()
+                .context("Invalid tag format: expected array")?
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            
+            if !tag_vec.is_empty() {
+                tags.push(Tag::parse(&tag_vec)
+                    .map_err(|e| anyhow::anyhow!("Failed to parse tag: {:?}", e))?);
+            }
+        }
+        
+        // created_atを取得（指定がなければ現在時刻）
+        let created_at = if let Some(timestamp) = unsigned_event["created_at"].as_u64() {
+            Timestamp::from(timestamp)
+        } else {
+            Timestamp::now()
+        };
+        
+        println!("📝 [NIP-17] Signing event with ephemeral key");
+        println!("   Kind: {}", kind);
+        println!("   Tags: {}", tags.len());
+        println!("   Created at: {}", created_at.as_u64());
+        
+        // 4. イベントを構築して署名（エフェメラル鍵使用）
+        let event = EventBuilder::new(Kind::from(kind as u16), content)
+            .tags(tags)
+            .custom_created_at(created_at)
+            .sign(&ephemeral_keys)  // ← エフェメラル鍵で署名
+            .await
+            .context("Failed to sign event with ephemeral key")?;
+        
+        // 5. 署名済みイベントをJSON化
+        let signed_event_json = serde_json::to_string(&event.as_json())
+            .context("Failed to serialize signed event")?;
+        
+        println!("✅ [NIP-17] Event signed with ephemeral key");
+        println!("   Event ID: {}", event.id.to_hex());
+        println!("   Ephemeral pubkey: {}...", &event.pubkey.to_hex()[..16]);
+        
+        // 6. ephemeral_keysはここでdrop（自動メモリクリア）
+        
+        Ok(signed_event_json)
+    })
+}
+
 
 /// 署名済みイベントをリレーに送信
 pub fn send_signed_event(event_json: String) -> Result<EventSendResult> {
@@ -2898,21 +3010,43 @@ pub fn mls_create_todo_group(
     crate::group_tasks_mls::create_mls_todo_group(nostr_id, group_id, group_name, key_packages)
 }
 
-/// MLS: TODOをグループに追加（暗号化）
+/// Phase D.8: MLS TODOをグループに追加（暗号化、NIP-EE完全準拠）
+/// 
+/// # Arguments
+/// * `nostr_id` - ユーザーのNostr公開鍵
+/// * `group_id` - グループID
+/// * `todo_json` - TODO項目のJSON文字列
+/// * `action` - アクション種別 (add | update | delete | toggle | reorder | move)
+/// * `todo_id` - TODO固有識別子
+/// 
+/// # Returns
+/// * 暗号化されたメッセージ（hex）
 pub fn mls_add_todo(
     nostr_id: String,
     group_id: String,
     todo_json: String,
+    action: String,
+    todo_id: String,
 ) -> Result<String> {
-    crate::group_tasks_mls::add_todo_to_mls_group(nostr_id, group_id, todo_json)
+    crate::group_tasks_mls::add_todo_to_mls_group(nostr_id, group_id, todo_json, action, todo_id)
 }
 
-/// MLS: TODOを復号化
+/// Phase D.8: MLS TODOを復号化（NIP-EE完全準拠）
+/// 
+/// # Arguments
+/// * `nostr_id` - ユーザーのNostr公開鍵
+/// * `group_id` - グループID
+/// * `encrypted_msg` - Nostrイベントからの暗号化メッセージ（hex）
+/// 
+/// # Returns
+/// * Tuple (todo_content, action, todo_id, sender_pubkey, listen_key)
+///   - Phase 9.1形式: actionとtodo_idは空文字列
+///   - Phase D.8形式: 全フィールドに値が入る
 pub fn mls_decrypt_todo(
     nostr_id: String,
     group_id: String,
     encrypted_msg: String,
-) -> Result<(String, String, String)> {
+) -> Result<(String, String, String, String, String)> {
     crate::group_tasks_mls::decrypt_todo_from_mls_group(nostr_id, group_id, encrypted_msg)
 }
 
@@ -2928,6 +3062,17 @@ pub fn mls_join_group(
     welcome_msg: Vec<u8>,
 ) -> Result<()> {
     crate::group_tasks_mls::join_mls_group(nostr_id, group_id, welcome_msg)
+}
+
+/// MLS: グループ情報を取得
+/// 
+/// グループ名、メンバーリスト、エポックを取得する。
+/// Welcome Message処理後、実際のグループ状態をFlutter側に伝搬するために使用。
+pub fn mls_get_group_info(
+    nostr_id: String,
+    group_id: String,
+) -> Result<crate::group_tasks_mls::MlsGroupInfo> {
+    crate::group_tasks_mls::get_mls_group_info(nostr_id, group_id)
 }
 
 /// MLS: Key Package公開イベント作成（Kind 10443 - NIP-EE）
@@ -3084,12 +3229,34 @@ pub fn sync_group_invitations(
                         // Note: 将来的にはNIP-44復号化が必要
                         if let Ok(content_json) = serde_json::from_str::<serde_json::Value>(&event.content) {
                             let group_name = content_json.get("group_name").and_then(|v| v.as_str()).unwrap_or("Unnamed Group");
+                            
+                            // Phase D.6.2: welcome_msg検証を追加（緩和版）
+                            // ⚠️ 検証を一時的に緩和してテスト（Phase D.9.1）
+                            let welcome_msg_opt = content_json.get("welcome_msg").and_then(|v| v.as_str());
+                            
+                            if welcome_msg_opt.is_none() {
+                                println!("  ⚠️ [WARNING] welcome_msg field is missing in invitation event");
+                                println!("  ⚠️ [WARNING] Event ID: {}", event.id.to_hex().chars().take(16).collect::<String>());
+                                println!("  ⚠️ [WARNING] Content keys: {:?}", content_json.as_object().map(|obj| obj.keys().collect::<Vec<_>>()));
+                                println!("  ⚠️ [WARNING] Will try to proceed with empty welcome_msg...");
+                            }
+                            
+                            let welcome_msg = welcome_msg_opt.unwrap_or(""); // ⚠️ 空文字列を許容（Phase D.9.1）
+                            
+                            if welcome_msg.is_empty() {
+                                println!("  ⚠️ [WARNING] welcome_msg is empty in invitation event");
+                                println!("  ⚠️ [WARNING] Event ID: {}", event.id.to_hex().chars().take(16).collect::<String>());
+                                println!("  ⚠️ [WARNING] Group: {}", group_name);
+                                println!("  ⚠️ [WARNING] This may cause issues when joining the group...");
+                                // ⚠️ スキップせずに続行（Phase D.9.1）
+                            }
+                            
                             let invitation = json!({
                                 "event_id": event.id.to_hex(),
                                 "inviter_pubkey": event.pubkey.to_hex(),
                                 "group_id": content_json.get("group_id").and_then(|v| v.as_str()).unwrap_or(group_id_only),
                                 "group_name": group_name,
-                                "welcome_msg": content_json.get("welcome_msg").and_then(|v| v.as_str()).unwrap_or(""),
+                                "welcome_msg": welcome_msg,
                                 "inviter_name": content_json.get("inviter_name").and_then(|v| v.as_str()),
                                 "invited_at": content_json.get("invited_at").and_then(|v| v.as_u64()).unwrap_or(0),
                                 "created_at": event.created_at.as_u64(),
@@ -3102,6 +3269,7 @@ pub fn sync_group_invitations(
                                 group_name,
                                 event.pubkey.to_hex().chars().take(16).collect::<String>()
                             );
+                            println!("  ✅ Welcome message length: {} bytes (base64)", welcome_msg.len());
                         } else {
                             println!("  ⚠️ Failed to parse content JSON");
                         }
