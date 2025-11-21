@@ -2059,6 +2059,7 @@ Future<void> _confirmDelete(CustomList list) async {
 ---
 
 **更新履歴**:
+- 2025-11-15 (22:00): **✅ Phase D.5.1完了 - 無限ローディング問題を解決**（Critical Bug Fix 1: `list_detail_screen.dart`で二重`syncGroupTodos()`実行により無限ローディングが発生。画面を開いた時の自動同期を削除（招待受諾時に既に同期済み）。Critical Bug Fix 2: `todos_provider.dart`の`syncGroupTodos()`と`_syncMlsGroupTodos()`でエラー時・loading時に`state`を更新していなかった問題を修正。`state.whenData()`を`state.valueOrNull`に変更し、catchブロックでも確実に`state = AsyncValue.data()`を実行。これにより、エラーや初期状態でも無限ローディングは発生しなくなった）
 - 2025-11-15 (19:30): **✅ 90日分生成対応完了**（Option 2採用。30日→90日に拡張、スマート再生成閾値7日→21日、カウントロジック修正（今日を含める）、addTodo内state更新バグ修正。Oracle確認: 90日分生成✅、スマート再生成⚠️（Phase C.2.5で修正予定）。コミット: 4cff631）
 - 2025-11-15 (18:00): **✅ Phase C.2.3完了**（10時間。RecurringTodoUseCaseの実装完了。GenerateRecurringInstancesUseCase（134行）とRemoveChildInstancesUseCase（85行）を実装。TodosProviderの3箇所統合、旧メソッド削除。重複保存なし、公開API不変、リグレッションゼロ。コミット: 3a54ad3）
 - 2025-11-15 (17:00): **✅ Phase Performance.1完了**（4コミット、8時間。バッチ同期統合（6箇所）+ 5秒間隔変更 + Future.microtask導入 + 重複保存削除。Oracle体感で改善確認済み（500-2000ms → ~10ms、98-99.5%改善）。Phase Performance.2（Stopwatch実測）は不要と判断。Phase 1.2（state.whenData最適化）も17215f1コミットで実質解決済みと確認）
