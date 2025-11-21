@@ -9,7 +9,6 @@ import '../providers/app_settings_provider.dart';
 import '../presentation/list_detail/list_detail_screen.dart';
 import '../presentation/planning_detail/planning_detail_screen.dart';
 import 'add_list_screen.dart';
-import 'add_group_list_dialog.dart';
 
 /// 展開可能なカスタムリストモーダル（画面全体）
 class ExpandableCustomListModal extends ConsumerWidget {
@@ -327,18 +326,24 @@ class ExpandableCustomListModal extends ConsumerWidget {
                 },
               ),
               const Divider(),
-              // グループリスト
+              // グループリスト（ステージング版では無効化）
               ListTile(
-                leading: const Icon(Icons.group),
-                title: const Text('Group List'),
-                subtitle: const Text('共有可能なグループタスクリスト'),
-                onTap: () {
-                  Navigator.pop(context);
-                  showDialog(
-                    context: context,
-                    builder: (context) => const AddGroupListDialog(),
-                  );
-                },
+                // leading: const Icon(Icons.group),
+                // title: const Text('Group List'),
+                // subtitle: const Text('共有可能なグループタスクリスト'),
+                // onTap: () {
+                //   Navigator.pop(context);
+                //   showDialog(
+                //     context: context,
+                //     builder: (context) => const AddGroupListDialog(),
+                //   );
+                // },
+
+                leading: Icon(Icons.group, color: Colors.grey.shade400),
+                title: Text('Group List', style: TextStyle(color: Colors.grey.shade400)),
+                subtitle: Text('共有可能なグループタスクリスト（開発中）', style: TextStyle(color: Colors.grey.shade400)),
+                enabled: false,
+                onTap: null,
               ),
             ],
           ),
