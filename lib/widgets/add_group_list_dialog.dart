@@ -469,6 +469,20 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       return;
     }
 
+    // Phase D.6.2: メンバーが0人の場合はエラー
+    // グループリストは最低2人（自分 + 他のメンバー1人以上）が必要
+    if (_mlsMembers.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ グループには自分以外に少なくとも1人のメンバーが必要です'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
     // Phase 8.4: MLS - 警告メンバーの検証
     final hasWarning = _mlsMembers.any((m) => m['hasWarning'] == true);
     
