@@ -1,0 +1,33 @@
+name: Meiso
+summary: A simple Nostr-based task management app with TeuxDeux-inspired design
+repository: https://github.com/higedamc/meiso
+license: MIT
+
+# Build artifacts path
+assets:
+  - build/app/outputs/flutter-apk/app-release.apk
+
+# Screenshots
+images:
+  - screenshots/01_home_screen.png
+  - screenshots/02_add_task.png
+  - screenshots/03_someday_lists.png
+  - screenshots/04_list_options.png
+
+# Changelog
+changelog: CHANGELOG.md
+
+# App metadata
+tags:
+  - nostr
+  - todo
+  - task-management
+  - productivity
+  - privacy
+  - encrypted
+  - amber
+
+# Developer info
+author: Kohei Otani
+author_npub: npub16lrdq99ng2q4hg5ufre5f8j0qpealp8544vq4ctn2wqyrf4tk6uqn8mfeq
+

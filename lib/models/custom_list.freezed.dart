@@ -54,6 +54,10 @@ mixin _$CustomList {
   /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
   String? get welcomeMsg => throw _privateConstructorUsedError;
 
+  /// NostrイベントID（Phase E: リスト削除・更新の同期用）
+  /// Personal Listのリモート削除・更新に必要
+  String? get eventId => throw _privateConstructorUsedError;
+
   /// Serializes this CustomList to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -83,6 +87,7 @@ abstract class $CustomListCopyWith<$Res> {
     String? inviterNpub,
     String? inviterName,
     String? welcomeMsg,
+    String? eventId,
   });
 }
 
@@ -112,6 +117,7 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
     Object? inviterNpub = freezed,
     Object? inviterName = freezed,
     Object? welcomeMsg = freezed,
+    Object? eventId = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -159,6 +165,10 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
                 ? _value.welcomeMsg
                 : welcomeMsg // ignore: cast_nullable_to_non_nullable
                       as String?,
+            eventId: freezed == eventId
+                ? _value.eventId
+                : eventId // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -186,6 +196,7 @@ abstract class _$$CustomListImplCopyWith<$Res>
     String? inviterNpub,
     String? inviterName,
     String? welcomeMsg,
+    String? eventId,
   });
 }
 
@@ -214,6 +225,7 @@ class __$$CustomListImplCopyWithImpl<$Res>
     Object? inviterNpub = freezed,
     Object? inviterName = freezed,
     Object? welcomeMsg = freezed,
+    Object? eventId = freezed,
   }) {
     return _then(
       _$CustomListImpl(
@@ -261,6 +273,10 @@ class __$$CustomListImplCopyWithImpl<$Res>
             ? _value.welcomeMsg
             : welcomeMsg // ignore: cast_nullable_to_non_nullable
                   as String?,
+        eventId: freezed == eventId
+            ? _value.eventId
+            : eventId // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -281,6 +297,7 @@ class _$CustomListImpl implements _CustomList {
     this.inviterNpub,
     this.inviterName,
     this.welcomeMsg,
+    this.eventId,
   });
 
   factory _$CustomListImpl.fromJson(Map<String, dynamic> json) =>
@@ -334,9 +351,14 @@ class _$CustomListImpl implements _CustomList {
   @override
   final String? welcomeMsg;
 
+  /// NostrイベントID（Phase E: リスト削除・更新の同期用）
+  /// Personal Listのリモート削除・更新に必要
+  @override
+  final String? eventId;
+
   @override
   String toString() {
-    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg)';
+    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg, eventId: $eventId)';
   }
 
   @override
@@ -363,7 +385,8 @@ class _$CustomListImpl implements _CustomList {
             (identical(other.inviterName, inviterName) ||
                 other.inviterName == inviterName) &&
             (identical(other.welcomeMsg, welcomeMsg) ||
-                other.welcomeMsg == welcomeMsg));
+                other.welcomeMsg == welcomeMsg) &&
+            (identical(other.eventId, eventId) || other.eventId == eventId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -381,6 +404,7 @@ class _$CustomListImpl implements _CustomList {
     inviterNpub,
     inviterName,
     welcomeMsg,
+    eventId,
   );
 
   /// Create a copy of CustomList
@@ -410,6 +434,7 @@ abstract class _CustomList implements CustomList {
     final String? inviterNpub,
     final String? inviterName,
     final String? welcomeMsg,
+    final String? eventId,
   }) = _$CustomListImpl;
 
   factory _CustomList.fromJson(Map<String, dynamic> json) =
@@ -458,6 +483,11 @@ abstract class _CustomList implements CustomList {
   /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
   @override
   String? get welcomeMsg;
+
+  /// NostrイベントID（Phase E: リスト削除・更新の同期用）
+  /// Personal Listのリモート削除・更新に必要
+  @override
+  String? get eventId;
 
   /// Create a copy of CustomList
   /// with the given fields replaced by the non-null parameter values.

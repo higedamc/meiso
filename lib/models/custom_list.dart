@@ -39,6 +39,10 @@ class CustomList with _$CustomList {
     
     /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
     String? welcomeMsg,
+    
+    /// NostrイベントID（Phase E: リスト削除・更新の同期用）
+    /// Personal Listのリモート削除・更新に必要
+    String? eventId,
   }) = _CustomList;
 
   factory CustomList.fromJson(Map<String, dynamic> json) =>

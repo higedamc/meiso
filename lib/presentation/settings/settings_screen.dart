@@ -132,23 +132,23 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => context.push('/settings/app'),
           ),
 
-          // デバッグログ表示
-          // Phase D.6.3: リリースモードでも有効化（MLS Beta実機テスト用）
-          // TODO: 本番リリース時は kDebugMode 条件に戻す
-          const Divider(height: 1),
-          _buildSettingTile(
-            context,
-            icon: Icons.bug_report,
-            title: l10n.debugLogs,
-            subtitle: l10n.debugLogsSubtitle,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => TalkerScreen(talker: talker),
-                ),
-              );
-            },
-          ),
+          // デバッグログ表示（debugモードのみ）
+          if (kDebugMode) ...[
+            const Divider(height: 1),
+            _buildSettingTile(
+              context,
+              icon: Icons.bug_report,
+              title: l10n.debugLogs,
+              subtitle: l10n.debugLogsSubtitle,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => TalkerScreen(talker: talker),
+                  ),
+                );
+              },
+            ),
+          ],
 
           const SizedBox(height: 24),
 
@@ -229,26 +229,35 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
-          // MLS: Key Package公開
+          // Advanced セクション（MLS機能を格納）
           if (isNostrInitialized) ...[
-            _buildSettingTile(
-              context,
-              icon: Icons.vpn_key,
-              title: 'Key Package公開',
-              subtitle: 'グループ招待を受けるために必要',
-              onTap: () => _publishKeyPackage(context, ref),
-            ),
             const Divider(height: 1),
-          ],
-          
-          // MLS統合テスト
-          if (isNostrInitialized) ...[
-            _buildSettingTile(
-              context,
-              icon: Icons.science,
-              title: 'MLS統合テスト (PoC)',
-              subtitle: 'Option B: 1人グループでの動作確認',
-              onTap: () => _showMlsTestDialog(context, ref),
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                leading: const Icon(Icons.keyboard_arrow_right, color: AppTheme.primaryPurple),
+                title: const Text('Advanced'),
+                subtitle: const Text('開発者向け機能', style: TextStyle(fontSize: 12)),
+                tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                childrenPadding: const EdgeInsets.only(left: 16),
+                children: [
+                  _buildSettingTile(
+                    context,
+                    icon: Icons.vpn_key,
+                    title: 'Key Package公開',
+                    subtitle: 'グループ招待を受けるために必要',
+                    onTap: () => _publishKeyPackage(context, ref),
+                  ),
+                  const Divider(height: 1),
+                  _buildSettingTile(
+                    context,
+                    icon: Icons.science,
+                    title: 'MLS統合テスト (PoC)',
+                    subtitle: 'Option B: 1人グループでの動作確認',
+                    onTap: () => _showMlsTestDialog(context, ref),
+                  ),
+                ],
+              ),
             ),
             const Divider(height: 1),
           ],

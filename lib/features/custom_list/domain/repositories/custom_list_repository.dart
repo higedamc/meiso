@@ -71,6 +71,60 @@ abstract class CustomListRepository {
   Future<Either<Failure, Set<String>>> loadDeletedEventIds();
   
   // ============================================================
+  // Personal List削除・更新（Phase E）
+  // ============================================================
+  
+  /// Personal ListをNostrから削除（Kind 5イベント送信）
+  /// 
+  /// Phase E.1: Personal Listのリモート削除
+  /// - Kind 5削除イベントを作成・送信
+  /// - 削除済みイベントIDをローカルに保存
+  /// - 個人カスタムリスト（isGroup=false）のみ削除可能
+  /// 
+  /// @param listId カスタムリストのID
+  /// @param eventId 削除対象のNostrイベントID
+  /// @param isAmberMode Amberモードかどうか
+  /// @return 削除成功/失敗
+  Future<Either<Failure, void>> deletePersonalListFromNostr({
+    required String listId,
+    required String eventId,
+    required bool isAmberMode,
+  });
+  
+  /// Personal ListをNostrに更新（空リストとして送信）
+  /// 
+  /// Phase E: Personal Listの名前変更・order更新を同期
+  /// - 空のKind 30001イベントとして送信
+  /// - d tag: meiso-list-{listId}
+  /// - title tag: リスト名
+  /// - order tag: 並び順（カスタムタグ）
+  /// 
+  /// @param list 更新するカスタムリスト
+  /// @param isAmberMode Amberモードかどうか
+  /// @return 送信されたNostrイベントID
+  Future<Either<Failure, String>> updatePersonalListToNostr({
+    required CustomList list,
+    required bool isAmberMode,
+  });
+  
+  /// 空のPersonal ListをNostrに送信
+  /// 
+  /// Phase E: 空リストの同期
+  /// - TODOが0件でも、リスト自体を独立したイベントとして送信
+  /// - d tag: meiso-list-{listId}
+  /// - title tag: リスト名
+  /// - order tag: 並び順（カスタムタグ）
+  /// - content: 空の配列（[]）を暗号化
+  /// 
+  /// @param list 送信するカスタムリスト
+  /// @param isAmberMode Amberモードかどうか
+  /// @return 送信されたNostrイベントID
+  Future<Either<Failure, String>> publishEmptyPersonalList({
+    required CustomList list,
+    required bool isAmberMode,
+  });
+  
+  // ============================================================
   // MLS操作（Phase Dで実装予定）
   // ============================================================
   

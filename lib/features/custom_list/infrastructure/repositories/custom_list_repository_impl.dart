@@ -3,6 +3,7 @@ import '../../../../core/common/failure.dart';
 import '../../../../models/custom_list.dart';
 import '../../../../services/local_storage_service.dart';
 import '../../../../services/logger_service.dart';
+import '../../../../services/amber_service.dart';
 import '../../../../providers/nostr_provider.dart';
 import '../../domain/repositories/custom_list_repository.dart';
 import '../../domain/errors/custom_list_errors.dart';
@@ -19,18 +20,21 @@ import '../../../../utils/error_handler.dart';
 /// 依存関係:
 /// - LocalStorageService: ローカル永続化
 /// - NostrService: Nostr通信（Phase C.3.2で追加）
-/// - AmberService: Amber署名/復号化（Phase C.3.2.2で追加予定）
+/// - AmberService: Amber署名/復号化（Phase Eで追加）
 class CustomListRepositoryImpl implements CustomListRepository {
   final LocalStorageService _localStorageService;
-  // Phase C.3.2.2で使用予定
-  // ignore: unused_field
   final NostrService _nostrService;
+  // Phase E.2/E.3で使用予定
+  // ignore: unused_field
+  final AmberService _amberService;
   
   const CustomListRepositoryImpl({
     required LocalStorageService localStorageService,
     required NostrService nostrService,
+    required AmberService amberService,
   }) : _localStorageService = localStorageService,
-       _nostrService = nostrService;
+       _nostrService = nostrService,
+       _amberService = amberService;
   
   // ============================================================
   // ローカルストレージ操作
@@ -299,6 +303,76 @@ class CustomListRepositoryImpl implements CustomListRepository {
   }) async {
     return Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
+  
+  // ============================================================
+  // Personal List削除・更新（Phase E）
+  // ============================================================
+  
+  @override
+  Future<Either<Failure, void>> deletePersonalListFromNostr({
+    required String listId,
+    required String eventId,
+    required bool isAmberMode,
+  }) async {
+    try {
+      AppLogger.info('🗑️  [CustomListRepo] Deleting personal list from Nostr: $listId (eventId: ${eventId.substring(0, 16)}...)');
+      
+      // Kind 5削除イベントをNostrServiceで送信
+      // （NostrService.deleteEvents()がAmber/秘密鍵モードを自動判定）
+      final sendResult = await _nostrService.deleteEvents(
+        [eventId],
+        reason: 'Deleted by user',
+      );
+      
+      // 削除済みイベントIDをローカルに保存
+      final deletedIdsResult = await loadDeletedEventIds();
+      await deletedIdsResult.fold(
+        (failure) async {
+          AppLogger.warning('⚠️  [CustomListRepo] Failed to load deleted event IDs: ${failure.message}');
+          // 新規作成
+          await saveDeletedEventIds({eventId});
+        },
+        (ids) async {
+          ids.add(eventId);
+          await saveDeletedEventIds(ids);
+        },
+      );
+      
+      AppLogger.info('✅ [CustomListRepo] Successfully deleted personal list: $listId (deletion event: ${sendResult.eventId.substring(0, 16)}...)');
+      return const Right(null);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to delete personal list',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListNetworkFailure('リストの削除に失敗しました: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, String>> updatePersonalListToNostr({
+    required CustomList list,
+    required bool isAmberMode,
+  }) async {
+    // Phase E.2で実装予定
+    // TODO: 空のTODOリストイベント（Kind 30001）を送信してリスト名・orderを更新
+    return Left(UnexpectedFailure('Not implemented yet - Phase E.2'));
+  }
+  
+  @override
+  Future<Either<Failure, String>> publishEmptyPersonalList({
+    required CustomList list,
+    required bool isAmberMode,
+  }) async {
+    // Phase E.3で実装予定
+    // TODO: 空のTODOリストイベント（Kind 30001）を送信して空リストを同期
+    return Left(UnexpectedFailure('Not implemented yet - Phase E.3'));
+  }
+  
+  // ============================================================
+  // MLS操作（Phase D）
+  // ============================================================
   
   @override
   Future<Either<Failure, List<CustomList>>> syncGroupInvitations({

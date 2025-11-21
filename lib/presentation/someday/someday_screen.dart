@@ -150,16 +150,14 @@ class SomedayScreen extends ConsumerWidget {
           },
           itemBuilder: (context, index) {
             final list = customLists[index];
-            return _buildListItem(
+            return _buildCustomListItem(
               context,
               ref,
-              list.name,
+              list,
               _getListTodoCount(list.id, todos),
               isDark,
               key: ValueKey(list.id),
               showDragHandle: true, // ドラッグハンドルを表示
-              isGroup: list.isGroup, // グループリストフラグ
-              isPendingInvitation: list.isPendingInvitation, // Phase 6.4: 招待バッジ表示
               onTap: () {
                 // インビテーション待ちの場合は招待受諾ダイアログを表示（Phase 6.5で実装）
                 if (list.isPendingInvitation) {
@@ -349,6 +347,142 @@ class SomedayScreen extends ConsumerWidget {
     );
   }
 
+  /// カスタムリスト専用のリストアイテム（削除ボタン付き）
+  /// 
+  /// Phase E.5: リスト削除機能
+  Widget _buildCustomListItem(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+    int count,
+    bool isDark, {
+    Key? key,
+    required VoidCallback onTap,
+    bool showDragHandle = false,
+  }) {
+    return InkWell(
+      key: key,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // ドラッグハンドル
+            if (showDragHandle) ...[
+              Icon(
+                Icons.drag_handle,
+                size: 20,
+                color: isDark
+                    ? AppTheme.darkTextSecondary.withOpacity(0.5)
+                    : AppTheme.lightTextSecondary.withOpacity(0.5),
+              ),
+              const SizedBox(width: 12),
+            ],
+            // グループアイコン（グループリストの場合）
+            if (list.isGroup) ...[
+              Icon(
+                Icons.group,
+                size: 18,
+                color: AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 8),
+            ],
+            // リスト名
+            Expanded(
+              child: Text(
+                list.name,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            // インビテーションバッジ
+            if (list.isPendingInvitation) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.mail,
+                      size: 14,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '招待',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            // カウント
+            if (count > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  count.toString(),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryPurple,
+                  ),
+                ),
+              ),
+            // 削除ボタン（Personal Listのみ、グループリストと招待は非表示）
+            if (!list.isGroup && !list.isPendingInvitation) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 20,
+                  color: isDark
+                      ? AppTheme.darkTextSecondary.withOpacity(0.5)
+                      : AppTheme.lightTextSecondary.withOpacity(0.5),
+                ),
+                onPressed: () => _confirmDeleteList(context, ref, list),
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+                tooltip: 'Delete list',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   /// カスタムリストのTodo数を取得
   int _getListTodoCount(String listId, Map<DateTime?, List<Todo>> todos) {
     int count = 0;
@@ -405,6 +539,75 @@ class SomedayScreen extends ConsumerWidget {
     }
 
     return count;
+  }
+
+  /// リスト削除の確認ダイアログ
+  /// 
+  /// Phase E.5: リスト削除機能
+  Future<void> _confirmDeleteList(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+  ) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        title: Text(
+          'DELETE LIST',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            letterSpacing: 1.2,
+          ),
+        ),
+        content: Text(
+          'Delete "${list.name}"?\n\nThis will remove the list and all its tasks from all devices.',
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text(
+              'DELETE',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed == true) {
+      // リストを削除
+      await ref.read(customListsProvider.notifier).deleteList(list.id);
+      
+      // そのリストに属する全てのTODOも削除
+      final todosNotifier = ref.read(todosProvider.notifier);
+      await todosNotifier.deleteAllTodosInList(list.id);
+    }
   }
 
   /// リスト追加画面を表示（通常リストorグループリスト）
