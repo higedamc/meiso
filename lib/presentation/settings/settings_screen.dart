@@ -132,23 +132,23 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => context.push('/settings/app'),
           ),
 
-          // デバッグログ表示（デバッグビルドのみ）
-          if (kDebugMode) ...[
-            const Divider(height: 1),
-            _buildSettingTile(
-              context,
-              icon: Icons.bug_report,
-              title: l10n.debugLogs,
-              subtitle: l10n.debugLogsSubtitle,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => TalkerScreen(talker: talker),
-                  ),
-                );
-              },
-            ),
-          ],
+          // デバッグログ表示
+          // Phase D.6.3: リリースモードでも有効化（MLS Beta実機テスト用）
+          // TODO: 本番リリース時は kDebugMode 条件に戻す
+          const Divider(height: 1),
+          _buildSettingTile(
+            context,
+            icon: Icons.bug_report,
+            title: l10n.debugLogs,
+            subtitle: l10n.debugLogsSubtitle,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => TalkerScreen(talker: talker),
+                ),
+              );
+            },
+          ),
 
           const SizedBox(height: 24),
 
