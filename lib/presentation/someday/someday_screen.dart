@@ -8,9 +8,9 @@ import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../providers/nostr_provider.dart';
 import '../../services/logger_service.dart';
+import '../../utils/error_handler.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/add_list_screen.dart';
-import '../../widgets/add_group_list_dialog.dart';
 import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
@@ -443,18 +443,24 @@ class SomedayScreen extends ConsumerWidget {
                 },
               ),
               const Divider(),
-              // グループリスト
+              // グループリスト（ステージング版では無効化）
               ListTile(
-                leading: const Icon(Icons.group),
-                title: const Text('Group List'),
-                subtitle: const Text('共有可能なグループタスクリスト'),
-                onTap: () {
-                  Navigator.pop(context);
-                  showDialog(
-                    context: context,
-                    builder: (context) => const AddGroupListDialog(),
-                  );
-                },
+                // leading: const Icon(Icons.group),
+                // title: const Text('Group List'),
+                // subtitle: const Text('共有可能なグループタスクリスト'),
+                // onTap: () {
+                //   Navigator.pop(context);
+                //   showDialog(
+                //     context: context,
+                //     builder: (context) => const AddGroupListDialog(),
+                //   );
+                // },
+
+                leading: Icon(Icons.group, color: Colors.grey.shade400),
+                title: Text('Group List', style: TextStyle(color: Colors.grey.shade400)),
+                subtitle: Text('共有可能なグループタスクリスト（開発中）', style: TextStyle(color: Colors.grey.shade400)),
+                enabled: false,
+                onTap: null,
               ),
             ],
           ),
@@ -602,13 +608,19 @@ class SomedayScreen extends ConsumerWidget {
         throw Exception('User public key not available');
       }
       
-      // Phase D.5: AcceptGroupInvitationUseCaseを使用
+      // 🔥 Phase D.9: タイムアウト追加（無限待機バグ修正）
+      // AcceptGroupInvitationUseCaseを使用（Amber署名含むため長めのタイムアウト）
+      AppLogger.info('🔐 [GroupInvitation] Accepting invitation with timeout (3 min)...');
       final acceptInvitationUseCase = ref.read(acceptGroupInvitationUseCaseProvider);
-      final result = await acceptInvitationUseCase(AcceptGroupInvitationParams(
-        publicKey: userPubkey,
-        groupId: list.id,
-        welcomeMessage: list.welcomeMsg!,
-      ));
+      final result = await ErrorHandler.withTimeout(
+        operation: () => acceptInvitationUseCase(AcceptGroupInvitationParams(
+          publicKey: userPubkey,
+          groupId: list.id,
+          welcomeMessage: list.welcomeMsg!,
+        )),
+        operationName: 'acceptGroupInvitation',
+        timeout: const Duration(minutes: 3), // Amber署名を含むため長めに設定
+      );
       
       await result.fold(
         (failure) async {

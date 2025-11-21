@@ -27,12 +27,16 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   void initState() {
     super.initState();
     
-    // Phase D.5: グループリストの場合、初期化時にグループタスクを同期
-    if (widget.customList.isGroup) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(todosProvider.notifier).syncGroupTodos(widget.customList.id);
-      });
-    }
+    // Phase D.5修正: 招待受諾時に既にsyncGroupTodos()を実行しているため、
+    // 画面を開いた時の自動同期は不要（二重実行を防止）
+    // 
+    // 理由:
+    // - someday_screen.dart (line 641) で招待受諾時に既に同期済み
+    // - 二重実行によりローディングインジケータが表示され続ける問題が発生
+    // 
+    // 将来的な改善案:
+    // - Pull-to-refreshでの手動同期機能を追加
+    // - または、最終同期時刻を記録して一定時間経過後のみ自動同期
   }
   
   @override
