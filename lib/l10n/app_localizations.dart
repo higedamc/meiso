@@ -940,6 +940,48 @@ abstract class AppLocalizations {
   /// **'Waiting'**
   String get waiting;
 
+  /// Sync step counter
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} / {total}'**
+  String syncStep(int current, int total);
+
+  /// Sync: reconnecting relays
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting relays...'**
+  String get syncReconnectingRelays;
+
+  /// Sync phase: delta
+  ///
+  /// In en, this message translates to:
+  /// **'Delta sync...'**
+  String get syncPhaseDelta;
+
+  /// Sync phase: app settings
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing settings...'**
+  String get syncPhaseAppSettings;
+
+  /// Sync phase: custom lists
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing lists...'**
+  String get syncPhaseCustomLists;
+
+  /// Sync phase: todos
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing todos...'**
+  String get syncPhaseTodos;
+
+  /// Sync phase: MLS group todos
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing group todos...'**
+  String get syncPhaseMls;
+
   /// Time indicator for recent sync
   ///
   /// In en, this message translates to:
