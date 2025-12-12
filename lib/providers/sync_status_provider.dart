@@ -69,6 +69,13 @@ final syncStatusProvider = StateNotifierProvider<SyncStatusNotifier, SyncStatus>
 class SyncStatusNotifier extends StateNotifier<SyncStatus> {
   SyncStatusNotifier() : super(const SyncStatus());
 
+  static const String _l10nPrefix = '__l10n__:';
+
+  /// ローカライズキーを `message` に格納する（UI側で解決）
+  void updateMessageKey(String key) {
+    state = state.copyWith(message: '$_l10nPrefix$key');
+  }
+
   /// Nostr初期化状態を設定
   void setInitialized(bool initialized) {
     if (initialized) {

@@ -33,6 +33,14 @@ import '../features/mls/infrastructure/providers/repository_providers.dart' as m
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
 
+/// 同期トリガー（Joplin-like: 復帰時は差分同期、手動はフル同期）
+enum TodoSyncTrigger {
+  appStart,
+  appResume,
+  manual,
+  background,
+}
+
 /// AmberServiceのProvider
 final amberServiceProvider = Provider((ref) => AmberService());
 
@@ -52,7 +60,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
 
   final Ref _ref;
-  final _uuid = const Uuid();
   
   // バッチ同期用のタイマー
   Timer? _batchSyncTimer;
@@ -127,7 +134,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     try {
       // タイムアウト付きで同期実行（60秒）
-      await Future.delayed(Duration.zero).timeout(
+      await Future<void>.delayed(Duration.zero).timeout(
         const Duration(seconds: 60),
         onTimeout: () async {
           AppLogger.warning(' [Todos] 優先同期タイムアウト（60秒）');
@@ -202,7 +209,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// バックグラウンド同期（UIブロックしない）
   Future<void> _backgroundSync() async {
     // 画面表示後に実行
-    await Future.delayed(const Duration(seconds: 1));
+    await Future<void>.delayed(const Duration(seconds: 1));
     
     // Nostr初期化チェック（即座に）
     if (!_ref.read(nostrInitializedProvider)) {
@@ -216,7 +223,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.info(' Starting background Nostr sync...');
       
       // タイムアウト付きで実行（60秒）
-      await Future.delayed(Duration.zero).timeout(
+      await Future<void>.delayed(Duration.zero).timeout(
         const Duration(seconds: 60),
         onTimeout: () async {
           AppLogger.debug(' Background sync timeout - continuing with local data');
@@ -290,7 +297,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       );
       
       // 3秒後にエラーをクリア
-      Future.delayed(const Duration(seconds: 3), () {
+      Future<void>.delayed(const Duration(seconds: 3), () {
         _ref.read(syncStatusProvider.notifier).clearError();
       });
     }
@@ -1331,7 +1338,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         );
         
         // 3秒後にエラーをクリア
-        Future.delayed(const Duration(seconds: 3), () {
+        Future<void>.delayed(const Duration(seconds: 3), () {
           _ref.read(syncStatusProvider.notifier).clearError();
         });
       }
@@ -1858,7 +1865,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.warning(' Nostr同期エラー（${attempt + 1}/${maxRetries + 1}回目）: $e');
           AppLogger.info(' ${retryDelay.inSeconds}秒後にリトライします...');
           
-          await Future.delayed(retryDelay);
+          await Future<void>.delayed(retryDelay);
         }
       }
     }
@@ -1922,7 +1929,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       );
       
       // 3秒後にエラーをクリア
-      Future.delayed(const Duration(seconds: 3), () {
+      Future<void>.delayed(const Duration(seconds: 3), () {
         _ref.read(syncStatusProvider.notifier).clearError();
       });
       
@@ -1946,14 +1953,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // 2. グループタスク同期
         syncAllGroupTodos().then((_) {
           AppLogger.info('✅ [Background] グループタスク同期完了');
-        }).catchError((e) {
+        }).catchError((Object e) {
           AppLogger.warning('⚠️ [Background] グループタスク同期エラー: $e');
         }),
         
         // 3. グループ招待同期
         _ref.read(customListsProvider.notifier).syncGroupInvitations().then((_) {
           AppLogger.info('✅ [Background] グループ招待同期完了');
-        }).catchError((e) {
+        }).catchError((Object e) {
           AppLogger.warning('⚠️ [Background] グループ招待同期エラー: $e');
         }),
       ], eagerError: false);
@@ -1974,7 +1981,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       );
       
       // 5秒後にエラーをクリアしてアイドル状態に戻す
-      Future.delayed(const Duration(seconds: 5), () {
+      Future<void>.delayed(const Duration(seconds: 5), () {
         _ref.read(syncStatusProvider.notifier).clearError();
       });
     }
@@ -1984,7 +1991,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   // CustomListsProvider.fetchCustomListNamesFromNostr()に統合
   
   /// Nostrからすべてのtodoを同期（Kind 30001 - Todoリスト全体を取得）
-  Future<void> syncFromNostr({bool isInitialSync = false}) async {
+  Future<void> syncFromNostr({
+    bool isInitialSync = false,
+    TodoSyncTrigger trigger = TodoSyncTrigger.manual,
+  }) async {
     if (!_ref.read(nostrInitializedProvider)) {
       AppLogger.warning(' Nostr未初期化のため同期をスキップ');
       return;
@@ -1993,10 +2003,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final isAmberMode = _ref.read(isAmberModeProvider);
     final nostrService = _ref.read(nostrServiceProvider);
 
+    // ✅ 体感改善: 復帰時は「差分同期 + 短タイムアウト」でフル取得を避ける
+    if (trigger == TodoSyncTrigger.appResume || trigger == TodoSyncTrigger.appStart) {
+      final lastSync = localStorageService.getLastTodoListSyncTime();
+      if (lastSync != null) {
+        await _syncFromNostrDelta(
+          since: lastSync,
+          isAmberMode: isAmberMode,
+          nostrService: nostrService,
+        );
+        return;
+      }
+      // lastSync がない場合は初回相当 → 既存フル同期へフォールバック
+    }
+
     // Phase 8.5.1: 進捗付き同期開始（全3ステップ）
     _ref.read(syncStatusProvider.notifier).startSyncWithProgress(
       totalSteps: 3,
-      initialPhase: 'AppSettings同期中...',
+      initialPhase: '__l10n__:syncPhaseAppSettings',
       isInitialSync: isInitialSync,
     );
 
@@ -2007,10 +2031,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // Phase 1: 重要データを並列同期（AppSettings + カスタムリスト名取得）
       final phase1Results = await Future.wait([
         // 1. AppSettings同期（リレーリスト含む）
-        _ref.read(appSettingsProvider.notifier).syncFromNostr().then((_) {
+        _ref.read(appSettingsProvider.notifier).syncFromNostr(
+          skipIfFresh: trigger != TodoSyncTrigger.manual,
+          minInterval: const Duration(minutes: 5),
+        ).then((_) {
           AppLogger.info('✅ [Sync] AppSettings同期完了');
           return true;
-        }).catchError((e) {
+        }).catchError((Object e) {
           AppLogger.warning('⚠️ [Sync] AppSettings同期エラー（続行）: $e');
           return false;
         }),
@@ -2020,7 +2047,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         _ref.read(customListsProvider.notifier).fetchCustomListNamesFromNostr().then((listNames) {
           AppLogger.info('✅ [Sync] カスタムリスト名抽出完了: ${listNames.length}件');
           return listNames;
-        }).catchError((e) {
+        }).catchError((Object e) {
           AppLogger.warning('⚠️ [Sync] カスタムリスト名抽出エラー: $e');
           return <String>[];
         }),
@@ -2034,7 +2061,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       _ref.read(syncStatusProvider.notifier).setProgress(
         completedSteps: 1,
         percentage: 33,
-        currentPhase: 'カスタムリスト同期中... (${customListNames.length}件)',
+        currentPhase: '__l10n__:syncPhaseCustomLists',
       );
       
       // Phase 2: カスタムリスト同期（Phase 1の結果を使用）
@@ -2050,7 +2077,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       _ref.read(syncStatusProvider.notifier).setProgress(
         completedSteps: 2,
         percentage: 66,
-        currentPhase: 'TODO同期中...',
+        currentPhase: '__l10n__:syncPhaseTodos',
       );
       
       // Phase 3: TODO同期（タイムアウト付き、短縮: 20秒）
@@ -2394,10 +2421,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         _ref.read(syncStatusProvider.notifier).setProgress(
           completedSteps: 3,
           percentage: 100,
-          currentPhase: '同期完了',
+          currentPhase: '__l10n__:syncCompleted',
         );
         
         _ref.read(syncStatusProvider.notifier).syncSuccess();
+        // 次回の復帰/再起動時に差分同期を行うため、最終成功同期時刻を保存
+        await localStorageService.setLastTodoListSyncTime(DateTime.now());
         AppLogger.info(' Nostr同期成功');
       }).timeout(
         const Duration(seconds: 30),
@@ -2416,10 +2445,189 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(5).join('\n')}');
       
       // 3秒後にエラーをクリア（ローカルデータで継続使用可能にする）
-      Future.delayed(const Duration(seconds: 3), () {
+      Future<void>.delayed(const Duration(seconds: 3), () {
         _ref.read(syncStatusProvider.notifier).clearError();
       });
     }
+  }
+
+  /// 復帰/再起動時向けの差分同期（全履歴fetchを避ける）
+  Future<void> _syncFromNostrDelta({
+    required DateTime since,
+    required bool isAmberMode,
+    required NostrService nostrService,
+  }) async {
+    // 既にsync中なら重複実行しない（復帰連打・画面初期化との競合を避ける）
+    final syncStatus = _ref.read(syncStatusProvider);
+    if (syncStatus.state == SyncState.syncing) {
+      AppLogger.debug(' [Todos] Sync already in progress, skipping delta sync');
+      return;
+    }
+
+    // クロックスキュー/EOSE遅延対策で少し巻き戻して取得（重複はd-tag最新で吸収）
+    final effectiveSince = since.subtract(const Duration(minutes: 2));
+    final now = DateTime.now();
+
+    _ref.read(syncStatusProvider.notifier).startSyncWithProgress(
+      totalSteps: 1,
+          initialPhase: '__l10n__:syncPhaseDelta',
+      isInitialSync: false,
+    );
+
+    try {
+      final localFlat = await localStorageService.loadTodos();
+      final updatedFlat = List<Todo>.from(localFlat);
+
+      if (isAmberMode) {
+        final encryptedEvents = await nostrService.fetchAllEncryptedTodoListsSince(
+          since: effectiveSince,
+          timeoutSeconds: 3,
+        );
+
+        if (encryptedEvents.isEmpty) {
+          await localStorageService.setLastTodoListSyncTime(now);
+          _ref.read(syncStatusProvider.notifier).syncSuccess();
+          return;
+        }
+
+        final amberService = _ref.read(amberServiceProvider);
+        var publicKey = _ref.read(publicKeyProvider);
+        var npub = _ref.read(nostrPublicKeyProvider);
+
+        if (publicKey == null) {
+          publicKey = await nostrService.getPublicKey();
+          if (publicKey != null) {
+            _ref.read(publicKeyProvider.notifier).state = publicKey;
+            try {
+              npub = await nostrService.hexToNpub(publicKey);
+              _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+            } catch (_) {}
+          }
+        }
+
+        if (publicKey == null || npub == null) {
+          throw Exception('公開鍵が設定されていません（差分同期）');
+        }
+
+        // 差分イベントは「変更のあったリストのみ」なので、リスト単位で置換する
+        for (final event in encryptedEvents) {
+          final dTag = event.listId;
+          final listKey = _customListIdFromDTag(dTag); // null=default
+
+          try {
+            String decryptedJson;
+            try {
+              decryptedJson = await amberService.decryptNip44WithContentProvider(
+                ciphertext: event.encryptedContent,
+                pubkey: publicKey,
+                npub: npub,
+              );
+            } on PlatformException {
+              decryptedJson = await amberService.decryptNip44(
+                event.encryptedContent,
+                publicKey,
+              );
+            }
+
+            final todoList = jsonDecode(decryptedJson) as List<dynamic>;
+            final replacementTodos = todoList.map((todoMap) {
+              final map = todoMap as Map<String, dynamic>;
+              return Todo(
+                id: map['id'] as String,
+                title: map['title'] as String,
+                completed: map['completed'] as bool,
+                date: map['date'] != null ? DateTime.parse(map['date'] as String) : null,
+                order: map['order'] as int,
+                createdAt: DateTime.parse(map['created_at'] as String),
+                updatedAt: DateTime.parse(map['updated_at'] as String),
+                eventId: map['event_id'] as String? ?? event.eventId,
+                linkPreview: map['link_preview'] != null
+                    ? LinkPreview.fromJson(map['link_preview'] as Map<String, dynamic>)
+                    : null,
+                customListId: listKey,
+                recurrence: map['recurrence'] != null
+                    ? RecurrencePattern.fromJson(map['recurrence'] as Map<String, dynamic>)
+                    : null,
+                parentRecurringId: map['parent_recurring_id'] as String?,
+                needsSync: false,
+              );
+            }).toList();
+
+            // 影響リストのみ置換
+            updatedFlat.removeWhere((t) => t.customListId == listKey);
+            updatedFlat.addAll(replacementTodos);
+          } catch (e) {
+            AppLogger.warning(' [Todos] Delta decrypt failed for list=$dTag: $e');
+            // このリストは更新しない（ローカルを保持）
+          }
+        }
+      } else {
+        final deltaTodos = await nostrService.syncTodoListFromNostrSince(
+          since: effectiveSince,
+          timeoutSeconds: 3,
+        );
+
+        if (deltaTodos.isEmpty) {
+          await localStorageService.setLastTodoListSyncTime(now);
+          _ref.read(syncStatusProvider.notifier).syncSuccess();
+          return;
+        }
+
+        // 取得できたTodoのcustomListId単位で置換（null=default）
+        final affectedListKeys = <String?>{};
+        for (final todo in deltaTodos) {
+          affectedListKeys.add(todo.customListId);
+        }
+
+        for (final key in affectedListKeys) {
+          updatedFlat.removeWhere((t) => t.customListId == key);
+        }
+
+        updatedFlat.addAll(deltaTodos.map((t) => t.copyWith(needsSync: false)));
+      }
+
+      await localStorageService.saveTodos(updatedFlat);
+      state = AsyncValue.data(_groupTodosByDate(updatedFlat));
+
+      await localStorageService.setLastTodoListSyncTime(now);
+      _ref.read(syncStatusProvider.notifier).syncSuccess();
+
+      // グループ系は重いので、復帰時はバックグラウンドでのみ実行
+      Future.microtask(() => _syncGroupDataInBackground());
+    } catch (e, stackTrace) {
+      AppLogger.error(' [Todos] Delta sync failed', error: e, stackTrace: stackTrace);
+      _ref.read(syncStatusProvider.notifier).syncError(
+        '差分同期エラー: ${e.toString()}',
+        shouldRetry: false,
+      );
+
+      Future<void>.delayed(const Duration(seconds: 3), () {
+        _ref.read(syncStatusProvider.notifier).clearError();
+      });
+    }
+  }
+
+  /// d tag（meiso-todos / meiso-list-xxx）からcustomListIdへ変換
+  String? _customListIdFromDTag(String? dTag) {
+    if (dTag == null) return null;
+    if (dTag == 'meiso-todos') return null;
+    if (dTag.startsWith('meiso-list-')) {
+      return dTag.substring('meiso-list-'.length);
+    }
+    return dTag;
+  }
+
+  /// フラットなTodo配列を日付ごとにグループ化
+  Map<DateTime?, List<Todo>> _groupTodosByDate(List<Todo> todos) {
+    final Map<DateTime?, List<Todo>> grouped = {};
+    for (final todo in todos) {
+      grouped[todo.date] ??= [];
+      grouped[todo.date]!.add(todo);
+    }
+    for (final key in grouped.keys) {
+      grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
+    }
+    return grouped;
   }
 
   /// 同期したTodoで状態を更新（競合解決付き）
@@ -2757,7 +2965,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       );
       
       // メッセージをクリア
-      await Future.delayed(const Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(seconds: 1));
       _ref.read(syncStatusProvider.notifier).clearMessage();
       
     } catch (e, stackTrace) {
@@ -2908,14 +3116,20 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // 2. Listen Keyでイベントを取得（Kind 1059）
       final nostrService = _ref.read(nostrServiceProvider);
-      final events = await nostrService.fetchMlsGroupTodoEvents(
+      final last = localStorageService.getLastMlsGroupTodosSyncTime(groupId);
+      // クロックスキュー/EOSE遅延対策で少し巻き戻して取得
+      final effectiveSince = (last ?? DateTime.fromMillisecondsSinceEpoch(0))
+          .subtract(const Duration(minutes: 2));
+      final events = await nostrService.fetchMlsGroupTodoEventsSince(
         listenKey: listenKey,
-        groupId: groupId,
+        since: effectiveSince,
+        timeoutSeconds: 3,
       );
       
       if (events.isEmpty) {
         AppLogger.info('📭 [MLS] No MLS group todo events found for: $groupId');
         AppLogger.info('💡 [MLS] This is normal for newly created/joined groups');
+        await localStorageService.setLastMlsGroupTodosSyncTime(groupId, DateTime.now());
         return;
       }
       
@@ -3082,81 +3296,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       state = AsyncValue.data(updated);
       
       AppLogger.info('✅ [MLS] Group todos synced to local storage');
+      await localStorageService.setLastMlsGroupTodosSyncTime(groupId, DateTime.now());
       
     } catch (e, st) {
       AppLogger.error('❌ [MLS] Failed to sync MLS group todos: $e', error: e, stackTrace: st);
-    }
-  }
-  
-  /// グループタスクを同期（旧fiatjaf方式 - 互換性のため残す）
-  Future<void> _syncLegacyGroupTodos({
-    required String groupId,
-    required String publicKey,
-    required String npub,
-  }) async {
-    try {
-      AppLogger.info('🔄 [Legacy] Syncing legacy group todos for: $groupId');
-      
-      // リレーからグループタスクイベントを取得
-      AppLogger.info('📥 [Legacy] Fetching my group task lists from relays...');
-      final groupLists = await groupTaskService.fetchMyGroupTaskLists(
-        publicKey: publicKey,
-        npub: npub,
-      );
-      final groupList = groupLists.where((g) => g.groupId == groupId).firstOrNull;
-      
-      // イベントが存在しない場合でもエラーにしない（新規グループは空）
-      if (groupList == null) {
-        AppLogger.info('📭 [Legacy] No group task events found for: $groupId');
-        AppLogger.info('💡 [Legacy] This is normal for newly created/joined groups');
-        AppLogger.info('✅ [Legacy] Group todos synced (0 todos)');
-        return;
-      }
-      
-      AppLogger.info('📦 [Legacy] Fetched ${groupLists.length} group task lists');
-      AppLogger.info('🔍 [Legacy] Found group task event for: $groupId');
-      
-      // グループタスクを復号化
-      final groupTodos = await groupTaskService.decryptGroupTaskList(
-        groupList: groupList,
-        publicKey: publicKey,
-        npub: npub,
-      );
-      
-      AppLogger.info('✅ [Legacy] Decrypted ${groupTodos.length} todos from group');
-      
-      // 既存のグループタスクを削除して、新しいタスクを追加
-      await state.whenData((todos) async {
-        final updated = Map<DateTime?, List<Todo>>.from(todos);
-        
-        // グループIDが一致するタスクを削除
-        for (final dateKey in updated.keys) {
-          updated[dateKey] = updated[dateKey]!
-              .where((t) => t.customListId != groupId)
-              .toList();
-        }
-        
-        // 新しいグループタスクを追加
-        for (final todo in groupTodos) {
-          final dateKey = todo.date;
-          updated[dateKey] ??= [];
-          updated[dateKey]!.add(todo);
-        }
-        
-        // ローカルストレージに保存
-        final allTodos = <Todo>[];
-        for (final dateGroup in updated.values) {
-          allTodos.addAll(dateGroup);
-        }
-        await localStorageService.saveTodos(allTodos);
-        
-        state = AsyncValue.data(updated);
-        
-        AppLogger.info('✅ [Legacy] Group todos synced to local storage');
-      }).value;
-      
-    } catch (e, st) {
-      AppLogger.error('❌ [Legacy] Failed to sync legacy group todos: $e', error: e, stackTrace: st);
     }
   }
   

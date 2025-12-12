@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:ui';
 import '../providers/sync_status_provider.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 
 /// Phase 8.5.1: 同期中のローディングオーバーレイ
 /// 
@@ -63,7 +64,7 @@ class SyncLoadingOverlay extends ConsumerWidget {
               children: [
                 // タイトル
                 Text(
-                  '同期中',
+                  AppLocalizations.of(context).syncing,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -100,7 +101,7 @@ class SyncLoadingOverlay extends ConsumerWidget {
                 // 現在のフェーズ
                 if (syncStatus.currentPhase != null) ...[
                   Text(
-                    syncStatus.currentPhase!,
+                    _resolveL10n(context, syncStatus.currentPhase!),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -114,7 +115,7 @@ class SyncLoadingOverlay extends ConsumerWidget {
                     syncStatus.message != syncStatus.currentPhase) ...[
                   const SizedBox(height: 8),
                   Text(
-                    syncStatus.message!,
+                    _resolveL10n(context, syncStatus.message!),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                     ),
@@ -126,7 +127,10 @@ class SyncLoadingOverlay extends ConsumerWidget {
                 if (syncStatus.totalSteps > 0) ...[
                   const SizedBox(height: 12),
                   Text(
-                    'ステップ ${syncStatus.completedSteps} / ${syncStatus.totalSteps}',
+                    AppLocalizations.of(context).syncStep(
+                      syncStatus.completedSteps,
+                      syncStatus.totalSteps,
+                    ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
                     ),
@@ -138,6 +142,32 @@ class SyncLoadingOverlay extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  String _resolveL10n(BuildContext context, String value) {
+    const prefix = '__l10n__:';
+    if (!value.startsWith(prefix)) return value;
+
+    final key = value.substring(prefix.length);
+    final l10n = AppLocalizations.of(context);
+    switch (key) {
+      case 'syncReconnectingRelays':
+        return l10n.syncReconnectingRelays;
+      case 'syncPhaseDelta':
+        return l10n.syncPhaseDelta;
+      case 'syncPhaseAppSettings':
+        return l10n.syncPhaseAppSettings;
+      case 'syncPhaseCustomLists':
+        return l10n.syncPhaseCustomLists;
+      case 'syncPhaseTodos':
+        return l10n.syncPhaseTodos;
+      case 'syncPhaseMls':
+        return l10n.syncPhaseMls;
+      case 'syncCompleted':
+        return l10n.syncCompleted;
+      default:
+        return l10n.syncing;
+    }
   }
 }
 

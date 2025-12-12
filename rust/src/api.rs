@@ -151,6 +151,66 @@ pub struct ReceivedEvent {
     pub subscription_id: String,
 }
 
+/// MLS/NIP-17: listen_key(#p) 宛の sealed event(kind=1059) を差分取得
+///
+/// - `since` が 0 より大きい場合、そのUNIX秒以降のイベントのみ取得
+/// - `timeout_secs` は fetch_events のタイムアウト秒
+///
+/// NOTE:
+/// - subscription_id は空文字で返す（fetch用途のため）。
+pub fn fetch_mls_group_todo_events_since(
+    listen_key: String,
+    since: i64,
+    timeout_secs: u64,
+) -> Result<Vec<ReceivedEvent>> {
+    fetch_mls_group_todo_events_since_with_client_id(listen_key, since, timeout_secs, None)
+}
+
+pub fn fetch_mls_group_todo_events_since_with_client_id(
+    listen_key: String,
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<ReceivedEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+
+        let mut filter = Filter::new()
+            .kind(Kind::Custom(1059)) // NIP-17 Seal
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::P),
+                vec![listen_key],
+            );
+
+        if since > 0 {
+            let since_u64 = since.max(0) as u64;
+            filter = filter.since(Timestamp::from(since_u64));
+        }
+
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let received: Vec<ReceivedEvent> = events
+            .into_iter()
+            .map(|event| ReceivedEvent {
+                event_id: event.id.to_hex(),
+                kind: event.kind.as_u16() as u64,
+                created_at: event.created_at.as_u64() as i64,
+                event_json: event.as_json(),
+                received_at: now,
+                subscription_id: String::new(),
+            })
+            .collect();
+
+        Ok(received)
+    })
+}
+
 /// Nostrクライアントのラッパー
 #[derive(Clone)]
 pub struct MeisoNostrClient {
@@ -589,6 +649,90 @@ impl MeisoNostrClient {
         Ok(all_todos)
     }
 
+    /// TodoリストをNostrから差分同期（Kind 30001）
+    ///
+    /// - `since` が 0 より大きい場合、そのUNIX秒以降のイベントのみ取得
+    /// - 同じ d tag の中で最新（created_at最大）のイベントのみ処理
+    ///
+    /// Note:
+    /// - replaceable event の特性上、差分でも「変更のあったリストの全内容」は取得される。
+    /// - `since` 以降にイベントが無い場合は空Vecを返す（= 変更なし）。
+    pub async fn sync_todo_list_since(&self, since: i64, timeout_secs: u64) -> Result<Vec<TodoData>> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!(
+                "Cannot sync TODO list in Amber mode. Use fetch_all_encrypted_todo_lists_for_pubkey_since + Amber decryption instead."
+            ));
+        }
+
+        let keys = self.keys.as_ref()
+            .context("Secret key required for syncing")?;
+
+        let mut filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(keys.public_key());
+
+        if since > 0 {
+            let since_u64 = since.max(0) as u64;
+            filter = filter.since(Timestamp::from(since_u64));
+        }
+
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+
+        let events = self
+            .client
+            .fetch_events(vec![filter], Some(timeout))
+            .await?;
+
+        let events_vec: Vec<_> = events.into_iter().collect();
+
+        if events_vec.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 同じd tagで最新のみ保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+
+        for event in events_vec {
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            latest_events.insert(d_value.clone(), event);
+                        }
+                    } else {
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                }
+            }
+        }
+
+        let mut all_todos = Vec::new();
+        for (_d_tag, event) in latest_events {
+            match nip44::decrypt(
+                keys.secret_key(),
+                &keys.public_key(),
+                &event.content,
+            ) {
+                Ok(decrypted) => {
+                    if let Ok(todos) = serde_json::from_str::<Vec<TodoData>>(&decrypted) {
+                        all_todos.extend(todos);
+                    }
+                }
+                Err(_) => {
+                    // 復号化失敗は無視して続行（部分失敗許容）
+                }
+            }
+        }
+
+        Ok(all_todos)
+    }
+
 
     // ========================================
     // アプリ設定管理（NIP-78 Application-specific data）
@@ -968,6 +1112,22 @@ impl MeisoNostrClient {
             }
         }
     }
+
+    /// リレーに再接続（タイムアウト秒を指定）
+    pub(crate) async fn reconnect_with_timeout(&self, timeout_secs: u64) -> Result<()> {
+        println!("🔄 Reconnecting to relays with timeout: {}s...", timeout_secs);
+
+        self.client.disconnect().await?;
+
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+        match tokio::time::timeout(timeout, self.client.connect()).await {
+            Ok(_) => {
+                println!("✅ Reconnected to relays");
+                Ok(())
+            }
+            Err(_) => Err(anyhow::anyhow!("Reconnection timeout")),
+        }
+    }
 }
 
 // ========================================
@@ -1104,6 +1264,25 @@ pub fn sync_todo_list_with_client_id(client_id: Option<String>) -> Result<Vec<To
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.sync_todo_list().await
+    })
+}
+
+/// 全Todoを差分同期（Kind 30001）
+///
+/// - `since`: UNIX秒（0なら全件相当だが、timeout短縮の用途にも使える）
+/// - `timeout_secs`: fetch_events のタイムアウト秒
+pub fn sync_todo_list_since(since: i64, timeout_secs: u64) -> Result<Vec<TodoData>> {
+    sync_todo_list_since_with_client_id(since, timeout_secs, None)
+}
+
+pub fn sync_todo_list_since_with_client_id(
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<TodoData>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.sync_todo_list_since(since, timeout_secs).await
     })
 }
 
@@ -1661,6 +1840,97 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey(
     public_key_hex: String,
 ) -> Result<Vec<EncryptedTodoListEvent>> {
     fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(public_key_hex, None)
+}
+
+/// すべてのTodoリスト（Kind 30001）を差分取得（Amber復号化用）
+///
+/// - `since` が 0 より大きい場合、そのUNIX秒以降のイベントのみ取得
+/// - 取得後、同じ d tag の中で最新（created_at最大）のイベントのみ返す
+///
+/// 背景復帰/アプリ再起動時に「全履歴fetch」を避けるための軽量API。
+pub fn fetch_all_encrypted_todo_lists_for_pubkey_since(
+    public_key_hex: String,
+    since: i64,
+    timeout_secs: u64,
+) -> Result<Vec<EncryptedTodoListEvent>> {
+    fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(public_key_hex, since, timeout_secs, None)
+}
+
+pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
+    public_key_hex: String,
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<EncryptedTodoListEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+
+        let mut filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(public_key);
+
+        // since が有効な場合のみ差分取得
+        if since > 0 {
+            // nostr-sdk の Timestamp は u64 を期待
+            let since_u64 = since.max(0) as u64;
+            filter = filter.since(Timestamp::from(since_u64));
+        }
+
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(timeout))
+            .await?;
+
+        if events.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 同じd tagを持つイベントが複数ある場合、最新のもののみ保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+
+        for event in events {
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            latest_events.insert(d_value.clone(), event);
+                        }
+                    } else {
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                }
+            }
+        }
+
+        let list_events: Vec<EncryptedTodoListEvent> = latest_events.into_iter()
+            .map(|(d_tag, event)| {
+                let title = event.tags.iter()
+                    .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
+                    .and_then(|tag| tag.content())
+                    .map(|s| s.to_string());
+
+                EncryptedTodoListEvent {
+                    event_id: event.id.to_hex(),
+                    encrypted_content: event.content.clone(),
+                    created_at: event.created_at.as_u64() as i64,
+                    list_id: Some(d_tag),
+                    title,
+                }
+            })
+            .collect();
+
+        Ok(list_events)
+    })
 }
 
 pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
@@ -2498,6 +2768,21 @@ pub fn reconnect_to_relays_with_client_id(client_id: Option<String>) -> Result<(
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.reconnect().await
+    })
+}
+
+/// リレーに再接続（タイムアウト秒を指定）
+pub fn reconnect_to_relays_with_timeout(timeout_secs: u64) -> Result<()> {
+    reconnect_to_relays_with_timeout_and_client_id(timeout_secs, None)
+}
+
+pub fn reconnect_to_relays_with_timeout_and_client_id(
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<()> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.reconnect_with_timeout(timeout_secs).await
     })
 }
 

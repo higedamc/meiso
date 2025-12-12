@@ -47,7 +47,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
 
   /// バックグラウンド同期（UIブロックしない）
   Future<void> _backgroundSync() async {
-    await Future.delayed(const Duration(seconds: 1));
+    await Future<void>.delayed(const Duration(seconds: 1));
     
     if (_ref.read(nostrInitializedProvider)) {
       try {
@@ -350,10 +350,22 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
   }
 
   /// Nostrから設定を同期
-  Future<void> syncFromNostr() async {
+  Future<void> syncFromNostr({
+    bool skipIfFresh = false,
+    Duration minInterval = const Duration(minutes: 5),
+  }) async {
     if (!_ref.read(nostrInitializedProvider)) {
       AppLogger.warning(' Nostr未初期化のため設定同期をスキップ');
       return;
+    }
+
+    // ✅ 復帰/起動直後の体感改善: 短時間での連続同期を間引く
+    if (skipIfFresh) {
+      final last = localStorageService.getLastAppSettingsSyncTime();
+      if (last != null && DateTime.now().difference(last) < minInterval) {
+        AppLogger.debug(' [AppSettings] Skip syncFromNostr (fresh)');
+        return;
+      }
     }
 
     final isAmberMode = _ref.read(isAmberModeProvider);
@@ -453,6 +465,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         state = AsyncValue.data(syncedSettings);
         await localStorageService.saveAppSettings(syncedSettings);
         AppLogger.info(' 設定同期完了（Amberモード）');
+        await localStorageService.setLastAppSettingsSyncTime(DateTime.now());
         
       } else {
         // 通常モード: Rust側で復号化済みの設定を取得
@@ -490,6 +503,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         state = AsyncValue.data(syncedSettings);
         await localStorageService.saveAppSettings(syncedSettings);
         AppLogger.info(' 設定同期完了（通常モード）');
+        await localStorageService.setLastAppSettingsSyncTime(DateTime.now());
       }
       
     } catch (e, stackTrace) {

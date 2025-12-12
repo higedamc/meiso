@@ -381,6 +381,63 @@ class NostrService {
     }).toList();
   }
 
+  /// NostrからTodoリストを差分同期（Kind 30001 - 新実装）
+  ///
+  /// [since] 以降に更新されたリストのみ取得する。復帰/再起動の体感改善用。
+  Future<List<Todo>> syncTodoListFromNostrSince({
+    required DateTime since,
+    int timeoutSeconds = 3,
+  }) async {
+    AppLogger.debug(' NostrProvider: syncTodoListFromNostrSince called');
+
+    final sinceUnix = since.millisecondsSinceEpoch ~/ 1000;
+    final timeout = timeoutSeconds <= 0 ? 1 : timeoutSeconds;
+
+    final todoDataList = await rust_api.syncTodoListSince(
+      since: sinceUnix,
+      timeoutSecs: BigInt.from(timeout),
+    );
+
+    return todoDataList.map((todoData) {
+      LinkPreview? linkPreview;
+      if (todoData.linkPreview != null) {
+        try {
+          linkPreview = LinkPreview.fromJson(
+            jsonDecode(todoData.linkPreview!) as Map<String, dynamic>,
+          );
+        } catch (e) {
+          AppLogger.warning(' Failed to parse linkPreview: $e');
+        }
+      }
+
+      RecurrencePattern? recurrence;
+      if (todoData.recurrence != null) {
+        try {
+          recurrence = RecurrencePattern.fromJson(
+            jsonDecode(todoData.recurrence!) as Map<String, dynamic>,
+          );
+        } catch (e) {
+          AppLogger.warning(' Failed to parse recurrence: $e');
+        }
+      }
+
+      return Todo(
+        id: todoData.id,
+        title: todoData.title,
+        completed: todoData.completed,
+        date: todoData.date != null ? DateTime.parse(todoData.date!) : null,
+        order: todoData.order,
+        createdAt: DateTime.parse(todoData.createdAt),
+        updatedAt: DateTime.parse(todoData.updatedAt),
+        eventId: todoData.eventId,
+        linkPreview: linkPreview,
+        recurrence: recurrence,
+        parentRecurringId: todoData.parentRecurringId,
+        customListId: todoData.customListId,
+      );
+    }).toList();
+  }
+
 
   // ========================================
   // Amberモード専用メソッド
@@ -453,6 +510,28 @@ class NostrService {
     }
   }
 
+  /// Amberモード: すべての暗号化されたTodoリストイベント（Kind 30001）を差分取得
+  ///
+  /// [since] 以降のイベントのみ取得し、同一d-tagで最新のものだけ返す。
+  Future<List<rust_api.EncryptedTodoListEvent>> fetchAllEncryptedTodoListsSince({
+    required DateTime since,
+    int timeoutSeconds = 3,
+  }) async {
+    final publicKey = _ref.read(publicKeyProvider);
+    if (publicKey == null) {
+      throw Exception('公開鍵が設定されていません');
+    }
+
+    final sinceUnix = since.millisecondsSinceEpoch ~/ 1000;
+    final timeout = timeoutSeconds <= 0 ? 1 : timeoutSeconds;
+
+    return await rust_api.fetchAllEncryptedTodoListsForPubkeySince(
+      publicKeyHex: publicKey,
+      since: sinceUnix,
+      timeoutSecs: BigInt.from(timeout),
+    );
+  }
+
   /// 通常モード: すべてのTodoリストのメタデータ（d tag, title）を取得
   Future<List<rust_api.TodoListMetadata>> fetchAllTodoListMetadata() async {
     AppLogger.debug(' NostrProvider: fetchAllTodoListMetadata called');
@@ -521,6 +600,31 @@ class NostrService {
     } catch (e) {
       AppLogger.error(' Failed to reconnect to relays: $e');
       rethrow;
+    }
+  }
+
+  /// リレーサーバーへ再接続（タイムアウト秒を指定）
+  ///
+  /// 背景復帰時の「最大10秒待ち」を避けるために使用する。
+  Future<void> reconnectRelaysWithTimeout({int timeoutSeconds = 3}) async {
+    final timeout = timeoutSeconds <= 0 ? 1 : timeoutSeconds;
+    AppLogger.info(' Reconnecting to relays with timeout=${timeout}s...');
+    try {
+      await rust_api.reconnectToRelaysWithTimeout(timeoutSecs: BigInt.from(timeout));
+      AppLogger.info(' Successfully reconnected to relays');
+    } catch (e) {
+      AppLogger.error(' Failed to reconnect to relays: $e');
+      rethrow;
+    }
+  }
+
+  /// リレー接続状態を確認（1つでも接続が生きていれば true）
+  Future<bool> checkConnectionStatus() async {
+    try {
+      return await rust_api.checkConnectionStatus();
+    } catch (e) {
+      AppLogger.warning(' Failed to check connection status: $e');
+      return false;
     }
   }
 
@@ -1044,6 +1148,28 @@ class NostrService {
       return events;
     } catch (e, stackTrace) {
       AppLogger.error('❌ [MLS] Failed to fetch MLS group todo events', error: e, stackTrace: stackTrace);
+      return [];
+    }
+  }
+
+  /// ✅ 体感改善: MLS sealed(kind:1059) を since で差分取得（短タイムアウト）
+  ///
+  /// [since]: 取得開始時刻（この時刻以降のイベントを取得）
+  Future<List<rust_api.ReceivedEvent>> fetchMlsGroupTodoEventsSince({
+    required String listenKey,
+    required DateTime since,
+    int timeoutSeconds = 3,
+  }) async {
+    try {
+      final sinceSec = since.millisecondsSinceEpoch ~/ 1000;
+      final events = await rust_api.fetchMlsGroupTodoEventsSince(
+        listenKey: listenKey,
+        since: sinceSec,
+        timeoutSecs: BigInt.from(timeoutSeconds),
+      );
+      return events;
+    } catch (e, st) {
+      AppLogger.error('❌ [MLS] Failed to fetch MLS group todo events (since)', error: e, stackTrace: st);
       return [];
     }
   }
