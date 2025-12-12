@@ -203,15 +203,16 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           AppLogger.debug('復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
           AppLogger.debug('復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
           
-          // Nostrからデータを同期（カスタムリストとTodoを取得）
-          AppLogger.info('[復元] Nostrからデータを同期中...', tag: 'SYNC');
-          try {
-            await ref.read(todosProvider.notifier).syncFromNostr();
-            AppLogger.info('[復元] Nostr同期完了', tag: 'SYNC');
-          } catch (e) {
-            AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
-            // エラーがあってもアプリ起動は継続
-          }
+          // Nostrからデータを同期（復帰/再起動時の体感改善のため、ここではブロックしない）
+          AppLogger.info('[復元] Nostr同期をバックグラウンドで開始...', tag: 'SYNC');
+          Future.microtask(() async {
+            try {
+              await ref.read(todosProvider.notifier).syncFromNostr(trigger: TodoSyncTrigger.appStart);
+              AppLogger.info('[復元] Nostr同期完了', tag: 'SYNC');
+            } catch (e) {
+              AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
+            }
+          });
           
           // Phase 8.1.3: グループ招待の自動同期（Issue #116修正）
           try {

@@ -334,7 +334,7 @@ class GroupTaskService {
         DateTime? date;
         if (taskJson['date'] != null) {
           try {
-            date = DateTime.parse(taskJson['date']);
+            date = DateTime.parse(taskJson['date'] as String);
           } catch (e) {
             AppLogger.warning('Failed to parse date: ${taskJson['date']}');
           }
@@ -346,8 +346,8 @@ class GroupTaskService {
           completed: taskJson['completed'] as bool,
           date: date,
           order: taskJson['order'] as int,
-          createdAt: DateTime.parse(taskJson['created_at']),
-          updatedAt: DateTime.parse(taskJson['updated_at']),
+          createdAt: DateTime.parse(taskJson['created_at'] as String),
+          updatedAt: DateTime.parse(taskJson['updated_at'] as String),
           customListId: groupList.groupId,
           eventId: taskJson['event_id'] as String?,
         );

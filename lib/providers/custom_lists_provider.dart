@@ -6,6 +6,7 @@ import '../models/custom_list.dart';
 // Phase 8.4: group_task_service.dart は kind: 30001廃止により未使用
 import 'app_settings_provider.dart';
 import 'nostr_provider.dart';
+import '../services/local_storage_service.dart';
 import '../utils/error_handler.dart';
 // Phase C.3.1: Repository層統合
 import '../features/custom_list/infrastructure/providers/repository_providers.dart';
@@ -334,6 +335,13 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// カスタムリスト名のリストを抽出する
   Future<List<String>> fetchCustomListNamesFromNostr() async {
     try {
+      // ✅ 復帰/起動直後の体感改善: 短時間での連続取得を間引く
+      final last = localStorageService.getLastCustomListsSyncTime();
+      if (last != null && DateTime.now().difference(last) < const Duration(minutes: 5)) {
+        AppLogger.debug('📋 [CustomLists] Skip fetching list names (fresh)');
+        return const <String>[];
+      }
+
       final nostrService = _ref.read(nostrServiceProvider);
       final userPubkey = await nostrService.getPublicKey();
 
@@ -347,13 +355,15 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       // Phase C.3.2.2: Repository経由でリスト名を取得
       final result = await _repository.fetchCustomListNamesFromNostr(publicKey: userPubkey);
 
-      return result.fold(
-        (failure) {
+      return await result.fold(
+        (failure) async {
           AppLogger.error('❌ [CustomLists] Failed to fetch list names: ${failure.message}');
           return <String>[];
         },
-        (listNames) {
+        (listNames) async {
           AppLogger.info('✅ [CustomLists] Fetched ${listNames.length} custom list names');
+          // 次回の復帰/起動での余計な取得を避けるため保存
+          await localStorageService.setLastCustomListsSyncTime(DateTime.now());
           return listNames;
         },
       );

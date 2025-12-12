@@ -756,6 +756,28 @@
   "@waiting": {
     "description": "Waiting status"
   },
+
+  "syncStep": "Step {current} / {total}",
+  "@syncStep": {
+    "description": "Sync step counter",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "syncReconnectingRelays": "Reconnecting relays...",
+  "@syncReconnectingRelays": { "description": "Sync: reconnecting relays" },
+  "syncPhaseDelta": "Delta sync...",
+  "@syncPhaseDelta": { "description": "Sync phase: delta" },
+  "syncPhaseAppSettings": "Syncing settings...",
+  "@syncPhaseAppSettings": { "description": "Sync phase: app settings" },
+  "syncPhaseCustomLists": "Syncing lists...",
+  "@syncPhaseCustomLists": { "description": "Sync phase: custom lists" },
+  "syncPhaseTodos": "Syncing todos...",
+  "@syncPhaseTodos": { "description": "Sync phase: todos" },
+  "syncPhaseMls": "Syncing group todos...",
+  "@syncPhaseMls": { "description": "Sync phase: MLS group todos" },
   
   "justNow": "Just now",
   "@justNow": {

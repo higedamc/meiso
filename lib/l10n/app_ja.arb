@@ -281,6 +281,21 @@
   
   "waiting": "待機中",
   
+  "syncStep": "ステップ {current} / {total}",
+  "@syncStep": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  
+  "syncReconnectingRelays": "リレー再接続中...",
+  "syncPhaseDelta": "差分同期中...",
+  "syncPhaseAppSettings": "設定同期中...",
+  "syncPhaseCustomLists": "リスト同期中...",
+  "syncPhaseTodos": "Todo同期中...",
+  "syncPhaseMls": "グループTodo同期中...",
+  
   "justNow": "たった今",
   
   "minutesAgo": "{minutes}分前",
