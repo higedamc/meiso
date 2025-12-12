@@ -1216,6 +1216,46 @@ Future<Either<Failure, bool>> checkKind30001Exists({
 
 ---
 
+#### Phase Performance.4: 復帰/再起動時の同期最適化（Relay Sync最適化） ✅ 完了
+
+**開始日**: 2025-12-12  
+**完了日**: 2025-12-13  
+
+**目的**:
+- アプリ復帰/再起動時に「毎回フル取得」になっていた同期を差分同期化し、体感待ち時間を削減する
+- Amberモードでの復号/署名待ちを最小化し、UIをブロックしない
+
+**実装内容（要点）**:
+1. **Relay再接続の短時間化**
+   - 復帰時は接続状況を先に確認し、必要時のみ短時間（3秒）で再接続を試行
+2. **Todo（kind:30001）の差分同期**
+   - `since` フィルタで「最終成功同期時刻」以降のみ取得（2分巻き戻しで遅延/スキュー対策）
+   - 起動時は `await` せずバックグラウンドで同期を開始（UI体感の改善）
+3. **AppSettings（kind:30078）の間引き**
+   - `lastAppSettingsSyncTime` を保存し、復帰/起動直後は一定間隔（デフォルト5分）以内の同期をスキップ
+4. **CustomListNames（Todoイベントからの抽出）の間引き**
+   - `lastCustomListsSyncTime` を保存し、短時間での連続取得をスキップ
+   - 🐛 修正: `setLastCustomListsSyncTime()` の `await` 漏れを修正（永続化されず差分同期が効かない問題）
+5. **MLSグループTodo（kind:1059 / NIP-17 Seal）の差分同期**
+   - `lastMlsGroupTodosSyncTime(groupId)` を保存し、`since` 付きで差分取得
+   - 従来の「subscription開始→固定3秒待ち」を避け、短タイムアウトの `fetch_events` に寄せて取得コストを削減
+6. **同期UIのl10n統一（英日混在の解消）**
+   - `SyncStatus.message/currentPhase` は `__l10n__:` プレフィックス付きキーで運用し、クラウドインジケータと初回同期オーバーレイの表示をl10n経由に統一
+
+**関係ファイル（主要）**:
+- `lib/providers/app_lifecycle_provider.dart`
+- `lib/providers/todos_provider.dart`
+- `lib/providers/app_settings_provider.dart`
+- `lib/providers/custom_lists_provider.dart`
+- `lib/services/local_storage_service.dart`
+- `lib/providers/nostr_provider.dart`
+- `rust/src/api.rs`
+- `lib/widgets/sync_status_indicator.dart`
+- `lib/widgets/sync_loading_overlay.dart`
+- `lib/l10n/app_ja.arb`, `lib/l10n/app_en.arb`
+
+---
+
 ### 🔵 Phase D: MLS機能のリファクタリング（Option C Phase 3）
 
 **開始条件**: Phase C完了後
@@ -2059,6 +2099,12 @@ Future<void> _confirmDelete(CustomList list) async {
 ---
 
 **更新履歴**:
+- 2025-12-13: **✅ 復帰/再起動時の同期最適化（Relay Sync最適化）完了**
+  - Todo（kind:30001）: 差分同期（since + 2分巻き戻し）＋短タイムアウト
+  - AppSettings: `lastAppSettingsSyncTime` による間引き（復帰/起動直後の連続同期を回避）
+  - CustomListNames: `lastCustomListsSyncTime` による間引き＋`await` 漏れ修正
+  - MLS（kind:1059）: `since` 付き差分取得へ変更（固定3秒待ちの購読型を回避）
+  - Sync UI: `__l10n__:` キー運用で英日混在を解消（雲アイコン/Overlayをl10nへ統一）
 - 2025-11-15 (22:00): **✅ Phase D.5.1完了 - 無限ローディング問題を解決**（Critical Bug Fix 1: `list_detail_screen.dart`で二重`syncGroupTodos()`実行により無限ローディングが発生。画面を開いた時の自動同期を削除（招待受諾時に既に同期済み）。Critical Bug Fix 2: `todos_provider.dart`の`syncGroupTodos()`と`_syncMlsGroupTodos()`でエラー時・loading時に`state`を更新していなかった問題を修正。`state.whenData()`を`state.valueOrNull`に変更し、catchブロックでも確実に`state = AsyncValue.data()`を実行。これにより、エラーや初期状態でも無限ローディングは発生しなくなった）
 - 2025-11-15 (19:30): **✅ 90日分生成対応完了**（Option 2採用。30日→90日に拡張、スマート再生成閾値7日→21日、カウントロジック修正（今日を含める）、addTodo内state更新バグ修正。Oracle確認: 90日分生成✅、スマート再生成⚠️（Phase C.2.5で修正予定）。コミット: 4cff631）
 - 2025-11-15 (18:00): **✅ Phase C.2.3完了**（10時間。RecurringTodoUseCaseの実装完了。GenerateRecurringInstancesUseCase（134行）とRemoveChildInstancesUseCase（85行）を実装。TodosProviderの3箇所統合、旧メソッド削除。重複保存なし、公開API不変、リグレッションゼロ。コミット: 3a54ad3）
