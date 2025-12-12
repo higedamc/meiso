@@ -460,6 +460,29 @@ class AppLocalizationsJa extends AppLocalizations {
   String get waiting => '待機中';
 
   @override
+  String syncStep(int current, int total) {
+    return 'ステップ $current / $total';
+  }
+
+  @override
+  String get syncReconnectingRelays => 'リレー再接続中...';
+
+  @override
+  String get syncPhaseDelta => '差分同期中...';
+
+  @override
+  String get syncPhaseAppSettings => '設定同期中...';
+
+  @override
+  String get syncPhaseCustomLists => 'リスト同期中...';
+
+  @override
+  String get syncPhaseTodos => 'Todo同期中...';
+
+  @override
+  String get syncPhaseMls => 'グループTodo同期中...';
+
+  @override
   String get justNow => 'たった今';
 
   @override

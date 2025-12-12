@@ -467,6 +467,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waiting => 'Waiting';
 
   @override
+  String syncStep(int current, int total) {
+    return 'Step $current / $total';
+  }
+
+  @override
+  String get syncReconnectingRelays => 'Reconnecting relays...';
+
+  @override
+  String get syncPhaseDelta => 'Delta sync...';
+
+  @override
+  String get syncPhaseAppSettings => 'Syncing settings...';
+
+  @override
+  String get syncPhaseCustomLists => 'Syncing lists...';
+
+  @override
+  String get syncPhaseTodos => 'Syncing todos...';
+
+  @override
+  String get syncPhaseMls => 'Syncing group todos...';
+
+  @override
   String get justNow => 'Just now';
 
   @override
