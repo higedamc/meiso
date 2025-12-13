@@ -57,6 +57,7 @@ final todosProvider =
 
 class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>> {
   TodosNotifier(this._ref) : super(const AsyncValue.loading()) {
+    _setupBatchSyncLifecycle();
     _initialize();
   }
 
@@ -75,6 +76,34 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   final Map<String, Set<String>> _mlsGroupTodoSeenEventIds = {};
 
   Timer? _mlsRealtimeSaveDebounce;
+
+  /// Nostrの初期化状態に応じて、バッチ同期タイマーを開始/停止する。
+  ///
+  /// - ログイン前（Nostr未初期化）ではタイマーを起動しない（ログスパム防止）
+  /// - 初期化された瞬間にタイマーを開始し、未同期があれば一度だけ即実行する
+  void _setupBatchSyncLifecycle() {
+    // 既に初期化済みなら即開始（restoreNostrConnection 等で先に初期化済みの可能性がある）
+    if (_ref.read(nostrInitializedProvider)) {
+      _startBatchSyncTimer(force: true);
+      Future.microtask(_executeBatchSync);
+    }
+
+    _ref.listen<bool>(
+      nostrInitializedProvider,
+      (previous, next) {
+        if (!mounted) return;
+
+        if (next) {
+          _startBatchSyncTimer(force: true);
+          // 起動/ログイン直後に未同期が残っていれば一度だけ即実行する
+          Future.microtask(_executeBatchSync);
+        } else {
+          // ログアウト等で未初期化に戻ったら停止
+          _batchSyncTimer?.cancel();
+        }
+      },
+    );
+  }
 
   /// Provider更新をmicrotaskに逃がす（dispose中のElementにrebuildが飛ぶ事故を避ける）
   ///
@@ -133,9 +162,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.debug(' [Todos] Nostr未初期化（ログイン前）のため、同期をスキップ');
         }
       }
-      
-      // 自動バッチ同期タイマーを開始（5秒ごと）
-      _startBatchSyncTimer();
       
     } catch (e) {
       AppLogger.warning(' Todo初期化エラー: $e');
@@ -1367,7 +1393,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     
     final isInitialized = _ref.read(nostrInitializedProvider);
     if (!isInitialized) {
-      AppLogger.warning(' Nostr未初期化のため、バックグラウンド同期をスキップ');
       return;
     }
 
@@ -1508,7 +1533,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   }
 
   /// 自動バッチ同期タイマーを開始（5秒ごと）
-  void _startBatchSyncTimer() {
+  void _startBatchSyncTimer({bool force = false}) {
+    // ログイン前（Nostr未初期化）ではタイマーを起動しない
+    if (!force && !_ref.read(nostrInitializedProvider)) {
+      return;
+    }
+
     AppLogger.debug(' Starting batch sync timer (every 5 seconds)');
     
     // 既存のタイマーをキャンセル
@@ -1522,6 +1552,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   /// バッチ同期を実行
   Future<void> _executeBatchSync() async {
+    // ログイン前（Nostr未初期化）では同期しない（ログスパム防止）
+    if (!_ref.read(nostrInitializedProvider)) {
+      return;
+    }
+
     final unsyncedTodos = _getUnsyncedTodos();
     
     if (unsyncedTodos.isEmpty) {
@@ -1553,7 +1588,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     AppLogger.debug(' Nostr initialized in _syncAllTodosToNostr: $isInitialized');
     
     if (!isInitialized) {
-      AppLogger.warning(' Nostr未初期化のため同期をスキップ');
       return;
     }
 
@@ -2060,7 +2094,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     TodoSyncTrigger trigger = TodoSyncTrigger.manual,
   }) async {
     if (!_ref.read(nostrInitializedProvider)) {
-      AppLogger.warning(' Nostr未初期化のため同期をスキップ');
       return;
     }
 
