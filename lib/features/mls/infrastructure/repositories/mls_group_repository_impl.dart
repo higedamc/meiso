@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dartz/dartz.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../../core/common/failure.dart';
 import '../../domain/entities/mls_group.dart';
 import '../../domain/entities/group_invitation.dart';
@@ -28,6 +29,25 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
   })  : _localDataSource = localDataSource,
         _nostrService = nostrService,
         _isAmberMode = isAmberMode;
+
+  /// Ensure MLS DB is initialized for this user.
+  ///
+  /// Rust側のMLS APIはプロセス内のグローバルSTOREを前提としており、
+  /// `mlsJoinGroup` / `mlsCreateTodoGroup` 等は事前に `mlsInitDb` が呼ばれていないと失敗する。
+  Future<void> _ensureMlsDbInitialized({
+    required String publicKey,
+  }) async {
+    final appDocDir = await getApplicationDocumentsDirectory();
+    final dbPath = '${appDocDir.path}/mls.db';
+
+    // 招待受諾など重要フローでは「必ず初期化されている」ことをログで担保したいのでinfoで出す
+    AppLogger.info('[MlsGroupRepo] Ensuring MLS DB initialized: $dbPath');
+    await rust_api.mlsInitDb(
+      dbPath: dbPath,
+      nostrId: publicKey,
+    );
+    AppLogger.info('[MlsGroupRepo] ✅ MLS DB initialized');
+  }
   
   // ========================================
   // ローカル操作（グループ）
@@ -204,6 +224,9 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
       AppLogger.info('[MlsGroupRepo] Creating MLS group: "$groupName"');
       AppLogger.info('   Group ID: $groupId');
       AppLogger.info('   Members: ${keyPackages.length}');
+
+      // 🔥 Critical: MLS DB must be initialized before calling Rust MLS APIs
+      await _ensureMlsDbInitialized(publicKey: publicKey);
       
       // Phase 8.2.1: タイムアウト付きでMLSグループ作成
       final welcomeMsgBytes = await ErrorHandler.withTimeout(
@@ -386,26 +409,36 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
   }) async {
     try {
       AppLogger.info('[MlsGroupRepo] Accepting group invitation: $groupId');
-      
-      // 🔥 Phase D.9.1: Welcome Message検証（緩和版）
-      AppLogger.debug('[MlsGroupRepo] Welcome Message validation:');
-      AppLogger.debug('   Base64 length: ${welcomeMessage.length} chars');
-      
+
+      // 🔥 Critical: MLS DB must be initialized before joining
+      await _ensureMlsDbInitialized(publicKey: publicKey);
+
+      // Welcome Message検証（本番向け）
+      AppLogger.debug('[MlsGroupRepo] Welcome Message validation: base64Len=${welcomeMessage.length}');
       if (welcomeMessage.isEmpty) {
-        AppLogger.warning('⚠️ [MlsGroupRepo] Welcome Message is empty (will try to proceed)');
-        // ⚠️ エラーを投げずに続行（Phase D.9.1）
+        return Left(InvitationFailure(
+          MlsError.invalidWelcomeMessage,
+          '招待データが不正です（Welcome Message が空です）。招待を送り直してください。',
+        ));
       }
-      
+
       // Welcome MessageをBase64デコード
-      final welcomeMsgBytes = welcomeMessage.isNotEmpty 
-          ? base64Decode(welcomeMessage) 
-          : <int>[]; // ⚠️ 空の場合は空リスト（Phase D.9.1）
-      AppLogger.debug('   Decoded bytes: ${welcomeMsgBytes.length} bytes');
-      
+      late final List<int> welcomeMsgBytes;
+      try {
+        welcomeMsgBytes = base64Decode(welcomeMessage);
+      } catch (e) {
+        return Left(InvitationFailure(
+          MlsError.invalidWelcomeMessage,
+          '招待データが不正です（Welcome Message の形式が不正です）。招待を送り直してください。',
+        ));
+      }
+
+      AppLogger.debug('[MlsGroupRepo] Welcome decoded bytes=${welcomeMsgBytes.length}');
       if (welcomeMsgBytes.isEmpty) {
-        AppLogger.warning('⚠️ [MlsGroupRepo] Decoded Welcome Message is empty (0 bytes)');
-        AppLogger.warning('⚠️ [MlsGroupRepo] This may cause mlsJoinGroup to fail...');
-        // ⚠️ エラーを投げずに続行（Phase D.9.1）
+        return Left(InvitationFailure(
+          MlsError.invalidWelcomeMessage,
+          '招待データが不正です（Welcome Message が 0 bytes です）。招待を送り直してください。',
+        ));
       }
       
       // 🔥 Phase D.9: タイムアウト追加（無限待機バグ修正）

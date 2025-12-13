@@ -37,6 +37,29 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
     // 将来的な改善案:
     // - Pull-to-refreshでの手動同期機能を追加
     // - または、最終同期時刻を記録して一定時間経過後のみ自動同期
+
+    // ✅ 即反映: グループリストの場合はリアルタイム購読を開始
+    if (widget.customList.isGroup) {
+      Future<void>(() async {
+        try {
+          await ref.read(todosProvider.notifier).startRealtimeGroupTodos(widget.customList.id);
+        } catch (e) {
+          // 失敗しても画面は表示する（購読なしでpull-to-refresh運用可能）
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    // ✅ 即反映: 画面を閉じたら購読を停止
+    if (widget.customList.isGroup) {
+      final todoNotifier = ref.read(todosProvider.notifier);
+      Future<void>(() async {
+        await todoNotifier.stopRealtimeGroupTodos(widget.customList.id);
+      });
+    }
+    super.dispose();
   }
   
   @override
@@ -222,7 +245,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   void _showEditDialog(BuildContext context) {
     final controller = TextEditingController(text: widget.customList.name);
 
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => Consumer(
         builder: (context, ref, child) => AlertDialog(
@@ -273,7 +296,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
 
   /// リスト削除確認ダイアログ
   void _showDeleteDialog(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => Consumer(
         builder: (context, ref, child) => AlertDialog(
@@ -302,7 +325,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   /// Todo追加画面を表示
   void _showAddTodoScreen(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (context) => TodoEditScreen(
           date: null, // カスタムリストに属するTodoは date=null（Someday）
           customListId: widget.customList.id,

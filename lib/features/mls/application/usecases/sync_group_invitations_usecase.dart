@@ -54,6 +54,19 @@ class SyncGroupInvitationsUseCase
           
           // 招待をローカルストレージに保存
           for (final invitation in invitations) {
+            // ✅ 受諾済みグループなら「招待」として保存しない
+            // Nostr上の招待イベントは残り続けるため、ここで弾かないと
+            // pull-to-refresh / 再接続で「未承諾」に戻る。
+            final existingGroup = await _repository.loadMlsGroupFromLocal(
+              groupId: invitation.groupId,
+            );
+            if (existingGroup.isRight()) {
+              AppLogger.info(
+                'ℹ️ [SyncGroupInvitationsUseCase] Skip invitation (already accepted): ${invitation.groupName}',
+              );
+              continue;
+            }
+
             final saveResult = await _repository.saveInvitationToLocal(invitation);
             
             saveResult.fold(

@@ -109,6 +109,14 @@ class NostrService {
     return '${dir.path}/nostr_key.enc';
   }
 
+  /// Subscriptionを停止（購読解除）
+  Future<void> stopSubscription(String subscriptionId) async {
+    if (_subscriptionService == null) {
+      _subscriptionService = _ref.read(nostrSubscriptionServiceProvider);
+    }
+    await _subscriptionService!.stopSubscription(subscriptionId);
+  }
+
   /// 秘密鍵を暗号化して保存（Rust APIを使用）
   Future<void> saveSecretKey(String secretKey, String password) async {
     final path = await _getKeyStoragePath();
@@ -1180,11 +1188,13 @@ class NostrService {
   /// 
   /// [listenKey]: Export SecretからMLSで導出した受信用公開鍵
   /// [groupId]: グループID
-  /// [onTodoReceived]: TODO受信時のコールバック
-  Future<void> subscribeMlsGroupTodos({
+  /// [onEventsReceived]: TODO受信時のコールバック（ReceivedEvent単位）
+  ///
+  /// Returns: subscriptionId（停止に使用）
+  Future<String> subscribeMlsGroupTodos({
     required String listenKey,
     required String groupId,
-    required void Function(String encryptedContent) onTodoReceived,
+    required void Function(List<rust_api.ReceivedEvent> events) onEventsReceived,
   }) async {
     try {
       AppLogger.info('📡 [MLS] Starting subscription for group TODOs');
@@ -1204,47 +1214,20 @@ class NostrService {
         }
       ];
       
-      await _subscriptionService!.startSubscription(
+      final subscriptionId = await _subscriptionService!.startSubscription(
         filters: filters,
         onEventsReceived: (events) {
           AppLogger.debug('📥 [MLS] Received ${events.length} sealed events');
-          
-          for (final event in events) {
-            try {
-              // event_jsonをパースしてcontentを取得
-              final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
-              final encryptedContent = eventData['content'] as String;
-              
-              // group_idタグをチェック（このグループ宛か確認）
-              final tags = eventData['tags'] as List<dynamic>?;
-              if (tags != null) {
-                final groupIdTag = tags.firstWhere(
-                  (tag) => tag is List && tag.isNotEmpty && tag[0] == 'group_id',
-                  orElse: () => null,
-                );
-                
-                if (groupIdTag != null && groupIdTag[1] != groupId) {
-                  // 別のグループ宛のメッセージ
-                  AppLogger.debug('⏭️  [MLS] Skipping message for different group');
-                  continue;
-                }
-              }
-              
-              // コールバックを呼び出し
-              onTodoReceived(encryptedContent);
-              
-              AppLogger.debug('✅ [MLS] Processed TODO event: ${event.eventId.substring(0, 16)}...');
-            } catch (e) {
-              AppLogger.error('❌ [MLS] Failed to process TODO event', error: e);
-            }
-          }
+          onEventsReceived(events);
         },
       );
       
       AppLogger.info('✅ [MLS] Subscription started for group $groupId');
+      return subscriptionId;
       
     } catch (e, stackTrace) {
       AppLogger.error('❌ [MLS] Failed to subscribe to group TODOs', error: e, stackTrace: stackTrace);
+      rethrow;
     }
   }
 }

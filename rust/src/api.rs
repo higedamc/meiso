@@ -1552,8 +1552,13 @@ pub fn sign_event_with_ephemeral_key(
             .context("Failed to sign event with ephemeral key")?;
         
         // 5. 署名済みイベントをJSON化
-        let signed_event_json = serde_json::to_string(&event.as_json())
-            .context("Failed to serialize signed event")?;
+        //
+        // IMPORTANT:
+        // `event.as_json()` は既に "JSON文字列" を返す。
+        // ここで `serde_json::to_string` すると JSON文字列をさらにJSON化してしまい、
+        // send_signed_event 側で `serde_json::from_str::<Event>` が
+        // `invalid type: string` で失敗する（今回のNIP-17エラーの原因）。
+        let signed_event_json = event.as_json();
         
         println!("✅ [NIP-17] Event signed with ephemeral key");
         println!("   Event ID: {}", event.id.to_hex());

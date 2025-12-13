@@ -527,6 +527,17 @@ pub fn init_mls_db(db_path: String, nostr_id: String) -> Result<()> {
         let map = store
             .as_mut()
             .ok_or_else(|| anyhow::anyhow!("Failed to get MLS store"))?;
+
+        // IMPORTANT:
+        // Rust側のMLS Storeはプロセス内グローバルで保持している。
+        // ここで毎回 `MlsUser::load()` して上書きすると、メモリ上の `groups` が失われ、
+        // 招待受諾直後などに `mlsInitDb` が再度呼ばれた際にグループに入れない/復号できない不具合になる。
+        //
+        // そのため、同一 `nostr_id` が既に初期化済みなら再初期化をスキップする。
+        if map.users.contains_key(&nostr_id) {
+            println!("ℹ️ [MLS] init_mls_db: user already initialized, skipping reload: {}", nostr_id);
+            return Ok(());
+        }
         
         // Load or create user
         let mls_user = MlsUser::load(provider, nostr_id.clone()).await?;

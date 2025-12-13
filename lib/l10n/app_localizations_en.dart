@@ -116,6 +116,141 @@ class AppLocalizationsEn extends AppLocalizations {
       '• Task creation, editing, and deletion are automatically synced to Nostr\n• Latest data is automatically fetched on app startup\n• Always syncs in the background when relay is connected\n• Manual sync button is no longer needed';
 
   @override
+  String get closeButton => 'Close';
+
+  @override
+  String get copyButton => 'Copy';
+
+  @override
+  String get fetchButton => 'Fetch';
+
+  @override
+  String get advancedSectionTitle => 'Advanced';
+
+  @override
+  String get advancedSectionSubtitle => 'Developer features';
+
+  @override
+  String get keyPackagePublishTitle => 'Publish Key Package';
+
+  @override
+  String get keyPackagePublishSubtitle => 'Required to receive group invites';
+
+  @override
+  String get mlsIntegrationTestTitle => 'MLS Integration Test (PoC)';
+
+  @override
+  String get mlsIntegrationTestSubtitle =>
+      'Option B: verify with 1-person group';
+
+  @override
+  String get keyPackagePublishDialogTitle => 'Publish Key Package';
+
+  @override
+  String get keyPackagePublishDialogBody =>
+      'This will publish your Key Package to relays.\n\nOnce published, other users can invite you to groups.\n\nContinue?';
+
+  @override
+  String get publishButton => 'Publish';
+
+  @override
+  String get publishingKeyPackage => 'Publishing Key Package...';
+
+  @override
+  String get keyPackagePublishCompletedTitle => 'Publish completed';
+
+  @override
+  String get keyPackagePublishCompletedMessage =>
+      'Published Key Package to relays!';
+
+  @override
+  String get keyPackagePublishCompletedDescription =>
+      'Other users can now invite you to groups using your npub.';
+
+  @override
+  String get eventIdLabel => 'Event ID';
+
+  @override
+  String get keyPackagePublishFailedTitle => 'Publish failed';
+
+  @override
+  String keyPackagePublishFailedBody(String error) {
+    return 'Failed to publish Key Package.\n\nError: $error';
+  }
+
+  @override
+  String get keyPackagePublishNoEventIdError => 'Failed to get event id';
+
+  @override
+  String get mlsTestDialogTitle => 'MLS Integration Test';
+
+  @override
+  String get mlsTestDialogSubtitle => 'Option B PoC: 2-person group test';
+
+  @override
+  String get mlsYourKeyPackageLabel => '📋 Your Key Package:';
+
+  @override
+  String get keyPackageCopied => 'Key Package copied';
+
+  @override
+  String get mlsPeerNpubLabel => 'Peer npub';
+
+  @override
+  String get mlsPeerNpubHint => 'npub1...';
+
+  @override
+  String get mlsPressTestButton => 'Press a test button';
+
+  @override
+  String get mlsGenerateKpButton => 'Generate KP';
+
+  @override
+  String get mlsPublishKpButton => 'Publish KP';
+
+  @override
+  String get mlsCreate2PersonGroupButton => 'Create 2-person group';
+
+  @override
+  String get mlsSendTodoButton => 'Send TODO';
+
+  @override
+  String get mlsOnePersonTestButton => '1-person test';
+
+  @override
+  String get mlsRunning => 'Running...';
+
+  @override
+  String get mlsUserPublicKeyNotAvailable => 'User public key not available';
+
+  @override
+  String get mlsTwoPersonTestGroupName => '2 Person Test Group';
+
+  @override
+  String get mlsTestListName => 'MLS Test List';
+
+  @override
+  String get mlsTwoPersonTestTodoTitle => 'Test TODO for 2 Person Group';
+
+  @override
+  String get mlsOnePersonTestTodoTitle => 'Test TODO in MLS Group';
+
+  @override
+  String get deleteRecurringTodoTitle => 'Delete recurring to-do';
+
+  @override
+  String get removeThisInstance => 'Remove this instance';
+
+  @override
+  String get removeAllInstances => 'Remove all instances';
+
+  @override
+  String get todoJsonTitle => 'Todo JSON';
+
+  @override
+  String get jsonCopied => 'JSON copied';
+
+  @override
   String versionInfo(String version, String buildNumber) {
     return 'Version $version ($buildNumber)';
   }

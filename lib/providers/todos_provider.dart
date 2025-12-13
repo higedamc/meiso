@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -66,6 +67,28 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   
   // MLS初期化フラグ（Option B PoC）
   bool _mlsInitialized = false;
+
+  // MLS realtime subscriptions (groupId -> subscription + refCount)
+  final Map<String, _MlsGroupRealtimeSubscription> _mlsGroupTodoSubscriptions = {};
+
+  // Realtime dedupe (groupId -> seen eventIds)
+  final Map<String, Set<String>> _mlsGroupTodoSeenEventIds = {};
+
+  Timer? _mlsRealtimeSaveDebounce;
+
+  /// Provider更新をmicrotaskに逃がす（dispose中のElementにrebuildが飛ぶ事故を避ける）
+  ///
+  /// NOTE:
+  /// Riverpodのwatch解除タイミングとNavigatorのpop/disposeが競合すると、
+  /// 稀に `Element.markNeedsBuild ... _ElementLifecycle.defunct` が起きることがある。
+  /// state更新は「次フレーム」に逃がす（microtaskだとまだdispose中でクラッシュすることがある）。
+  void _setTodosStateAsync(Map<DateTime?, List<Todo>> todos) {
+    // NOTE: dispose/route popと競合しやすいのでpost-frameで更新する
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      state = AsyncValue.data(todos);
+    });
+  }
 
   Future<void> _initialize() async {
     try {
@@ -352,7 +375,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           };
 
           // 【楽観的UI更新】即座にUI更新
-          state = AsyncValue.data(updatedTodos);
+          _setTodosStateAsync(updatedTodos);
           AppLogger.info(' UI updated immediately (optimistic)');
 
           // 以下、全てバックグラウンドで実行（UIをブロックしない）
@@ -1072,6 +1095,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// Phase B: DeleteTodoUseCaseを使用してTodoを削除
   Future<void> deleteTodo(String id, DateTime? date) async {
     await state.whenData((todos) async {
+      // 削除前に対象Todoを取得（グループ削除通知用）
+      final beforeList = List<Todo>.from(todos[date] ?? []);
+      final beforeIndex = beforeList.indexWhere((t) => t.id == id);
+      final beforeTodo = beforeIndex == -1 ? null : beforeList[beforeIndex];
+
       // Phase B: DeleteTodoUseCaseを使ってTodoを削除
       final deleteTodoUseCase = _ref.read(deleteTodoUseCaseProvider);
       final result = await deleteTodoUseCase(DeleteTodoParams(
@@ -1099,6 +1127,32 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
           // 削除後の全TODOリストを送信（Replaceable eventなので古いイベントは自動的に置き換わる）
           _updateUnsyncedCount();
+
+          // グループリストのTodoだった場合はMLS差分イベント（delete）を送る
+          if (beforeTodo?.customListId != null) {
+            final customListsAsync = _ref.read(customListsProvider);
+            final isGroup = await customListsAsync.whenData((customLists) async {
+              final list = customLists.firstWhere(
+                (l) => l.id == beforeTodo!.customListId!,
+                orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()),
+              );
+              return list.isGroup;
+            }).value ?? false;
+
+            if (isGroup) {
+              final groupId = beforeTodo!.customListId!;
+              _syncToNostr(() async {
+                await _sendMlsGroupTodoAction(
+                  groupId: groupId,
+                  action: 'delete',
+                  todo: beforeTodo,
+                  todoIdOverride: beforeTodo.id,
+                );
+              });
+              return;
+            }
+          }
+
           _syncToNostrBackground();
         },
       );
@@ -1323,8 +1377,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         AppLogger.info(' Starting background sync to Nostr...');
         await _syncAllTodosToNostr();
         
-        // 同期成功後、needsSyncフラグをクリア
-        await _clearNeedsSyncFlags();
+        // 同期成功後、needsSyncフラグをクリア（グループTODOは除外）
+        await _clearNeedsSyncFlagsForNonGroup();
         
         AppLogger.info(' Background sync completed successfully');
         _ref.read(syncStatusProvider.notifier).syncSuccess();
@@ -1372,24 +1426,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 同期成功後、needsSyncフラグをクリア
   /// 指定されたTodoのeventIdを更新
   Future<void> _updateTodoEventIdInState(String todoId, DateTime? date, String eventId) async {
-    await state.whenData((todos) async {
-      final list = List<Todo>.from(todos[date] ?? []);
-      final index = list.indexWhere((t) => t.id == todoId);
-      
-      if (index != -1) {
-        list[index] = list[index].copyWith(
-          eventId: eventId,
-          needsSync: false, // 同期完了
-        );
-        
-        state = AsyncValue.data({
-          ...todos,
-          date: list,
-        });
-        
-        AppLogger.info(' Updated eventId for todo "${list[index].title}": $eventId');
-      }
-    }).value;
+    final todos = state.valueOrNull;
+    if (todos == null) return;
+
+    final list = List<Todo>.from(todos[date] ?? []);
+    final index = list.indexWhere((t) => t.id == todoId);
+    if (index == -1) return;
+
+    list[index] = list[index].copyWith(
+      eventId: eventId,
+      needsSync: false, // 同期完了
+    );
+
+    _setTodosStateAsync({
+      ...todos,
+      date: list,
+    });
+
+    AppLogger.info(' Updated eventId for todo "${list[index].title}": $eventId');
     
     // ローカルストレージに保存
     await _saveAllTodosToLocal();
@@ -1397,50 +1451,60 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   /// 指定されたTodoのcustomListIdを更新（マイグレーション用）
   Future<void> _updateTodoCustomListIdInState(String todoId, DateTime? date, String newListId) async {
-    await state.whenData((todos) async {
-      final list = List<Todo>.from(todos[date] ?? []);
-      final index = list.indexWhere((t) => t.id == todoId);
-      
-      if (index != -1) {
-        list[index] = list[index].copyWith(
-          customListId: newListId,
-        );
-        
-        state = AsyncValue.data({
-          ...todos,
-          date: list,
-        });
-      }
-    }).value;
+    final todos = state.valueOrNull;
+    if (todos == null) return;
+
+    final list = List<Todo>.from(todos[date] ?? []);
+    final index = list.indexWhere((t) => t.id == todoId);
+    if (index == -1) return;
+
+    list[index] = list[index].copyWith(customListId: newListId);
+
+    _setTodosStateAsync({
+      ...todos,
+      date: list,
+    });
     
     // ローカルストレージに保存
     await _saveAllTodosToLocal();
   }
 
-  Future<void> _clearNeedsSyncFlags() async {
-    state.whenData((todos) async {
-      final Map<DateTime?, List<Todo>> updatedTodos = {};
-      bool hasChanges = false;
+  Set<String> _currentGroupListIds() {
+    final lists = _ref.read(customListsProvider).valueOrNull;
+    if (lists == null) return <String>{};
+    return lists.where((l) => l.isGroup).map((l) => l.id).toSet();
+  }
 
-      for (final entry in todos.entries) {
-        final date = entry.key;
-        final list = entry.value.map((todo) {
-          if (todo.needsSync) {
-            hasChanges = true;
-            return todo.copyWith(needsSync: false);
-          }
-          return todo;
-        }).toList();
-        updatedTodos[date] = list;
-      }
+  /// `syncAllTodosToNostr` はグループTODOを送らないので、ここで全消しすると
+  /// 「送れていないグループTODOまで同期済みに見える」不整合になる。
+  Future<void> _clearNeedsSyncFlagsForNonGroup() async {
+    final todos = state.valueOrNull;
+    if (todos == null) return;
 
-      if (hasChanges) {
-        state = AsyncValue.data(updatedTodos);
-        await _saveAllTodosToLocal();
-        _updateUnsyncedCount(); // 未同期カウントを更新
-        AppLogger.info(' Cleared needsSync flags for all todos');
-      }
-    });
+    final groupIds = _currentGroupListIds();
+
+    final Map<DateTime?, List<Todo>> updatedTodos = {};
+    bool hasChanges = false;
+
+    for (final entry in todos.entries) {
+      final date = entry.key;
+      final list = entry.value.map((todo) {
+        final isGroupTodo = todo.customListId != null && groupIds.contains(todo.customListId);
+        if (todo.needsSync && !isGroupTodo) {
+          hasChanges = true;
+          return todo.copyWith(needsSync: false);
+        }
+        return todo;
+      }).toList();
+      updatedTodos[date] = list;
+    }
+
+    if (!hasChanges) return;
+
+    _setTodosStateAsync(updatedTodos);
+    await _saveAllTodosToLocal();
+    _updateUnsyncedCount(); // 未同期カウントを更新
+    AppLogger.info(' Cleared needsSync flags for non-group todos');
   }
 
   /// 自動バッチ同期タイマーを開始（5秒ごと）
@@ -1915,7 +1979,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       await _syncAllTodosToNostr();
       
       // 同期成功後、needsSyncフラグをクリア
-      await _clearNeedsSyncFlags();
+      await _clearNeedsSyncFlagsForNonGroup();
       
       _ref.read(syncStatusProvider.notifier).syncSuccess();
       AppLogger.info(' Manual sync completed successfully');
@@ -3135,8 +3199,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       AppLogger.info('📦 [MLS] Fetched ${events.length} MLS group todo events');
       
-      // 3. 各イベントをMLS復号化
-      final groupTodos = <Todo>[];
+      // 3. 各イベントをMLS復号化して差分適用
+      //
+      // IMPORTANT:
+      // MLS group todo は「差分イベント（add/update/toggle/delete...）」として届く。
+      // ここで毎回「グループTODOを全消し→今回取得分だけ追加」をすると、
+      // 差分取得（since）時に既存TODOが消えるので、必ずインクリメンタルに適用する。
+      final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
+      final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
+
+      // 既存のグループTODOをID→Todoで索引（更新/重複排除用）
+      final Map<String, Todo> byId = {};
+      for (final entry in updated.entries) {
+        for (final t in entry.value) {
+          if (t.customListId == groupId) {
+            byId[t.id] = t;
+          }
+        }
+      }
+
       for (final event in events) {
         try {
           // event_jsonをパースしてcontentを取得
@@ -3169,120 +3250,59 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             encryptedMsg: encryptedContent,
           );
           
-          // Phase D.8: 後方互換性チェック
-          if (action.isEmpty) {
-            // Phase 9.1形式（直接TODO JSON）
-            AppLogger.debug('ℹ️  [Phase D.8] Detected Phase 9.1 format from $senderPubkey');
-            
-            final todoData = jsonDecode(todoContent) as Map<String, dynamic>;
-            
-            DateTime? date;
-            final dateStr = todoData['date'] as String?;
-            if (dateStr != null) {
-              date = DateTime.parse(dateStr);
+          // Phase D.8: 後方互換性
+          final effectiveAction = action.isEmpty ? 'upsert' : action;
+          final effectiveTodoId = todoId.isNotEmpty ? todoId : _tryExtractTodoId(todoContent);
+
+          // deleteは内容が空でも適用可能
+          if (effectiveAction == 'delete') {
+            if (effectiveTodoId == null || effectiveTodoId.isEmpty) {
+              AppLogger.warning('⚠️ [MLS] delete action missing todoId, skipping');
+              continue;
             }
-            
-            final todo = Todo(
-              id: todoData['id'] as String,
-              title: todoData['title'] as String,
-              completed: todoData['completed'] as bool? ?? false,
-              date: date,
-              order: todoData['order'] as int? ?? 0,
-              createdAt: DateTime.parse(todoData['created_at'] as String),
-              updatedAt: DateTime.parse(todoData['updated_at'] as String),
-              customListId: todoData['custom_list_id'] as String?,
-              recurrence: todoData['recurrence'] != null 
-                  ? RecurrencePattern.fromJson(todoData['recurrence'] as Map<String, dynamic>)
-                  : null,
-              parentRecurringId: todoData['parent_recurring_id'] as String?,
-              needsSync: false,
-            );
-            
-            groupTodos.add(todo);
-            AppLogger.debug('✅ [Phase 9.1] Parsed todo: ${todo.title}');
-          } else {
-            // Phase D.8形式（未署名Nostrイベント）
-            AppLogger.debug('📥 [Phase D.8] Decrypted event:');
-            AppLogger.debug('   Action: $action');
-            AppLogger.debug('   TODO ID: $todoId');
-            AppLogger.debug('   Sender: ${senderPubkey.substring(0, 16)}...');
-            
-            // アクション別処理（Phase D.8）
-            // 現在はaddアクションのみ実装（update/delete/toggleは将来実装）
-            switch (action) {
-              case 'add':
-                final todoData = jsonDecode(todoContent) as Map<String, dynamic>;
-                
-                DateTime? date;
-                final dateStr = todoData['date'] as String?;
-                if (dateStr != null) {
-                  date = DateTime.parse(dateStr);
-                }
-                
-                final todo = Todo(
-                  id: todoId,  // Phase D.8: Nostrイベントのtagsから取得したID
-                  title: todoData['title'] as String,
-                  completed: todoData['completed'] as bool? ?? false,
-                  date: date,
-                  order: todoData['order'] as int? ?? 0,
-                  createdAt: DateTime.parse(todoData['created_at'] as String),
-                  updatedAt: DateTime.parse(todoData['updated_at'] as String),
-                  customListId: todoData['custom_list_id'] as String?,
-                  recurrence: todoData['recurrence'] != null 
-                      ? RecurrencePattern.fromJson(todoData['recurrence'] as Map<String, dynamic>)
-                      : null,
-                  parentRecurringId: todoData['parent_recurring_id'] as String?,
-                  needsSync: false,
-                );
-                
-                groupTodos.add(todo);
-                AppLogger.debug('✅ [Phase D.8] Parsed todo (action: add): ${todo.title}');
-                break;
-              
-              case 'update':
-              case 'toggle':
-              case 'delete':
-              case 'reorder':
-              case 'move':
-                AppLogger.warning('⚠️ [Phase D.8] Action "$action" not yet implemented, skipping');
-                break;
-              
-              default:
-                AppLogger.warning('⚠️ [Phase D.8] Unknown action: $action');
+
+            // 既存から削除
+            byId.remove(effectiveTodoId);
+            for (final dateKey in updated.keys) {
+              updated[dateKey] = updated[dateKey]!.where((t) => t.id != effectiveTodoId).toList();
             }
+            AppLogger.debug('🗑️ [MLS] Deleted todo: $effectiveTodoId (from ${senderPubkey.substring(0, 16)}...)');
+            continue;
           }
+
+          // upsert系はtodo JSONが必要
+          final parsed = _parseTodoFromMlsPayload(
+            payloadJson: todoContent,
+            fallbackId: effectiveTodoId,
+            groupId: groupId,
+          );
+          if (parsed == null) {
+            AppLogger.warning('⚠️ [MLS] Failed to parse todo payload, skipping (action=$effectiveAction)');
+            continue;
+          }
+
+          // 既存を置換（重複排除）
+          final prev = byId[parsed.id];
+          if (prev != null && prev.date != parsed.date) {
+            // date移動があった場合、旧dateグループから除去
+            updated[prev.date] = (updated[prev.date] ?? []).where((t) => t.id != parsed.id).toList();
+          } else {
+            // 同一dateグループでも重複を除去
+            updated[parsed.date] = (updated[parsed.date] ?? []).where((t) => t.id != parsed.id).toList();
+          }
+
+          byId[parsed.id] = parsed;
+          updated[parsed.date] ??= [];
+          updated[parsed.date]!.add(parsed);
+
+          AppLogger.debug('✅ [MLS] Upsert todo: ${parsed.title} (action=$effectiveAction, from ${senderPubkey.substring(0, 16)}...)');
         } catch (e) {
           AppLogger.error('❌ [MLS] Failed to decrypt/parse event: $e', error: e);
           // エラーでも他のイベントは処理続行
         }
       }
       
-      AppLogger.info('✅ [MLS] Decrypted ${groupTodos.length} todos from group');
-      
-      // 4. 既存のグループタスクを削除して、新しいタスクを追加
-      // 
-      // 🐛 Phase D.5.1 Critical Fix:
-      // state.whenData()はstateがdataの場合のみ実行される。
-      // stateがloadingやerrorの場合は実行されず、stateは更新されない。
-      // これにより無限ローディングが発生する。
-      // 
-      // 修正: state.valueOrNullでデータを取得し、nullの場合は空のMapから開始
-      final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
-      final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
-      
-      // グループIDが一致するタスクを削除
-      for (final dateKey in updated.keys) {
-        updated[dateKey] = updated[dateKey]!
-            .where((t) => t.customListId != groupId)
-            .toList();
-      }
-      
-      // 新しいグループタスクを追加
-      for (final todo in groupTodos) {
-        final dateKey = todo.date;
-        updated[dateKey] ??= [];
-        updated[dateKey]!.add(todo);
-      }
+      AppLogger.info('✅ [MLS] Applied ${events.length} events (currentTodosInGroup=${byId.length})');
       
       // ローカルストレージに保存
       final allTodos = <Todo>[];
@@ -3293,13 +3313,61 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // 🔥 重要: state.whenData()ではなく直接更新
       // これにより、stateがloading/errorの場合でも確実にdataに更新される
-      state = AsyncValue.data(updated);
+      _setTodosStateAsync(updated);
       
       AppLogger.info('✅ [MLS] Group todos synced to local storage');
       await localStorageService.setLastMlsGroupTodosSyncTime(groupId, DateTime.now());
       
     } catch (e, st) {
       AppLogger.error('❌ [MLS] Failed to sync MLS group todos: $e', error: e, stackTrace: st);
+    }
+  }
+
+  /// MLS payloadからtodoIdを推定（後方互換）
+  String? _tryExtractTodoId(String payloadJson) {
+    try {
+      final map = jsonDecode(payloadJson) as Map<String, dynamic>;
+      final id = map['id'] as String?;
+      if (id != null && id.isNotEmpty) return id;
+    } catch (_) {}
+    return null;
+  }
+
+  /// MLS復号後のpayload（todo JSON）をTodoに変換
+  Todo? _parseTodoFromMlsPayload({
+    required String payloadJson,
+    required String? fallbackId,
+    required String groupId,
+  }) {
+    try {
+      final todoData = jsonDecode(payloadJson) as Map<String, dynamic>;
+      final id = (todoData['id'] as String?) ?? fallbackId;
+      if (id == null || id.isEmpty) return null;
+
+      DateTime? date;
+      final dateStr = todoData['date'] as String?;
+      if (dateStr != null) {
+        date = DateTime.parse(dateStr);
+      }
+
+      return Todo(
+        id: id,
+        title: todoData['title'] as String? ?? '',
+        completed: todoData['completed'] as bool? ?? false,
+        date: date,
+        order: todoData['order'] as int? ?? 0,
+        createdAt: DateTime.parse(todoData['created_at'] as String),
+        updatedAt: DateTime.parse(todoData['updated_at'] as String),
+        customListId: groupId, // 🔥 受信側は必ずこのgroupIdに紐付ける
+        recurrence: todoData['recurrence'] != null
+            ? RecurrencePattern.fromJson(todoData['recurrence'] as Map<String, dynamic>)
+            : null,
+        parentRecurringId: todoData['parent_recurring_id'] as String?,
+        needsSync: false,
+      );
+    } catch (e) {
+      AppLogger.error('❌ [MLS] Failed to parse todo payload: $e');
+      return null;
     }
   }
   
@@ -3343,7 +3411,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // 新しいタスクを追加
       updated[date]!.insert(0, newTodo);
       
-      state = AsyncValue.data(updated);
+      _setTodosStateAsync(updated);
       
       // ローカルストレージに保存
       final allTodos = <Todo>[];
@@ -3354,8 +3422,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       AppLogger.info('✅ [Group] Todo added to local storage (optimistic)');
       
-      // バックグラウンドでグループタスクを暗号化してNostrに同期
-      _syncGroupToNostr(groupId);
+      // MLS差分イベントとして送信（add）
+      _syncToNostr(() async {
+        await _sendMlsGroupTodoAction(
+          groupId: groupId,
+          action: 'add',
+          todo: newTodo,
+        );
+      });
     }).value;
   }
   
@@ -3380,7 +3454,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }).toList();
       }
       
-      state = AsyncValue.data(updated);
+      _setTodosStateAsync(updated);
       
       // ローカルストレージに保存
       final allTodos = <Todo>[];
@@ -3391,8 +3465,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       AppLogger.info('✅ [Group] Todo updated in local storage (optimistic)');
       
-      // バックグラウンドでグループタスクを暗号化してNostrに同期
-      _syncGroupToNostr(groupId);
+      // MLS差分イベントとして送信（update）
+      _syncToNostr(() async {
+        await _sendMlsGroupTodoAction(
+          groupId: groupId,
+          action: 'update',
+          todo: updatedTodo,
+        );
+      });
     }).value;
   }
   
@@ -3402,6 +3482,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     required String todoId,
   }) async {
     await state.whenData((todos) async {
+      // 削除前に対象Todoを特定（送信用）
+      Todo? target;
+      for (final entry in todos.entries) {
+        for (final t in entry.value) {
+          if (t.id == todoId && t.customListId == groupId) {
+            target = t;
+            break;
+          }
+        }
+        if (target != null) break;
+      }
+
       final updated = Map<DateTime?, List<Todo>>.from(todos);
       
       // タスクを削除
@@ -3411,7 +3503,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             .toList();
       }
       
-      state = AsyncValue.data(updated);
+      _setTodosStateAsync(updated);
       
       // ローカルストレージに保存
       final allTodos = <Todo>[];
@@ -3422,9 +3514,294 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       AppLogger.info('✅ [Group] Todo deleted from local storage (optimistic)');
       
-      // バックグラウンドでグループタスクを暗号化してNostrに同期
-      _syncGroupToNostr(groupId);
+      // MLS差分イベントとして送信（delete）
+      _syncToNostr(() async {
+        await _sendMlsGroupTodoAction(
+          groupId: groupId,
+          action: 'delete',
+          todo: target,
+          todoIdOverride: todoId,
+        );
+      });
     }).value;
+  }
+
+  /// グループTODOのリアルタイム購読を開始（即反映）
+  Future<void> startRealtimeGroupTodos(String groupId) async {
+    // 参照カウント: 既に購読中ならrefCountだけ増やす
+    final existing = _mlsGroupTodoSubscriptions[groupId];
+    if (existing != null) {
+      existing.refCount++;
+      return;
+    }
+
+    await _initMlsIfNeeded();
+
+    final nostrService = _ref.read(nostrServiceProvider);
+    final publicKey = await nostrService.getPublicKey();
+    if (publicKey == null) {
+      throw Exception('User public key not available');
+    }
+
+    final listenKey = await rust_api.mlsGetListenKey(
+      nostrId: publicKey,
+      groupId: groupId,
+    );
+
+    AppLogger.info('📡 [MLS] Starting realtime group todo subscription: $groupId');
+
+    final subId = await nostrService.subscribeMlsGroupTodos(
+      listenKey: listenKey,
+      groupId: groupId,
+      onEventsReceived: (events) {
+        _handleRealtimeMlsGroupTodoEvents(
+          groupId: groupId,
+          publicKey: publicKey,
+          events: events,
+        );
+      },
+    );
+
+    _mlsGroupTodoSubscriptions[groupId] = _MlsGroupRealtimeSubscription(
+      subscriptionId: subId,
+      refCount: 1,
+    );
+    _mlsGroupTodoSeenEventIds.putIfAbsent(groupId, () => <String>{});
+  }
+
+  /// グループTODOのリアルタイム購読を停止
+  Future<void> stopRealtimeGroupTodos(String groupId) async {
+    final existing = _mlsGroupTodoSubscriptions[groupId];
+    if (existing == null) return;
+
+    existing.refCount--;
+    if (existing.refCount > 0) return;
+
+    final subId = existing.subscriptionId;
+    _mlsGroupTodoSubscriptions.remove(groupId);
+    _mlsGroupTodoSeenEventIds.remove(groupId);
+
+    try {
+      final nostrService = _ref.read(nostrServiceProvider);
+      await nostrService.stopSubscription(subId);
+      AppLogger.info('🛑 [MLS] Stopped realtime group todo subscription: $groupId');
+    } catch (e) {
+      AppLogger.warning('⚠️ [MLS] Failed to stop subscription ($groupId): $e');
+    }
+  }
+
+  void _handleRealtimeMlsGroupTodoEvents({
+    required String groupId,
+    required String publicKey,
+    required List<rust_api.ReceivedEvent> events,
+  }) {
+    // 非同期処理はここでfire-and-forget（購読スレッドを塞がない）
+    Future<void>(() async {
+      final seen = _mlsGroupTodoSeenEventIds.putIfAbsent(groupId, () => <String>{});
+
+      for (final event in events) {
+        try {
+          // dedupe by eventId
+          if (seen.contains(event.eventId)) continue;
+          seen.add(event.eventId);
+
+          // event_jsonをパースしてcontentを取得
+          final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
+          final encryptedContent = eventData['content'] as String;
+
+          // group_idタグをチェック（このグループ宛か確認）
+          final tags = eventData['tags'] as List<dynamic>?;
+          bool isForThisGroup = false;
+          if (tags != null) {
+            final groupIdTag = tags.firstWhere(
+              (tag) => tag is List && tag.isNotEmpty && tag[0] == 'group_id',
+              orElse: () => null,
+            );
+            if (groupIdTag != null && groupIdTag[1] == groupId) {
+              isForThisGroup = true;
+            }
+          }
+          if (!isForThisGroup) continue;
+
+          // MLS復号化
+          final (todoContent, action, todoId, senderPubkey, _) = await rust_api.mlsDecryptTodo(
+            nostrId: publicKey,
+            groupId: groupId,
+            encryptedMsg: encryptedContent,
+          );
+
+          await _applyMlsTodoDelta(
+            groupId: groupId,
+            todoContent: todoContent,
+            action: action,
+            todoId: todoId,
+            senderPubkey: senderPubkey,
+          );
+        } catch (e, st) {
+          AppLogger.error('❌ [MLS] Failed to process realtime group todo event: $e', error: e, stackTrace: st);
+        }
+      }
+    });
+  }
+
+  /// 復号済みMLS Todoイベントを差分適用（upsert/delete）
+  Future<void> _applyMlsTodoDelta({
+    required String groupId,
+    required String todoContent,
+    required String action,
+    required String todoId,
+    required String senderPubkey,
+  }) async {
+    final effectiveAction = action.isEmpty ? 'upsert' : action;
+    final effectiveTodoId = todoId.isNotEmpty ? todoId : _tryExtractTodoId(todoContent);
+
+    final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
+    final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
+
+    // index existing group todos
+    final Map<String, Todo> byId = {};
+    for (final entry in updated.entries) {
+      for (final t in entry.value) {
+        if (t.customListId == groupId) {
+          byId[t.id] = t;
+        }
+      }
+    }
+
+    if (effectiveAction == 'delete') {
+      if (effectiveTodoId == null || effectiveTodoId.isEmpty) return;
+      byId.remove(effectiveTodoId);
+      for (final dateKey in updated.keys) {
+        updated[dateKey] = updated[dateKey]!.where((t) => t.id != effectiveTodoId).toList();
+      }
+
+      _setTodosStateAsync(updated);
+      _debouncedSaveAllTodos();
+      AppLogger.info('🗑️ [MLS] Realtime delete applied: $effectiveTodoId (from ${senderPubkey.substring(0, 16)}...)');
+      return;
+    }
+
+    final parsed = _parseTodoFromMlsPayload(
+      payloadJson: todoContent,
+      fallbackId: effectiveTodoId,
+      groupId: groupId,
+    );
+    if (parsed == null) return;
+
+    final prev = byId[parsed.id];
+    if (prev != null) {
+      updated[prev.date] = (updated[prev.date] ?? []).where((t) => t.id != parsed.id).toList();
+    }
+    updated[parsed.date] = (updated[parsed.date] ?? []).where((t) => t.id != parsed.id).toList();
+    updated[parsed.date]!.add(parsed);
+
+    _setTodosStateAsync(updated);
+    _debouncedSaveAllTodos();
+    AppLogger.info('✅ [MLS] Realtime upsert applied: ${parsed.title} (action=$effectiveAction, from ${senderPubkey.substring(0, 16)}...)');
+  }
+
+  void _debouncedSaveAllTodos() {
+    _mlsRealtimeSaveDebounce?.cancel();
+    _mlsRealtimeSaveDebounce = Timer(const Duration(milliseconds: 300), () {
+      Future<void>(() async {
+        try {
+          await _saveAllTodosToLocal();
+        } catch (e) {
+          AppLogger.warning('⚠️ [MLS] Failed to save todos after realtime update: $e');
+        }
+      });
+    });
+  }
+
+  /// MLSグループTODOをNostrへ送信（差分イベント）
+  ///
+  /// - action: add | update | toggle | delete | reorder | move
+  /// - delete の場合、todo は null でも良い（todoIdOverride が必須）
+  Future<void> _sendMlsGroupTodoAction({
+    required String groupId,
+    required String action,
+    Todo? todo,
+    String? todoIdOverride,
+  }) async {
+    await _initMlsIfNeeded();
+
+    final nostrService = _ref.read(nostrServiceProvider);
+    final publicKey = await nostrService.getPublicKey();
+    if (publicKey == null) {
+      throw Exception('User public key not available');
+    }
+
+    final todoId = todoIdOverride ?? todo?.id;
+    if (todoId == null || todoId.isEmpty) {
+      throw Exception('todoId is required for MLS group action: $action');
+    }
+
+    // payload（todo JSON）
+    final payload = todo != null
+        ? jsonEncode({
+            'id': todo.id,
+            'title': todo.title,
+            'completed': todo.completed,
+            'date': todo.date?.toIso8601String(),
+            'order': todo.order,
+            'created_at': todo.createdAt.toIso8601String(),
+            'updated_at': todo.updatedAt.toIso8601String(),
+            'custom_list_id': groupId,
+            'recurrence': todo.recurrence?.toJson(),
+            'parent_recurring_id': todo.parentRecurringId,
+          })
+        : jsonEncode({
+            'id': todoId,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+            'custom_list_id': groupId,
+          });
+
+    // MLS暗号化（NIP-EE）
+    final encryptedMsg = await rust_api.mlsAddTodo(
+      nostrId: publicKey,
+      groupId: groupId,
+      todoJson: payload,
+      action: action,
+      todoId: todoId,
+    );
+
+    final listenKey = await rust_api.mlsGetListenKey(
+      nostrId: publicKey,
+      groupId: groupId,
+    );
+
+    final eventId = await nostrService.sendMlsGroupTodo(
+      listenKey: listenKey,
+      encryptedContent: encryptedMsg,
+      groupId: groupId,
+    );
+
+    if (eventId == null) {
+      AppLogger.warning('⚠️ [MLS] Failed to send group todo action: $action (todoId=$todoId)');
+    } else {
+      AppLogger.info('✅ [MLS] Sent group todo action: $action (todoId=$todoId, eventId=${eventId.substring(0, 16)}...)');
+
+      // 送信成功したら needsSync をクリア（削除は既にローカルから消えている）
+      if (action != 'delete') {
+        final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
+        final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
+        bool changed = false;
+        for (final dateKey in updated.keys) {
+          updated[dateKey] = updated[dateKey]!.map((t) {
+            if (t.id == todoId && t.customListId == groupId && t.needsSync) {
+              changed = true;
+              return t.copyWith(needsSync: false);
+            }
+            return t;
+          }).toList();
+        }
+        if (changed) {
+          _setTodosStateAsync(updated);
+          _debouncedSaveAllTodos();
+        }
+      }
+    }
   }
   
   /// グループタスクをNostrに同期（バックグラウンド）
@@ -3514,31 +3891,22 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       
       if (eventId != null) {
-        // 成功した場合、各タスクのneedsSyncフラグをfalseに設定
-        // 注意: グループタスクは個別のeventIdを持たない（リスト全体が1つのeventId）
-        await state.whenData((currentTodos) async {
-          final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
-          
-          for (final dateKey in updated.keys) {
-            updated[dateKey] = updated[dateKey]!.map((todo) {
-              if (todo.customListId == groupId) {
-                // グループタスクは needsSync のみ更新（eventId は null のまま）
-                return todo.copyWith(
-                  needsSync: false,
-                );
-              }
-              return todo;
-            }).toList();
-          }
-          
-          // 状態を更新
-          state = AsyncValue.data(updated);
-          
-          // ローカルストレージに保存
-          await _saveAllTodosToLocal();
-          
-          AppLogger.info('✅ [GroupSync] Group tasks synced to Nostr: ${todos.length} tasks (list eventId: $eventId)');
-        }).value;
+        // 成功した場合、送信対象（needsSync=true）のみ needsSync=false にする
+        final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
+        final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
+        int cleared = 0;
+        for (final dateKey in updated.keys) {
+          updated[dateKey] = updated[dateKey]!.map((todo) {
+            if (todo.customListId == groupId && todo.needsSync) {
+              cleared++;
+              return todo.copyWith(needsSync: false);
+            }
+            return todo;
+          }).toList();
+        }
+        _setTodosStateAsync(updated);
+        await _saveAllTodosToLocal();
+        AppLogger.info('✅ [GroupSync] Group tasks synced to Nostr: cleared=$cleared (lastEventId: $eventId)');
       } else {
         AppLogger.warning('⚠️ [GroupSync] Group task sync failed: eventId is null');
       }
@@ -3556,11 +3924,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     try {
       await _initMlsIfNeeded();
       
-      AppLogger.info('🔐 [MLS] Encrypting ${todos.length} todos for group: $groupId');
-      
-      // 各TODOを個別に暗号化して送信
-      for (final todo in todos) {
-        // TODOをJSONに変換
+      // 旧実装は「全TODOをaddとして送る」だったが、重複/競合の原因になるため、
+      // ここでは needsSync=true のTODOのみを update(upsert) として送る。
+      final targets = todos.where((t) => t.needsSync).toList();
+      if (targets.isEmpty) {
+        AppLogger.debug('ℹ️ [MLS] No changed todos to sync for group: $groupId');
+        return null;
+      }
+
+      AppLogger.info('🔐 [MLS] Encrypting ${targets.length} changed todos for group: $groupId');
+
+      final listenKey = await rust_api.mlsGetListenKey(
+        nostrId: publicKey,
+        groupId: groupId,
+      );
+      final nostrService = _ref.read(nostrServiceProvider);
+
+      String? lastEventId;
+      for (final todo in targets) {
         final todoJson = jsonEncode({
           'id': todo.id,
           'title': todo.title,
@@ -3569,41 +3950,27 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           'order': todo.order,
           'created_at': todo.createdAt.toIso8601String(),
           'updated_at': todo.updatedAt.toIso8601String(),
-          'custom_list_id': todo.customListId,
+          'custom_list_id': groupId,
           'recurrence': todo.recurrence?.toJson(),
           'parent_recurring_id': todo.parentRecurringId,
         });
-        
-        // Phase D.8: MLS暗号化（NIP-EE完全準拠）
+
         final encryptedMsg = await rust_api.mlsAddTodo(
           nostrId: publicKey,
           groupId: groupId,
           todoJson: todoJson,
-          action: 'add',        // Phase D.8: アクション指定
-          todoId: todo.id,      // Phase D.8: TODO ID指定
+          action: 'update', // upsert扱い
+          todoId: todo.id,
         );
-        
-        AppLogger.debug('🔒 [Phase D.8] Encrypted todo (action: add): ${todo.title.substring(0, 20)}... (${encryptedMsg.length} bytes)');
-        
-        // Export SecretからListen Keyを取得
-        final listenKey = await rust_api.mlsGetListenKey(
-          nostrId: publicKey,
-          groupId: groupId,
-        );
-        
-        // Listen KeyでNostrに送信（Kind 30078）
-        final nostrService = _ref.read(nostrServiceProvider);
-        final eventId = await nostrService.sendMlsGroupTodo(
+
+        lastEventId = await nostrService.sendMlsGroupTodo(
           listenKey: listenKey,
           encryptedContent: encryptedMsg,
           groupId: groupId,
         );
-        
-        AppLogger.info('📤 [MLS] Sent todo to Nostr: ${todo.title} (eventId: ${eventId?.substring(0, 16)}...)');
       }
-      
-      // TODO: 実際のeventIdを返す（現在は簡易実装）
-      return 'mls-group-$groupId-${DateTime.now().millisecondsSinceEpoch}';
+
+      return lastEventId;
       
     } catch (e, stackTrace) {
       AppLogger.error('❌ [MLS] Failed to sync group to Nostr via MLS', error: e, stackTrace: stackTrace);
@@ -3862,6 +4229,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       rethrow;
     }
   }
+}
+
+class _MlsGroupRealtimeSubscription {
+  _MlsGroupRealtimeSubscription({
+    required this.subscriptionId,
+    required this.refCount,
+  });
+
+  final String subscriptionId;
+  int refCount;
 }
 
 /// 特定の日付のTodoリストを取得するProvider

@@ -67,3 +67,6 @@ rust/src/frb_generated.rs
 # Local utility scripts
 migrate_docs_to_anytype.py
 start_emulator.sh
+
+scripts/.env
+

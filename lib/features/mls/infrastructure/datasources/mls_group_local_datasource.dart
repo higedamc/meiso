@@ -256,6 +256,9 @@ class MlsGroupLocalDataSource {
       order: 0, // orderは後で調整される
       createdAt: invitation.receivedAt,
       updatedAt: invitation.receivedAt,
+      // 招待はグループリストの一種なので isGroup=true を保持する
+      // これがfalseだとUIや後続のローカル参照で「個人リスト」と誤認され、フォークの温床になる
+      isGroup: true,
       isPendingInvitation: invitation.isPending,
       inviterNpub: invitation.inviterPubkey,
       inviterName: invitation.inviterName,

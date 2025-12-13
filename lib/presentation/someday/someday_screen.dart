@@ -11,6 +11,7 @@ import '../../services/logger_service.dart';
 import '../../utils/error_handler.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/add_list_screen.dart';
+import '../../widgets/add_group_list_dialog.dart';
 import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
@@ -19,7 +20,7 @@ import '../../features/mls/application/providers/usecase_providers.dart';
 import '../../features/mls/application/usecases/accept_group_invitation_usecase.dart';
 
 /// SOMEDAYページ（リスト管理画面）- モーダル版
-class SomedayScreen extends ConsumerWidget {
+class SomedayScreen extends ConsumerStatefulWidget {
   const SomedayScreen({
     this.onClose,
     super.key,
@@ -27,11 +28,98 @@ class SomedayScreen extends ConsumerWidget {
 
   final VoidCallback? onClose;
 
+  @override
+  ConsumerState<SomedayScreen> createState() => _SomedayScreenState();
+}
+
+class _SomedayScreenState extends ConsumerState<SomedayScreen> {
+  ProviderSubscription<AsyncValue<List<CustomList>>>? _customListsSub;
+  Set<String> _realtimeGroupIds = <String>{};
+  int _reconcileGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // ✅ 即反映: Somedayを開いている間、受諾済みの全グループリストを購読
+    _customListsSub = ref.listenManual<AsyncValue<List<CustomList>>>(
+      customListsProvider,
+      (prev, next) {
+        final lists = next.valueOrNull;
+        if (lists == null) return;
+        // dispose後に走らないよう世代管理
+        _reconcileRealtimeGroupSubscriptions(lists);
+      },
+    );
+
+    // 初回も反映
+    final initial = ref.read(customListsProvider).valueOrNull;
+    if (initial != null) {
+      Future<void>(() => _reconcileRealtimeGroupSubscriptions(initial));
+    }
+  }
+
+  @override
+  void dispose() {
+    _reconcileGeneration++;
+    // ✅ 即反映: Somedayを閉じたら購読を解除
+    // dispose中はrefを触らない（"Cannot use ref after the widget was disposed" 対策）
+    final groupIds = _realtimeGroupIds.toList();
+    _realtimeGroupIds = <String>{};
+
+    _customListsSub?.close();
+    _customListsSub = null;
+
+    // close後に購読解除（ref.readはdispose直前の安全なタイミングで行う）
+    final todoNotifier = ref.read(todosProvider.notifier);
+    for (final gid in groupIds) {
+      Future<void>(() async {
+        await todoNotifier.stopRealtimeGroupTodos(gid);
+      });
+    }
+    super.dispose();
+  }
+
+  Future<void> _reconcileRealtimeGroupSubscriptions(List<CustomList> lists) async {
+    if (!mounted) return;
+    final generation = ++_reconcileGeneration;
+
+    // 受諾済みグループのみ（pendingは復号できない可能性があるため購読しない）
+    final desired = lists
+        .where((l) => l.isGroup && !l.isPendingInvitation)
+        .map((l) => l.id)
+        .toSet();
+
+    final toStart = desired.difference(_realtimeGroupIds);
+    final toStop = _realtimeGroupIds.difference(desired);
+
+    // awaitの間にdisposeされうるため、ref.readは最初に1回だけ
+    final todoNotifier = ref.read(todosProvider.notifier);
+
+    for (final gid in toStart) {
+      try {
+        if (!mounted || generation != _reconcileGeneration) return;
+        await todoNotifier.startRealtimeGroupTodos(gid);
+      } catch (_) {
+        // 購読失敗してもSomedayは表示し続ける（pull-to-refresh運用可能）
+      }
+    }
+
+    for (final gid in toStop) {
+      if (!mounted || generation != _reconcileGeneration) return;
+      await todoNotifier.stopRealtimeGroupTodos(gid);
+    }
+
+    if (!mounted || generation != _reconcileGeneration) return;
+    _realtimeGroupIds = desired;
+  }
+
   /// Pull-to-refreshで同期を実行
-  Future<void> _onRefresh(WidgetRef ref) async {
+  Future<void> _onRefresh() async {
     AppLogger.info(' [SomedayScreen] 🔄 Pull-to-refresh triggered');
     
     // Nostr未初期化の場合はスキップ
+    if (!mounted) return;
     if (!ref.read(nostrInitializedProvider)) {
       AppLogger.debug(' [SomedayScreen] Nostr未初期化のため、同期をスキップ');
       return;
@@ -55,7 +143,7 @@ class SomedayScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     AppLogger.debug(' [SomedayScreen] 🎨 build() called');
     
     final customListsAsync = ref.watch(customListsProvider);
@@ -77,7 +165,7 @@ class SomedayScreen extends ConsumerWidget {
           Expanded(
             child: customLists != null && todos != null
                 ? RefreshIndicator(
-                    onRefresh: () => _onRefresh(ref),
+                    onRefresh: _onRefresh,
                     child: _buildListContent(
                       context,
                       ref,
@@ -97,8 +185,8 @@ class SomedayScreen extends ConsumerWidget {
               // BUG FIX: カレンダー展開状態をリセット
               ref.read(calendarVisibleProvider.notifier).state = false;
               
-              if (onClose != null) {
-                onClose!();
+              if (widget.onClose != null) {
+                widget.onClose!();
               }
             },
             onAddTap: () => _showAddListScreen(context, ref),
@@ -168,7 +256,7 @@ class SomedayScreen extends ConsumerWidget {
                 // リスト詳細画面に遷移
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
+                  MaterialPageRoute<void>(
                     builder: (context) => ListDetailScreen(
                       customList: list,
                     ),
@@ -195,9 +283,9 @@ class SomedayScreen extends ConsumerWidget {
             key: ValueKey(category.name),
             onTap: () {
               // プランニングカテゴリー詳細画面に遷移
-              Navigator.push(
-                context,
-                MaterialPageRoute(
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
                   builder: (context) => PlanningDetailScreen(
                     category: category,
                   ),
@@ -612,7 +700,7 @@ class SomedayScreen extends ConsumerWidget {
 
   /// リスト追加画面を表示（通常リストorグループリスト）
   void _showAddListScreen(BuildContext context, WidgetRef ref) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -638,7 +726,7 @@ class SomedayScreen extends ConsumerWidget {
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.of(context).push(
-                    MaterialPageRoute(
+                    MaterialPageRoute<void>(
                       builder: (context) => const AddListScreen(),
                       fullscreenDialog: true,
                     ),
@@ -646,24 +734,18 @@ class SomedayScreen extends ConsumerWidget {
                 },
               ),
               const Divider(),
-              // グループリスト（ステージング版では無効化）
+              // グループリスト（有効化）
               ListTile(
-                // leading: const Icon(Icons.group),
-                // title: const Text('Group List'),
-                // subtitle: const Text('共有可能なグループタスクリスト'),
-                // onTap: () {
-                //   Navigator.pop(context);
-                //   showDialog(
-                //     context: context,
-                //     builder: (context) => const AddGroupListDialog(),
-                //   );
-                // },
-
-                leading: Icon(Icons.group, color: Colors.grey.shade400),
-                title: Text('Group List', style: TextStyle(color: Colors.grey.shade400)),
-                subtitle: Text('共有可能なグループタスクリスト（開発中）', style: TextStyle(color: Colors.grey.shade400)),
-                enabled: false,
-                onTap: null,
+                leading: const Icon(Icons.group),
+                title: const Text('Group List'),
+                subtitle: const Text('共有可能なグループタスクリスト'),
+                onTap: () {
+                  Navigator.pop(context);
+                  showDialog<void>(
+                    context: context,
+                    builder: (context) => const AddGroupListDialog(),
+                  );
+                },
               ),
             ],
           ),
@@ -680,9 +762,9 @@ class SomedayScreen extends ConsumerWidget {
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
           title: Row(
@@ -760,7 +842,9 @@ class SomedayScreen extends ConsumerWidget {
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.pop(context);
+                // ダイアログのcontextはpop直後にunmountされるため、
+                // 以降の処理（ローディング表示/クローズ、Snackbar表示）は親contextで行う。
+                Navigator.pop(dialogContext);
                 await _acceptGroupInvitation(context, ref, list);
               },
               style: ElevatedButton.styleFrom(
@@ -787,7 +871,7 @@ class SomedayScreen extends ConsumerWidget {
       AppLogger.info('🎉 [GroupInvitation] Accepting invitation for: ${list.name}');
       
       // ローディングインジケータを表示（rootNavigator使用で安定性向上）
-      showDialog(
+      showDialog<void>(
         context: context,
         barrierDismissible: false,
         useRootNavigator: true, // アプリのライフサイクルに影響されない
@@ -836,10 +920,15 @@ class SomedayScreen extends ConsumerWidget {
           
           // リストの招待フラグをクリア
           final updatedList = list.copyWith(
+            // 🔥 Important: 受諾後は必ずグループリスト扱いにする
+            // これがfalseだと MLS group のローカル参照が失敗し、同期で「未承諾」に戻りやすくなる
+            isGroup: true,
             isPendingInvitation: false,
             inviterNpub: null,
             inviterName: null,
             welcomeMsg: null,
+            // Rust側から取得した実メンバー情報を保存（後続のUI/同期で参照可能に）
+            groupMembers: mlsGroup.memberPubkeys,
           );
           
           // ローカルストレージに保存
@@ -898,7 +987,7 @@ class SomedayScreen extends ConsumerWidget {
       
       // エラーメッセージ
       if (context.mounted) {
-        showDialog(
+        showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('エラー'),

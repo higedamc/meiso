@@ -611,18 +611,47 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             } else {
               // 既存のリストを更新（招待情報を追加）
               final existingList = updatedLists[existingIndex];
-              if (!existingList.isPendingInvitation) {
-                AppLogger.info('📨 [GroupInvitations] Updating existing list with invitation: ${invitation.groupName}');
-                
+              // ✅ 受諾済み（isPendingInvitation=false）に戻すことは絶対にしない
+              // Nostr上の招待イベントが残っていても、ローカルの受諾状態を優先する。
+              if (existingList.isPendingInvitation) {
+                AppLogger.info('📨 [GroupInvitations] Refreshing existing pending invitation: ${invitation.groupName}');
                 updatedLists[existingIndex] = existingList.copyWith(
-                  isPendingInvitation: true,
+                  isGroup: true,
                   inviterNpub: invitation.inviterPubkey,
                   inviterName: invitation.inviterName,
                   welcomeMsg: invitation.welcomeMessage,
                 );
                 hasChanges = true;
+              } else {
+                // 念のため isGroup=true を矯正（過去データ互換）
+                if (!existingList.isGroup) {
+                  updatedLists[existingIndex] = existingList.copyWith(isGroup: true);
+                  hasChanges = true;
+                }
+                AppLogger.debug('ℹ️ [GroupInvitations] Ignore invitation for accepted group: ${invitation.groupName}');
               }
             }
+          }
+
+          // 🧹 0xChatでも起きた「フォーク」対策:
+          // 同名の個人リスト（名前から生成したID）がある場合、招待/グループ側を正としてシャドーを除去。
+          // ただし eventId がある＝リレー同期済みの個人リストは勝手に消さない。
+          final normalizedGroupNames = updatedLists
+              .where((l) => l.isGroup || l.isPendingInvitation)
+              .map((l) => l.name.trim().toUpperCase())
+              .toSet();
+          final before = updatedLists.length;
+          updatedLists.removeWhere((l) {
+            if (l.isGroup || l.isPendingInvitation) return false;
+            if (l.eventId != null) return false;
+            final normalizedName = l.name.trim().toUpperCase();
+            if (!normalizedGroupNames.contains(normalizedName)) return false;
+            final shadowId = CustomListHelpers.generateIdFromName(normalizedName);
+            return l.id == shadowId;
+          });
+          if (updatedLists.length != before) {
+            AppLogger.warning('🧹 [GroupInvitations] Removed ${before - updatedLists.length} shadow personal lists (fork prevention)');
+            hasChanges = true;
           }
           
           if (hasChanges) {
