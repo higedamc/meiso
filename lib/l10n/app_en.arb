@@ -173,6 +173,226 @@
   "@autoSyncInfo": {
     "description": "Information about auto sync"
   },
+
+  "closeButton": "Close",
+  "@closeButton": {
+    "description": "Button to close a dialog"
+  },
+
+  "copyButton": "Copy",
+  "@copyButton": {
+    "description": "Button to copy content"
+  },
+
+  "fetchButton": "Fetch",
+  "@fetchButton": {
+    "description": "Button to fetch/receive data"
+  },
+
+  "advancedSectionTitle": "Advanced",
+  "@advancedSectionTitle": {
+    "description": "Title for advanced section in settings"
+  },
+
+  "advancedSectionSubtitle": "Developer features",
+  "@advancedSectionSubtitle": {
+    "description": "Subtitle for advanced section in settings"
+  },
+
+  "keyPackagePublishTitle": "Publish Key Package",
+  "@keyPackagePublishTitle": {
+    "description": "Menu title for publishing Key Package"
+  },
+
+  "keyPackagePublishSubtitle": "Required to receive group invites",
+  "@keyPackagePublishSubtitle": {
+    "description": "Menu subtitle for publishing Key Package"
+  },
+
+  "mlsIntegrationTestTitle": "MLS Integration Test (PoC)",
+  "@mlsIntegrationTestTitle": {
+    "description": "Menu title for MLS integration test"
+  },
+
+  "mlsIntegrationTestSubtitle": "Option B: verify with 1-person group",
+  "@mlsIntegrationTestSubtitle": {
+    "description": "Menu subtitle for MLS integration test"
+  },
+
+  "keyPackagePublishDialogTitle": "Publish Key Package",
+  "@keyPackagePublishDialogTitle": {
+    "description": "Dialog title for publishing Key Package"
+  },
+
+  "keyPackagePublishDialogBody": "This will publish your Key Package to relays.\n\nOnce published, other users can invite you to groups.\n\nContinue?",
+  "@keyPackagePublishDialogBody": {
+    "description": "Dialog body for publishing Key Package"
+  },
+
+  "publishButton": "Publish",
+  "@publishButton": {
+    "description": "Button to publish"
+  },
+
+  "publishingKeyPackage": "Publishing Key Package...",
+  "@publishingKeyPackage": {
+    "description": "Text shown while publishing Key Package"
+  },
+
+  "keyPackagePublishCompletedTitle": "Publish completed",
+  "@keyPackagePublishCompletedTitle": {
+    "description": "Dialog title for successful Key Package publish"
+  },
+
+  "keyPackagePublishCompletedMessage": "Published Key Package to relays!",
+  "@keyPackagePublishCompletedMessage": {
+    "description": "Message shown after successful Key Package publish"
+  },
+
+  "keyPackagePublishCompletedDescription": "Other users can now invite you to groups using your npub.",
+  "@keyPackagePublishCompletedDescription": {
+    "description": "Description shown after successful Key Package publish"
+  },
+
+  "eventIdLabel": "Event ID",
+  "@eventIdLabel": {
+    "description": "Label for event id"
+  },
+
+  "keyPackagePublishFailedTitle": "Publish failed",
+  "@keyPackagePublishFailedTitle": {
+    "description": "Dialog title for failed Key Package publish"
+  },
+
+  "keyPackagePublishFailedBody": "Failed to publish Key Package.\n\nError: {error}",
+  "@keyPackagePublishFailedBody": {
+    "description": "Dialog body for failed Key Package publish",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+
+  "keyPackagePublishNoEventIdError": "Failed to get event id",
+  "@keyPackagePublishNoEventIdError": {
+    "description": "Error when event id is missing"
+  },
+
+  "mlsTestDialogTitle": "MLS Integration Test",
+  "@mlsTestDialogTitle": {
+    "description": "Title for MLS test dialog"
+  },
+
+  "mlsTestDialogSubtitle": "Option B PoC: 2-person group test",
+  "@mlsTestDialogSubtitle": {
+    "description": "Subtitle for MLS test dialog"
+  },
+
+  "mlsYourKeyPackageLabel": "📋 Your Key Package:",
+  "@mlsYourKeyPackageLabel": {
+    "description": "Label for your key package"
+  },
+
+  "keyPackageCopied": "Key Package copied",
+  "@keyPackageCopied": {
+    "description": "Snackbar message after copying key package"
+  },
+
+  "mlsPeerNpubLabel": "Peer npub",
+  "@mlsPeerNpubLabel": {
+    "description": "Label for peer npub input"
+  },
+
+  "mlsPeerNpubHint": "npub1...",
+  "@mlsPeerNpubHint": {
+    "description": "Hint for peer npub input"
+  },
+
+  "mlsPressTestButton": "Press a test button",
+  "@mlsPressTestButton": {
+    "description": "Placeholder message when no logs"
+  },
+
+  "mlsGenerateKpButton": "Generate KP",
+  "@mlsGenerateKpButton": {
+    "description": "Button to generate key package"
+  },
+
+  "mlsPublishKpButton": "Publish KP",
+  "@mlsPublishKpButton": {
+    "description": "Button to publish key package"
+  },
+
+  "mlsCreate2PersonGroupButton": "Create 2-person group",
+  "@mlsCreate2PersonGroupButton": {
+    "description": "Button to create 2-person group"
+  },
+
+  "mlsSendTodoButton": "Send TODO",
+  "@mlsSendTodoButton": {
+    "description": "Button to send a test todo"
+  },
+
+  "mlsOnePersonTestButton": "1-person test",
+  "@mlsOnePersonTestButton": {
+    "description": "Button to run 1-person MLS test"
+  },
+
+  "mlsRunning": "Running...",
+  "@mlsRunning": {
+    "description": "Label shown while MLS test is running"
+  },
+
+  "mlsUserPublicKeyNotAvailable": "User public key not available",
+  "@mlsUserPublicKeyNotAvailable": {
+    "description": "Error when user public key is not available"
+  },
+
+  "mlsTwoPersonTestGroupName": "2 Person Test Group",
+  "@mlsTwoPersonTestGroupName": {
+    "description": "Default group name for 2-person MLS test"
+  },
+
+  "mlsTestListName": "MLS Test List",
+  "@mlsTestListName": {
+    "description": "Default list name for 1-person MLS test"
+  },
+
+  "mlsTwoPersonTestTodoTitle": "Test TODO for 2 Person Group",
+  "@mlsTwoPersonTestTodoTitle": {
+    "description": "Default todo title for 2-person MLS test"
+  },
+
+  "mlsOnePersonTestTodoTitle": "Test TODO in MLS Group",
+  "@mlsOnePersonTestTodoTitle": {
+    "description": "Default todo title for 1-person MLS test"
+  },
+
+  "deleteRecurringTodoTitle": "Delete recurring to-do",
+  "@deleteRecurringTodoTitle": {
+    "description": "Title for recurring delete confirmation dialog"
+  },
+
+  "removeThisInstance": "Remove this instance",
+  "@removeThisInstance": {
+    "description": "Option to delete only this instance of a recurring todo"
+  },
+
+  "removeAllInstances": "Remove all instances",
+  "@removeAllInstances": {
+    "description": "Option to delete all instances of a recurring todo"
+  },
+
+  "todoJsonTitle": "Todo JSON",
+  "@todoJsonTitle": {
+    "description": "Title for the Todo JSON dialog"
+  },
+
+  "jsonCopied": "JSON copied",
+  "@jsonCopied": {
+    "description": "Snackbar message after copying JSON"
+  },
   
   "versionInfo": "Version {version} ({buildNumber})",
   "@versionInfo": {

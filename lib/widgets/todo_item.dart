@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../app_theme.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
@@ -31,7 +32,7 @@ class TodoItem extends StatelessWidget {
 
   void _showEditDialog(BuildContext context, WidgetRef ref) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (context) => TodoEditScreen(todo: todo),
         fullscreenDialog: true,
       ),
@@ -39,6 +40,7 @@ class TodoItem extends StatelessWidget {
   }
 
   void _showJsonDialog(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final jsonData = {
       'id': todo.id,
       'title': todo.title,
@@ -52,24 +54,24 @@ class TodoItem extends StatelessWidget {
 
     final jsonString = const JsonEncoder.withIndent('  ').convert(jsonData);
 
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
             const Icon(Icons.code, size: 20),
             const SizedBox(width: 8),
-            const Text('Todo JSON'),
+            Text(l10n.todoJsonTitle),
             const Spacer(),
             IconButton(
               icon: const Icon(Icons.copy, size: 20),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: jsonString));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('JSONをコピーしました')),
+                  SnackBar(content: Text(l10n.jsonCopied)),
                 );
               },
-              tooltip: 'コピー',
+              tooltip: l10n.copyButton,
             ),
           ],
         ),
@@ -164,7 +166,7 @@ class TodoItem extends StatelessWidget {
             ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('閉じる'),
+            child: Text(l10n.closeButton),
           ),
         ],
       ),
@@ -324,10 +326,11 @@ class TodoItem extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
+        final l10n = AppLocalizations.of(context);
         return AlertDialog(
-          title: const Text(
-            'Delete recurring to-do',
-            style: TextStyle(
+          title: Text(
+            l10n.deleteRecurringTodoTitle,
+            style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w600,
             ),
@@ -347,7 +350,7 @@ class TodoItem extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                   child: Text(
-                    'Remove this instance',
+                    l10n.removeThisInstance,
                     style: TextStyle(
                       fontSize: 17,
                       color: Colors.red.shade600,
@@ -364,7 +367,7 @@ class TodoItem extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                   child: Text(
-                    'Remove all instances',
+                    l10n.removeAllInstances,
                     style: TextStyle(
                       fontSize: 17,
                       color: Colors.red.shade600,
@@ -390,11 +393,11 @@ class TodoItem extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                 ),
-                child: const SizedBox(
+                child: SizedBox(
                   width: double.infinity,
                   child: Text(
-                    'Cancel',
-                    style: TextStyle(
+                    l10n.cancelButton,
+                    style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
                     ),

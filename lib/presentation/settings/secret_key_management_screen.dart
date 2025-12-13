@@ -38,7 +38,7 @@ class _SecretKeyManagementScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         setState(() {
-          _encryptedPlaceholder = AppLocalizations.of(context)!.encrypted;
+          _encryptedPlaceholder = AppLocalizations.of(context).encrypted;
         });
       }
     });
@@ -82,7 +82,7 @@ class _SecretKeyManagementScreenState
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        final dialogL10n = AppLocalizations.of(dialogContext)!;
+        final dialogL10n = AppLocalizations.of(dialogContext);
         return AlertDialog(
           title: Text(title),
           content: Form(
@@ -134,98 +134,101 @@ class _SecretKeyManagementScreenState
     return showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.key, color: AppTheme.primaryPurple),
-            const SizedBox(width: 8),
-            const Text('秘密鍵 (nsec)'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (context) {
+        final l10n = AppLocalizations.of(context);
+        return AlertDialog(
+          title: Row(
             children: [
-              // 警告メッセージ
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '⚠️ 重要な注意事項',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '• 秘密鍵は絶対に他人に見せないでください\n'
-                '• スクリーンショットは推奨しません\n'
-                '• 秘密鍵を失うとアカウントを復元できません\n'
-                '• 安全な場所にバックアップしてください',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade700,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                '秘密鍵:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-              // nsec表示エリア
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: SelectableText(
-                  nsec,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                  ),
-                ),
-              ),
+              Icon(Icons.key, color: AppTheme.primaryPurple),
+              const SizedBox(width: 8),
+              const Text('秘密鍵 (nsec)'),
             ],
           ),
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              _copyToClipboard(nsec, '秘密鍵');
-            },
-            icon: const Icon(Icons.copy),
-            label: const Text('コピー'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 警告メッセージ
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '⚠️ 重要な注意事項',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '• 秘密鍵は絶対に他人に見せないでください\n'
+                  '• スクリーンショットは推奨しません\n'
+                  '• 秘密鍵を失うとアカウントを復元できません\n'
+                  '• 安全な場所にバックアップしてください',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '秘密鍵:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // nsec表示エリア
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: SelectableText(
+                    nsec,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('閉じる'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                _copyToClipboard(nsec, '秘密鍵');
+              },
+              icon: const Icon(Icons.copy),
+              label: Text(l10n.copyButton),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.closeButton),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -234,7 +237,7 @@ class _SecretKeyManagementScreenState
     // 暗号化された秘密鍵が存在し、フィールドが暗号化プレースホルダーの場合
     if (_hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder) {
       // パスワード入力ダイアログを表示
-      final l10n = AppLocalizations.of(context)!;
+      final l10n = AppLocalizations.of(context);
       final password = await _showPasswordDialog(
         l10n.enterPassword,
         l10n.enterPasswordToDecrypt,
@@ -417,7 +420,7 @@ class _SecretKeyManagementScreenState
     }
 
     // パスワード入力
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     final password = await _showPasswordDialog(
       l10n.setPassword,
       l10n.enterPasswordToEncrypt,
@@ -442,7 +445,7 @@ class _SecretKeyManagementScreenState
         _hasEncryptedKey = true;
         _secretKeyController.text = _encryptedPlaceholder;
         _obscureSecretKey = true;
-        final l10n = AppLocalizations.of(context)!;
+        final l10n = AppLocalizations.of(context);
         _successMessage = l10n.secretKeyEncrypted(_detectedKeyFormat ?? l10n.formatUnknown);
       });
 
@@ -489,7 +492,7 @@ class _SecretKeyManagementScreenState
       }
 
       setState(() {
-        final l10n = AppLocalizations.of(context)!;
+        final l10n = AppLocalizations.of(context);
         _successMessage = proxyUrl != null ? l10n.connectedToRelayViaTor : l10n.connectedToRelay;
       });
       
@@ -520,11 +523,10 @@ class _SecretKeyManagementScreenState
   /// ログアウト処理（全データ削除）
   Future<void> _logout() async {
     // 確認ダイアログを表示
-    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        final dialogL10n = AppLocalizations.of(dialogContext)!;
+        final dialogL10n = AppLocalizations.of(dialogContext);
         return AlertDialog(
           title: Text(dialogL10n.logout),
           content: Text('${dialogL10n.logoutConfirm}\n\n${dialogL10n.logoutDescription}'),
@@ -643,7 +645,7 @@ class _SecretKeyManagementScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.secretKeyManagementTitle),
+        title: Text(AppLocalizations.of(context).secretKeyManagementTitle),
         elevation: 0,
       ),
       body: _isLoading

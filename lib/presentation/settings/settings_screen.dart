@@ -142,7 +142,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: l10n.debugLogsSubtitle,
               onTap: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(
+                  MaterialPageRoute<void>(
                     builder: (context) => TalkerScreen(talker: talker),
                   ),
                 );
@@ -236,24 +236,24 @@ class SettingsScreen extends ConsumerWidget {
               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 leading: const Icon(Icons.keyboard_arrow_right, color: AppTheme.primaryPurple),
-                title: const Text('Advanced'),
-                subtitle: const Text('開発者向け機能', style: TextStyle(fontSize: 12)),
+                title: Text(l10n.advancedSectionTitle),
+                subtitle: Text(l10n.advancedSectionSubtitle, style: const TextStyle(fontSize: 12)),
                 tilePadding: const EdgeInsets.symmetric(horizontal: 16),
                 childrenPadding: const EdgeInsets.only(left: 16),
                 children: [
                   _buildSettingTile(
                     context,
                     icon: Icons.vpn_key,
-                    title: 'Key Package公開',
-                    subtitle: 'グループ招待を受けるために必要',
+                    title: l10n.keyPackagePublishTitle,
+                    subtitle: l10n.keyPackagePublishSubtitle,
                     onTap: () => _publishKeyPackage(context, ref),
                   ),
                   const Divider(height: 1),
                   _buildSettingTile(
                     context,
                     icon: Icons.science,
-                    title: 'MLS統合テスト (PoC)',
-                    subtitle: 'Option B: 1人グループでの動作確認',
+                    title: l10n.mlsIntegrationTestTitle,
+                    subtitle: l10n.mlsIntegrationTestSubtitle,
                     onTap: () => _showMlsTestDialog(context, ref),
                   ),
                 ],
@@ -318,24 +318,22 @@ class SettingsScreen extends ConsumerWidget {
 
   /// Key Package公開
   Future<void> _publishKeyPackage(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
+
     // 確認ダイアログ
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Key Package公開'),
-        content: const Text(
-          'Key Packageをリレーに公開します。\n\n'
-          '公開することで、他のユーザーがあなたをグループに招待できるようになります。\n\n'
-          '続行しますか？',
-        ),
+        title: Text(l10n.keyPackagePublishDialogTitle),
+        content: Text(l10n.keyPackagePublishDialogBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
+            child: Text(l10n.cancelButton),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('公開する'),
+            child: Text(l10n.publishButton),
           ),
         ],
       ),
@@ -344,19 +342,19 @@ class SettingsScreen extends ConsumerWidget {
     if (confirmed != true) return;
     
     // ローディング表示
-    showDialog(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
+      builder: (context) => Center(
         child: Card(
           child: Padding(
-            padding: EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Key Packageを公開中...'),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(l10n.publishingKeyPackage),
               ],
             ),
           ),
@@ -375,29 +373,29 @@ class SettingsScreen extends ConsumerWidget {
       if (eventId != null) {
         // 成功ダイアログ
         if (context.mounted) {
-          showDialog(
+          showDialog<void>(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.green),
-                  SizedBox(width: 8),
-                  Text('公開完了'),
+                  const Icon(Icons.check_circle, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Text(l10n.keyPackagePublishCompletedTitle),
                 ],
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Key Packageをリレーに公開しました！'),
+                  Text(l10n.keyPackagePublishCompletedMessage),
                   const SizedBox(height: 16),
-                  const Text(
-                    '他のユーザーがあなたのnpubを使ってグループに招待できるようになりました。',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  Text(
+                    l10n.keyPackagePublishCompletedDescription,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Event ID: ${eventId.substring(0, 16)}...',
+                    '${l10n.eventIdLabel}: ${eventId.substring(0, 16)}...',
                     style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
                   ),
                 ],
@@ -405,14 +403,14 @@ class SettingsScreen extends ConsumerWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('閉じる'),
+                  child: Text(l10n.closeButton),
                 ),
               ],
             ),
           );
         }
       } else {
-        throw Exception('イベントIDが取得できませんでした');
+        throw Exception(l10n.keyPackagePublishNoEventIdError);
       }
       
     } catch (e) {
@@ -421,21 +419,21 @@ class SettingsScreen extends ConsumerWidget {
       
       // エラーダイアログ
       if (context.mounted) {
-        showDialog(
+        showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.error, color: Colors.red),
-                SizedBox(width: 8),
-                Text('公開失敗'),
+                const Icon(Icons.error, color: Colors.red),
+                const SizedBox(width: 8),
+                Text(l10n.keyPackagePublishFailedTitle),
               ],
             ),
-            content: Text('Key Packageの公開に失敗しました。\n\nエラー: $e'),
+            content: Text(l10n.keyPackagePublishFailedBody(e.toString())),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('閉じる'),
+                child: Text(l10n.closeButton),
               ),
             ],
           ),
@@ -445,7 +443,7 @@ class SettingsScreen extends ConsumerWidget {
   }
   
   void _showMlsTestDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => _MlsTestDialog(ref: ref),
     );
@@ -490,13 +488,14 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
     });
 
     try {
+      final l10n = AppLocalizations.of(context);
       _addLog('🔑 Key Package生成開始');
       
       final nostrService = widget.ref.read(nostrServiceProvider);
       final userPubkey = await nostrService.getPublicKey();
       
       if (userPubkey == null) {
-        throw Exception('User public key not available');
+        throw Exception(l10n.mlsUserPublicKeyNotAvailable);
       }
       
       // MLS初期化
@@ -543,6 +542,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
     });
 
     try {
+      final l10n = AppLocalizations.of(context);
       _addLog('');
       _addLog('🚀 2人グループ作成開始');
       
@@ -554,13 +554,13 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       final userPubkey = await nostrService.getPublicKey();
       
       if (userPubkey == null) {
-        throw Exception('User public key not available');
+        throw Exception(l10n.mlsUserPublicKeyNotAvailable);
       }
       
       final welcomeMsg = await rust_api.mlsCreateTodoGroup(
         nostrId: userPubkey,
         groupId: groupId,
-        groupName: '2 Person Test Group',
+        groupName: l10n.mlsTwoPersonTestGroupName,
         keyPackages: [otherKeyPackage],
       );
       
@@ -569,7 +569,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       });
       
       _addLog('✅ 2人グループ作成完了: $groupId');
-      _addLog('📨 Welcome message: ${welcomeMsg.length} bytes');
+      _addLog('📨 ウェルカムメッセージ: ${welcomeMsg.length} バイト');
       
       // Step 2: グループ招待通知送信
       if (_inviteeNpub != null) {
@@ -585,7 +585,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
           senderPublicKeyHex: userPubkey,
           recipientNpub: _inviteeNpub!,
           groupId: groupId,
-          groupName: '2 Person Test Group',
+          groupName: l10n.mlsTwoPersonTestGroupName,
           welcomeMsgBase64: welcomeMsgBase64,
           inviterName: null,
         );
@@ -632,6 +632,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
     });
 
     try {
+      final l10n = AppLocalizations.of(context);
       final todosNotifier = widget.ref.read(todosProvider.notifier);
       
       _addLog('');
@@ -639,7 +640,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       
       final testTodo = {
         'id': 'todo-2p-${DateTime.now().millisecondsSinceEpoch}',
-        'title': 'Test TODO for 2 Person Group',
+        'title': l10n.mlsTwoPersonTestTodoTitle,
         'completed': false,
         'date': DateTime.now().toIso8601String(),
         'order': 0,
@@ -758,6 +759,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
     });
 
     try {
+      final l10n = AppLocalizations.of(context);
       final todosNotifier = widget.ref.read(todosProvider.notifier);
       
       _addLog('🚀 MLS統合テスト開始（1人グループ）');
@@ -767,17 +769,17 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       final groupId = 'test-mls-group-${DateTime.now().millisecondsSinceEpoch}';
       await todosNotifier.createMlsGroupList(
         listId: groupId,
-        listName: 'MLS Test List',
+        listName: l10n.mlsTestListName,
       );
       _addLog('✅ グループ作成完了: $groupId');
       
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
       
       // Step 2: TODO暗号化
       _addLog('🔒 Step 2: TODO暗号化');
       final testTodo = {
         'id': 'test-todo-001',
-        'title': 'Test TODO in MLS Group',
+        'title': l10n.mlsOnePersonTestTodoTitle,
         'completed': false,
         'date': DateTime.now().toIso8601String(),
         'order': 0,
@@ -791,14 +793,14 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       );
       _addLog('✅ TODO暗号化完了: ${encrypted.substring(0, 32)}...');
       
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
       
       // Step 3: スキップ（自分のメッセージは復号化不可）
       _addLog('⏭️  Step 3: TODO復号化（スキップ）');
       _addLog('ℹ️  MLSでは自分のメッセージは復号化できません');
       _addLog('   これは仕様通りの動作です');
       
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
       
       // 完了
       _addLog('');
@@ -814,7 +816,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       
     } catch (e, stackTrace) {
       _addLog('❌ エラー: $e');
-      _addLog('Stack trace: ${stackTrace.toString().substring(0, 200)}...');
+      _addLog('スタックトレース: ${stackTrace.toString().substring(0, 200)}...');
     } finally {
       setState(() {
         _isRunning = false;
@@ -824,12 +826,13 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
-          Icon(Icons.science, color: Colors.blue),
-          SizedBox(width: 8),
-          Text('MLS統合テスト'),
+          const Icon(Icons.science, color: Colors.blue),
+          const SizedBox(width: 8),
+          Text(l10n.mlsTestDialogTitle),
         ],
       ),
       content: SizedBox(
@@ -838,9 +841,9 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Option B PoC: 2人グループ対応テスト',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Text(
+              l10n.mlsTestDialogSubtitle,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 8),
             
@@ -856,9 +859,9 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '📋 あなたのKey Package:',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    Text(
+                      l10n.mlsYourKeyPackageLabel,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -870,11 +873,11 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: _myKeyPackage!));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Key Packageをコピーしました')),
+                          SnackBar(content: Text(l10n.keyPackageCopied)),
                         );
                       },
                       icon: const Icon(Icons.copy, size: 14),
-                      label: const Text('コピー', style: TextStyle(fontSize: 11)),
+                      label: Text(l10n.copyButton, style: const TextStyle(fontSize: 11)),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         minimumSize: const Size(0, 28),
@@ -892,11 +895,11 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
                 Expanded(
                   child: TextField(
                     controller: _keyPackageController,
-                    decoration: const InputDecoration(
-                      labelText: '相手のnpub',
-                      hintText: 'npub1...',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.all(8),
+                    decoration: InputDecoration(
+                      labelText: l10n.mlsPeerNpubLabel,
+                      hintText: l10n.mlsPeerNpubHint,
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.all(8),
                       isDense: true,
                     ),
                     style: const TextStyle(fontSize: 11),
@@ -906,7 +909,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
                 ElevatedButton.icon(
                   onPressed: _isRunning ? null : _fetchKeyPackageByNpub,
                   icon: const Icon(Icons.download, size: 14),
-                  label: const Text('取得', style: TextStyle(fontSize: 11)),
+                  label: Text(l10n.fetchButton, style: const TextStyle(fontSize: 11)),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                   ),
@@ -924,10 +927,10 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
                   border: Border.all(color: Colors.grey.shade300),
                 ),
                 child: _logs.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
-                          'テストボタンを押してください',
-                          style: TextStyle(color: Colors.grey, fontSize: 11),
+                          l10n.mlsPressTestButton,
+                          style: const TextStyle(color: Colors.grey, fontSize: 11),
                         ),
                       )
                     : ListView.builder(
@@ -953,12 +956,12 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
       actions: [
         TextButton(
           onPressed: _isRunning ? null : () => Navigator.of(context).pop(),
-          child: const Text('閉じる', style: TextStyle(fontSize: 12)),
+          child: Text(l10n.closeButton, style: const TextStyle(fontSize: 12)),
         ),
         ElevatedButton.icon(
           onPressed: _isRunning ? null : _generateKeyPackage,
           icon: const Icon(Icons.vpn_key, size: 16),
-          label: const Text('KP生成', style: TextStyle(fontSize: 11)),
+          label: Text(l10n.mlsGenerateKpButton, style: const TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           ),
@@ -966,7 +969,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
         ElevatedButton.icon(
           onPressed: _isRunning ? null : _publishKeyPackageInDialog,
           icon: const Icon(Icons.cloud_upload, size: 16),
-          label: const Text('KP公開', style: TextStyle(fontSize: 11)),
+          label: Text(l10n.mlsPublishKpButton, style: const TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             backgroundColor: Colors.orange,
@@ -976,7 +979,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
         ElevatedButton.icon(
           onPressed: _isRunning ? null : _create2PersonGroup,
           icon: const Icon(Icons.group_add, size: 16),
-          label: const Text('2人グループ作成', style: TextStyle(fontSize: 11)),
+          label: Text(l10n.mlsCreate2PersonGroupButton, style: const TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           ),
@@ -984,7 +987,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
         ElevatedButton.icon(
           onPressed: _isRunning ? null : _sendTodoIn2PersonGroup,
           icon: const Icon(Icons.send, size: 16),
-          label: const Text('TODO送信', style: TextStyle(fontSize: 11)),
+          label: Text(l10n.mlsSendTodoButton, style: const TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           ),
@@ -998,7 +1001,7 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.play_arrow, size: 16),
-          label: Text(_isRunning ? '実行中...' : '1人テスト', style: const TextStyle(fontSize: 11)),
+          label: Text(_isRunning ? l10n.mlsRunning : l10n.mlsOnePersonTestButton, style: const TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           ),

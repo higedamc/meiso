@@ -64,6 +64,92 @@
   "autoSyncInfoTitle": "自動同期について",
   
   "autoSyncInfo": "• タスクの作成・編集・削除は自動的にNostrに同期されます\n• アプリ起動時に最新のデータが自動取得されます\n• リレー接続中は常にバックグラウンドで同期します\n• 手動同期ボタンは不要になりました",
+
+  "closeButton": "閉じる",
+
+  "copyButton": "コピー",
+
+  "fetchButton": "取得",
+
+  "advancedSectionTitle": "高度な設定",
+
+  "advancedSectionSubtitle": "開発者向け機能",
+
+  "keyPackagePublishTitle": "Key Packageを公開",
+
+  "keyPackagePublishSubtitle": "グループ招待を受けるために必要",
+
+  "mlsIntegrationTestTitle": "MLS統合テスト (PoC)",
+
+  "mlsIntegrationTestSubtitle": "Option B: 1人グループでの動作確認",
+
+  "keyPackagePublishDialogTitle": "Key Packageを公開",
+
+  "keyPackagePublishDialogBody": "Key Packageをリレーに公開します。\n\n公開することで、他のユーザーがあなたをグループに招待できるようになります。\n\n続行しますか？",
+
+  "publishButton": "公開する",
+
+  "publishingKeyPackage": "Key Packageを公開中...",
+
+  "keyPackagePublishCompletedTitle": "公開完了",
+
+  "keyPackagePublishCompletedMessage": "Key Packageをリレーに公開しました！",
+
+  "keyPackagePublishCompletedDescription": "他のユーザーがあなたのnpubを使ってグループに招待できるようになりました。",
+
+  "eventIdLabel": "Event ID",
+
+  "keyPackagePublishFailedTitle": "公開失敗",
+
+  "keyPackagePublishFailedBody": "Key Packageの公開に失敗しました。\n\nエラー: {error}",
+
+  "keyPackagePublishNoEventIdError": "イベントIDが取得できませんでした",
+
+  "mlsTestDialogTitle": "MLS統合テスト",
+
+  "mlsTestDialogSubtitle": "Option B PoC: 2人グループ対応テスト",
+
+  "mlsYourKeyPackageLabel": "📋 あなたのKey Package:",
+
+  "keyPackageCopied": "Key Packageをコピーしました",
+
+  "mlsPeerNpubLabel": "相手のnpub",
+
+  "mlsPeerNpubHint": "npub1...",
+
+  "mlsPressTestButton": "テストボタンを押してください",
+
+  "mlsGenerateKpButton": "KP生成",
+
+  "mlsPublishKpButton": "KP公開",
+
+  "mlsCreate2PersonGroupButton": "2人グループ作成",
+
+  "mlsSendTodoButton": "TODO送信",
+
+  "mlsOnePersonTestButton": "1人テスト",
+
+  "mlsRunning": "実行中...",
+
+  "mlsUserPublicKeyNotAvailable": "ユーザーの公開鍵が取得できません",
+
+  "mlsTwoPersonTestGroupName": "2人グループテスト",
+
+  "mlsTestListName": "MLSテストリスト",
+
+  "mlsTwoPersonTestTodoTitle": "2人グループ用テストTODO",
+
+  "mlsOnePersonTestTodoTitle": "MLSグループ内テストTODO",
+
+  "deleteRecurringTodoTitle": "繰り返しTodoを削除",
+
+  "removeThisInstance": "このインスタンスのみ削除",
+
+  "removeAllInstances": "すべてのインスタンスを削除",
+
+  "todoJsonTitle": "Todo JSON",
+
+  "jsonCopied": "JSONをコピーしました",
   
   "versionInfo": "Version {version} ({buildNumber})",
   
