@@ -30,14 +30,11 @@ void main() {
       id: 'test-id-1',
       title: TodoTitle.unsafe('Test Todo'),
       completed: false,
-      createdAt: DateTime(2025, 11, 12, 10, 0),
-      updatedAt: DateTime(2025, 11, 12, 10, 0),
-      date: null,
-      customListId: null,
+      createdAt: DateTime(2025, 11, 12, 10),
+      updatedAt: DateTime(2025, 11, 12, 10),
       order: 0,
       linkPreview: null,
       recurrence: null,
-      parentRecurringId: null,
       eventId: 'event-1',
       needsSync: false,
     );
@@ -106,7 +103,7 @@ void main() {
       final params = ToggleTodoParams(todoId: 'non-existent-id');
 
       when(() => mockRepository.getTodoById('non-existent-id'))
-          .thenAnswer((_) async => Left(TodoFailure(TodoError.notFound)));
+          .thenAnswer((_) async => const Left(TodoFailure(TodoError.notFound)));
 
       // Act
       final result = await usecase(params);
@@ -131,7 +128,7 @@ void main() {
           .thenAnswer((_) async => Right(uncompletedTodo));
 
       when(() => mockRepository.updateTodo(any()))
-          .thenAnswer((_) async => Left(ServerFailure('Update failed')));
+          .thenAnswer((_) async => const Left(ServerFailure('Update failed')));
 
       // Act
       final result = await usecase(params);

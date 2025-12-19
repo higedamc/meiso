@@ -112,7 +112,7 @@ class _SecretKeyManagementScreenState
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(null),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text(dialogL10n.cancelButton),
             ),
             TextButton(
@@ -133,15 +133,14 @@ class _SecretKeyManagementScreenState
   Future<void> _showNsecDialog(String nsec) async {
     return showDialog<void>(
       context: context,
-      barrierDismissible: true,
       builder: (context) {
         final l10n = AppLocalizations.of(context);
         return AlertDialog(
-          title: Row(
+          title: const Row(
             children: [
               Icon(Icons.key, color: AppTheme.primaryPurple),
-              const SizedBox(width: 8),
-              const Text('秘密鍵 (nsec)'),
+              SizedBox(width: 8),
+              Text('秘密鍵 (nsec)'),
             ],
           ),
           content: SingleChildScrollView(
@@ -615,12 +614,11 @@ class _SecretKeyManagementScreenState
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: AppTheme.primaryPurple.withOpacity(0.3),
-          width: 1,
         ),
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: AppTheme.darkPurple,
@@ -641,7 +639,7 @@ class _SecretKeyManagementScreenState
     AppLogger.debug('  isNostrInitialized: $isNostrInitialized');
     AppLogger.debug('  publicKeyHex: ${publicKeyHex?.substring(0, 16) ?? 'null'}');
     AppLogger.debug('  isAmberMode: $isAmberMode');
-    AppLogger.debug('  ログアウトボタン表示: ${isNostrInitialized}');
+    AppLogger.debug('  ログアウトボタン表示: $isNostrInitialized');
 
     return Scaffold(
       appBar: AppBar(
@@ -663,7 +661,7 @@ class _SecretKeyManagementScreenState
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.check_circle,
                               size: 32,
                               color: Colors.green,
@@ -807,7 +805,6 @@ class _SecretKeyManagementScreenState
                         ),
                       ),
                       obscureText: _obscureSecretKey,
-                      maxLines: 1,
                       // パスワードマネージャ対応
                       autofillHints: const [AutofillHints.password],
                       keyboardType: TextInputType.visiblePassword,
@@ -841,15 +838,15 @@ class _SecretKeyManagementScreenState
                   if (isAmberMode)
                     Card(
                       color: AppTheme.primaryPurple.withOpacity(0.1),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
+                      child: const Padding(
+                        padding: EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
                                 Icon(Icons.security, color: AppTheme.primaryPurple),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 Text(
                                   'Amberモード',
                                   style: TextStyle(
@@ -859,7 +856,7 @@ class _SecretKeyManagementScreenState
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Text(
                               '✅ Amberモードで接続中\n\n'
                               '🔒 セキュリティ機能:\n'
@@ -905,15 +902,15 @@ class _SecretKeyManagementScreenState
                   if (!isAmberMode) ...[
                     Card(
                       color: AppTheme.primaryPurple.withOpacity(0.1),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
+                      child: const Padding(
+                        padding: EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
                                 Icon(Icons.info, color: AppTheme.primaryPurple),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 Text(
                                   '重要',
                                   style: TextStyle(
@@ -923,7 +920,7 @@ class _SecretKeyManagementScreenState
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Text(
                               '• 秘密鍵はパスワードで暗号化されて保存されます\n'
                               '• パスワードと秘密鍵は安全に保管してください\n'
@@ -965,14 +962,14 @@ class _SecretKeyManagementScreenState
                                     color: AppTheme.primaryPurple.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Icon(
+                                  child: const Icon(
                                     Icons.security,
                                     color: AppTheme.primaryPurple,
                                     size: 24,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                Expanded(
+                                const Expanded(
                                   child: Text(
                                     '使用している暗号技術',
                                     style: TextStyle(

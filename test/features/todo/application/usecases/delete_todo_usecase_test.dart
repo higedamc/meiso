@@ -20,7 +20,7 @@ void main() {
   group('DeleteTodoUseCase', () {
     test('正常にTodoが削除される', () async {
       // Arrange
-      final params = DeleteTodoParams(todoId: 'test-id-1');
+      const params = DeleteTodoParams(todoId: 'test-id-1');
 
       when(() => mockRepository.deleteTodo('test-id-1'))
           .thenAnswer((_) async => const Right(null));
@@ -35,10 +35,10 @@ void main() {
 
     test('存在しないTodoIDでエラーが返る', () async {
       // Arrange
-      final params = DeleteTodoParams(todoId: 'non-existent-id');
+      const params = DeleteTodoParams(todoId: 'non-existent-id');
 
       when(() => mockRepository.deleteTodo('non-existent-id'))
-          .thenAnswer((_) async => Left(TodoFailure(TodoError.notFound)));
+          .thenAnswer((_) async => const Left(TodoFailure(TodoError.notFound)));
 
       // Act
       final result = await usecase(params);
@@ -57,10 +57,10 @@ void main() {
 
     test('Repository削除失敗時にエラーが返る', () async {
       // Arrange
-      final params = DeleteTodoParams(todoId: 'test-id-1');
+      const params = DeleteTodoParams(todoId: 'test-id-1');
 
       when(() => mockRepository.deleteTodo('test-id-1'))
-          .thenAnswer((_) async => Left(ServerFailure('Delete failed')));
+          .thenAnswer((_) async => const Left(ServerFailure('Delete failed')));
 
       // Act
       final result = await usecase(params);

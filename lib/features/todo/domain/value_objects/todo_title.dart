@@ -7,6 +7,12 @@ import '../../../../core/common/failure.dart';
 /// - 空文字列は不可
 /// - 最大500文字
 class TodoTitle {
+
+  /// 検証なしで作成（既存データ読み込み時）
+  /// 
+  /// ローカルストレージやNostrから読み込んだデータは
+  /// すでにバリデーション済みと仮定して使用。
+  factory TodoTitle.unsafe(String value) => TodoTitle._(value);
   const TodoTitle._(this.value);
 
   final String value;
@@ -28,12 +34,6 @@ class TodoTitle {
     
     return Right(TodoTitle._(trimmed));
   }
-
-  /// 検証なしで作成（既存データ読み込み時）
-  /// 
-  /// ローカルストレージやNostrから読み込んだデータは
-  /// すでにバリデーション済みと仮定して使用。
-  factory TodoTitle.unsafe(String value) => TodoTitle._(value);
 
   @override
   bool operator ==(Object other) =>

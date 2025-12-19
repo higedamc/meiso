@@ -31,13 +31,9 @@ void main() {
       completed: false,
       createdAt: DateTime(2025, 11, 12),
       updatedAt: DateTime(2025, 11, 12),
-      date: null,
-      customListId: null,
       order: 0,
       linkPreview: null,
       recurrence: null,
-      parentRecurringId: null,
-      eventId: null,
       needsSync: false,
     );
 
@@ -61,7 +57,7 @@ void main() {
       final params = SyncToNostrParams(todo: testTodo);
 
       when(() => mockRepository.syncToNostr(any()))
-          .thenAnswer((_) async => Left(NetworkFailure('Connection timeout')));
+          .thenAnswer((_) async => const Left(NetworkFailure('Connection timeout')));
 
       // Act
       final result = await usecase(params);
@@ -81,7 +77,7 @@ void main() {
       final params = SyncToNostrParams(todo: testTodo);
 
       when(() => mockRepository.syncToNostr(any()))
-          .thenAnswer((_) async => Left(AuthFailure('Invalid credentials')));
+          .thenAnswer((_) async => const Left(AuthFailure('Invalid credentials')));
 
       // Act
       final result = await usecase(params);
@@ -101,7 +97,7 @@ void main() {
       final params = SyncToNostrParams(todo: testTodo);
 
       when(() => mockRepository.syncToNostr(any()))
-          .thenAnswer((_) async => Left(EncryptionFailure('Encryption failed')));
+          .thenAnswer((_) async => const Left(EncryptionFailure('Encryption failed')));
 
       // Act
       final result = await usecase(params);

@@ -3,9 +3,6 @@
 /// 時刻を持たず、日付のみを表現する。
 /// nullの場合は「Someday」を意味する。
 class TodoDate {
-  const TodoDate(this.value);
-
-  final DateTime value;
 
   /// 日付のみを保持（時刻を00:00:00にする）
   factory TodoDate.dateOnly(DateTime date) {
@@ -18,6 +15,9 @@ class TodoDate {
   /// 明日
   factory TodoDate.tomorrow() =>
       TodoDate.dateOnly(DateTime.now().add(const Duration(days: 1)));
+  const TodoDate(this.value);
+
+  final DateTime value;
 
   /// 日付が今日かどうか
   bool get isToday {

@@ -89,10 +89,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     return Scaffold(
-      body: Container(
+      body: DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -284,7 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Amberでログイン
   Future<void> _loginWithAmber(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     try {
       // Amberがインストールされているか確認
@@ -395,7 +395,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppLogger.error('Error during Amber login', error: e, stackTrace: stackTrace, tag: 'AMBER');
             
             if (!context.mounted) return;
-            final l10n = AppLocalizations.of(context)!;
+            final l10n = AppLocalizations.of(context);
             
             // エラー時のみローディングダイアログを閉じる
             SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -426,7 +426,7 @@ class _LoginScreenState extends State<LoginScreen> {
           AppLogger.warning('No public key received from Amber', tag: 'AMBER');
           
           if (!context.mounted) return;
-          final l10n = AppLocalizations.of(context)!;
+          final l10n = AppLocalizations.of(context);
           
           // エラー時のみローディングダイアログを閉じる
           SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -457,7 +457,7 @@ class _LoginScreenState extends State<LoginScreen> {
         AppLogger.error('Failed to get public key from Amber', error: e, tag: 'AMBER');
         
         if (!context.mounted) return;
-        final l10n = AppLocalizations.of(context)!;
+        final l10n = AppLocalizations.of(context);
         
         // エラー時のみローディングダイアログを閉じる
         SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -487,7 +487,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     } catch (e) {
       if (!context.mounted) return;
-      final l10n = AppLocalizations.of(context)!;
+      final l10n = AppLocalizations.of(context);
       
       // エラーダイアログ表示
       showDialog(
@@ -508,7 +508,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// 新しい秘密鍵を生成
   Future<void> _generateNewKey(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     try {
       // パスワード入力ダイアログ
@@ -521,7 +521,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) {
-          final dialogL10n = AppLocalizations.of(context)!;
+          final dialogL10n = AppLocalizations.of(context);
           return AlertDialog(
             title: Text(dialogL10n.setPassword),
             content: AutofillGroup(
@@ -575,7 +575,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(null),
+                onPressed: () => Navigator.of(context).pop(),
                 child: Text(dialogL10n.cancelButton),
               ),
               TextButton(
@@ -652,7 +652,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) {
-          final dialogL10n = AppLocalizations.of(context)!;
+          final dialogL10n = AppLocalizations.of(context);
           return AlertDialog(
             title: Text(dialogL10n.secretKeyGenerated),
             content: SingleChildScrollView(
@@ -769,7 +769,7 @@ class _LoginScreenState extends State<LoginScreen> {
       AppLogger.error('Failed to generate keypair', error: e, stackTrace: stackTrace, tag: 'KEYPAIR');
 
       if (!context.mounted) return;
-      final errorL10n = AppLocalizations.of(context)!;
+      final errorL10n = AppLocalizations.of(context);
       Navigator.of(context).pop(); // ローディング閉じる
 
       // エラーダイアログ表示

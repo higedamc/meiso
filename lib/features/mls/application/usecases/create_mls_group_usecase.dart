@@ -8,10 +8,6 @@ import '../../../../services/logger_service.dart';
 
 /// MLSグループ作成のパラメータ
 class CreateMlsGroupParams {
-  final String publicKey;
-  final String groupId;
-  final String groupName;
-  final List<String> keyPackages;
   
   const CreateMlsGroupParams({
     required this.publicKey,
@@ -19,6 +15,10 @@ class CreateMlsGroupParams {
     required this.groupName,
     required this.keyPackages,
   });
+  final String publicKey;
+  final String groupId;
+  final String groupName;
+  final List<String> keyPackages;
 }
 
 /// MLSグループ作成UseCase
@@ -26,9 +26,9 @@ class CreateMlsGroupParams {
 /// Rust APIを呼び出してMLSグループを作成し、Welcome Messageを生成する。
 /// Phase 8.1/8.4で実装された`createMlsGroupList()`の一部をUseCase化。
 class CreateMlsGroupUseCase implements UseCase<MlsGroup, CreateMlsGroupParams> {
-  final MlsGroupRepository _repository;
   
   const CreateMlsGroupUseCase(this._repository);
+  final MlsGroupRepository _repository;
   
   @override
   Future<Either<Failure, MlsGroup>> call(CreateMlsGroupParams params) async {

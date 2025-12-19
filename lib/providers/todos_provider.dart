@@ -43,7 +43,7 @@ enum TodoSyncTrigger {
 }
 
 /// AmberServiceのProvider
-final amberServiceProvider = Provider((ref) => AmberService());
+final Provider<AmberService> amberServiceProvider = Provider((ref) => AmberService());
 
 /// 日付ごとにグループ化されたTodoリストを管理するProvider
 /// 
@@ -52,7 +52,7 @@ final amberServiceProvider = Provider((ref) => AmberService());
 /// - DateTime: 特定の日付
 final todosProvider =
     StateNotifierProvider<TodosNotifier, AsyncValue<Map<DateTime?, List<Todo>>>>(
-  (ref) => TodosNotifier(ref),
+  TodosNotifier.new,
 );
 
 class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>> {
@@ -128,7 +128,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       if (hasLocalData) {
         // ローカルデータがある場合：即座に表示
-        final Map<DateTime?, List<Todo>> grouped = {};
+        final grouped = <DateTime?, List<Todo>>{};
         for (final todo in localTodos) {
           grouped[todo.date] ??= [];
           grouped[todo.date]!.add(todo);
@@ -152,7 +152,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       } else {
         // ローカルデータがない場合：空の状態
         AppLogger.info(' [Todos] ローカルデータなし');
-        state = AsyncValue.data({});
+        state = const AsyncValue.data({});
         
         // ログイン済みの場合のみ優先同期（初回同期フラグ付き）
         if (_ref.read(nostrInitializedProvider)) {
@@ -167,7 +167,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.warning(' Todo初期化エラー: $e');
       // エラー時は空のマップで初期化
       AppLogger.warning(' エラー発生のため空のリストで開始');
-      state = AsyncValue.data({});
+      state = const AsyncValue.data({});
     }
   }
   
@@ -249,7 +249,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     } catch (e, stackTrace) {
       AppLogger.error(' [Todos] 優先同期エラー', error: e, stackTrace: stackTrace);
       _ref.read(syncStatusProvider.notifier).syncError(
-        '同期エラー: ${e.toString()}',
+        '同期エラー: ${e}',
         shouldRetry: false,
       );
     }
@@ -341,7 +341,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // エラー状態を更新（ローカルデータは保持）
       _ref.read(syncStatusProvider.notifier).syncError(
-        'バックグラウンド同期に失敗しました: ${e.toString()}',
+        'バックグラウンド同期に失敗しました: ${e}',
         shouldRetry: false,
       );
       
@@ -478,7 +478,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             orElse: () => CustomList(
               id: '', 
               name: '', 
-              order: 0, 
               createdAt: DateTime.now(), 
               updatedAt: DateTime.now(),
             ),
@@ -652,7 +651,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           if (todo.customListId != null) {
             final customListsAsync = _ref.read(customListsProvider);
             final isGroup = await customListsAsync.whenData((customLists) async {
-              final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+              final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', createdAt: DateTime.now(), updatedAt: DateTime.now()));
               return list.isGroup;
             }).value ?? false;
             
@@ -754,12 +753,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         AppLogger.debug(' URL detected in update: $detectedUrl');
         
         // URLが検出された場合、即座にタイトルから削除
-        String finalTitle = newTitle.trim();
-        LinkPreview? initialLinkPreview = list[index].linkPreview;
+        var finalTitle = newTitle.trim();
+        var initialLinkPreview = list[index].linkPreview;
         
         if (detectedUrl != null) {
           // URLからドメイン名を抽出
-          String domainName = detectedUrl;
+          var domainName = detectedUrl;
           try {
             final uri = Uri.parse(detectedUrl);
             domainName = uri.host;
@@ -778,7 +777,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             url: detectedUrl,
             title: domainName, // ドメイン名を表示
             description: '読み込み中...', // 取得中を日本語で表示
-            imageUrl: null,
           );
           
           AppLogger.debug(' Title after URL removal (update): "$finalTitle" (domain: $domainName)');
@@ -905,7 +903,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         if (updatedTodo.customListId != null) {
           final customListsAsync = _ref.read(customListsProvider);
           final isGroup = await customListsAsync.whenData((customLists) async {
-            final list = customLists.firstWhere((l) => l.id == updatedTodo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+            final list = customLists.firstWhere((l) => l.id == updatedTodo.customListId!, orElse: () => CustomList(id: '', name: '', createdAt: DateTime.now(), updatedAt: DateTime.now()));
             return list.isGroup;
           }).value ?? false;
           
@@ -984,7 +982,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             if (todo.customListId != null) {
               final customListsAsync = _ref.read(customListsProvider);
               final isGroup = await customListsAsync.whenData((customLists) async {
-                final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+                final list = customLists.firstWhere((l) => l.id == todo.customListId!, orElse: () => CustomList(id: '', name: '', createdAt: DateTime.now(), updatedAt: DateTime.now()));
                 return list.isGroup;
               }).value ?? false;
               
@@ -1089,7 +1087,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final now = DateTime.now();
     final ninetyDaysLater = now.add(const Duration(days: 90));
     
-    int count = 0;
+    var count = 0;
     
     // 全ての日付から未完了の子インスタンスを数える
     final today = DateTime(now.year, now.month, now.day);
@@ -1160,7 +1158,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             final isGroup = await customListsAsync.whenData((customLists) async {
               final list = customLists.firstWhere(
                 (l) => l.id == beforeTodo!.customListId!,
-                orElse: () => CustomList(id: '', name: '', order: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()),
+                orElse: () => CustomList(id: '', name: '', createdAt: DateTime.now(), updatedAt: DateTime.now()),
               );
               return list.isGroup;
             }).value ?? false;
@@ -1201,7 +1199,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         date: list,
       });
 
-      AppLogger.debug(' リカーリングタスクのインスタンスを削除: ${todo.title} (${date})');
+      AppLogger.debug(' リカーリングタスクのインスタンスを削除: ${todo.title} ($date)');
 
       // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
@@ -1228,7 +1226,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.debug(' すべてのリカーリングインスタンスを削除: parentId=$parentId');
       
       // すべての日付から関連するタスクを削除
-      int deletedCount = 0;
+      var deletedCount = 0;
       final updatedTodos = Map<DateTime?, List<Todo>>.from(todos);
       
       for (final dateKey in updatedTodos.keys) {
@@ -1247,7 +1245,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
 
-      AppLogger.debug(' 合計${deletedCount}個のリカーリングインスタンスを削除しました');
+      AppLogger.debug(' 合計$deletedCount個のリカーリングインスタンスを削除しました');
 
       state = AsyncValue.data(updatedTodos);
 
@@ -1268,7 +1266,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     await state.whenData((todos) async {
       AppLogger.info('🗑️  [Todos] Deleting all todos in list: $listId');
       
-      int deletedCount = 0;
+      var deletedCount = 0;
       final updatedTodos = Map<DateTime?, List<Todo>>.from(todos);
       
       for (final dateKey in updatedTodos.keys) {
@@ -1412,7 +1410,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
         // エラーは記録するが、UIには影響しない
         _ref.read(syncStatusProvider.notifier).syncError(
-          'バックグラウンド同期エラー: ${e.toString()}',
+          'バックグラウンド同期エラー: ${e}',
           shouldRetry: false,
         );
         
@@ -1508,8 +1506,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     final groupIds = _currentGroupListIds();
 
-    final Map<DateTime?, List<Todo>> updatedTodos = {};
-    bool hasChanges = false;
+    final updatedTodos = <DateTime?, List<Todo>>{};
+    var hasChanges = false;
 
     for (final entry in todos.entries) {
       final date = entry.key;
@@ -1650,7 +1648,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // 1. Todoをリストごとにグループ化（名前ベースIDに変換）
           // グループリストのTodoは除外（別途 _syncGroupToNostr で同期される）
-          final Map<String, List<Todo>> groupedTodos = {};
+          final groupedTodos = <String, List<Todo>>{};
           for (final todo in allTodos) {
             // グループリストのTodoはスキップ
             if (todo.customListId != null && groupListIds.contains(todo.customListId)) {
@@ -1674,7 +1672,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.debug(' Grouped todos into ${groupedTodos.length} lists');
           for (final entry in groupedTodos.entries) {
             final todoTitles = entry.value.map((t) => t.title).take(3).join(', ');
-            AppLogger.debug('  - List "${entry.key}": ${entry.value.length} todos (${todoTitles}${entry.value.length > 3 ? '...' : ''})');
+            AppLogger.debug('  - List "${entry.key}": ${entry.value.length} todos ($todoTitles${entry.value.length > 3 ? '...' : ''})');
           }
           
           // 2. 公開鍵取得
@@ -1927,7 +1925,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     const retryDelay = Duration(seconds: 2);
     const timeout = Duration(seconds: 15);
 
-    for (int attempt = 0; attempt <= maxRetries; attempt++) {
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         AppLogger.debug(' Executing syncFunction() (attempt ${attempt + 1}/${maxRetries + 1})...');
         // タイムアウト付きで同期実行
@@ -2022,7 +2020,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
       
       _ref.read(syncStatusProvider.notifier).syncError(
-        '手動同期エラー: ${e.toString()}',
+        '手動同期エラー: ${e}',
         shouldRetry: false,
       );
       
@@ -2061,7 +2059,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }).catchError((Object e) {
           AppLogger.warning('⚠️ [Background] グループ招待同期エラー: $e');
         }),
-      ], eagerError: false);
+      ]);
       
       AppLogger.info('✅ [Background] グループ系同期完了');
       
@@ -2074,7 +2072,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // エラーを通知
       _ref.read(syncStatusProvider.notifier).syncError(
-        'グループ系同期エラー: ${e.toString()}',
+        'グループ系同期エラー: ${e}',
         shouldRetry: false,
       );
       
@@ -2130,7 +2128,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // 1. AppSettings同期（リレーリスト含む）
         _ref.read(appSettingsProvider.notifier).syncFromNostr(
           skipIfFresh: trigger != TodoSyncTrigger.manual,
-          minInterval: const Duration(minutes: 5),
         ).then((_) {
           AppLogger.info('✅ [Sync] AppSettings同期完了');
           return true;
@@ -2148,11 +2145,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.warning('⚠️ [Sync] カスタムリスト名抽出エラー: $e');
           return <String>[];
         }),
-      ], eagerError: false); // エラーがあっても全て完了するまで待つ
+      ]); // エラーがあっても全て完了するまで待つ
       
       final customListNames = phase1Results[1] as List<String>;
       
-      AppLogger.info('✅ [Sync] Phase 1完了（${Duration(milliseconds: 0)})');
+      AppLogger.info('✅ [Sync] Phase 1完了（${const Duration()})');
       
       // Phase 8.5.1: Phase 1完了（33%）
       _ref.read(syncStatusProvider.notifier).setProgress(
@@ -2190,10 +2187,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             AppLogger.warning(' Todoリストイベントが見つかりません（Kind 30001）');
             
             // ローカルデータの有無をチェック
-            final hasLocalData = await state.whenData((localTodos) {
+            final hasLocalData = state.whenData((localTodos) {
               final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
               if (localTodoCount > 0) {
-                AppLogger.debug(' リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
+                AppLogger.debug(' リモートにイベントがありませんが、ローカルに$localTodoCount件のTodoがあるため保持します');
                 return true;
               }
               return false;
@@ -2206,7 +2203,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               _ref.read(syncStatusProvider.notifier).syncSuccess();
               
               // バックグラウンドでグループ系同期を開始（UIをブロックしない）
-              Future.microtask(() => _syncGroupDataInBackground());
+              Future.microtask(_syncGroupDataInBackground);
               
               return; // ここで関数を抜ける
             }
@@ -2218,7 +2215,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             _ref.read(syncStatusProvider.notifier).syncSuccess();
             
             // バックグラウンドでグループ系同期を開始（UIをブロックしない）
-            Future.microtask(() => _syncGroupDataInBackground());
+            Future.microtask(_syncGroupDataInBackground);
             
             return;
           }
@@ -2226,10 +2223,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.debug(' ${encryptedEvents.length}件のTodoリストイベントを取得');
           
           // カスタムリスト名を抽出
-          final List<String> nostrListNames = [];
+          final nostrListNames = <String>[];
           AppLogger.info(' [Sync] 📋 Extracting custom list names from ${encryptedEvents.length} events...');
           
-          for (int i = 0; i < encryptedEvents.length; i++) {
+          for (var i = 0; i < encryptedEvents.length; i++) {
             final event = encryptedEvents[i];
             AppLogger.debug(' [Sync]   Event $i: listId="${event.listId}", title="${event.title}", eventId=${event.eventId}');
             
@@ -2399,7 +2396,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             final hasLocalData = state.maybeWhen(
               data: (localTodos) {
                 final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
-                AppLogger.info(' ローカルに${localTodoCount}件のTodoがあります');
+                AppLogger.info(' ローカルに$localTodoCount件のTodoがあります');
                 return localTodoCount > 0;
               },
               orElse: () => false,
@@ -2427,10 +2424,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           final metadata = await nostrService.fetchAllTodoListMetadata();
           
           // カスタムリスト名を抽出（デフォルトリストは除外）
-          final List<String> nostrListNames = [];
+          final nostrListNames = <String>[];
           AppLogger.info(' [Sync] 📋 Extracting custom list names from ${metadata.length} metadata entries...');
           
-          for (int i = 0; i < metadata.length; i++) {
+          for (var i = 0; i < metadata.length; i++) {
             final meta = metadata[i];
             AppLogger.debug(' [Sync]   Metadata $i: listId="${meta.listId}", title="${meta.title}"');
             
@@ -2490,10 +2487,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           // イベントが見つからない場合（空リスト）はローカルデータを保持
           if (syncedTodos.isEmpty) {
-            final hasLocalData = await state.whenData((localTodos) {
+            final hasLocalData = state.whenData((localTodos) {
               final localTodoCount = localTodos.values.fold<int>(0, (sum, list) => sum + list.length);
               if (localTodoCount > 0) {
-                AppLogger.debug(' リモートにイベントがありませんが、ローカルに${localTodoCount}件のTodoがあるため保持します');
+                AppLogger.debug(' リモートにイベントがありませんが、ローカルに$localTodoCount件のTodoがあるため保持します');
                 return true; // ローカルデータがある
               }
               return false;
@@ -2568,7 +2565,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     _ref.read(syncStatusProvider.notifier).startSyncWithProgress(
       totalSteps: 1,
           initialPhase: '__l10n__:syncPhaseDelta',
-      isInitialSync: false,
     );
 
     try {
@@ -2578,7 +2574,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       if (isAmberMode) {
         final encryptedEvents = await nostrService.fetchAllEncryptedTodoListsSince(
           since: effectiveSince,
-          timeoutSeconds: 3,
         );
 
         if (encryptedEvents.isEmpty) {
@@ -2661,7 +2656,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       } else {
         final deltaTodos = await nostrService.syncTodoListFromNostrSince(
           since: effectiveSince,
-          timeoutSeconds: 3,
         );
 
         if (deltaTodos.isEmpty) {
@@ -2690,11 +2684,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       _ref.read(syncStatusProvider.notifier).syncSuccess();
 
       // グループ系は重いので、復帰時はバックグラウンドでのみ実行
-      Future.microtask(() => _syncGroupDataInBackground());
+      Future.microtask(_syncGroupDataInBackground);
     } catch (e, stackTrace) {
       AppLogger.error(' [Todos] Delta sync failed', error: e, stackTrace: stackTrace);
       _ref.read(syncStatusProvider.notifier).syncError(
-        '差分同期エラー: ${e.toString()}',
+        '差分同期エラー: ${e}',
         shouldRetry: false,
       );
 
@@ -2716,7 +2710,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   /// フラットなTodo配列を日付ごとにグループ化
   Map<DateTime?, List<Todo>> _groupTodosByDate(List<Todo> todos) {
-    final Map<DateTime?, List<Todo>> grouped = {};
+    final grouped = <DateTime?, List<Todo>>{};
     for (final todo in todos) {
       grouped[todo.date] ??= [];
       grouped[todo.date]!.add(todo);
@@ -2756,7 +2750,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // ローカルの全タスクをフラット化してMapに変換
       final localTodoMap = <String, Todo>{};
-      int localTotalCount = 0;
+      var localTotalCount = 0;
       for (final dateGroup in localTodos.values) {
         for (final todo in dateGroup) {
           localTodoMap[todo.id] = todo;
@@ -2768,9 +2762,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // マージ結果を格納
       final mergedTodos = <String, Todo>{};
-      int conflictCount = 0;
-      int localWinsCount = 0;
-      int remoteWinsCount = 0;
+      var conflictCount = 0;
+      var localWinsCount = 0;
+      var remoteWinsCount = 0;
       
       // ステップ1: リモートのタスクを処理
       for (final remoteTodo in syncedTodos) {
@@ -2836,8 +2830,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       
       // ステップ2: ローカルのみに存在するタスクを追加
-      int localOnlyCount = 0;
-      int deletedByRemoteCount = 0;
+      var localOnlyCount = 0;
+      var deletedByRemoteCount = 0;
       
       for (final localTodo in localTodoMap.values) {
         if (!mergedTodos.containsKey(localTodo.id)) {
@@ -2852,7 +2846,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
                 orElse: () => CustomList(
                   id: '',
                   name: '',
-                  order: 0,
                   createdAt: DateTime.now(),
                   updatedAt: DateTime.now(),
                 ),
@@ -2920,7 +2913,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       
       // 状態を更新
-      state = AsyncValue.data(grouped);
+      _setTodosStateAsync(grouped);
       
       // ローカルストレージに保存
       _saveAllTodosToLocal();
@@ -2949,7 +2942,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
       }
       
-      state = AsyncValue.data(grouped);
+      _setTodosStateAsync(grouped);
       AppLogger.warning('⚠️ Fallback: Showing only remote todos due to merge error');
     }
   }
@@ -3010,7 +3003,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       _ref.read(syncStatusProvider.notifier).updateMessage('新形式に変換中...');
       
       // 一時的に状態を更新（UIに反映）
-      final Map<DateTime?, List<Todo>> grouped = {};
+      final grouped = <DateTime?, List<Todo>>{};
       for (final todo in oldTodos) {
         grouped[todo.date] ??= [];
         grouped[todo.date]!.add(todo);
@@ -3204,23 +3197,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     try {
       AppLogger.info('🔐 [MLS] Syncing MLS group todos for: $groupId');
       
-      // 1. Listen Keyを取得
-      final listenKey = await rust_api.mlsGetListenKey(
-        nostrId: publicKey,
-        groupId: groupId,
-      );
-      AppLogger.info('🔑 [MLS] Listen Key: ${listenKey.substring(0, 16)}...');
-      
-      // 2. Listen Keyでイベントを取得（Kind 1059）
+      // 1. Group Event(kind:445 + #h) を取得（NIP-EE準拠）
       final nostrService = _ref.read(nostrServiceProvider);
       final last = localStorageService.getLastMlsGroupTodosSyncTime(groupId);
       // クロックスキュー/EOSE遅延対策で少し巻き戻して取得
       final effectiveSince = (last ?? DateTime.fromMillisecondsSinceEpoch(0))
           .subtract(const Duration(minutes: 2));
       final events = await nostrService.fetchMlsGroupTodoEventsSince(
-        listenKey: listenKey,
+        groupId: groupId,
         since: effectiveSince,
-        timeoutSeconds: 3,
       );
       
       if (events.isEmpty) {
@@ -3242,7 +3227,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
 
       // 既存のグループTODOをID→Todoで索引（更新/重複排除用）
-      final Map<String, Todo> byId = {};
+      final byId = <String, Todo>{};
       for (final entry in updated.entries) {
         for (final t in entry.value) {
           if (t.customListId == groupId) {
@@ -3256,22 +3241,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // event_jsonをパースしてcontentを取得
           final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
           final encryptedContent = eventData['content'] as String;
-          
-          // group_idタグをチェック（このグループ宛か確認）
-          final tags = eventData['tags'] as List<dynamic>?;
-          bool isForThisGroup = false;
-          if (tags != null) {
-            final groupIdTag = tags.firstWhere(
-              (tag) => tag is List && tag.isNotEmpty && tag[0] == 'group_id',
-              orElse: () => null,
-            );
-            
-            if (groupIdTag != null && groupIdTag[1] == groupId) {
-              isForThisGroup = true;
-            }
-          }
-          
-          if (!isForThisGroup) {
+
+          // NIP-EE: `h` タグでグループを識別（後方互換で `group_id` も許容）
+          if (!_isEventForGroup(eventData, groupId)) {
             AppLogger.debug('⏭️  [MLS] Skipping event for different group');
             continue;
           }
@@ -3356,6 +3328,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
 
+  /// NIP-EE: kind:445 は `tags:[["h", <groupId>]]` でルーティングされる。
+  /// 後方互換のため、旧実装の `["group_id", <groupId>]` も許容する。
+  bool _isEventForGroup(Map<String, dynamic> eventData, String groupId) {
+    final tags = eventData['tags'];
+    if (tags is! List) return false;
+
+    bool matches(String key) {
+      for (final t in tags) {
+        if (t is List && t.length >= 2 && t[0] == key && t[1] == groupId) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    return matches('h') || matches('group_id');
+  }
+
   /// MLS payloadからtodoIdを推定（後方互換）
   String? _tryExtractTodoId(String payloadJson) {
     try {
@@ -3410,19 +3400,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     required String title,
     DateTime? date,
   }) async {
-    final uuid = const Uuid();
+    const uuid = Uuid();
     final now = DateTime.now();
     
     final newTodo = Todo(
       id: uuid.v4(),
       title: title,
-      completed: false,
       date: date,
-      order: 0, // 先頭に追加
       createdAt: now,
       updatedAt: now,
       customListId: groupId,
-      needsSync: true,
     );
     
     // 楽観的UI更新
@@ -3565,9 +3552,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final existing = _mlsGroupTodoSubscriptions[groupId];
     if (existing != null) {
       existing.refCount++;
+      AppLogger.debug('📡 [MLS] Reusing realtime subscription: $groupId (refCount=${existing.refCount})');
       return;
     }
 
+    AppLogger.debug('📡 [MLS] Initializing realtime subscription: $groupId');
     await _initMlsIfNeeded();
 
     final nostrService = _ref.read(nostrServiceProvider);
@@ -3576,15 +3565,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       throw Exception('User public key not available');
     }
 
-    final listenKey = await rust_api.mlsGetListenKey(
-      nostrId: publicKey,
-      groupId: groupId,
-    );
-
     AppLogger.info('📡 [MLS] Starting realtime group todo subscription: $groupId');
 
     final subId = await nostrService.subscribeMlsGroupTodos(
-      listenKey: listenKey,
       groupId: groupId,
       onEventsReceived: (events) {
         _handleRealtimeMlsGroupTodoEvents(
@@ -3642,19 +3625,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
           final encryptedContent = eventData['content'] as String;
 
-          // group_idタグをチェック（このグループ宛か確認）
-          final tags = eventData['tags'] as List<dynamic>?;
-          bool isForThisGroup = false;
-          if (tags != null) {
-            final groupIdTag = tags.firstWhere(
-              (tag) => tag is List && tag.isNotEmpty && tag[0] == 'group_id',
-              orElse: () => null,
-            );
-            if (groupIdTag != null && groupIdTag[1] == groupId) {
-              isForThisGroup = true;
-            }
-          }
-          if (!isForThisGroup) continue;
+          // NIP-EE: `h` タグでグループを識別（後方互換で `group_id` も許容）
+          if (!_isEventForGroup(eventData, groupId)) continue;
 
           // MLS復号化
           final (todoContent, action, todoId, senderPubkey, _) = await rust_api.mlsDecryptTodo(
@@ -3692,7 +3664,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
 
     // index existing group todos
-    final Map<String, Todo> byId = {};
+    final byId = <String, Todo>{};
     for (final entry in updated.entries) {
       for (final t in entry.value) {
         if (t.customListId == groupId) {
@@ -3799,16 +3771,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       todoId: todoId,
     );
 
-    final listenKey = await rust_api.mlsGetListenKey(
-      nostrId: publicKey,
-      groupId: groupId,
-    );
-
-    final eventId = await nostrService.sendMlsGroupTodo(
-      listenKey: listenKey,
-      encryptedContent: encryptedMsg,
-      groupId: groupId,
-    );
+      final eventId = await nostrService.sendMlsGroupTodo(
+        encryptedContent: encryptedMsg,
+        groupId: groupId,
+      );
 
     if (eventId == null) {
       AppLogger.warning('⚠️ [MLS] Failed to send group todo action: $action (todoId=$todoId)');
@@ -3819,7 +3785,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       if (action != 'delete') {
         final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
         final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
-        bool changed = false;
+        var changed = false;
         for (final dateKey in updated.keys) {
           updated[dateKey] = updated[dateKey]!.map((t) {
             if (t.id == todoId && t.customListId == groupId && t.needsSync) {
@@ -3853,7 +3819,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       
       // グループのタスクを取得
-      final todos = await state.whenData((todos) {
+      final todos = state.whenData((todos) {
         final groupTodos = <Todo>[];
         for (final dateGroup in todos.values) {
           for (final todo in dateGroup) {
@@ -3927,7 +3893,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // 成功した場合、送信対象（needsSync=true）のみ needsSync=false にする
         final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
         final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
-        int cleared = 0;
+        var cleared = 0;
         for (final dateKey in updated.keys) {
           updated[dateKey] = updated[dateKey]!.map((todo) {
             if (todo.customListId == groupId && todo.needsSync) {
@@ -3967,10 +3933,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       AppLogger.info('🔐 [MLS] Encrypting ${targets.length} changed todos for group: $groupId');
 
-      final listenKey = await rust_api.mlsGetListenKey(
-        nostrId: publicKey,
-        groupId: groupId,
-      );
       final nostrService = _ref.read(nostrServiceProvider);
 
       String? lastEventId;
@@ -3997,7 +3959,6 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         );
 
         lastEventId = await nostrService.sendMlsGroupTodo(
-          listenKey: listenKey,
           encryptedContent: encryptedMsg,
           groupId: groupId,
         );
@@ -4056,7 +4017,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       AppLogger.info('📥 Found ${groupLists.length} group lists');
       
       // 全グループのタスクを復号化
-      final Map<String, List<Todo>> groupTodosMap = {};
+      final groupTodosMap = <String, List<Todo>>{};
       
       for (final groupList in groupLists) {
         try {
@@ -4276,7 +4237,7 @@ class _MlsGroupRealtimeSubscription {
 
 /// 特定の日付のTodoリストを取得するProvider
 /// 未完了タスクを上、完了済みタスクを下に表示
-final todosForDateProvider = Provider.family<List<Todo>, DateTime?>((ref, date) {
+final ProviderFamily<List<Todo>, DateTime?> todosForDateProvider = Provider.family<List<Todo>, DateTime?>((ref, date) {
   final todosAsync = ref.watch(todosProvider);
   return todosAsync.when(
     data: (todos) {

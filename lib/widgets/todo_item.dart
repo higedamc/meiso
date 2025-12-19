@@ -180,11 +180,10 @@ class TodoItem extends StatelessWidget {
       child: InkWell(
         onTap: () => _openUrl(linkPreview.url),
         borderRadius: BorderRadius.circular(8),
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(
               color: Theme.of(context).dividerColor,
-              width: 1,
             ),
             borderRadius: BorderRadius.circular(8),
             color: Theme.of(context).cardColor,
@@ -380,7 +379,7 @@ class TodoItem extends StatelessWidget {
             ],
           ),
           actions: [
-            Container(
+            DecoratedBox(
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(color: Colors.grey.shade300),
@@ -391,7 +390,7 @@ class TodoItem extends StatelessWidget {
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.blue,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                  shape: const RoundedRectangleBorder(),
                 ),
                 child: SizedBox(
                   width: double.infinity,
@@ -418,7 +417,6 @@ class TodoItem extends StatelessWidget {
       builder: (context, ref, child) {
         return Dismissible(
           key: Key(todo.id),
-          direction: DismissDirection.horizontal,
           // 右スワイプ時の背景（明日に移動）
           background: Container(
             alignment: Alignment.centerLeft,
@@ -517,7 +515,7 @@ class TodoItem extends StatelessWidget {
               final deletedTodo = todo;
               
               // グループリストかどうかを確認
-              bool isGroupList = false;
+              var isGroupList = false;
               if (todo.customListId != null) {
                 final customListsAsync = ref.read(customListsProvider);
                 final customLists = customListsAsync.whenOrNull(data: (lists) => lists) ?? [];
@@ -552,7 +550,7 @@ class TodoItem extends StatelessWidget {
               );
             }
           },
-          child: Container(
+          child: DecoratedBox(
             decoration: BoxDecoration(
               color: Theme.of(context).cardTheme.color,
               border: Border(
@@ -571,8 +569,8 @@ class TodoItem extends StatelessWidget {
                   // Todo タイトル行
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 14.0,
+                      horizontal: 16,
+                      vertical: 14,
                     ),
                     child: Row(
                       children: [
@@ -584,7 +582,7 @@ class TodoItem extends StatelessWidget {
                                 .read(todosProvider.notifier)
                                 .toggleTodo(todo.id, todo.date);
                           },
-                          size: 22.0,
+                          size: 22,
                         ),
                         
                         const SizedBox(width: 12),

@@ -435,7 +435,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         final settingsMap = jsonDecode(decryptedJson) as Map<String, dynamic>;
         
         // リレーリストは別途同期（NIP-65 Kind 10002は暗号化されない）
-        List<String> syncedRelays = [];
+        var syncedRelays = <String>[];
         if (settingsMap.containsKey('relays')) {
           syncedRelays = List<String>.from(settingsMap['relays'] as List);
         }
@@ -479,7 +479,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         }
         
         // リレーリストを別途同期（NIP-65 Kind 10002）
-        List<String> syncedRelays = [];
+        var syncedRelays = <String>[];
         try {
           syncedRelays = await bridge.syncRelayList();
           AppLogger.info(' リレーリスト同期完了: ${syncedRelays.length}件');
@@ -514,5 +514,5 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
 }
 
 /// AmberServiceのProvider
-final amberServiceProvider = Provider((ref) => AmberService());
+final Provider<AmberService> amberServiceProvider = Provider((ref) => AmberService());
 

@@ -126,13 +126,13 @@ extension PlanningCategoryExtension on PlanningCategory {
         
       case PlanningCategory.thisMonth:
         // 今月
-        final firstDay = DateTime(now.year, now.month, 1);
+        final firstDay = DateTime(now.year, now.month);
         final lastDay = DateTime(now.year, now.month + 1, 0);
         return DateRange(start: firstDay, end: lastDay);
         
       case PlanningCategory.nextMonth:
         // 来月
-        final firstDay = DateTime(now.year, now.month + 1, 1);
+        final firstDay = DateTime(now.year, now.month + 1);
         final lastDay = DateTime(now.year, now.month + 2, 0);
         return DateRange(start: firstDay, end: lastDay);
     }

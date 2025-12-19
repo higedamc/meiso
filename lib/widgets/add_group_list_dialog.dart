@@ -76,8 +76,8 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         AppLogger.warning('⚠️ [AddGroupListDialog] Nostrクライアントが初期化されていません。待機中...');
         
         // 最大10回（5秒）待機
-        bool initCompleted = false;
-        for (int i = 0; i < 10; i++) {
+        var initCompleted = false;
+        for (var i = 0; i < 10; i++) {
           await Future.delayed(const Duration(milliseconds: 500));
           if (ref.read(nostrInitializedProvider)) {
             AppLogger.info('✅ [AddGroupListDialog] Nostrクライアント初期化完了');
@@ -276,8 +276,8 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         AppLogger.warning('⚠️ [AddGroupListDialog] Nostrクライアントが初期化されていません。待機中...');
         
         // 最大10回（5秒）待機
-        bool initCompleted = false;
-        for (int i = 0; i < 10; i++) {
+        var initCompleted = false;
+        for (var i = 0; i < 10; i++) {
           await Future.delayed(const Duration(milliseconds: 500));
           if (ref.read(nostrInitializedProvider)) {
             AppLogger.info('✅ [AddGroupListDialog] Nostrクライアント初期化完了');
@@ -320,9 +320,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         // 再試行でも失敗
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('⚠️ まだKey Packageが公開されていません'),
-              duration: const Duration(seconds: 2),
+              duration: Duration(seconds: 2),
             ),
           );
         }
@@ -398,7 +398,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       builder: (context) => const Center(
         child: Card(
           child: Padding(
-            padding: EdgeInsets.all(24.0),
+            padding: EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -534,7 +534,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       
       AppLogger.info('🔍 [AddGroupListDialog] Debug: Key Packages count: ${keyPackages.length}');
       AppLogger.info('🔍 [AddGroupListDialog] Debug: Member npubs count: ${memberNpubs.length}');
-      for (int i = 0; i < memberNpubs.length; i++) {
+      for (var i = 0; i < memberNpubs.length; i++) {
         AppLogger.info('   Member ${i + 1}: ${memberNpubs[i].substring(0, 20)}... (KP: ${keyPackages[i].length} bytes)');
       }
       
@@ -720,7 +720,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                 ),
                 if (_isFetchingKeyPackage)
                   const Padding(
-                    padding: EdgeInsets.all(12.0),
+                    padding: EdgeInsets.all(12),
                     child: SizedBox(
                       width: 24,
                       height: 24,
@@ -782,7 +782,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                           ),
                         ),
                         subtitle: hasWarning
-                            ? Text(
+                            ? const Text(
                                 'Key Package未公開',
                                 style: TextStyle(
                                   color: Colors.orange,

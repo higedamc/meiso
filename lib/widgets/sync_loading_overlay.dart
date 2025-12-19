@@ -33,7 +33,7 @@ class SyncLoadingOverlay extends ConsumerWidget {
         // 背景ブラー + 半透明
         Positioned.fill(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
             child: Container(
               color: isDark 
                   ? Colors.black.withOpacity(0.7)

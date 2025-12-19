@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../providers/calendar_provider.dart';
 import '../../providers/date_provider.dart';
-import '../../providers/app_settings_provider.dart';
-import '../../providers/custom_lists_provider.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
@@ -12,7 +11,6 @@ import '../../widgets/expandable_custom_list_modal.dart';
 import '../../widgets/todo_edit_screen.dart';
 import '../settings/settings_screen.dart';
 import '../someday/someday_screen.dart';
-import '../list_detail/list_detail_screen.dart';
 
 /// Meisoのメイン画面
 /// 1日分を全画面表示し、スワイプで日付移動

@@ -223,9 +223,10 @@ impl User {
         // Get listen key from export secret
         let export_secret = group
             .mls_group
-            .export_secret(&self.mls_user.provider, "meiso", b"todo", 32)?;
-        let export_secret_hex = hex::encode(&export_secret);
-        let keypair = Keys::parse(&export_secret_hex)?;
+            // NIP-EE: exporter_secret MUST be 32 bytes labeled "nostr"
+            // See: nips/EE.md (Group Events)
+            .export_secret(&self.mls_user.provider, "nostr", b"", 32)?;
+        let keypair = nostr_keys_from_export_secret(&export_secret)?;
         let listen_key = keypair.public_key().to_hex();
         
         Ok((hex::encode(encrypted_bytes), listen_key))
@@ -278,9 +279,9 @@ impl User {
         // Get listen key
         let export_secret = group
             .mls_group
-            .export_secret(&self.mls_user.provider, "meiso", b"todo", 32)?;
-        let export_secret_hex = hex::encode(&export_secret);
-        let keypair = Keys::parse(&export_secret_hex)?;
+            // NIP-EE: exporter_secret MUST be 32 bytes labeled "nostr"
+            .export_secret(&self.mls_user.provider, "nostr", b"", 32)?;
+        let keypair = nostr_keys_from_export_secret(&export_secret)?;
         let listen_key = keypair.public_key().to_hex();
         
         Ok((plaintext, sender, listen_key))
@@ -550,54 +551,73 @@ pub fn init_mls_db(db_path: String, nostr_id: String) -> Result<()> {
 /// Get export secret from MLS group
 /// This is used to derive deterministic Nostr keypair
 pub fn get_export_secret(nostr_id: String, group_id: String) -> Result<Vec<u8>> {
-    let rt = RUNTIME.as_ref();
-    rt.block_on(async {
-        let mut store = STORE.lock().await;
-        let store = store
-            .as_mut()
-            .ok_or_else(|| anyhow::anyhow!("MLS store not initialized"))?;
-        
-        let user = store
-            .users
-            .get_mut(&nostr_id)
-            .ok_or_else(|| anyhow::anyhow!("User {} not found in MLS store", nostr_id))?;
-        
-        // Get MLS group
-        let mut groups = user
-            .mls_user
-            .groups
-            .write()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock on groups"))?;
-        
-        let group = groups
-            .get_mut(&group_id)
-            .ok_or_else(|| anyhow::anyhow!("Group {} not found", group_id))?;
-        
-        // Export secret with Meiso-specific label
-        let export_secret = group
-            .mls_group
-            .export_secret(&user.mls_user.provider, "meiso", b"todo", 32)?;
-        
-        Ok(export_secret)
-    })
+    get_export_secret_with_params(nostr_id, group_id, "nostr", b"")
 }
 
 /// Get listen key (Nostr pubkey) from export secret
 /// This key is deterministically derived from the MLS group's export secret
 pub fn get_listen_key_from_export_secret(nostr_id: String, group_id: String) -> Result<String> {
     let export_secret = get_export_secret(nostr_id, group_id)?;
-    
-    // Convert export secret to hex
-    let export_secret_hex = hex::encode(&export_secret);
-    
-    // Parse as Nostr keypair
-    let keypair = nostr::Keys::parse(&export_secret_hex)?;
-    
-    // Extract x-only public key (schnorr)
-    let public_key = keypair.public_key();
-    let listen_key = public_key.to_hex();
-    
-    Ok(listen_key)
+    let keypair = nostr_keys_from_export_secret(&export_secret)?;
+    Ok(keypair.public_key().to_hex())
+}
+
+/// Backward compatibility:
+/// previous Meiso implementation used exporter_secret(label="meiso", context=b"todo").
+/// We keep this for *decrypt fallback* so older events can still be recovered.
+pub(crate) fn get_export_secret_legacy_meiso_todo(nostr_id: String, group_id: String) -> Result<Vec<u8>> {
+    get_export_secret_with_params(nostr_id, group_id, "meiso", b"todo")
+}
+
+fn get_export_secret_with_params(
+    nostr_id: String,
+    group_id: String,
+    label: &'static str,
+    context: &'static [u8],
+) -> Result<Vec<u8>> {
+    let rt = RUNTIME.as_ref();
+    rt.block_on(async {
+        let mut store = STORE.lock().await;
+        let store = store
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("MLS store not initialized"))?;
+
+        let user = store
+            .users
+            .get_mut(&nostr_id)
+            .ok_or_else(|| anyhow::anyhow!("User {} not found in MLS store", nostr_id))?;
+
+        // Get MLS group
+        let mut groups = user
+            .mls_user
+            .groups
+            .write()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock on groups"))?;
+
+        let group = groups
+            .get_mut(&group_id)
+            .ok_or_else(|| anyhow::anyhow!("Group {} not found", group_id))?;
+
+        let export_secret = group
+            .mls_group
+            .export_secret(&user.mls_user.provider, label, context, 32)?;
+
+        Ok(export_secret)
+    })
+}
+
+/// Derive a deterministic Nostr keypair from MLS exporter_secret.
+///
+/// IMPORTANT:
+/// - NIP-EE specifies using the 32-byte exporter_secret (label "nostr") as a *secret key*.
+/// - Do NOT use `Keys::parse(hex)` here: 64-hex strings are ambiguous (pubkey vs seckey).
+///   We want an unambiguous "secret key from bytes" conversion.
+pub(crate) fn nostr_keys_from_export_secret(export_secret: &[u8]) -> Result<nostr_sdk::Keys> {
+    use nostr_sdk::{Keys, SecretKey};
+
+    let secret_key = SecretKey::from_slice(export_secret)
+        .map_err(|e| anyhow::anyhow!("Failed to derive nostr SecretKey from exporter_secret: {:?}", e))?;
+    Ok(Keys::new(secret_key))
 }
 
 #[cfg(test)]

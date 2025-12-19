@@ -31,7 +31,7 @@ class AmberService {
       (dynamic event) {
         AppLogger.debug('📨 Received event from Amber: $event');
         if (event is Map) {
-          final Map<String, dynamic> eventMap = Map<String, dynamic>.from(event);
+          final eventMap = Map<String, dynamic>.from(event);
           _amberResponseController.add(eventMap);
         }
       },
@@ -77,7 +77,7 @@ class AmberService {
 
     try {
       AppLogger.debug(' Requesting public key from Amber...');
-      final String? publicKey = await _channel.invokeMethod('getPublicKeyFromAmber');
+      final publicKey = await _channel.invokeMethod('getPublicKeyFromAmber');
       
       if (publicKey != null && publicKey.isNotEmpty) {
         AppLogger.info(' Received public key from Amber: ${publicKey.substring(0, 10)}...');
@@ -106,7 +106,7 @@ class AmberService {
 
     try {
       AppLogger.debug('✍️ Requesting event signature from Amber...');
-      final String? signedEvent = await _channel.invokeMethod(
+      final signedEvent = await _channel.invokeMethod(
         'signEventWithAmber',
         {'event': eventJson},
       );

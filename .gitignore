@@ -50,6 +50,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/local.properties
+/android/app/src/
 
 # Rust related
 rust/target/
@@ -69,4 +70,4 @@ migrate_docs_to_anytype.py
 start_emulator.sh
 
 scripts/.env
-
+env

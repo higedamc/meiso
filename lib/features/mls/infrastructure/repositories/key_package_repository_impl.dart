@@ -16,9 +16,6 @@ import '../../../../bridge_generated.dart/group_tasks_mls.dart' show KeyPackageR
 /// Key Packageの生成、公開、取得を実装する。
 /// 既存のnostr_provider.dartのpublishKeyPackage()ロジックを移植。
 class KeyPackageRepositoryImpl implements KeyPackageRepository {
-  final KeyPackageLocalDataSource _localDataSource;
-  final NostrService _nostrService;
-  final bool _isAmberMode;
   
   const KeyPackageRepositoryImpl({
     required KeyPackageLocalDataSource localDataSource,
@@ -27,6 +24,9 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
   })  : _localDataSource = localDataSource,
         _nostrService = nostrService,
         _isAmberMode = isAmberMode;
+  final KeyPackageLocalDataSource _localDataSource;
+  final NostrService _nostrService;
+  final bool _isAmberMode;
   
   // ========================================
   // ローカル操作
@@ -40,7 +40,7 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
     // ローカルストレージからの読み込みは現在未実装。
     // 将来的に必要になれば実装する。
     AppLogger.debug('[KeyPackageRepo] loadKeyPackageFromLocal: Not implemented');
-    return Right(null);
+    return const Right(null);
   }
   
   @override
@@ -48,7 +48,7 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
     // Note: Key Package本体はMLS DBで管理されるため、
     // ローカルストレージへの保存は現在未実装。
     AppLogger.debug('[KeyPackageRepo] saveKeyPackageToLocal: Not implemented');
-    return Right(null);
+    return const Right(null);
   }
   
   @override
@@ -56,7 +56,7 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
     required String publicKey,
   }) async {
     AppLogger.debug('[KeyPackageRepo] deleteKeyPackageFromLocal: Not implemented');
-    return Right(null);
+    return const Right(null);
   }
   
   @override
@@ -81,7 +81,7 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
   Future<Either<Failure, void>> saveLastPublishTime(DateTime dateTime) async {
     try {
       await _localDataSource.saveLastPublishTime(dateTime);
-      return Right(null);
+      return const Right(null);
     } catch (e, st) {
       AppLogger.error(
         '[KeyPackageRepo] Failed to save last publish time',
@@ -160,7 +160,7 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
       AppLogger.debug('  Step 1: Kind 10443イベント作成中...');
       
       // defaultRelaysはトップレベルの定数（nostr_provider.dartで定義）
-      final relays = defaultRelays;
+      const relays = defaultRelays;
       
       // KeyPackageResultを再構成（Rust APIが期待する形式）
       final keyPackageResult = KeyPackageResult(
@@ -186,7 +186,6 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
         final amberService = AmberService();
         signedEvent = await amberService.signEventWithTimeout(
           unsignedEventJson,
-          timeout: const Duration(minutes: 2),
         );
         AppLogger.debug('  ✅ Amber署名完了');
       } else {
@@ -228,7 +227,7 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
       // 現在は未実装（グループ招待機能で必要）
       
       AppLogger.debug('[KeyPackageRepo] fetchKeyPackageByNpub: Not implemented yet');
-      return Right(null);
+      return const Right(null);
       
     } catch (e, st) {
       AppLogger.error(
@@ -254,7 +253,7 @@ class KeyPackageRepositoryImpl implements KeyPackageRepository {
       // 現在は未実装（グループ作成機能で必要）
       
       AppLogger.debug('[KeyPackageRepo] fetchKeyPackagesByNpubs: Not implemented yet');
-      return Right({});
+      return const Right({});
       
     } catch (e, st) {
       AppLogger.error(

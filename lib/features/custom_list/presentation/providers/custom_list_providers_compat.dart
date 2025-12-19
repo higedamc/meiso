@@ -20,7 +20,7 @@ final customListsProviderCompat = Provider<AsyncValue<List<CustomList>>>((ref) {
   return state.when(
     initial: () => const AsyncValue.loading(),
     loading: () => const AsyncValue.loading(),
-    loaded: (customLists) => AsyncValue.data(customLists),
+    loaded: AsyncValue.data,
     error: (message) => AsyncValue.error(message, StackTrace.current),
   );
 });
@@ -30,5 +30,5 @@ final customListsProviderCompat = Provider<AsyncValue<List<CustomList>>>((ref) {
 /// customListsProviderCompatが新ViewModelを使うようになったが、
 /// 一部の画面では旧Providerの機能が必要なため、
 /// 旧Providerも引き続き利用可能にしておく
-final customListsProvider = old.customListsProvider;
+final StateNotifierProvider<old.CustomListsNotifier, AsyncValue<List<CustomList>>> customListsProvider = old.customListsProvider;
 

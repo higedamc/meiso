@@ -3,14 +3,13 @@ import 'package:flutter/foundation.dart';
 
 /// グローバルTalkerインスタンス
 /// デバッグモード時のみログを有効化
-final talker = TalkerFlutter.init(
+final Talker talker = TalkerFlutter.init(
   settings: TalkerSettings(
-    enabled: kDebugMode,
     useConsoleLogs: kDebugMode,
   ),
   logger: TalkerLogger(
     settings: TalkerLoggerSettings(
-      enableColors: kDebugMode,
+      
     ),
   ),
 );

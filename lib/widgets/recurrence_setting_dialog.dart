@@ -58,7 +58,7 @@ class _RecurrenceSettingDialogState extends State<RecurrenceSettingDialog> {
             // ヘッダー
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.repeat,
                   color: AppTheme.primaryPurple,
                   size: 28,
@@ -144,7 +144,7 @@ class _RecurrenceSettingDialogState extends State<RecurrenceSettingDialog> {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline,
                     color: AppTheme.primaryPurple,
                     size: 20,
@@ -171,7 +171,7 @@ class _RecurrenceSettingDialogState extends State<RecurrenceSettingDialog> {
               children: [
                 if (widget.initialPattern != null)
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(null),
+                    onPressed: () => Navigator.of(context).pop(),
                     child: Text(
                       '繰り返しを解除',
                       style: TextStyle(
@@ -248,7 +248,7 @@ class _RecurrenceSettingDialogState extends State<RecurrenceSettingDialog> {
 
     return Row(
       children: [
-        Container(
+        DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(
               color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
@@ -350,7 +350,7 @@ class _RecurrenceSettingDialogState extends State<RecurrenceSettingDialog> {
   Widget _buildDayOfMonthSelector(bool isDark, ThemeData theme) {
     return Row(
       children: [
-        Container(
+        DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(
               color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
@@ -448,7 +448,7 @@ class _RecurrenceSettingDialogState extends State<RecurrenceSettingDialog> {
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.primaryPurple,
-                  side: BorderSide(color: AppTheme.primaryPurple),
+                  side: const BorderSide(color: AppTheme.primaryPurple),
                 ),
               ),
             ],

@@ -114,7 +114,7 @@ void main() {
 
     test('空のタイトルでバリデーションエラーが返る', () async {
       // Arrange
-      final params = CreateTodoParams(title: '');
+      const params = CreateTodoParams(title: '');
 
       // Act
       final result = await usecase(params);
@@ -158,7 +158,7 @@ void main() {
       final params = CreateTodoParams(title: testTitle.value);
 
       when(() => mockRepository.createTodo(any())).thenAnswer(
-        (_) async => Left(ServerFailure('Database error')),
+        (_) async => const Left(ServerFailure('Database error')),
       );
 
       // Act

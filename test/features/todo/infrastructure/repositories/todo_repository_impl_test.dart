@@ -245,7 +245,7 @@ void main() {
         completed: true,
         order: 0,
         createdAt: DateTime(2025, 11, 12),
-        updatedAt: DateTime(2025, 11, 12, 15, 0),
+        updatedAt: DateTime(2025, 11, 12, 15),
         needsSync: true,
       );
       when(() => mockLocalDataSource.saveTodo(any()))

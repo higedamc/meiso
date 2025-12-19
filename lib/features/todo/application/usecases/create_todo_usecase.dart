@@ -11,11 +11,7 @@ import '../../../../services/logger_service.dart';
 import '../../domain/repositories/todo_repository.dart';
 
 /// CreateTodoUseCaseのパラメータ
-class CreateTodoParams {
-  final String title;
-  final DateTime? date;
-  final String? customListId;
-  final Map<DateTime?, List<Todo>> currentTodos; // 現在のTodoリスト（order計算用）
+class CreateTodoParams { // 現在のTodoリスト（order計算用）
 
   const CreateTodoParams({
     required this.title,
@@ -23,6 +19,10 @@ class CreateTodoParams {
     this.customListId,
     required this.currentTodos,
   });
+  final String title;
+  final DateTime? date;
+  final String? customListId;
+  final Map<DateTime?, List<Todo>> currentTodos;
 }
 
 /// 新しいTodoを作成するUseCase
@@ -37,10 +37,10 @@ class CreateTodoParams {
 /// - orderの計算
 /// - ローカルストレージへの永続化（Repository経由）
 class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
-  final TodoRepository _repository;
-  final _uuid = const Uuid();
   
   CreateTodoUseCase(this._repository);
+  final TodoRepository _repository;
+  final _uuid = const Uuid();
 
   @override
   Future<Either<Failure, Todo>> call(CreateTodoParams params) async {
@@ -67,12 +67,12 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
       AppLogger.debug('🔗 URL detected: $detectedUrl');
 
       // URLが検出された場合、即座にタイトルから削除
-      String finalTitle = cleanTitle;
+      var finalTitle = cleanTitle;
       LinkPreview? initialLinkPreview;
 
       if (detectedUrl != null) {
         // URLからドメイン名を抽出
-        String domainName = detectedUrl;
+        var domainName = detectedUrl;
         try {
           final uri = Uri.parse(detectedUrl);
           domainName = uri.host;
@@ -91,7 +91,6 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
           url: detectedUrl,
           title: domainName, // ドメイン名を表示
           description: '読み込み中...', // 取得中を日本語で表示
-          imageUrl: null,
         );
 
         AppLogger.debug('📋 Title after URL removal: "$finalTitle" (domain: $domainName)');
@@ -106,7 +105,6 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
       final newTodo = Todo(
         id: _uuid.v4(),
         title: finalTitle,
-        completed: false,
         date: params.date,
         order: nextOrder,
         createdAt: now,
@@ -114,7 +112,6 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
         customListId: params.customListId,
         recurrence: autoRecurrence, // 自動検出された繰り返しパターンを設定
         linkPreview: initialLinkPreview, // 一時的なリンクプレビューを設定
-        needsSync: true, // 同期が必要
       );
 
       AppLogger.info('✅ Created new Todo object:');

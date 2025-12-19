@@ -20,13 +20,6 @@ import '../../../../providers/nostr_provider.dart';
 /// - NostrService: Nostr通信
 /// - AmberService: Amber署名/復号化
 class TodoRepositoryImpl implements TodoRepository {
-  final LocalStorageService _localStorageService;
-  // Phase C.2で使用予定
-  // ignore: unused_field
-  final NostrService _nostrService;
-  // Phase C.2で使用予定
-  // ignore: unused_field
-  final AmberService _amberService;
   
   const TodoRepositoryImpl({
     required LocalStorageService localStorageService,
@@ -35,6 +28,13 @@ class TodoRepositoryImpl implements TodoRepository {
   })  : _localStorageService = localStorageService,
         _nostrService = nostrService,
         _amberService = amberService;
+  final LocalStorageService _localStorageService;
+  // Phase C.2で使用予定
+  // ignore: unused_field
+  final NostrService _nostrService;
+  // Phase C.2で使用予定
+  // ignore: unused_field
+  final AmberService _amberService;
   
   // ============================================================
   // ローカルストレージ操作
@@ -112,7 +112,7 @@ class TodoRepositoryImpl implements TodoRepository {
       // TODO: Phase C - ステップ2で実装
       // TodosProvider.syncFromNostr()からロジックを移植
       
-      return Left(UnexpectedFailure('Not implemented yet - Phase C Step 2'));
+      return const Left(UnexpectedFailure('Not implemented yet - Phase C Step 2'));
     } catch (e, stackTrace) {
       AppLogger.error('❌ [Repo] Failed to sync from Nostr', error: e, stackTrace: stackTrace);
       return Left(NetworkFailure('Nostr同期に失敗しました: $e'));
@@ -130,7 +130,7 @@ class TodoRepositoryImpl implements TodoRepository {
       // TODO: Phase C - ステップ2で実装
       // TodosProvider._syncAllTodosToNostr()からロジックを移植
       
-      return Left(UnexpectedFailure('Not implemented yet - Phase C Step 2'));
+      return const Left(UnexpectedFailure('Not implemented yet - Phase C Step 2'));
     } catch (e, stackTrace) {
       AppLogger.error('❌ [Repo] Failed to sync to Nostr', error: e, stackTrace: stackTrace);
       return Left(NetworkFailure('Nostr送信に失敗しました: $e'));
@@ -254,7 +254,7 @@ class TodoRepositoryImpl implements TodoRepository {
       AppLogger.debug('[Repo] Found ${encryptedTodos.length} encrypted Kind 30078 events');
       
       // Amberで復号化
-      final List<Todo> oldTodos = [];
+      final oldTodos = <Todo>[];
       
       for (final encryptedTodo in encryptedTodos) {
         try {
@@ -344,7 +344,7 @@ class TodoRepositoryImpl implements TodoRepository {
       // 3. deleteNostrEvents()で旧イベント削除
       // 4. setMigrationCompleted()でフラグ保存
       
-      return Left(UnexpectedFailure('This method should not be called directly. Use Provider layer for full migration.'));
+      return const Left(UnexpectedFailure('This method should not be called directly. Use Provider layer for full migration.'));
     } catch (e, stackTrace) {
       AppLogger.error('❌ [Repo] Failed to migrate', error: e, stackTrace: stackTrace);
       return Left(UnexpectedFailure('マイグレーションに失敗しました: $e'));
@@ -354,10 +354,10 @@ class TodoRepositoryImpl implements TodoRepository {
 
 /// ローカルストレージのエラー
 class LocalStorageFailure extends Failure {
-  const LocalStorageFailure(String message) : super(message);
+  const LocalStorageFailure(super.message);
 }
 
 /// ネットワークエラー
 class NetworkFailure extends Failure {
-  const NetworkFailure(String message) : super(message);
+  const NetworkFailure(super.message);
 }

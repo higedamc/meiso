@@ -44,7 +44,7 @@ class TodoLocalDataSourceHive implements TodoLocalDataSource {
   Future<List<Todo>> loadAllTodos() async {
     _ensureInitialized();
 
-    final List<Todo> todos = [];
+    final todos = <Todo>[];
 
     for (final value in _todosBox!.values) {
       try {

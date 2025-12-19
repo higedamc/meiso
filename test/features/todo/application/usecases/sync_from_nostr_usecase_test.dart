@@ -27,12 +27,9 @@ void main() {
         completed: false,
         createdAt: DateTime(2025, 11, 12),
         updatedAt: DateTime(2025, 11, 12),
-        date: null,
-        customListId: null,
         order: 0,
         linkPreview: null,
         recurrence: null,
-        parentRecurringId: null,
         eventId: 'event-1',
       needsSync: false,
       ),
@@ -42,12 +39,9 @@ void main() {
         completed: true,
         createdAt: DateTime(2025, 11, 12),
         updatedAt: DateTime(2025, 11, 12),
-        date: null,
-        customListId: null,
         order: 1,
         linkPreview: null,
         recurrence: null,
-        parentRecurringId: null,
         eventId: 'event-2',
       needsSync: false,
       ),
@@ -96,7 +90,7 @@ void main() {
     test('Nostr接続失敗時にエラーが返る', () async {
       // Arrange
       when(() => mockRepository.syncFromNostr())
-          .thenAnswer((_) async => Left(NetworkFailure('Connection timeout')));
+          .thenAnswer((_) async => const Left(NetworkFailure('Connection timeout')));
 
       // Act
       final result = await usecase(const NoParams());
@@ -114,7 +108,7 @@ void main() {
     test('Nostr認証失敗時にエラーが返る', () async {
       // Arrange
       when(() => mockRepository.syncFromNostr())
-          .thenAnswer((_) async => Left(AuthFailure('Invalid credentials')));
+          .thenAnswer((_) async => const Left(AuthFailure('Invalid credentials')));
 
       // Act
       final result = await usecase(const NoParams());

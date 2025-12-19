@@ -3359,6 +3359,35 @@ pub fn mls_get_listen_key(nostr_id: String, group_id: String) -> Result<String> 
     crate::mls::get_listen_key_from_export_secret(nostr_id, group_id)
 }
 
+/// NIP-EE: MLS Group Event (kind:445) の content を NIP-44 で暗号化する
+///
+/// NIP-EE (nips/EE.md) に従い、
+/// - exporter_secret(32 bytes, label "nostr") を「秘密鍵」として扱い
+/// - そこから導出した公開鍵（= listen key）を「受信者鍵」として扱い
+/// - NIP-44(v2) で "MLSMessage(= mls_add_todo の戻り値 hex)" を暗号化する
+///
+/// Flutter側には exporter_secret を露出させない。
+pub fn mls_encrypt_group_event_content(
+    nostr_id: String,
+    group_id: String,
+    mls_message_hex: String,
+) -> Result<String> {
+    // NIP-EE: exporter_secret MUST be 32 bytes labeled "nostr"
+    // (actual export is done in crate::mls::get_export_secret)
+    let export_secret = crate::mls::get_export_secret(nostr_id, group_id)?;
+    let keys = crate::mls::nostr_keys_from_export_secret(&export_secret)?;
+
+    // NIP-44 で自己暗号化（conversation key = exporter_secret 由来）
+    let encrypted_content = nip44::encrypt(
+        keys.secret_key(),
+        &keys.public_key(),
+        &mls_message_hex,
+        nip44::Version::V2,
+    )?;
+
+    Ok(encrypted_content)
+}
+
 /// MLS: TODOグループ作成
 pub fn mls_create_todo_group(
     nostr_id: String,
@@ -3406,7 +3435,42 @@ pub fn mls_decrypt_todo(
     group_id: String,
     encrypted_msg: String,
 ) -> Result<(String, String, String, String, String)> {
-    crate::group_tasks_mls::decrypt_todo_from_mls_group(nostr_id, group_id, encrypted_msg)
+    // 1) まず従来形式（MLS ciphertext hex）として復号を試す
+    match crate::group_tasks_mls::decrypt_todo_from_mls_group(
+        nostr_id.clone(),
+        group_id.clone(),
+        encrypted_msg.clone(),
+    ) {
+        Ok(v) => return Ok(v),
+        Err(_e) => {
+            // 2) NIP-EE準拠: kind:445 の content は NIP-44 で暗号化されるため、
+            // exporter_secret 由来のキーで復号してから MLS 復号する
+        }
+    }
+
+    // NIP-EE label ("nostr")
+    let export_secret = crate::mls::get_export_secret(nostr_id.clone(), group_id.clone())?;
+    let keys = crate::mls::nostr_keys_from_export_secret(&export_secret)?;
+
+    if let Ok(decrypted) = nip44::decrypt(
+        keys.secret_key(),
+        &keys.public_key(),
+        &encrypted_msg,
+    ) {
+        return crate::group_tasks_mls::decrypt_todo_from_mls_group(nostr_id, group_id, decrypted);
+    }
+
+    // Backward compatibility: legacy Meiso label ("meiso", context "todo")
+    let legacy_export_secret =
+        crate::mls::get_export_secret_legacy_meiso_todo(nostr_id.clone(), group_id.clone())?;
+    let legacy_keys = crate::mls::nostr_keys_from_export_secret(&legacy_export_secret)?;
+    let decrypted_legacy = nip44::decrypt(
+        legacy_keys.secret_key(),
+        &legacy_keys.public_key(),
+        &encrypted_msg,
+    )?;
+
+    crate::group_tasks_mls::decrypt_todo_from_mls_group(nostr_id, group_id, decrypted_legacy)
 }
 
 /// MLS: Key Package作成

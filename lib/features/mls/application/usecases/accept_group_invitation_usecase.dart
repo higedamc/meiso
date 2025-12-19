@@ -11,15 +11,15 @@ import 'auto_publish_key_package_usecase.dart';
 
 /// グループ招待受諾のパラメータ
 class AcceptGroupInvitationParams {
-  final String publicKey;
-  final String groupId;
-  final String welcomeMessage;
   
   const AcceptGroupInvitationParams({
     required this.publicKey,
     required this.groupId,
     required this.welcomeMessage,
   });
+  final String publicKey;
+  final String groupId;
+  final String welcomeMessage;
 }
 
 /// グループ招待受諾UseCase
@@ -34,13 +34,13 @@ class AcceptGroupInvitationParams {
 /// 3. Key Packageを強制公開（MLS Protocol推奨）
 class AcceptGroupInvitationUseCase 
     implements UseCase<MlsGroup, AcceptGroupInvitationParams> {
-  final MlsGroupRepository _groupRepository;
-  final KeyPackageRepository _keyPackageRepository;
   
   const AcceptGroupInvitationUseCase(
     this._groupRepository,
     this._keyPackageRepository,
   );
+  final MlsGroupRepository _groupRepository;
+  final KeyPackageRepository _keyPackageRepository;
   
   @override
   Future<Either<Failure, MlsGroup>> call(

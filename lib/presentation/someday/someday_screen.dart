@@ -36,10 +36,13 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
   ProviderSubscription<AsyncValue<List<CustomList>>>? _customListsSub;
   Set<String> _realtimeGroupIds = <String>{};
   int _reconcileGeneration = 0;
+  TodosNotifier? _todosNotifier;
 
   @override
   void initState() {
     super.initState();
+    // dispose中にrefを触らないため、notifier参照を保持しておく
+    _todosNotifier = ref.read(todosProvider.notifier);
 
     // ✅ 即反映: Somedayを開いている間、受諾済みの全グループリストを購読
     _customListsSub = ref.listenManual<AsyncValue<List<CustomList>>>(
@@ -70,13 +73,14 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     _customListsSub?.close();
     _customListsSub = null;
 
-    // close後に購読解除（ref.readはdispose直前の安全なタイミングで行う）
-    final todoNotifier = ref.read(todosProvider.notifier);
+    // close後に購読解除（dispose中にrefを触らない）
+    final todoNotifier = _todosNotifier;
     for (final gid in groupIds) {
       Future<void>(() async {
-        await todoNotifier.stopRealtimeGroupTodos(gid);
+        await todoNotifier?.stopRealtimeGroupTodos(gid);
       });
     }
+    _todosNotifier = null;
     super.dispose();
   }
 
@@ -93,15 +97,21 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     final toStart = desired.difference(_realtimeGroupIds);
     final toStop = _realtimeGroupIds.difference(desired);
 
-    // awaitの間にdisposeされうるため、ref.readは最初に1回だけ
-    final todoNotifier = ref.read(todosProvider.notifier);
+    final todoNotifier = _todosNotifier;
+    if (todoNotifier == null) return;
+
+    AppLogger.info(
+      '📡 [SomedayScreen] Reconcile realtime group subs: desired=${desired.length}, toStart=${toStart.length}, toStop=${toStop.length}',
+    );
 
     for (final gid in toStart) {
       try {
         if (!mounted || generation != _reconcileGeneration) return;
+        AppLogger.info('📡 [SomedayScreen] Starting realtime group subscription: $gid');
         await todoNotifier.startRealtimeGroupTodos(gid);
-      } catch (_) {
+      } catch (e) {
         // 購読失敗してもSomedayは表示し続ける（pull-to-refresh運用可能）
+        AppLogger.warning('⚠️ [SomedayScreen] Failed to start realtime group subscription: $gid ($e)');
       }
     }
 
@@ -338,7 +348,6 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           border: Border(
             bottom: BorderSide(
               color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
-              width: 1,
             ),
           ),
         ),
@@ -357,7 +366,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             ],
             // グループアイコン（グループリストの場合）
             if (isGroup) ...[
-              Icon(
+              const Icon(
                 Icons.group,
                 size: 18,
                 color: AppTheme.primaryColor,
@@ -388,10 +397,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: Colors.orange.withOpacity(0.5),
-                    width: 1,
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
@@ -399,7 +407,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                       size: 14,
                       color: Colors.orange,
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       '招待',
                       style: TextStyle(
@@ -422,7 +430,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 ),
                 child: Text(
                   count.toString(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.primaryPurple,
@@ -457,7 +465,6 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           border: Border(
             bottom: BorderSide(
               color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
-              width: 1,
             ),
           ),
         ),
@@ -476,7 +483,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             ],
             // グループアイコン（グループリストの場合）
             if (list.isGroup) ...[
-              Icon(
+              const Icon(
                 Icons.group,
                 size: 18,
                 color: AppTheme.primaryColor,
@@ -507,10 +514,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: Colors.orange.withOpacity(0.5),
-                    width: 1,
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
@@ -518,7 +524,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                       size: 14,
                       color: Colors.orange,
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       '招待',
                       style: TextStyle(
@@ -541,7 +547,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 ),
                 child: Text(
                   count.toString(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.primaryPurple,
@@ -573,9 +579,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
 
   /// カスタムリストのTodo数を取得
   int _getListTodoCount(String listId, Map<DateTime?, List<Todo>> todos) {
-    int count = 0;
-    int totalTodosInMap = 0;
-    int todosWithCustomListId = 0;
+    var count = 0;
+    var totalTodosInMap = 0;
+    var todosWithCustomListId = 0;
     
     // デバッグ: 日付nullのTodoを確認
     if (todos.containsKey(null)) {
@@ -616,7 +622,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     Map<DateTime?, List<Todo>> todos,
   ) {
     final dateRange = category.getDateRange();
-    int count = 0;
+    var count = 0;
 
     for (final entry in todos.entries) {
       final date = entry.key;
@@ -769,7 +775,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
           title: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.mail,
                 color: Colors.orange,
                 size: 24,
@@ -790,8 +796,8 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${list.name}',
-                style: TextStyle(
+                list.name,
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.primaryColor,
@@ -865,7 +871,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     WidgetRef ref,
     CustomList list,
   ) async {
-    bool isLoadingDialogShown = false;
+    var isLoadingDialogShown = false;
     
     try {
       AppLogger.info('🎉 [GroupInvitation] Accepting invitation for: ${list.name}');
@@ -874,7 +880,6 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        useRootNavigator: true, // アプリのライフサイクルに影響されない
         builder: (context) => const Center(
           child: CircularProgressIndicator(),
         ),
@@ -965,7 +970,6 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('✅ ${list.name}に参加しました。リストをタップして開いてください。'),
-                duration: const Duration(seconds: 4),
               ),
             );
             AppLogger.info('✅ [GroupInvitation] Invitation accepted successfully - user can now tap the list');

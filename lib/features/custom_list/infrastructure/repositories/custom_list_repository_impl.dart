@@ -22,11 +22,6 @@ import '../../../../utils/error_handler.dart';
 /// - NostrService: Nostr通信（Phase C.3.2で追加）
 /// - AmberService: Amber署名/復号化（Phase Eで追加）
 class CustomListRepositoryImpl implements CustomListRepository {
-  final LocalStorageService _localStorageService;
-  final NostrService _nostrService;
-  // Phase E.2/E.3で使用予定
-  // ignore: unused_field
-  final AmberService _amberService;
   
   const CustomListRepositoryImpl({
     required LocalStorageService localStorageService,
@@ -35,6 +30,11 @@ class CustomListRepositoryImpl implements CustomListRepository {
   }) : _localStorageService = localStorageService,
        _nostrService = nostrService,
        _amberService = amberService;
+  final LocalStorageService _localStorageService;
+  final NostrService _nostrService;
+  // Phase E.2/E.3で使用予定
+  // ignore: unused_field
+  final AmberService _amberService;
   
   // ============================================================
   // ローカルストレージ操作
@@ -87,7 +87,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
       final listsResult = await loadCustomListsFromLocal();
       
       return listsResult.fold(
-        (failure) => Left(failure),
+        Left.new,
         (lists) async {
           // 既存リストを更新 or 新規追加
           final existingIndex = lists.indexWhere((l) => l.id == list.id);
@@ -127,7 +127,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
       final listsResult = await loadCustomListsFromLocal();
       
       return listsResult.fold(
-        (failure) => Left(failure),
+        Left.new,
         (lists) async {
           // 指定IDのリストを削除
           final updatedLists = lists.where((l) => l.id != id).toList();
@@ -178,7 +178,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
       }
       
       // list_idからリスト名を抽出
-      final List<String> listNames = [];
+      final listNames = <String>[];
       for (final data in listNamesData) {
         String listName;
         
@@ -212,7 +212,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
   
   @override
   Future<Either<Failure, List<CustomList>>> syncPersonalListsFromNostr() async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+    return const Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
   
   @override
@@ -220,7 +220,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
     required List<CustomList> lists,
     required bool isAmberMode,
   }) async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+    return const Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
   
   @override
@@ -233,7 +233,6 @@ class CustomListRepositoryImpl implements CustomListRepository {
       // Rust APIを呼び出してkind 5削除イベントを取得
       final deletedIds = await rust_api.fetchDeletionEventsForPubkeyWithClientId(
         publicKeyHex: publicKey,
-        clientId: null,
       );
       
       if (deletedIds.isNotEmpty) {
@@ -241,7 +240,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
         return Right(deletedIds.toSet());
       } else {
         AppLogger.info('ℹ️ [CustomListRepo] No deletion events found');
-        return Right(<String>{});
+        return const Right(<String>{});
       }
     } catch (e, stackTrace) {
       AppLogger.error(
@@ -301,7 +300,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
     required String groupName,
     required List<String> keyPackages,
   }) async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+    return const Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
   
   // ============================================================
@@ -357,7 +356,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
   }) async {
     // Phase E.2で実装予定
     // TODO: 空のTODOリストイベント（Kind 30001）を送信してリスト名・orderを更新
-    return Left(UnexpectedFailure('Not implemented yet - Phase E.2'));
+    return const Left(UnexpectedFailure('Not implemented yet - Phase E.2'));
   }
   
   @override
@@ -367,7 +366,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
   }) async {
     // Phase E.3で実装予定
     // TODO: 空のTODOリストイベント（Kind 30001）を送信して空リストを同期
-    return Left(UnexpectedFailure('Not implemented yet - Phase E.3'));
+    return const Left(UnexpectedFailure('Not implemented yet - Phase E.3'));
   }
   
   // ============================================================
@@ -378,7 +377,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
   Future<Either<Failure, List<CustomList>>> syncGroupInvitations({
     required String recipientPublicKey,
   }) async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+    return const Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
   
   @override
@@ -386,7 +385,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
     required String groupId,
     required String memberPubkey,
   }) async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+    return const Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
   
   @override
@@ -394,7 +393,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
     required String groupId,
     required String memberPubkey,
   }) async {
-    return Left(UnexpectedFailure('Not implemented yet - Phase D'));
+    return const Left(UnexpectedFailure('Not implemented yet - Phase D'));
   }
 }
 

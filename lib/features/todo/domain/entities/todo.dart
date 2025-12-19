@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import '../value_objects/todo_title.dart';
+
 import '../value_objects/todo_date.dart';
+import '../value_objects/todo_title.dart';
 
 part 'todo.freezed.dart';
 

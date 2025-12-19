@@ -7,10 +7,6 @@ import '../../../../utils/error_handler.dart';
 
 /// グループ招待送信のパラメータ
 class SendGroupInvitationParams {
-  final String recipientNpub;
-  final String groupId;
-  final String groupName;
-  final String welcomeMessage;
   
   const SendGroupInvitationParams({
     required this.recipientNpub,
@@ -18,17 +14,21 @@ class SendGroupInvitationParams {
     required this.groupName,
     required this.welcomeMessage,
   });
+  final String recipientNpub;
+  final String groupId;
+  final String groupName;
+  final String welcomeMessage;
 }
 
 /// グループ招待送信の結果
 class SendGroupInvitationResult {
-  final String? eventId;
-  final bool success;
   
   const SendGroupInvitationResult({
     this.eventId,
     required this.success,
   });
+  final String? eventId;
+  final bool success;
 }
 
 /// グループ招待送信UseCase
@@ -39,9 +39,9 @@ class SendGroupInvitationResult {
 /// リトライ機能あり（最大2回、1秒間隔）。
 class SendGroupInvitationUseCase 
     implements UseCase<SendGroupInvitationResult, SendGroupInvitationParams> {
-  final MlsGroupRepository _repository;
   
   const SendGroupInvitationUseCase(this._repository);
+  final MlsGroupRepository _repository;
   
   @override
   Future<Either<Failure, SendGroupInvitationResult>> call(
@@ -65,7 +65,6 @@ class SendGroupInvitationUseCase
         )),
         operationName: 'sendGroupInvitation',
         maxAttempts: 2,
-        initialDelay: const Duration(seconds: 1),
       );
       
       if (result != null) {
@@ -76,8 +75,7 @@ class SendGroupInvitationUseCase
         ));
       } else {
         AppLogger.warning('  ⚠️ Invitation failed (returned null)');
-        return Right(const SendGroupInvitationResult(
-          eventId: null,
+        return const Right(SendGroupInvitationResult(
           success: false,
         ));
       }
@@ -90,8 +88,7 @@ class SendGroupInvitationUseCase
         stackTrace: st,
       );
       
-      return Right(const SendGroupInvitationResult(
-        eventId: null,
+      return const Right(SendGroupInvitationResult(
         success: false,
       ));
     }

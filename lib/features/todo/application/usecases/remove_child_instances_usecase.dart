@@ -10,9 +10,9 @@ import '../../domain/repositories/todo_repository.dart';
 /// リカーリングタスクの更新時や再生成時に、既存の子インスタンスを削除します。
 class RemoveChildInstancesUseCase
     implements UseCase<Map<DateTime?, List<Todo>>, RemoveChildInstancesParams> {
-  final TodoRepository _repository;
 
   RemoveChildInstancesUseCase(this._repository);
+  final TodoRepository _repository;
 
   @override
   Future<Either<Failure, Map<DateTime?, List<Todo>>>> call(
@@ -24,8 +24,8 @@ class RemoveChildInstancesUseCase
 
       AppLogger.debug('[RemoveChildInstances] 子インスタンスを削除開始: $parentId');
 
-      int removedCount = 0;
-      final List<Todo> removedTodos = [];
+      var removedCount = 0;
+      final removedTodos = <Todo>[];
 
       // 全ての日付から子インスタンスを削除
       for (final date in todos.keys) {
@@ -45,7 +45,7 @@ class RemoveChildInstancesUseCase
         }
       }
 
-      AppLogger.debug('[RemoveChildInstances] ${removedCount}個の子インスタンスを削除しました');
+      AppLogger.debug('[RemoveChildInstances] $removedCount個の子インスタンスを削除しました');
 
       // ローカルストレージから削除
       if (removedTodos.isNotEmpty) {
@@ -72,15 +72,15 @@ class RemoveChildInstancesUseCase
 
 /// RemoveChildInstancesUseCaseのパラメータ
 class RemoveChildInstancesParams {
-  /// 親タスクのID
-  final String parentId;
-
-  /// 現在の全Todoマップ
-  final Map<DateTime?, List<Todo>> currentTodos;
 
   const RemoveChildInstancesParams({
     required this.parentId,
     required this.currentTodos,
   });
+  /// 親タスクのID
+  final String parentId;
+
+  /// 現在の全Todoマップ
+  final Map<DateTime?, List<Todo>> currentTodos;
 }
 

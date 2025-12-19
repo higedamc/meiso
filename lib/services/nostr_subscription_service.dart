@@ -85,7 +85,7 @@ class NostrSubscriptionService {
     
     _isPolling = true;
     _pollingTimer = Timer.periodic(
-      Duration(milliseconds: _pollingIntervalMs),
+      const Duration(milliseconds: _pollingIntervalMs),
       (_) => _pollEvents(),
     );
     

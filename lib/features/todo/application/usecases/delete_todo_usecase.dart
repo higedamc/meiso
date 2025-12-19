@@ -6,16 +6,16 @@ import '../../../../services/logger_service.dart';
 import '../../domain/repositories/todo_repository.dart';
 
 /// DeleteTodoUseCaseのパラメータ
-class DeleteTodoParams {
-  final String id;
-  final DateTime? date;
-  final Map<DateTime?, List<Todo>> currentTodos; // 現在のTodoリスト
+class DeleteTodoParams { // 現在のTodoリスト
 
   const DeleteTodoParams({
     required this.id,
     required this.date,
     required this.currentTodos,
   });
+  final String id;
+  final DateTime? date;
+  final Map<DateTime?, List<Todo>> currentTodos;
 }
 
 /// Todoを削除するUseCase
@@ -28,9 +28,9 @@ class DeleteTodoParams {
 /// - ローカルストレージから削除（Repository経由）
 /// - 削除後のTodoリストを返す
 class DeleteTodoUseCase implements UseCase<Map<DateTime?, List<Todo>>, DeleteTodoParams> {
-  final TodoRepository _repository;
   
   DeleteTodoUseCase(this._repository);
+  final TodoRepository _repository;
   
   @override
   Future<Either<Failure, Map<DateTime?, List<Todo>>>> call(DeleteTodoParams params) async {

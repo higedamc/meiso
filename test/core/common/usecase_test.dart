@@ -1,7 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:dartz/dartz.dart';
-import 'package:meiso/core/common/usecase.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/core/common/failure.dart';
+import 'package:meiso/core/common/usecase.dart';
 
 // テスト用のUseCase実装
 class TestUseCase implements UseCase<String, TestParams> {

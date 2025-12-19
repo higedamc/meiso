@@ -93,7 +93,7 @@ class DayPage extends ConsumerWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: textColor.withOpacity(0.6),
-                letterSpacing: 1.0,
+                letterSpacing: 1,
                 height: 1.2,
               ),
             )
@@ -104,7 +104,7 @@ class DayPage extends ConsumerWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: textColor.withOpacity(0.6),
-                letterSpacing: 1.0,
+                letterSpacing: 1,
                 height: 1.2,
               ),
             ),

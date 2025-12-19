@@ -41,7 +41,7 @@ void main() {
         torEnabled: false,
         proxyUrl: 'socks5://127.0.0.1:9050',
         customListOrder: [],
-        updatedAt: DateTime(2025, 1, 1),
+        updatedAt: DateTime(2025, 1),
       );
       
       final settings2 = settings1.copyWith();

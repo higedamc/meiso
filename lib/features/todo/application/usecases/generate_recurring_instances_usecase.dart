@@ -12,10 +12,10 @@ import '../../domain/repositories/todo_repository.dart';
 /// 親タスクの繰り返しパターンに基づいて、90日以内の将来のインスタンスを自動生成します。
 class GenerateRecurringInstancesUseCase
     implements UseCase<Map<DateTime?, List<Todo>>, GenerateRecurringInstancesParams> {
-  final TodoRepository _repository;
-  final _uuid = const Uuid();
 
   GenerateRecurringInstancesUseCase(this._repository);
+  final TodoRepository _repository;
+  final _uuid = const Uuid();
 
   @override
   Future<Either<Failure, Map<DateTime?, List<Todo>>>> call(
@@ -39,8 +39,8 @@ class GenerateRecurringInstancesUseCase
       final originalTaskExists = originalDateTasks.any((t) => t.id == originalTodo.id);
       AppLogger.debug('[GenerateRecurringInstances] 元のタスクが存在: $originalTaskExists (${originalDateTasks.length}件のタスク)');
 
-      DateTime? currentDate = originalTodo.date;
-      int generatedCount = 0;
+      var currentDate = originalTodo.date;
+      var generatedCount = 0;
       const maxInstances = 150; // 最大150個まで生成（無限ループ防止）
       final now = DateTime.now();
       final ninetyDaysLater = now.add(const Duration(days: 90));
@@ -71,7 +71,6 @@ class GenerateRecurringInstancesUseCase
           final newTodo = Todo(
             id: _uuid.v4(),
             title: originalTodo.title,
-            completed: false,
             date: nextDate,
             order: _getNextOrder(todos, nextDate),
             createdAt: DateTime.now(),
@@ -79,7 +78,6 @@ class GenerateRecurringInstancesUseCase
             recurrence: originalTodo.recurrence,
             parentRecurringId: originalTodo.id,
             linkPreview: originalTodo.linkPreview,
-            needsSync: true, // 同期が必要
             customListId: originalTodo.customListId, // カスタムリストIDを継承
           );
 
@@ -94,7 +92,7 @@ class GenerateRecurringInstancesUseCase
         currentDate = nextDate;
       }
 
-      AppLogger.debug('[GenerateRecurringInstances] 合計${generatedCount}個のインスタンスを生成しました');
+      AppLogger.debug('[GenerateRecurringInstances] 合計$generatedCount個のインスタンスを生成しました');
 
       // 最終的に元のタスクが含まれているか確認
       final finalTasks = todos[originalTodo.date] ?? [];
@@ -120,15 +118,15 @@ class GenerateRecurringInstancesUseCase
 
 /// GenerateRecurringInstancesUseCaseのパラメータ
 class GenerateRecurringInstancesParams {
-  /// 親タスク（繰り返しパターンを持つオリジナルのタスク）
-  final Todo parentTodo;
-
-  /// 現在の全Todoマップ
-  final Map<DateTime?, List<Todo>> currentTodos;
 
   const GenerateRecurringInstancesParams({
     required this.parentTodo,
     required this.currentTodos,
   });
+  /// 親タスク（繰り返しパターンを持つオリジナルのタスク）
+  final Todo parentTodo;
+
+  /// 現在の全Todoマップ
+  final Map<DateTime?, List<Todo>> currentTodos;
 }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:meiso/features/custom_list/domain/repositories/custom_list_repository.dart';
 import 'package:uuid/uuid.dart';
 import '../services/logger_service.dart';
 import '../models/custom_list.dart';
@@ -24,7 +25,7 @@ import '../bridge_generated.dart/api.dart' as rust_api;
 /// カスタムリストを管理するProvider
 final customListsProvider =
     StateNotifierProvider<CustomListsNotifier, AsyncValue<List<CustomList>>>(
-  (ref) => CustomListsNotifier(ref),
+  CustomListsNotifier.new,
 );
 
 class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
@@ -37,7 +38,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   
   /// Phase C.3.1: Repository経由でローカルCRUD操作
   /// MLS機能はProvider内に保持（Phase Dで移行予定）
-  late final _repository = _ref.read(customListRepositoryProvider);
+  late final CustomListRepository _repository = _ref.read(customListRepositoryProvider);
   Timer? _invitationSyncTimer;
   
   /// Issue #80: 削除済みイベントIDのセット（kind 5で削除されたリスト）
@@ -64,14 +65,14 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       listsResult.fold(
         (failure) {
           AppLogger.warning(' [CustomLists] Failed to load lists: ${failure.message}');
-          state = AsyncValue.data([]);
+          state = const AsyncValue.data([]);
         },
         (localLists) async {
           if (localLists.isEmpty) {
             // ローカルにリストがない場合は、まず空の状態にする
             // Nostrからの同期を待ってから、必要に応じてデフォルトリストを作成
             AppLogger.info(' [CustomLists] No local lists found. Waiting for Nostr sync...');
-            state = AsyncValue.data([]);
+            state = const AsyncValue.data([]);
           } else {
             // AppSettingsから保存された順番を適用
             await _applySavedListOrder(localLists);
@@ -93,7 +94,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       });
     } catch (e) {
       AppLogger.warning(' CustomList初期化エラー: $e');
-      state = AsyncValue.data([]);
+      state = const AsyncValue.data([]);
     }
   }
 
@@ -454,7 +455,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     
     // 現在のリストを取得
     List<CustomList> currentLists;
-    bool needsStateUpdate = false; // stateの更新が必要かどうか
+    var needsStateUpdate = false; // stateの更新が必要かどうか
     
     if (currentState is AsyncData<List<CustomList>>) {
       // 既にデータがロードされている場合
@@ -481,7 +482,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     
     final updatedLists = List<CustomList>.from(currentLists);
     final now = DateTime.now();
-    bool hasChanges = false;
+    var hasChanges = false;
     
     for (final listName in nostrListNames) {
       // 名前から決定的なIDを生成
@@ -582,7 +583,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           // stateがloadingの場合もデータを取得できるようにする
           final currentLists = state.valueOrNull ?? <CustomList>[];
           final updatedLists = List<CustomList>.from(currentLists);
-          bool hasChanges = false;
+          var hasChanges = false;
           
           for (final invitation in invitations) {
             // 既にこのグループのリストが存在するか確認
@@ -731,7 +732,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         AppLogger.info(' [CustomLists] AppSettingsから順番を復元: ${savedOrder.length}件');
         
         // 保存された順番に従って並び替え
-        final Map<String, CustomList> listMap = {for (var list in lists) list.id: list};
+        final listMap = <String, CustomList>{for (final list in lists) list.id: list};
         final reorderedLists = <CustomList>[];
         
         // 保存された順番に従ってリストを追加
@@ -781,7 +782,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     }
     
     try {
-      final lists = await state.whenData((lists) => lists).value ?? [];
+      final lists = state.whenData((lists) => lists).value ?? [];
       
       final now = DateTime.now();
       final normalizedName = name.trim().toUpperCase();
@@ -835,7 +836,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     if (name.trim().isEmpty) return null;
     
     try {
-      final lists = await state.whenData((lists) => lists).value ?? [];
+      final lists = state.whenData((lists) => lists).value ?? [];
       
       final now = DateTime.now();
       final normalizedName = name.trim().toUpperCase();
@@ -863,7 +864,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         keyPackages: keyPackages,
       ));
       
-      final String welcomeMsgBase64 = await groupResult.fold(
+      final welcomeMsgBase64 = await groupResult.fold(
         (failure) {
           throw Exception(failure.message);
         },
@@ -880,13 +881,13 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       AppLogger.info('📤 [CustomLists] Sending invitations to ${memberNpubs.length} members...');
       
-      int successCount = 0;
-      int failCount = 0;
+      var successCount = 0;
+      var failCount = 0;
       
       // Phase D.5: SendGroupInvitationUseCaseを使用
       final sendInvitationUseCase = _ref.read(mls_usecase.sendGroupInvitationUseCaseProvider);
       
-      for (int i = 0; i < memberNpubs.length; i++) {
+      for (var i = 0; i < memberNpubs.length; i++) {
         final npub = memberNpubs[i];
         try {
           AppLogger.info('📤 [CustomLists] Sending invitation ${i + 1}/${memberNpubs.length} to ${npub.substring(0, 20)}...');

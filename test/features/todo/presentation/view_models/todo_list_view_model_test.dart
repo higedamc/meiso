@@ -107,12 +107,9 @@ void main() {
             completed: false,
             createdAt: DateTime(2025, 11, 12),
             updatedAt: DateTime(2025, 11, 12),
-            date: null,
-            customListId: null,
             order: 0,
             linkPreview: null,
             recurrence: null,
-            parentRecurringId: null,
             eventId: 'event-1',
             needsSync: false,
           ),
@@ -141,7 +138,7 @@ void main() {
       test('初期化時にエラーが発生した場合、errorステートになる', () async {
         // Arrange
         when(() => mockGetAllTodosUseCase(any()))
-            .thenAnswer((_) async => Left(CacheFailure('Test error')));
+            .thenAnswer((_) async => const Left(CacheFailure('Test error')));
 
         // Act
         notifier = createNotifier();
@@ -176,11 +173,9 @@ void main() {
             createdAt: DateTime(2025, 11, 12),
             updatedAt: DateTime(2025, 11, 12),
             date: TodoDate.dateOnly(DateTime(2025, 11, 12)),
-            customListId: null,
             order: 0,
             linkPreview: null,
             recurrence: null,
-            parentRecurringId: null,
             eventId: 'event-1',
             needsSync: false,
           ),
@@ -190,12 +185,9 @@ void main() {
             completed: false,
             createdAt: DateTime(2025, 11, 13),
             updatedAt: DateTime(2025, 11, 13),
-            date: null,
-            customListId: null,
             order: 0,
             linkPreview: null,
             recurrence: null,
-            parentRecurringId: null,
             eventId: 'event-2',
             needsSync: false,
           ),
@@ -235,13 +227,9 @@ void main() {
           completed: false,
           createdAt: DateTime(2025, 11, 12),
           updatedAt: DateTime(2025, 11, 12),
-          date: null,
-          customListId: null,
           order: 0,
           linkPreview: null,
           recurrence: null,
-          parentRecurringId: null,
-          eventId: null,
           needsSync: true,
         );
 
@@ -272,12 +260,9 @@ void main() {
           completed: true,
           createdAt: DateTime(2025, 11, 12),
           updatedAt: DateTime(2025, 11, 12),
-          date: null,
-          customListId: null,
           order: 0,
           linkPreview: null,
           recurrence: null,
-          parentRecurringId: null,
           eventId: 'event-1',
           needsSync: true,
         );
@@ -329,12 +314,9 @@ void main() {
             completed: false,
             createdAt: DateTime(2025, 11, 12),
             updatedAt: DateTime(2025, 11, 12),
-            date: null,
-            customListId: null,
             order: 0,
             linkPreview: null,
             recurrence: null,
-            parentRecurringId: null,
             eventId: 'event-1',
             needsSync: false,
           ),

@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:meiso/features/todo/domain/entities/todo.dart';
-import 'package:meiso/features/todo/domain/value_objects/todo_title.dart';
 import 'package:meiso/features/todo/domain/value_objects/todo_date.dart';
+import 'package:meiso/features/todo/domain/value_objects/todo_title.dart';
 import 'package:meiso/features/todo/infrastructure/datasources/todo_local_datasource.dart';
 
 void main() {

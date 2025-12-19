@@ -231,7 +231,6 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             final result = await autoPublishUseCase(AutoPublishKeyPackageParams(
               publicKey: publicKey,
               trigger: KeyPackagePublishTrigger.appStart,
-              forceUpload: false, // 7日経過時のみ公開
             ));
             
             result.fold(

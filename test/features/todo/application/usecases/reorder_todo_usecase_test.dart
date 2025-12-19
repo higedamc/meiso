@@ -32,12 +32,10 @@ void main() {
       completed: false,
       createdAt: DateTime(2025, 11, 12),
       updatedAt: DateTime(2025, 11, 12),
-      date: null,
       customListId: 'Work',
       order: 1,
       linkPreview: null,
       recurrence: null,
-      parentRecurringId: null,
       eventId: 'event-1',
       needsSync: false,
     );
@@ -115,7 +113,7 @@ void main() {
       );
 
       when(() => mockRepository.getTodoById('non-existent-id'))
-          .thenAnswer((_) async => Left(TodoFailure(TodoError.notFound)));
+          .thenAnswer((_) async => const Left(TodoFailure(TodoError.notFound)));
 
       // Act
       final result = await usecase(params);

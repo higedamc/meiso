@@ -5,6 +5,7 @@ import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
+import '../../services/logger_service.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/todo_edit_screen.dart';
@@ -23,9 +24,13 @@ class ListDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
+  TodosNotifier? _todosNotifier;
+  int _subscriptionGeneration = 0;
+
   @override
   void initState() {
     super.initState();
+    _todosNotifier = ref.read(todosProvider.notifier);
     
     // Phase D.5修正: 招待受諾時に既にsyncGroupTodos()を実行しているため、
     // 画面を開いた時の自動同期は不要（二重実行を防止）
@@ -40,11 +45,14 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
 
     // ✅ 即反映: グループリストの場合はリアルタイム購読を開始
     if (widget.customList.isGroup) {
+      final generation = ++_subscriptionGeneration;
       Future<void>(() async {
+        if (!mounted || generation != _subscriptionGeneration) return;
         try {
-          await ref.read(todosProvider.notifier).startRealtimeGroupTodos(widget.customList.id);
+          await _todosNotifier?.startRealtimeGroupTodos(widget.customList.id);
         } catch (e) {
           // 失敗しても画面は表示する（購読なしでpull-to-refresh運用可能）
+          AppLogger.warning('⚠️ [ListDetailScreen] Failed to start realtime group subscription: ${widget.customList.id} ($e)');
         }
       });
     }
@@ -52,13 +60,15 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
 
   @override
   void dispose() {
+    _subscriptionGeneration++;
     // ✅ 即反映: 画面を閉じたら購読を停止
     if (widget.customList.isGroup) {
-      final todoNotifier = ref.read(todosProvider.notifier);
+      final todoNotifier = _todosNotifier;
       Future<void>(() async {
-        await todoNotifier.stopRealtimeGroupTodos(widget.customList.id);
+        await todoNotifier?.stopRealtimeGroupTodos(widget.customList.id);
       });
     }
+    _todosNotifier = null;
     super.dispose();
   }
   
@@ -85,7 +95,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
               children: [
                 // グループアイコン（グループリストの場合）
                 if (widget.customList.isGroup) ...[
-                  Icon(
+                  const Icon(
                     Icons.group,
                     size: 20,
                     color: AppTheme.primaryColor,
@@ -102,7 +112,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                       color: isDark
                           ? AppTheme.darkTextPrimary
                           : AppTheme.lightTextPrimary,
-                      letterSpacing: 1.0,
+                      letterSpacing: 1,
                     ),
                   ),
                 ),
@@ -327,7 +337,6 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => TodoEditScreen(
-          date: null, // カスタムリストに属するTodoは date=null（Someday）
           customListId: widget.customList.id,
           customListName: widget.customList.name,
           isGroupList: widget.customList.isGroup,

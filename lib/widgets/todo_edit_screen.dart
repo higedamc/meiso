@@ -189,7 +189,6 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
               border: Border(
                 top: BorderSide(
                   color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
-                  width: 1,
                 ),
               ),
             ),
@@ -202,7 +201,6 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                     onPressed: _showMoveToDialog,
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 0,
                         vertical: 8,
                       ),
                     ),
@@ -252,7 +250,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
+                      letterSpacing: 1,
                     ),
                   ),
                 ),
@@ -628,7 +626,6 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
       decoration: BoxDecoration(
         border: Border.all(
           color: Theme.of(context).dividerColor,
-          width: 1,
         ),
         borderRadius: BorderRadius.circular(8),
         color: Theme.of(context).cardColor,
@@ -751,7 +748,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
               color: Colors.black.withOpacity(0.6),
               borderRadius: BorderRadius.circular(16),
               child: InkWell(
-                onTap: () => _removeLinkPreview(),
+                onTap: _removeLinkPreview,
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
                   padding: const EdgeInsets.all(6),

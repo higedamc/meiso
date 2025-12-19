@@ -8,11 +8,11 @@ import '../../../../services/logger_service.dart';
 
 /// グループ招待同期のパラメータ
 class SyncGroupInvitationsParams {
-  final String recipientPublicKey;
   
   const SyncGroupInvitationsParams({
     required this.recipientPublicKey,
   });
+  final String recipientPublicKey;
 }
 
 /// グループ招待同期UseCase
@@ -24,9 +24,9 @@ class SyncGroupInvitationsParams {
 /// Rust APIがこれを復号化してWelcome Messageを取得する。
 class SyncGroupInvitationsUseCase 
     implements UseCase<List<GroupInvitation>, SyncGroupInvitationsParams> {
-  final MlsGroupRepository _repository;
   
   const SyncGroupInvitationsUseCase(this._repository);
+  final MlsGroupRepository _repository;
   
   @override
   Future<Either<Failure, List<GroupInvitation>>> call(

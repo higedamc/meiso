@@ -14,12 +14,7 @@ enum ErrorCategory {
 }
 
 /// エラー情報
-class AppError {
-  final ErrorCategory category;
-  final String technicalMessage;  // 開発者向け詳細メッセージ
-  final String userMessage;       // ユーザー向けわかりやすいメッセージ
-  final bool isRetryable;         // リトライ可能か
-  final Object? originalError;    // 元のエラーオブジェクト
+class AppError {    // 元のエラーオブジェクト
 
   AppError({
     required this.category,
@@ -28,6 +23,11 @@ class AppError {
     this.isRetryable = false,
     this.originalError,
   });
+  final ErrorCategory category;
+  final String technicalMessage;  // 開発者向け詳細メッセージ
+  final String userMessage;       // ユーザー向けわかりやすいメッセージ
+  final bool isRetryable;         // リトライ可能か
+  final Object? originalError;
 
   @override
   String toString() {
@@ -74,7 +74,6 @@ class ErrorHandler {
         category: ErrorCategory.storage,
         technicalMessage: error.toString(),
         userMessage: 'データの保存に失敗しました',
-        isRetryable: false,
         originalError: error,
       );
     }
@@ -95,7 +94,6 @@ class ErrorHandler {
       category: ErrorCategory.unknown,
       technicalMessage: error.toString(),
       userMessage: '予期しないエラーが発生しました',
-      isRetryable: false,
       originalError: error,
     );
   }
@@ -161,7 +159,6 @@ class ErrorHandler {
       category: ErrorCategory.mls,
       technicalMessage: error.toString(),
       userMessage: 'グループ暗号化エラーが発生しました',
-      isRetryable: false,
       originalError: error,
     );
   }
@@ -198,8 +195,8 @@ class ErrorHandler {
     Duration initialDelay = const Duration(seconds: 1),
     double backoffMultiplier = 2.0,
   }) async {
-    int attempt = 0;
-    Duration currentDelay = initialDelay;
+    var attempt = 0;
+    var currentDelay = initialDelay;
 
     while (true) {
       attempt++;

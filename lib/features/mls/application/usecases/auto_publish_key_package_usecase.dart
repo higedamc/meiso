@@ -8,15 +8,15 @@ import '../../../../services/logger_service.dart';
 
 /// Key Package自動公開のパラメータ
 class AutoPublishKeyPackageParams {
-  final String publicKey;
-  final KeyPackagePublishTrigger trigger;
-  final bool forceUpload;
   
   const AutoPublishKeyPackageParams({
     required this.publicKey,
     required this.trigger,
     this.forceUpload = false,
   });
+  final String publicKey;
+  final KeyPackagePublishTrigger trigger;
+  final bool forceUpload;
 }
 
 /// Key Package自動公開UseCase
@@ -30,13 +30,13 @@ class AutoPublishKeyPackageParams {
 /// - グループメッセージ送信前: 3日経過していれば公開
 class AutoPublishKeyPackageUseCase 
     implements UseCase<String?, AutoPublishKeyPackageParams> {
-  final KeyPackageRepository _repository;
-  final KeyPackagePublishPolicy _policy;
   
   const AutoPublishKeyPackageUseCase(
     this._repository, {
     KeyPackagePublishPolicy? policy,
   }) : _policy = policy ?? const KeyPackagePublishPolicy();
+  final KeyPackageRepository _repository;
+  final KeyPackagePublishPolicy _policy;
   
   @override
   Future<Either<Failure, String?>> call(AutoPublishKeyPackageParams params) async {
@@ -72,7 +72,7 @@ class AutoPublishKeyPackageUseCase
         forceUpload: params.forceUpload,
       )) {
         AppLogger.info('⏭️  [AutoPublishKeyPackageUseCase] Key Package is up-to-date, skipping publish');
-        return Right(null); // 公開不要
+        return const Right(null); // 公開不要
       }
       
       AppLogger.info('📦 [AutoPublishKeyPackageUseCase] Publishing Key Package...');

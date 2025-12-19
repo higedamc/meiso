@@ -6,9 +6,9 @@ import '../../../../services/logger_service.dart';
 /// LocalStorageService（Hive）を使用してKey Packageのメタデータを管理する。
 /// Key Package本体はMLS DBで管理されるため、ここでは公開時刻のみを保存。
 class KeyPackageLocalDataSource {
-  final LocalStorageService _localStorage;
   
   const KeyPackageLocalDataSource(this._localStorage);
+  final LocalStorageService _localStorage;
   
   // ========================================
   // 最後の公開時刻管理

@@ -35,11 +35,9 @@ void main() {
         createdAt: DateTime(2025, 11, 12),
         updatedAt: DateTime(2025, 11, 12),
         date: testDate,
-        customListId: null,
         order: 0,
         linkPreview: null,
         recurrence: null,
-        parentRecurringId: null,
         eventId: 'event-1',
       needsSync: false,
       ),
@@ -93,7 +91,7 @@ void main() {
       final params = GetTodosByDateParams(date: testDate);
 
       when(() => mockRepository.getTodosByDate(any()))
-          .thenAnswer((_) async => Left(ServerFailure('Query failed')));
+          .thenAnswer((_) async => const Left(ServerFailure('Query failed')));
 
       // Act
       final result = await usecase(params);

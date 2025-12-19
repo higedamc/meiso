@@ -46,7 +46,6 @@ class AppTheme {
         primary: primaryPurple,
         secondary: lightPurple,
         surface: lightSurface,
-        onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: lightTextPrimary,
         error: Colors.red.shade600,
@@ -83,16 +82,16 @@ class AppTheme {
         space: 0,
       ),
       
-      inputDecorationTheme: InputDecorationTheme(
+      inputDecorationTheme: const InputDecorationTheme(
         filled: false,
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(
+        contentPadding: EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 12,
         ),
-        hintStyle: const TextStyle(
+        hintStyle: TextStyle(
           color: lightTextDisabled,
           fontSize: 16,
         ),
@@ -235,16 +234,16 @@ class AppTheme {
         space: 0,
       ),
       
-      inputDecorationTheme: InputDecorationTheme(
+      inputDecorationTheme: const InputDecorationTheme(
         filled: false,
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(
+        contentPadding: EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 12,
         ),
-        hintStyle: const TextStyle(
+        hintStyle: TextStyle(
           color: darkTextDisabled,
           fontSize: 16,
         ),

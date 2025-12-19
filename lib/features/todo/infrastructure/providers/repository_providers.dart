@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../services/local_storage_service.dart';
-import '../../../../services/amber_service.dart';
+
 import '../../../../providers/nostr_provider.dart';
+import '../../../../services/amber_service.dart';
+import '../../../../services/local_storage_service.dart';
 import '../../domain/repositories/todo_repository.dart';
 import '../repositories/todo_repository_impl.dart';
 

@@ -104,13 +104,13 @@ abstract class TodoRepository {
 /// Nostrから取得したデータの集合。
 /// AppSettingsとCustomListsも同時に取得するため、まとめて返す。
 class PersonalTodoSyncResult {
-  final List<Todo> todos;
-  final AppSettings? appSettings;
-  final List<CustomList> customLists;
   
   const PersonalTodoSyncResult({
     required this.todos,
     this.appSettings,
     required this.customLists,
   });
+  final List<Todo> todos;
+  final AppSettings? appSettings;
+  final List<CustomList> customLists;
 }

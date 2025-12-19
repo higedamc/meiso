@@ -20,9 +20,9 @@ import '../../../../services/logger_service.dart';
 /// - eventIdが必須（Nostrイベント削除用）
 /// - グループリスト（isGroup=true）は削除不可（エラー返却）
 class DeletePersonalListUseCase implements UseCase<void, DeletePersonalListParams> {
-  final CustomListRepository _repository;
   
   const DeletePersonalListUseCase(this._repository);
+  final CustomListRepository _repository;
   
   @override
   Future<Either<Failure, void>> call(DeletePersonalListParams params) async {
@@ -31,7 +31,7 @@ class DeletePersonalListUseCase implements UseCase<void, DeletePersonalListParam
     // 1. バリデーション: グループリストは削除不可
     if (params.list.isGroup) {
       AppLogger.warning('❌ [UseCase] Cannot delete group list: ${params.list.id}');
-      return Left(CustomListFailure(
+      return const Left(CustomListFailure(
         CustomListError.unauthorized,
         'グループリストはこの方法で削除できません',
       ));
@@ -40,7 +40,7 @@ class DeletePersonalListUseCase implements UseCase<void, DeletePersonalListParam
     // 2. バリデーション: eventIdが必須
     if (params.eventId == null || params.eventId!.isEmpty) {
       AppLogger.warning('❌ [UseCase] Event ID is required for remote deletion: ${params.list.id}');
-      return Left(CustomListFailure(
+      return const Left(CustomListFailure(
         CustomListError.notFound,
         'リモート削除にはイベントIDが必要です',
       ));
@@ -71,6 +71,12 @@ class DeletePersonalListUseCase implements UseCase<void, DeletePersonalListParam
 /// 
 /// Phase E.2: Personal List削除に必要なパラメータ
 class DeletePersonalListParams {
+  
+  const DeletePersonalListParams({
+    required this.list,
+    required this.eventId,
+    required this.isAmberMode,
+  });
   /// 削除するカスタムリスト
   final CustomList list;
   
@@ -85,11 +91,5 @@ class DeletePersonalListParams {
   /// true: Amber署名を使用
   /// false: 秘密鍵モード署名を使用
   final bool isAmberMode;
-  
-  const DeletePersonalListParams({
-    required this.list,
-    required this.eventId,
-    required this.isAmberMode,
-  });
 }
 

@@ -49,7 +49,7 @@ class PlanningDetailScreen extends StatelessWidget {
                     color: isDark
                         ? AppTheme.darkTextPrimary
                         : AppTheme.lightTextPrimary,
-                    letterSpacing: 1.0,
+                    letterSpacing: 1,
                   ),
                 ),
                 
@@ -79,7 +79,7 @@ class PlanningDetailScreen extends StatelessWidget {
                 return todosAsync.when(
                   data: (allTodos) {
                     // 期間内のTodoを日付ごとに抽出
-                    final Map<DateTime, List<Todo>> periodTodos = {};
+                    final periodTodos = <DateTime, List<Todo>>{};
                     
                     for (final entry in allTodos.entries) {
                       final date = entry.key;

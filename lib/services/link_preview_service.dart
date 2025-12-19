@@ -27,7 +27,7 @@ class LinkPreviewService {
   /// 例: "Check https://github.com later" → "Check later"
   static String removeUrlFromText(String text, String url) {
     // まず指定されたURLを削除
-    String result = text.replaceAll(url, '');
+    var result = text.replaceAll(url, '');
     
     // 念のため、正規表現でも全てのURLを削除
     result = result.replaceAll(_urlRegex, '');

@@ -18,9 +18,6 @@ import '../../../../utils/error_handler.dart';
 /// MLSグループの作成、招待送信/受信、招待受諾を実装する。
 /// 既存のcustom_lists_provider.dartのMLS関連ロジックを移植。
 class MlsGroupRepositoryImpl implements MlsGroupRepository {
-  final MlsGroupLocalDataSource _localDataSource;
-  final NostrService _nostrService;
-  final bool _isAmberMode;
   
   const MlsGroupRepositoryImpl({
     required MlsGroupLocalDataSource localDataSource,
@@ -29,6 +26,9 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
   })  : _localDataSource = localDataSource,
         _nostrService = nostrService,
         _isAmberMode = isAmberMode;
+  final MlsGroupLocalDataSource _localDataSource;
+  final NostrService _nostrService;
+  final bool _isAmberMode;
 
   /// Ensure MLS DB is initialized for this user.
   ///
@@ -95,7 +95,7 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
   Future<Either<Failure, void>> saveMlsGroupToLocal(MlsGroup group) async {
     try {
       await _localDataSource.saveMlsGroup(group);
-      return Right(null);
+      return const Right(null);
     } catch (e, st) {
       AppLogger.error(
         '[MlsGroupRepo] Failed to save MLS group to local',
@@ -115,7 +115,7 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
   }) async {
     try {
       await _localDataSource.deleteMlsGroup(groupId: groupId);
-      return Right(null);
+      return const Right(null);
     } catch (e, st) {
       AppLogger.error(
         '[MlsGroupRepo] Failed to delete MLS group from local',
@@ -175,7 +175,7 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
   Future<Either<Failure, void>> saveInvitationToLocal(GroupInvitation invitation) async {
     try {
       await _localDataSource.saveInvitation(invitation);
-      return Right(null);
+      return const Right(null);
     } catch (e, st) {
       AppLogger.error(
         '[MlsGroupRepo] Failed to save invitation to local',
@@ -195,7 +195,7 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
   }) async {
     try {
       await _localDataSource.deleteInvitation(groupId: groupId);
-      return Right(null);
+      return const Right(null);
     } catch (e, st) {
       AppLogger.error(
         '[MlsGroupRepo] Failed to delete invitation from local',
@@ -301,7 +301,6 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
         groupId: groupId,
         groupName: groupName,
         welcomeMsgBase64: welcomeMessage,
-        inviterName: null, // オプション
       );
       
       AppLogger.debug('  Created unsigned event');
@@ -322,7 +321,6 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
         AppLogger.warning('  ContentProvider failed, using UI method');
         signedEvent = await amberService.signEventWithTimeout(
           unsignedEventJson,
-          timeout: const Duration(minutes: 2),
         );
         AppLogger.debug('  Signed via UI');
       }
@@ -361,7 +359,6 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
       // Rust APIを呼び出してグループ招待を取得
       final resultJson = await rust_api.syncGroupInvitations(
         recipientPublicKeyHex: recipientPublicKey,
-        clientId: null,
       );
       
       final result = jsonDecode(resultJson) as Map<String, dynamic>;
@@ -416,7 +413,7 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
       // Welcome Message検証（本番向け）
       AppLogger.debug('[MlsGroupRepo] Welcome Message validation: base64Len=${welcomeMessage.length}');
       if (welcomeMessage.isEmpty) {
-        return Left(InvitationFailure(
+        return const Left(InvitationFailure(
           MlsError.invalidWelcomeMessage,
           '招待データが不正です（Welcome Message が空です）。招待を送り直してください。',
         ));
@@ -427,7 +424,7 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
       try {
         welcomeMsgBytes = base64Decode(welcomeMessage);
       } catch (e) {
-        return Left(InvitationFailure(
+        return const Left(InvitationFailure(
           MlsError.invalidWelcomeMessage,
           '招待データが不正です（Welcome Message の形式が不正です）。招待を送り直してください。',
         ));
@@ -435,7 +432,7 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
 
       AppLogger.debug('[MlsGroupRepo] Welcome decoded bytes=${welcomeMsgBytes.length}');
       if (welcomeMsgBytes.isEmpty) {
-        return Left(InvitationFailure(
+        return const Left(InvitationFailure(
           MlsError.invalidWelcomeMessage,
           '招待データが不正です（Welcome Message が 0 bytes です）。招待を送り直してください。',
         ));
@@ -465,7 +462,6 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
           groupId: groupId,
         ),
         operationName: 'mlsGetGroupInfo',
-        timeout: const Duration(seconds: 10),
       );
       
       AppLogger.info('[MlsGroupRepo] Retrieved MLS group info from Rust:');

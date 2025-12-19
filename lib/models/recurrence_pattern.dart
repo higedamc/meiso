@@ -86,8 +86,8 @@ extension RecurrencePatternExtension on RecurrencePattern {
         }
         
         // 次の対象曜日を探す
-        DateTime nextDate = currentDate.add(const Duration(days: 1));
-        int weeksChecked = 0;
+        var nextDate = currentDate.add(const Duration(days: 1));
+        var weeksChecked = 0;
         
         while (weeksChecked < interval + 1) {
           final weekday = nextDate.weekday; // 1=月曜, 7=日曜
@@ -118,8 +118,8 @@ extension RecurrencePatternExtension on RecurrencePattern {
         }
         
         // 月を追加
-        int targetYear = currentDate.year;
-        int targetMonth = currentDate.month + interval;
+        var targetYear = currentDate.year;
+        var targetMonth = currentDate.month + interval;
         
         // 年をまたぐ場合の調整
         while (targetMonth > 12) {
@@ -165,7 +165,6 @@ extension RecurrencePatternExtension on RecurrencePattern {
         } else {
           buffer.write('$interval日ごと');
         }
-        break;
         
       case RecurrenceType.weekly:
         if (interval == 1) {
@@ -189,7 +188,6 @@ extension RecurrencePatternExtension on RecurrencePattern {
           }).join('・');
           buffer.write(' ($dayNames)');
         }
-        break;
         
       case RecurrenceType.monthly:
         if (interval == 1) {
@@ -199,9 +197,8 @@ extension RecurrencePatternExtension on RecurrencePattern {
         }
         
         if (dayOfMonth != null) {
-          buffer.write(' ${dayOfMonth}日');
+          buffer.write(' $dayOfMonth日');
         }
-        break;
         
       case RecurrenceType.yearly:
         if (interval == 1) {
@@ -211,13 +208,11 @@ extension RecurrencePatternExtension on RecurrencePattern {
         }
         
         if (dayOfMonth != null) {
-          buffer.write(' ${dayOfMonth}日');
+          buffer.write(' $dayOfMonth日');
         }
-        break;
         
       case RecurrenceType.custom:
         buffer.write('カスタム繰り返し');
-        break;
     }
     
     if (endDate != null) {

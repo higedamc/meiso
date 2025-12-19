@@ -6,14 +6,14 @@ import '../../../../services/logger_service.dart';
 import '../../domain/repositories/todo_repository.dart';
 
 /// UpdateTodoUseCaseのパラメータ
-class UpdateTodoParams {
-  final Todo todo;
-  final Map<DateTime?, List<Todo>> currentTodos; // 現在のTodoリスト
+class UpdateTodoParams { // 現在のTodoリスト
 
   const UpdateTodoParams({
     required this.todo,
     required this.currentTodos,
   });
+  final Todo todo;
+  final Map<DateTime?, List<Todo>> currentTodos;
 }
 
 /// Todoを更新するUseCase
@@ -26,9 +26,9 @@ class UpdateTodoParams {
 /// - ローカルストレージへの永続化（Repository経由）
 /// - 更新後のTodoリストを返す
 class UpdateTodoUseCase implements UseCase<Map<DateTime?, List<Todo>>, UpdateTodoParams> {
-  final TodoRepository _repository;
   
   UpdateTodoUseCase(this._repository);
+  final TodoRepository _repository;
   
   @override
   Future<Either<Failure, Map<DateTime?, List<Todo>>>> call(UpdateTodoParams params) async {

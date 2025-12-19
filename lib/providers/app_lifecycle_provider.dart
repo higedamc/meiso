@@ -157,13 +157,13 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
               _ref.read(syncStatusProvider.notifier).updateMessageKey('syncReconnectingRelays');
         try {
           // 復帰時は長時間待たない（最大3秒）
-          await nostrService.reconnectRelaysWithTimeout(timeoutSeconds: 3);
+          await nostrService.reconnectRelaysWithTimeout();
           AppLogger.info(' Relay reconnection completed');
         } catch (e) {
           AppLogger.warning(' Relay reconnection failed: $e');
           // 再接続失敗でも、差分同期は試行する（ローカルデータで継続可能）
           _ref.read(syncStatusProvider.notifier).syncError(
-            'リレー再接続エラー: ${e.toString()}',
+            'リレー再接続エラー: ${e}',
             shouldRetry: false,
           );
           Future.delayed(const Duration(seconds: 3), () {
@@ -198,7 +198,7 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
       
       _ref.read(syncStatusProvider.notifier).syncError(
-        'フォアグラウンド復帰時の同期エラー: ${e.toString()}',
+        'フォアグラウンド復帰時の同期エラー: ${e}',
         shouldRetry: false,
       );
       

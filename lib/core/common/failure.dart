@@ -23,59 +23,51 @@ abstract class Failure {
 
 /// ネットワークエラー
 class NetworkFailure extends Failure {
-  const NetworkFailure([String message = 'ネットワークエラーが発生しました'])
-      : super(message);
+  const NetworkFailure([super.message = 'ネットワークエラーが発生しました']);
 }
 
 /// 認証エラー
 class AuthFailure extends Failure {
-  const AuthFailure([String message = '認証に失敗しました']) : super(message);
+  const AuthFailure([super.message = '認証に失敗しました']);
 }
 
 /// サーバーエラー
 class ServerFailure extends Failure {
-  const ServerFailure([String message = 'サーバーエラーが発生しました'])
-      : super(message);
+  const ServerFailure([super.message = 'サーバーエラーが発生しました']);
 }
 
 /// キャッシュエラー
 class CacheFailure extends Failure {
-  const CacheFailure([String message = 'キャッシュエラーが発生しました'])
-      : super(message);
+  const CacheFailure([super.message = 'キャッシュエラーが発生しました']);
 }
 
 /// 検証エラー
 class ValidationFailure extends Failure {
-  const ValidationFailure(String message) : super(message);
+  const ValidationFailure(super.message);
 }
 
 /// 予期せぬエラー
 class UnexpectedFailure extends Failure {
-  const UnexpectedFailure([String message = '予期しないエラーが発生しました'])
-      : super(message);
+  const UnexpectedFailure([super.message = '予期しないエラーが発生しました']);
 }
 
 /// Nostr関連エラー
 class NostrFailure extends Failure {
-  const NostrFailure([String message = 'Nostrエラーが発生しました'])
-      : super(message);
+  const NostrFailure([super.message = 'Nostrエラーが発生しました']);
 }
 
 /// Amber関連エラー
 class AmberFailure extends Failure {
-  const AmberFailure([String message = 'Amberエラーが発生しました'])
-      : super(message);
+  const AmberFailure([super.message = 'Amberエラーが発生しました']);
 }
 
 /// 暗号化エラー
 class EncryptionFailure extends Failure {
-  const EncryptionFailure([String message = '暗号化に失敗しました'])
-      : super(message);
+  const EncryptionFailure([super.message = '暗号化に失敗しました']);
 }
 
 /// 復号化エラー
 class DecryptionFailure extends Failure {
-  const DecryptionFailure([String message = '復号化に失敗しました'])
-      : super(message);
+  const DecryptionFailure([super.message = '復号化に失敗しました']);
 }
 

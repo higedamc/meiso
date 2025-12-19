@@ -33,7 +33,7 @@ class TodoListViewModel extends StateNotifier<TodoListState> {
       
       if (hasLocalData) {
         // ローカルデータがある場合：即座に表示
-        final Map<DateTime?, List<Todo>> grouped = {};
+        final grouped = <DateTime?, List<Todo>>{};
         for (final todo in localTodos) {
           grouped[todo.date] ??= [];
           grouped[todo.date]!.add(todo);
@@ -134,7 +134,7 @@ class TodoListViewModel extends StateNotifier<TodoListState> {
     try {
       final localTodos = await localStorageService.loadTodos();
       
-      final Map<DateTime?, List<Todo>> grouped = {};
+      final grouped = <DateTime?, List<Todo>>{};
       for (final todo in localTodos) {
         grouped[todo.date] ??= [];
         grouped[todo.date]!.add(todo);

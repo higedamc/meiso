@@ -26,12 +26,10 @@ void main() {
         completed: false,
         createdAt: DateTime(2025, 11, 12),
         updatedAt: DateTime(2025, 11, 12),
-        date: null,
         customListId: 'Work',
         order: 0,
         linkPreview: null,
         recurrence: null,
-        parentRecurringId: null,
         eventId: 'event-1',
       needsSync: false,
       ),
@@ -41,12 +39,10 @@ void main() {
         completed: true,
         createdAt: DateTime(2025, 11, 12),
         updatedAt: DateTime(2025, 11, 12),
-        date: null,
         customListId: 'Work',
         order: 1,
         linkPreview: null,
         recurrence: null,
-        parentRecurringId: null,
         eventId: 'event-2',
       needsSync: false,
       ),
@@ -101,7 +97,7 @@ void main() {
       final params = GetTodosByListParams(customListId: 'Work');
 
       when(() => mockRepository.getTodosByCustomList('Work'))
-          .thenAnswer((_) async => Left(ServerFailure('Query failed')));
+          .thenAnswer((_) async => const Left(ServerFailure('Query failed')));
 
       // Act
       final result = await usecase(params);

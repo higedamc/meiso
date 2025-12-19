@@ -165,11 +165,11 @@ class SettingsScreen extends ConsumerWidget {
                     children: [
                         Row(
                         children: [
-                          Icon(Icons.security, color: AppTheme.primaryPurple),
+                          const Icon(Icons.security, color: AppTheme.primaryPurple),
                           const SizedBox(width: 8),
                           Text(
                             l10n.amberModeTitle,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppTheme.darkPurple,
                             ),
@@ -179,7 +179,7 @@ class SettingsScreen extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text(
                         l10n.amberModeInfo,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
                           color: AppTheme.darkPurple,
                         ),
@@ -203,11 +203,11 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.info, color: AppTheme.primaryPurple),
+                        const Icon(Icons.info, color: AppTheme.primaryPurple),
                         const SizedBox(width: 8),
                         Text(
                           l10n.autoSyncInfoTitle,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppTheme.darkPurple,
                           ),
@@ -217,7 +217,7 @@ class SettingsScreen extends ConsumerWidget {
                     const SizedBox(height: 8),
                     Text(
                       l10n.autoSyncInfo,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         color: AppTheme.darkPurple,
                       ),
@@ -348,7 +348,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (context) => Center(
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -452,9 +452,9 @@ class SettingsScreen extends ConsumerWidget {
 
 /// MLS統合テストダイアログ（Option B PoC）
 class _MlsTestDialog extends StatefulWidget {
-  final WidgetRef ref;
 
   const _MlsTestDialog({required this.ref});
+  final WidgetRef ref;
 
   @override
   State<_MlsTestDialog> createState() => _MlsTestDialogState();
@@ -587,7 +587,6 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
           groupId: groupId,
           groupName: l10n.mlsTwoPersonTestGroupName,
           welcomeMsgBase64: welcomeMsgBase64,
-          inviterName: null,
         );
         
         // Amber署名
@@ -595,7 +594,6 @@ class _MlsTestDialogState extends State<_MlsTestDialog> {
         final amberService = AmberService();
         final signedEvent = await amberService.signEventWithTimeout(
           unsignedEvent,
-          timeout: const Duration(minutes: 2),
         );
         
         // リレーに送信

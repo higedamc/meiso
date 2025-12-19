@@ -55,9 +55,9 @@ enum MlsError {
 
 /// MLS Failure基底クラス
 abstract class MlsFailure extends Failure {
-  final MlsError error;
   
   const MlsFailure(this.error, String message) : super(message);
+  final MlsError error;
 }
 
 /// グループ関連エラー

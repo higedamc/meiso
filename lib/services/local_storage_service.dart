@@ -58,7 +58,7 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
 
-    final List<Todo> todos = [];
+    final todos = <Todo>[];
     
     for (final value in _todosBox!.values) {
       try {
@@ -167,7 +167,7 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
 
-    final List<CustomList> lists = [];
+    final lists = <CustomList>[];
     
     for (final value in _customListsBox!.values) {
       try {
@@ -512,7 +512,7 @@ class LocalStorageService {
     }
 
     final dynamic raw = _settingsBox!.get(_lastMlsGroupTodosSyncTimesKey);
-    final Map<String, dynamic> map = raw is Map
+    final map = raw is Map
         ? raw.map((k, v) => MapEntry(k.toString(), v))
         : <String, dynamic>{};
 

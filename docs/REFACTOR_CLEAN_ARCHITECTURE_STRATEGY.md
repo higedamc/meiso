@@ -2099,12 +2099,18 @@ Future<void> _confirmDelete(CustomList list) async {
 ---
 
 **更新履歴**:
+- 2025-12-14: **✅ MLS招待処理/l10n整理/バッチ同期の安全化**
+  - MLS: グループ招待の取得・パース・ローカル保存・画面側ハンドリングを整理（UseCase/Repository/LocalDataSource周辺）
+  - l10n: Settings/SecretKey管理/ダイアログ/ボタン文言を `app_localizations` 経由に統一（en/ja/es）
+  - Todos: バッチ同期タイマー開始を Nostr 初期化完了後に制限（初期化前実行を防止）
+  - コミット: fd51cfb, 0b21c83, 0da18e5
 - 2025-12-13: **✅ 復帰/再起動時の同期最適化（Relay Sync最適化）完了**
   - Todo（kind:30001）: 差分同期（since + 2分巻き戻し）＋短タイムアウト
   - AppSettings: `lastAppSettingsSyncTime` による間引き（復帰/起動直後の連続同期を回避）
   - CustomListNames: `lastCustomListsSyncTime` による間引き＋`await` 漏れ修正
   - MLS（kind:1059）: `since` 付き差分取得へ変更（固定3秒待ちの購読型を回避）
   - Sync UI: `__l10n__:` キー運用で英日混在を解消（雲アイコン/Overlayをl10nへ統一）
+  - コミット: c4634ac, 0a6312a, 3795f22
 - 2025-11-15 (22:00): **✅ Phase D.5.1完了 - 無限ローディング問題を解決**（Critical Bug Fix 1: `list_detail_screen.dart`で二重`syncGroupTodos()`実行により無限ローディングが発生。画面を開いた時の自動同期を削除（招待受諾時に既に同期済み）。Critical Bug Fix 2: `todos_provider.dart`の`syncGroupTodos()`と`_syncMlsGroupTodos()`でエラー時・loading時に`state`を更新していなかった問題を修正。`state.whenData()`を`state.valueOrNull`に変更し、catchブロックでも確実に`state = AsyncValue.data()`を実行。これにより、エラーや初期状態でも無限ローディングは発生しなくなった）
 - 2025-11-15 (19:30): **✅ 90日分生成対応完了**（Option 2採用。30日→90日に拡張、スマート再生成閾値7日→21日、カウントロジック修正（今日を含める）、addTodo内state更新バグ修正。Oracle確認: 90日分生成✅、スマート再生成⚠️（Phase C.2.5で修正予定）。コミット: 4cff631）
 - 2025-11-15 (18:00): **✅ Phase C.2.3完了**（10時間。RecurringTodoUseCaseの実装完了。GenerateRecurringInstancesUseCase（134行）とRemoveChildInstancesUseCase（85行）を実装。TodosProviderの3箇所統合、旧メソッド削除。重複保存なし、公開API不変、リグレッションゼロ。コミット: 3a54ad3）

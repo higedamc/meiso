@@ -30,21 +30,18 @@ void main() {
       id: 'test-id-1',
       title: TodoTitle.unsafe('Original Title'),
       completed: false,
-      createdAt: DateTime(2025, 11, 12, 10, 0),
-      updatedAt: DateTime(2025, 11, 12, 10, 0),
-      date: null,
-      customListId: null,
+      createdAt: DateTime(2025, 11, 12, 10),
+      updatedAt: DateTime(2025, 11, 12, 10),
       order: 0,
       linkPreview: null,
       recurrence: null,
-      parentRecurringId: null,
       eventId: 'event-1',
       needsSync: false,
     );
 
     test('タイトルのみ更新される', () async {
       // Arrange
-      final params = UpdateTodoParams(
+      const params = UpdateTodoParams(
         todoId: 'test-id-1',
         title: 'Updated Title',
       );
@@ -78,7 +75,7 @@ void main() {
 
     test('完了状態のみ更新される', () async {
       // Arrange
-      final params = UpdateTodoParams(
+      const params = UpdateTodoParams(
         todoId: 'test-id-1',
         completed: true,
       );
@@ -109,7 +106,7 @@ void main() {
 
     test('複数フィールドが同時に更新される', () async {
       // Arrange
-      final params = UpdateTodoParams(
+      const params = UpdateTodoParams(
         todoId: 'test-id-1',
         title: 'New Title',
         completed: true,
@@ -145,13 +142,13 @@ void main() {
 
     test('存在しないTodoIDでエラーが返る', () async {
       // Arrange
-      final params = UpdateTodoParams(
+      const params = UpdateTodoParams(
         todoId: 'non-existent-id',
         title: 'Updated Title',
       );
 
       when(() => mockRepository.getTodoById('non-existent-id'))
-          .thenAnswer((_) async => Left(TodoFailure(TodoError.notFound)));
+          .thenAnswer((_) async => const Left(TodoFailure(TodoError.notFound)));
 
       // Act
       final result = await usecase(params);
@@ -171,7 +168,7 @@ void main() {
 
     test('空のタイトルでバリデーションエラーが返る', () async {
       // Arrange
-      final params = UpdateTodoParams(
+      const params = UpdateTodoParams(
         todoId: 'test-id-1',
         title: '',
       );
@@ -196,7 +193,7 @@ void main() {
 
     test('Repository更新失敗時にエラーが返る', () async {
       // Arrange
-      final params = UpdateTodoParams(
+      const params = UpdateTodoParams(
         todoId: 'test-id-1',
         title: 'Updated Title',
       );
@@ -205,7 +202,7 @@ void main() {
           .thenAnswer((_) async => Right(existingTodo));
 
       when(() => mockRepository.updateTodo(any()))
-          .thenAnswer((_) async => Left(ServerFailure('Update failed')));
+          .thenAnswer((_) async => const Left(ServerFailure('Update failed')));
 
       // Act
       final result = await usecase(params);

@@ -29,7 +29,6 @@ enum CustomListError {
 
 /// CustomListのFailure実装
 class CustomListFailure extends Failure {
-  final CustomListError error;
   
   const CustomListFailure(this.error, String message) : super(message);
   
@@ -64,20 +63,21 @@ class CustomListFailure extends Failure {
     }
     return CustomListFailure(error, message);
   }
+  final CustomListError error;
 }
 
 /// ローカルストレージエラー
 class CustomListLocalStorageFailure extends Failure {
-  const CustomListLocalStorageFailure(String message) : super(message);
+  const CustomListLocalStorageFailure(super.message);
 }
 
 /// ネットワークエラー
 class CustomListNetworkFailure extends Failure {
-  const CustomListNetworkFailure(String message) : super(message);
+  const CustomListNetworkFailure(super.message);
 }
 
 /// MLSエラー
 class CustomListMlsFailure extends Failure {
-  const CustomListMlsFailure(String message) : super(message);
+  const CustomListMlsFailure(super.message);
 }
 

@@ -38,7 +38,6 @@ class _AddTodoFieldState extends State<AddTodoField> {
             border: Border(
               top: BorderSide(
                 color: Theme.of(context).dividerColor,
-                width: 1,
               ),
             ),
           ),

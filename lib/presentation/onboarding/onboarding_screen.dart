@@ -34,7 +34,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     // ページの内容を定義
     // ローカルの実際のLottieアニメーションを使用
@@ -72,7 +72,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ];
 
     return Scaffold(
-      body: Container(
+      body: DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -129,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(
                     pages.length,
-                    (index) => _buildPageIndicator(index),
+                    _buildPageIndicator,
                   ),
                 ),
               ),
@@ -208,10 +208,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
 /// オンボーディングページ
 class _OnboardingPage extends StatefulWidget {
-  final String lottieUrl;
-  final String title;
-  final String description;
-  final IconData fallbackIcon;
 
   const _OnboardingPage({
     required this.lottieUrl,
@@ -219,6 +215,10 @@ class _OnboardingPage extends StatefulWidget {
     required this.description,
     required this.fallbackIcon,
   });
+  final String lottieUrl;
+  final String title;
+  final String description;
+  final IconData fallbackIcon;
 
   @override
   State<_OnboardingPage> createState() => _OnboardingPageState();
@@ -245,13 +245,13 @@ class _OnboardingPageState extends State<_OnboardingPage>
 
     // タイトルのフェードイン（0.0 - 0.3秒）
     _titleAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
+      begin: 0,
+      end: 1,
     ).animate(
       CurvedAnimation(
         parent: _animationController,
         curve: const Interval(
-          0.0,
+          0,
           0.3,
           curve: Curves.easeOut,
         ),
@@ -260,8 +260,8 @@ class _OnboardingPageState extends State<_OnboardingPage>
 
     // 説明のフェードイン（0.2 - 0.5秒）
     _descriptionAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
+      begin: 0,
+      end: 1,
     ).animate(
       CurvedAnimation(
         parent: _animationController,
@@ -275,8 +275,8 @@ class _OnboardingPageState extends State<_OnboardingPage>
 
     // Lottieアニメーションのフェードイン（0.4 - 0.8秒）
     _lottieAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
+      begin: 0,
+      end: 1,
     ).animate(
       CurvedAnimation(
         parent: _animationController,
@@ -302,7 +302,7 @@ class _OnboardingPageState extends State<_OnboardingPage>
     // Lottieアニメーション領域のスケール
     _scaleAnimation = Tween<double>(
       begin: 0.8,
-      end: 1.0,
+      end: 1,
     ).animate(
       CurvedAnimation(
         parent: _animationController,
@@ -415,7 +415,7 @@ class _OnboardingPageState extends State<_OnboardingPage>
 
   Widget _buildPlaceholder() {
     // プレースホルダー: グラデーション付きの丸角矩形
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,

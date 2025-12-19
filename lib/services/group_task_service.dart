@@ -438,7 +438,6 @@ class GroupTaskService {
         return CustomList(
           id: groupList.groupId,
           name: groupList.groupName,
-          order: 0, // 順序は後で調整
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           isGroup: true,

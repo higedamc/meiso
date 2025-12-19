@@ -20,7 +20,7 @@ final todosProviderCompat = Provider<AsyncValue<Map<DateTime?, List<Todo>>>>((re
   return state.when(
     initial: () => const AsyncValue.loading(),
     loading: () => const AsyncValue.loading(),
-    loaded: (groupedTodos) => AsyncValue.data(groupedTodos),
+    loaded: AsyncValue.data,
     error: (message) => AsyncValue.error(message, StackTrace.current),
   );
 });
@@ -30,5 +30,5 @@ final todosProviderCompat = Provider<AsyncValue<Map<DateTime?, List<Todo>>>>((re
 /// todosProviderCompatが新ViewModelを使うようになったが、
 /// 一部の画面では旧Providerの機能が必要なため、
 /// 旧Providerも引き続き利用可能にしておく
-final todosProvider = old.todosProvider;
+final StateNotifierProvider<old.TodosNotifier, AsyncValue<Map<DateTime?, List<Todo>>>> todosProvider = old.todosProvider;
 

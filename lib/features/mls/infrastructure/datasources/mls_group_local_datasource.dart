@@ -9,9 +9,9 @@ import '../../domain/entities/group_invitation.dart';
 /// LocalStorageService（Hive）を使用してMLSグループと招待を管理する。
 /// CustomListモデルを使用してHiveに保存される。
 class MlsGroupLocalDataSource {
-  final LocalStorageService _localStorage;
   
   const MlsGroupLocalDataSource(this._localStorage);
+  final LocalStorageService _localStorage;
   
   // ========================================
   // MLSグループ操作
@@ -225,13 +225,11 @@ class MlsGroupLocalDataSource {
     return CustomList(
       id: group.groupId,
       name: group.groupName,
-      order: 0, // orderは後で調整される
       createdAt: group.createdAt,
       updatedAt: group.updatedAt,
       isGroup: true,
       groupMembers: group.memberPubkeys,
       welcomeMsg: (group.welcomeMessage != null && group.welcomeMessage!.isNotEmpty) ? group.welcomeMessage : null,
-      isPendingInvitation: false, // グループは受諾済み
     );
   }
   
@@ -253,7 +251,6 @@ class MlsGroupLocalDataSource {
     return CustomList(
       id: invitation.groupId,
       name: invitation.groupName,
-      order: 0, // orderは後で調整される
       createdAt: invitation.receivedAt,
       updatedAt: invitation.receivedAt,
       // 招待はグループリストの一種なので isGroup=true を保持する

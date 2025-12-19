@@ -33,7 +33,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
         curve: Curves.easeInOut,
         heightFactor: isVisible ? 1.0 : 0.0,
         alignment: Alignment.bottomCenter,
-        child: Container(
+        child: ColoredBox(
           color: Theme.of(context).scaffoldBackgroundColor,
           child: customListsAsync.when(
             data: (customLists) => todosAsync.when(
@@ -217,7 +217,6 @@ class ExpandableCustomListModal extends ConsumerWidget {
           border: Border(
             bottom: BorderSide(
               color: textColor.withOpacity(0.2),
-              width: 1,
             ),
           ),
         ),
@@ -280,7 +279,6 @@ class ExpandableCustomListModal extends ConsumerWidget {
           border: Border(
             bottom: BorderSide(
               color: textColor.withOpacity(0.2),
-              width: 1,
             ),
           ),
         ),
@@ -338,7 +336,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
 
   /// カスタムリストのTodo数を取得
   int _getListTodoCount(String listId, Map<DateTime?, List<Todo>> todos) {
-    int count = 0;
+    var count = 0;
     
     for (final entry in todos.entries) {
       for (final todo in entry.value) {
@@ -357,7 +355,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
     Map<DateTime?, List<Todo>> todos,
   ) {
     final dateRange = category.getDateRange();
-    int count = 0;
+    var count = 0;
 
     for (final entry in todos.entries) {
       final date = entry.key;
@@ -492,7 +490,6 @@ class ExpandableCustomListModal extends ConsumerWidget {
                 title: Text('Group List', style: TextStyle(color: Colors.grey.shade400)),
                 subtitle: Text('共有可能なグループタスクリスト（開発中）', style: TextStyle(color: Colors.grey.shade400)),
                 enabled: false,
-                onTap: null,
               ),
             ],
           ),

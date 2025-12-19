@@ -19,7 +19,7 @@ class TodoColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ColoredBox(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
