@@ -19,7 +19,7 @@ class TodoColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ColoredBox(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
@@ -82,9 +82,12 @@ class TodoColumn extends StatelessWidget {
         return ReorderableListView.builder(
           itemCount: todos.length,
           onReorder: (oldIndex, newIndex) {
-            ref
+            final todo = todos[oldIndex];
+            // newIndexの調整（ReorderableListViewの仕様）
+            final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
+              ref
                 .read(todosProvider.notifier)
-                .reorderTodo(date, oldIndex, newIndex);
+                .reorderTodo(date, oldIndex, adjustedIndex);
           },
           itemBuilder: (context, index) {
             final todo = todos[index];

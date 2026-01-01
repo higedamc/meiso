@@ -33,17 +33,8 @@ class ExpandableCustomListModal extends ConsumerWidget {
         curve: Curves.easeInOut,
         heightFactor: isVisible ? 1.0 : 0.0,
         alignment: Alignment.bottomCenter,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                isDark ? AppTheme.darkPurple : AppTheme.primaryPurple,
-                isDark ? AppTheme.darkPurple.withOpacity(0.9) : AppTheme.primaryPurple.withOpacity(0.9),
-              ],
-            ),
-          ),
+        child: ColoredBox(
+          color: Theme.of(context).scaffoldBackgroundColor,
           child: customListsAsync.when(
             data: (customLists) => todosAsync.when(
               data: (todos) => _buildContent(
@@ -54,18 +45,22 @@ class ExpandableCustomListModal extends ConsumerWidget {
                 isDark,
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Center(
+              error: (_, __) => Center(
                 child: Text(
                   'エラーが発生しました',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
                 ),
               ),
             ),
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Center(
+            error: (_, __) => Center(
               child: Text(
                 'エラーが発生しました',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                ),
               ),
             ),
           ),
@@ -90,17 +85,21 @@ class ExpandableCustomListModal extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'SOMEDAY',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: isDark ? Colors.white : Colors.black,
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.5,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.add, color: Colors.white, size: 28),
+                  icon: Icon(
+                    Icons.add,
+                    color: isDark ? Colors.white : Colors.black,
+                    size: 28,
+                  ),
                   onPressed: () => _showAddListScreen(context, ref),
                 ),
               ],
@@ -113,19 +112,23 @@ class ExpandableCustomListModal extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
                 // MY LISTSセクション
-                _buildSectionHeader('MY LISTS'),
+                _buildSectionHeader(context, 'MY LISTS'),
                 const SizedBox(height: 16),
                 
                 // カスタムリスト（並び替え可能）
                 ...customLists.map((list) {
-                  return _buildListItem(
+                  return _buildCustomListItem(
                     context,
                     ref,
-                    list.name,
+                    list,
                     _getListTodoCount(list.id, todos),
                     onTap: () async {
                       // 最後に見たリストIDを保存
-                      await ref.read(appSettingsProvider.notifier).setLastViewedCustomListId(list.id);
+                      await ref.read(appSettingsProvider.notifier).updateSettings(
+                        ref.read(appSettingsProvider).value!.copyWith(
+                          lastViewedCustomListId: list.id,
+                        ),
+                      );
                       
                       onListSelected();
                       if (context.mounted) {
@@ -139,13 +142,14 @@ class ExpandableCustomListModal extends ConsumerWidget {
                         );
                       }
                     },
+                    onDelete: () => _confirmDeleteList(context, ref, list),
                   );
                 }),
 
                 const SizedBox(height: 32),
 
                 // PLANNINGセクション
-                _buildSectionHeader('PLANNING'),
+                _buildSectionHeader(context, 'PLANNING'),
                 const SizedBox(height: 16),
                 ...PlanningCategory.values.map((category) {
                   final count = _getPlanningCategoryCount(category, todos);
@@ -178,7 +182,8 @@ class ExpandableCustomListModal extends ConsumerWidget {
   }
 
   /// セクションヘッダー
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
@@ -186,7 +191,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
         style: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: Colors.white.withOpacity(0.7),
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.7),
           letterSpacing: 1.2,
         ),
       ),
@@ -201,6 +206,9 @@ class ExpandableCustomListModal extends ConsumerWidget {
     int count, {
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -208,8 +216,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: Colors.white.withOpacity(0.2),
-              width: 1,
+              color: textColor.withOpacity(0.2),
             ),
           ),
         ),
@@ -219,10 +226,10 @@ class ExpandableCustomListModal extends ConsumerWidget {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: textColor,
                   letterSpacing: 0.8,
                 ),
               ),
@@ -232,7 +239,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: AppTheme.primaryPurple.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -240,7 +247,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: AppTheme.primaryPurple,
                   ),
                 ),
               ),
@@ -250,9 +257,86 @@ class ExpandableCustomListModal extends ConsumerWidget {
     );
   }
 
+  /// カスタムリスト専用のリストアイテム（削除ボタン付き）
+  /// 
+  /// Phase E.5: リスト削除機能
+  Widget _buildCustomListItem(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+    int count, {
+    required VoidCallback onTap,
+    required VoidCallback onDelete,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: textColor.withOpacity(0.2),
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // リスト名
+            Expanded(
+              child: Text(
+                list.name,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            // カウント
+            if (count > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  count.toString(),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryPurple,
+                  ),
+                ),
+              ),
+            // 削除ボタン（Personal Listのみ、グループリストは非表示）
+            if (!list.isGroup && !list.isPendingInvitation) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 20,
+                  color: textColor.withOpacity(0.5),
+                ),
+                onPressed: onDelete,
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+                tooltip: 'Delete list',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   /// カスタムリストのTodo数を取得
   int _getListTodoCount(String listId, Map<DateTime?, List<Todo>> todos) {
-    int count = 0;
+    var count = 0;
     
     for (final entry in todos.entries) {
       for (final todo in entry.value) {
@@ -271,7 +355,7 @@ class ExpandableCustomListModal extends ConsumerWidget {
     Map<DateTime?, List<Todo>> todos,
   ) {
     final dateRange = category.getDateRange();
-    int count = 0;
+    var count = 0;
 
     for (final entry in todos.entries) {
       final date = entry.key;
@@ -283,13 +367,134 @@ class ExpandableCustomListModal extends ConsumerWidget {
     return count;
   }
 
-  /// リスト追加画面を表示
-  void _showAddListScreen(BuildContext context, WidgetRef ref) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddListScreen(),
-        fullscreenDialog: true,
+  /// リスト削除の確認ダイアログ
+  /// 
+  /// Phase E.5: リスト削除機能
+  Future<void> _confirmDeleteList(
+    BuildContext context,
+    WidgetRef ref,
+    CustomList list,
+  ) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        title: Text(
+          'DELETE LIST',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            letterSpacing: 1.2,
+          ),
+        ),
+        content: Text(
+          'Delete "${list.name}"?\n\nThis will remove the list and all its tasks from all devices.',
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text(
+              'DELETE',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+    
+    if (confirmed == true) {
+      // リストを削除
+      await ref.read(customListsProvider.notifier).deleteList(list.id);
+      
+      // TODO削除も実行（Phase E.5.1で実装予定）
+      // そのリストに属する全てのTODOも削除する
+      final todosNotifier = ref.read(todosProvider.notifier);
+      await todosNotifier.deleteAllTodosInList(list.id);
+    }
+  }
+
+  /// リスト追加画面を表示（通常リストorグループリスト）
+  void _showAddListScreen(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          title: Text(
+            'ADD LIST',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              letterSpacing: 1.2,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 通常のカスタムリスト
+              ListTile(
+                leading: const Icon(Icons.list_alt),
+                title: const Text('Personal List'),
+                subtitle: const Text('個人用のタスクリスト'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AddListScreen(),
+                      fullscreenDialog: true,
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              // グループリスト（ステージング版では無効化）
+              ListTile(
+                // leading: const Icon(Icons.group),
+                // title: const Text('Group List'),
+                // subtitle: const Text('共有可能なグループタスクリスト'),
+                // onTap: () {
+                //   Navigator.pop(context);
+                //   showDialog(
+                //     context: context,
+                //     builder: (context) => const AddGroupListDialog(),
+                //   );
+                // },
+
+                leading: Icon(Icons.group, color: Colors.grey.shade400),
+                title: Text('Group List', style: TextStyle(color: Colors.grey.shade400)),
+                subtitle: Text('共有可能なグループタスクリスト（開発中）', style: TextStyle(color: Colors.grey.shade400)),
+                enabled: false,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

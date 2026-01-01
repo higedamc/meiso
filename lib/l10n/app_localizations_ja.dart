@@ -116,6 +116,139 @@ class AppLocalizationsJa extends AppLocalizations {
       '• タスクの作成・編集・削除は自動的にNostrに同期されます\n• アプリ起動時に最新のデータが自動取得されます\n• リレー接続中は常にバックグラウンドで同期します\n• 手動同期ボタンは不要になりました';
 
   @override
+  String get closeButton => '閉じる';
+
+  @override
+  String get copyButton => 'コピー';
+
+  @override
+  String get fetchButton => '取得';
+
+  @override
+  String get advancedSectionTitle => '高度な設定';
+
+  @override
+  String get advancedSectionSubtitle => '開発者向け機能';
+
+  @override
+  String get keyPackagePublishTitle => 'Key Packageを公開';
+
+  @override
+  String get keyPackagePublishSubtitle => 'グループ招待を受けるために必要';
+
+  @override
+  String get mlsIntegrationTestTitle => 'MLS統合テスト (PoC)';
+
+  @override
+  String get mlsIntegrationTestSubtitle => 'Option B: 1人グループでの動作確認';
+
+  @override
+  String get keyPackagePublishDialogTitle => 'Key Packageを公開';
+
+  @override
+  String get keyPackagePublishDialogBody =>
+      'Key Packageをリレーに公開します。\n\n公開することで、他のユーザーがあなたをグループに招待できるようになります。\n\n続行しますか？';
+
+  @override
+  String get publishButton => '公開する';
+
+  @override
+  String get publishingKeyPackage => 'Key Packageを公開中...';
+
+  @override
+  String get keyPackagePublishCompletedTitle => '公開完了';
+
+  @override
+  String get keyPackagePublishCompletedMessage => 'Key Packageをリレーに公開しました！';
+
+  @override
+  String get keyPackagePublishCompletedDescription =>
+      '他のユーザーがあなたのnpubを使ってグループに招待できるようになりました。';
+
+  @override
+  String get eventIdLabel => 'Event ID';
+
+  @override
+  String get keyPackagePublishFailedTitle => '公開失敗';
+
+  @override
+  String keyPackagePublishFailedBody(String error) {
+    return 'Key Packageの公開に失敗しました。\n\nエラー: $error';
+  }
+
+  @override
+  String get keyPackagePublishNoEventIdError => 'イベントIDが取得できませんでした';
+
+  @override
+  String get mlsTestDialogTitle => 'MLS統合テスト';
+
+  @override
+  String get mlsTestDialogSubtitle => 'Option B PoC: 2人グループ対応テスト';
+
+  @override
+  String get mlsYourKeyPackageLabel => '📋 あなたのKey Package:';
+
+  @override
+  String get keyPackageCopied => 'Key Packageをコピーしました';
+
+  @override
+  String get mlsPeerNpubLabel => '相手のnpub';
+
+  @override
+  String get mlsPeerNpubHint => 'npub1...';
+
+  @override
+  String get mlsPressTestButton => 'テストボタンを押してください';
+
+  @override
+  String get mlsGenerateKpButton => 'KP生成';
+
+  @override
+  String get mlsPublishKpButton => 'KP公開';
+
+  @override
+  String get mlsCreate2PersonGroupButton => '2人グループ作成';
+
+  @override
+  String get mlsSendTodoButton => 'TODO送信';
+
+  @override
+  String get mlsOnePersonTestButton => '1人テスト';
+
+  @override
+  String get mlsRunning => '実行中...';
+
+  @override
+  String get mlsUserPublicKeyNotAvailable => 'ユーザーの公開鍵が取得できません';
+
+  @override
+  String get mlsTwoPersonTestGroupName => '2人グループテスト';
+
+  @override
+  String get mlsTestListName => 'MLSテストリスト';
+
+  @override
+  String get mlsTwoPersonTestTodoTitle => '2人グループ用テストTODO';
+
+  @override
+  String get mlsOnePersonTestTodoTitle => 'MLSグループ内テストTODO';
+
+  @override
+  String get deleteRecurringTodoTitle => '繰り返しTodoを削除';
+
+  @override
+  String get removeThisInstance => 'このインスタンスのみ削除';
+
+  @override
+  String get removeAllInstances => 'すべてのインスタンスを削除';
+
+  @override
+  String get todoJsonTitle => 'Todo JSON';
+
+  @override
+  String get jsonCopied => 'JSONをコピーしました';
+
+  @override
   String versionInfo(String version, String buildNumber) {
     return 'Version $version ($buildNumber)';
   }
@@ -458,6 +591,29 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get waiting => '待機中';
+
+  @override
+  String syncStep(int current, int total) {
+    return 'ステップ $current / $total';
+  }
+
+  @override
+  String get syncReconnectingRelays => 'リレー再接続中...';
+
+  @override
+  String get syncPhaseDelta => '差分同期中...';
+
+  @override
+  String get syncPhaseAppSettings => '設定同期中...';
+
+  @override
+  String get syncPhaseCustomLists => 'リスト同期中...';
+
+  @override
+  String get syncPhaseTodos => 'Todo同期中...';
+
+  @override
+  String get syncPhaseMls => 'グループTodo同期中...';
 
   @override
   String get justNow => 'たった今';

@@ -44,15 +44,10 @@ class AppSettings with _$AppSettings {
   /// デフォルト設定を取得
   factory AppSettings.defaultSettings() {
     return AppSettings(
-      darkMode: false,
       weekStartDay: 1, // 月曜日始まり
-      calendarView: 'week',
       notificationsEnabled: true,
       relays: [], // デフォルトは空（初回起動時にdefaultRelaysが適用される）
-      torEnabled: false, // デフォルトはTor無効
-      proxyUrl: 'socks5://127.0.0.1:9050', // Orbotのデフォルトプロキシ
       customListOrder: [], // デフォルトは空
-      lastViewedCustomListId: null, // デフォルトはなし
       updatedAt: DateTime.now(),
     );
   }

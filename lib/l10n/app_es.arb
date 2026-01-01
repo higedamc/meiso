@@ -64,6 +64,57 @@
   "autoSyncInfoTitle": "Acerca de la Sincronización Automática",
   
   "autoSyncInfo": "• La creación, edición y eliminación de tareas se sincronizan automáticamente con Nostr\n• Los últimos datos se obtienen automáticamente al iniciar la aplicación\n• Siempre se sincroniza en segundo plano cuando el relay está conectado\n• Ya no se necesita el botón de sincronización manual",
+
+  "closeButton": "Close",
+  "copyButton": "Copy",
+  "fetchButton": "Fetch",
+
+  "advancedSectionTitle": "Advanced",
+  "advancedSectionSubtitle": "Developer features",
+
+  "keyPackagePublishTitle": "Publish Key Package",
+  "keyPackagePublishSubtitle": "Required to receive group invites",
+
+  "mlsIntegrationTestTitle": "MLS Integration Test (PoC)",
+  "mlsIntegrationTestSubtitle": "Option B: verify with 1-person group",
+
+  "keyPackagePublishDialogTitle": "Publish Key Package",
+  "keyPackagePublishDialogBody": "This will publish your Key Package to relays.\n\nOnce published, other users can invite you to groups.\n\nContinue?",
+  "publishButton": "Publish",
+  "publishingKeyPackage": "Publishing Key Package...",
+  "keyPackagePublishCompletedTitle": "Publish completed",
+  "keyPackagePublishCompletedMessage": "Published Key Package to relays!",
+  "keyPackagePublishCompletedDescription": "Other users can now invite you to groups using your npub.",
+  "eventIdLabel": "Event ID",
+  "keyPackagePublishFailedTitle": "Publish failed",
+  "keyPackagePublishFailedBody": "Failed to publish Key Package.\n\nError: {error}",
+  "keyPackagePublishNoEventIdError": "Failed to get event id",
+
+  "mlsTestDialogTitle": "MLS Integration Test",
+  "mlsTestDialogSubtitle": "Option B PoC: 2-person group test",
+  "mlsYourKeyPackageLabel": "📋 Your Key Package:",
+  "keyPackageCopied": "Key Package copied",
+  "mlsPeerNpubLabel": "Peer npub",
+  "mlsPeerNpubHint": "npub1...",
+  "mlsPressTestButton": "Press a test button",
+  "mlsGenerateKpButton": "Generate KP",
+  "mlsPublishKpButton": "Publish KP",
+  "mlsCreate2PersonGroupButton": "Create 2-person group",
+  "mlsSendTodoButton": "Send TODO",
+  "mlsOnePersonTestButton": "1-person test",
+  "mlsRunning": "Running...",
+  "mlsUserPublicKeyNotAvailable": "User public key not available",
+  "mlsTwoPersonTestGroupName": "2 Person Test Group",
+  "mlsTestListName": "MLS Test List",
+  "mlsTwoPersonTestTodoTitle": "Test TODO for 2 Person Group",
+  "mlsOnePersonTestTodoTitle": "Test TODO in MLS Group",
+
+  "deleteRecurringTodoTitle": "Delete recurring to-do",
+  "removeThisInstance": "Remove this instance",
+  "removeAllInstances": "Remove all instances",
+
+  "todoJsonTitle": "Todo JSON",
+  "jsonCopied": "JSON copied",
   
   "versionInfo": "Versión {version} ({buildNumber})",
   

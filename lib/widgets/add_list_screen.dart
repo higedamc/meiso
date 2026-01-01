@@ -122,7 +122,7 @@ class _AddListScreenState extends ConsumerState<AddListScreen> {
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         _errorMessage!,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.red,
                           fontSize: 14,
                         ),
@@ -141,7 +141,6 @@ class _AddListScreenState extends ConsumerState<AddListScreen> {
               border: Border(
                 top: BorderSide(
                   color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
-                  width: 1,
                 ),
               ),
             ),
@@ -168,7 +167,7 @@ class _AddListScreenState extends ConsumerState<AddListScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
+                      letterSpacing: 1,
                     ),
                   ),
                 ),

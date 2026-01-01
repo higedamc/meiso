@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/logger_service.dart';
 import 'nostr_provider.dart';
-import '../services/logger_service.dart';
 import 'todos_provider.dart';
-import '../services/logger_service.dart';
 import 'sync_status_provider.dart';
-import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
-import '../services/logger_service.dart';
+import 'custom_lists_provider.dart';
 
 /// アプリのライフサイクル状態を管理するProvider
 final appLifecycleProvider = StateNotifierProvider<AppLifecycleNotifier, AppLifecycleState>((ref) {
@@ -152,29 +148,28 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
     _isReconnecting = true;
     
     try {
-      AppLogger.info(' Starting relay reconnection...');
-      _ref.read(syncStatusProvider.notifier).updateMessage('リレー再接続中...');
-      
       final nostrService = _ref.read(nostrServiceProvider);
       
-      // リレー再接続を実行
-      try {
-        await nostrService.reconnectRelays();
-        AppLogger.info(' Relay reconnection completed');
-      } catch (e) {
-        AppLogger.warning(' Relay reconnection failed: $e');
-        // 再接続失敗時もエラーは記録するが、同期は試行する
-        _ref.read(syncStatusProvider.notifier).syncError(
-          'リレー再接続エラー: ${e.toString()}',
-          shouldRetry: false,
-        );
-        
-        // 3秒後にエラーをクリア
-        Future.delayed(const Duration(seconds: 3), () {
-          _ref.read(syncStatusProvider.notifier).clearError();
-        });
-        
-        return;
+      // まず接続状態を確認し、必要なときだけ短時間reconnectする
+      final connected = await nostrService.checkConnectionStatus();
+      if (!connected) {
+        AppLogger.info(' Starting relay reconnection (resume)...');
+              _ref.read(syncStatusProvider.notifier).updateMessageKey('syncReconnectingRelays');
+        try {
+          // 復帰時は長時間待たない（最大3秒）
+          await nostrService.reconnectRelaysWithTimeout();
+          AppLogger.info(' Relay reconnection completed');
+        } catch (e) {
+          AppLogger.warning(' Relay reconnection failed: $e');
+          // 再接続失敗でも、差分同期は試行する（ローカルデータで継続可能）
+          _ref.read(syncStatusProvider.notifier).syncError(
+            'リレー再接続エラー: ${e}',
+            shouldRetry: false,
+          );
+          Future.delayed(const Duration(seconds: 3), () {
+            _ref.read(syncStatusProvider.notifier).clearError();
+          });
+        }
       }
       
       // 再接続成功後、データ同期を実行
@@ -183,7 +178,17 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       
       // TodosProviderの同期メソッドを呼び出し
       final todosNotifier = _ref.read(todosProvider.notifier);
-      await todosNotifier.syncFromNostr();
+      await todosNotifier.syncFromNostr(trigger: TodoSyncTrigger.appResume);
+      
+      // Phase 8.1.2: グループ招待の同期
+      try {
+        final customListsNotifier = _ref.read(customListsProvider.notifier);
+        await customListsNotifier.syncGroupInvitations();
+        AppLogger.info(' Group invitations synced after reconnect');
+      } catch (e) {
+        AppLogger.warning(' Group invitation sync failed: $e');
+        // エラーは無視（次回の同期で再試行）
+      }
       
       AppLogger.info(' Sync after reconnect completed');
       _ref.read(syncStatusProvider.notifier).clearMessage();
@@ -193,7 +198,7 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
       
       _ref.read(syncStatusProvider.notifier).syncError(
-        'フォアグラウンド復帰時の同期エラー: ${e.toString()}',
+        'フォアグラウンド復帰時の同期エラー: ${e}',
         shouldRetry: false,
       );
       

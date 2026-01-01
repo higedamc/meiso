@@ -31,7 +31,7 @@ class CircularCheckbox extends StatelessWidget {
           color: value ? fillColor : Colors.transparent,
           border: Border.all(
             color: value ? fillColor : borderColor,
-            width: 2.0,
+            width: 2,
           ),
         ),
         child: value

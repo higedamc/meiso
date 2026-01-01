@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import 'package:intl/intl.dart';
-import '../services/logger_service.dart';
+
 import '../app_theme.dart';
-import '../services/logger_service.dart';
+import '../providers/nostr_provider.dart';
 import '../providers/todos_provider.dart';
 import '../services/logger_service.dart';
-import '../providers/nostr_provider.dart';
-import '../services/logger_service.dart';
-import 'todo_item.dart';
-import '../services/logger_service.dart';
 import 'sync_status_indicator.dart';
-import '../services/logger_service.dart';
+import 'todo_item.dart';
 
 /// 1日分のTodoページ
 class DayPage extends ConsumerWidget {
@@ -99,7 +93,7 @@ class DayPage extends ConsumerWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: textColor.withOpacity(0.6),
-                letterSpacing: 1.0,
+                letterSpacing: 1,
                 height: 1.2,
               ),
             )
@@ -110,7 +104,7 @@ class DayPage extends ConsumerWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: textColor.withOpacity(0.6),
-                letterSpacing: 1.0,
+                letterSpacing: 1,
                 height: 1.2,
               ),
             ),
@@ -162,9 +156,12 @@ class DayPage extends ConsumerWidget {
       padding: EdgeInsets.zero,
       itemCount: todos.length,
       onReorder: (oldIndex, newIndex) {
+        final todo = todos[oldIndex];
+        // newIndexの調整（ReorderableListViewの仕様）
+        final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
         ref
             .read(todosProvider.notifier)
-            .reorderTodo(date, oldIndex, newIndex);
+            .reorderTodo(date, oldIndex, adjustedIndex);
       },
       itemBuilder: (context, index) {
         final todo = todos[index];

@@ -34,6 +34,22 @@ mixin _$SyncStatus {
   /// リトライ回数
   int get retryCount => throw _privateConstructorUsedError;
 
+  /// Phase 8.5: 進捗追跡フィールド
+  /// 全体のステップ数（同期フェーズの総数）
+  int get totalSteps => throw _privateConstructorUsedError;
+
+  /// 完了したステップ数
+  int get completedSteps => throw _privateConstructorUsedError;
+
+  /// 進捗パーセンテージ (0-100)
+  int get percentage => throw _privateConstructorUsedError;
+
+  /// 現在のフェーズ名（「AppSettings同期中」「カスタムリスト同期中」など）
+  String? get currentPhase => throw _privateConstructorUsedError;
+
+  /// 初回同期フラグ（ローカルストレージが空の状態からの初回起動時のみtrue）
+  bool get isInitialSync => throw _privateConstructorUsedError;
+
   /// Create a copy of SyncStatus
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -55,6 +71,11 @@ abstract class $SyncStatusCopyWith<$Res> {
     String? message,
     int pendingItems,
     int retryCount,
+    int totalSteps,
+    int completedSteps,
+    int percentage,
+    String? currentPhase,
+    bool isInitialSync,
   });
 }
 
@@ -79,6 +100,11 @@ class _$SyncStatusCopyWithImpl<$Res, $Val extends SyncStatus>
     Object? message = freezed,
     Object? pendingItems = null,
     Object? retryCount = null,
+    Object? totalSteps = null,
+    Object? completedSteps = null,
+    Object? percentage = null,
+    Object? currentPhase = freezed,
+    Object? isInitialSync = null,
   }) {
     return _then(
       _value.copyWith(
@@ -106,6 +132,26 @@ class _$SyncStatusCopyWithImpl<$Res, $Val extends SyncStatus>
                 ? _value.retryCount
                 : retryCount // ignore: cast_nullable_to_non_nullable
                       as int,
+            totalSteps: null == totalSteps
+                ? _value.totalSteps
+                : totalSteps // ignore: cast_nullable_to_non_nullable
+                      as int,
+            completedSteps: null == completedSteps
+                ? _value.completedSteps
+                : completedSteps // ignore: cast_nullable_to_non_nullable
+                      as int,
+            percentage: null == percentage
+                ? _value.percentage
+                : percentage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            currentPhase: freezed == currentPhase
+                ? _value.currentPhase
+                : currentPhase // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            isInitialSync: null == isInitialSync
+                ? _value.isInitialSync
+                : isInitialSync // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -128,6 +174,11 @@ abstract class _$$SyncStatusImplCopyWith<$Res>
     String? message,
     int pendingItems,
     int retryCount,
+    int totalSteps,
+    int completedSteps,
+    int percentage,
+    String? currentPhase,
+    bool isInitialSync,
   });
 }
 
@@ -151,6 +202,11 @@ class __$$SyncStatusImplCopyWithImpl<$Res>
     Object? message = freezed,
     Object? pendingItems = null,
     Object? retryCount = null,
+    Object? totalSteps = null,
+    Object? completedSteps = null,
+    Object? percentage = null,
+    Object? currentPhase = freezed,
+    Object? isInitialSync = null,
   }) {
     return _then(
       _$SyncStatusImpl(
@@ -178,6 +234,26 @@ class __$$SyncStatusImplCopyWithImpl<$Res>
             ? _value.retryCount
             : retryCount // ignore: cast_nullable_to_non_nullable
                   as int,
+        totalSteps: null == totalSteps
+            ? _value.totalSteps
+            : totalSteps // ignore: cast_nullable_to_non_nullable
+                  as int,
+        completedSteps: null == completedSteps
+            ? _value.completedSteps
+            : completedSteps // ignore: cast_nullable_to_non_nullable
+                  as int,
+        percentage: null == percentage
+            ? _value.percentage
+            : percentage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        currentPhase: freezed == currentPhase
+            ? _value.currentPhase
+            : currentPhase // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        isInitialSync: null == isInitialSync
+            ? _value.isInitialSync
+            : isInitialSync // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -193,6 +269,11 @@ class _$SyncStatusImpl implements _SyncStatus {
     this.message,
     this.pendingItems = 0,
     this.retryCount = 0,
+    this.totalSteps = 0,
+    this.completedSteps = 0,
+    this.percentage = 0,
+    this.currentPhase,
+    this.isInitialSync = false,
   });
 
   @override
@@ -221,9 +302,34 @@ class _$SyncStatusImpl implements _SyncStatus {
   @JsonKey()
   final int retryCount;
 
+  /// Phase 8.5: 進捗追跡フィールド
+  /// 全体のステップ数（同期フェーズの総数）
+  @override
+  @JsonKey()
+  final int totalSteps;
+
+  /// 完了したステップ数
+  @override
+  @JsonKey()
+  final int completedSteps;
+
+  /// 進捗パーセンテージ (0-100)
+  @override
+  @JsonKey()
+  final int percentage;
+
+  /// 現在のフェーズ名（「AppSettings同期中」「カスタムリスト同期中」など）
+  @override
+  final String? currentPhase;
+
+  /// 初回同期フラグ（ローカルストレージが空の状態からの初回起動時のみtrue）
+  @override
+  @JsonKey()
+  final bool isInitialSync;
+
   @override
   String toString() {
-    return 'SyncStatus(state: $state, lastSyncTime: $lastSyncTime, errorMessage: $errorMessage, message: $message, pendingItems: $pendingItems, retryCount: $retryCount)';
+    return 'SyncStatus(state: $state, lastSyncTime: $lastSyncTime, errorMessage: $errorMessage, message: $message, pendingItems: $pendingItems, retryCount: $retryCount, totalSteps: $totalSteps, completedSteps: $completedSteps, percentage: $percentage, currentPhase: $currentPhase, isInitialSync: $isInitialSync)';
   }
 
   @override
@@ -240,7 +346,17 @@ class _$SyncStatusImpl implements _SyncStatus {
             (identical(other.pendingItems, pendingItems) ||
                 other.pendingItems == pendingItems) &&
             (identical(other.retryCount, retryCount) ||
-                other.retryCount == retryCount));
+                other.retryCount == retryCount) &&
+            (identical(other.totalSteps, totalSteps) ||
+                other.totalSteps == totalSteps) &&
+            (identical(other.completedSteps, completedSteps) ||
+                other.completedSteps == completedSteps) &&
+            (identical(other.percentage, percentage) ||
+                other.percentage == percentage) &&
+            (identical(other.currentPhase, currentPhase) ||
+                other.currentPhase == currentPhase) &&
+            (identical(other.isInitialSync, isInitialSync) ||
+                other.isInitialSync == isInitialSync));
   }
 
   @override
@@ -252,6 +368,11 @@ class _$SyncStatusImpl implements _SyncStatus {
     message,
     pendingItems,
     retryCount,
+    totalSteps,
+    completedSteps,
+    percentage,
+    currentPhase,
+    isInitialSync,
   );
 
   /// Create a copy of SyncStatus
@@ -271,6 +392,11 @@ abstract class _SyncStatus implements SyncStatus {
     final String? message,
     final int pendingItems,
     final int retryCount,
+    final int totalSteps,
+    final int completedSteps,
+    final int percentage,
+    final String? currentPhase,
+    final bool isInitialSync,
   }) = _$SyncStatusImpl;
 
   @override
@@ -295,6 +421,27 @@ abstract class _SyncStatus implements SyncStatus {
   /// リトライ回数
   @override
   int get retryCount;
+
+  /// Phase 8.5: 進捗追跡フィールド
+  /// 全体のステップ数（同期フェーズの総数）
+  @override
+  int get totalSteps;
+
+  /// 完了したステップ数
+  @override
+  int get completedSteps;
+
+  /// 進捗パーセンテージ (0-100)
+  @override
+  int get percentage;
+
+  /// 現在のフェーズ名（「AppSettings同期中」「カスタムリスト同期中」など）
+  @override
+  String? get currentPhase;
+
+  /// 初回同期フラグ（ローカルストレージが空の状態からの初回起動時のみtrue）
+  @override
+  bool get isInitialSync;
 
   /// Create a copy of SyncStatus
   /// with the given fields replaced by the non-null parameter values.

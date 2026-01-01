@@ -292,6 +292,264 @@ abstract class AppLocalizations {
   /// **'• Task creation, editing, and deletion are automatically synced to Nostr\n• Latest data is automatically fetched on app startup\n• Always syncs in the background when relay is connected\n• Manual sync button is no longer needed'**
   String get autoSyncInfo;
 
+  /// Button to close a dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get closeButton;
+
+  /// Button to copy content
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copyButton;
+
+  /// Button to fetch/receive data
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch'**
+  String get fetchButton;
+
+  /// Title for advanced section in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get advancedSectionTitle;
+
+  /// Subtitle for advanced section in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Developer features'**
+  String get advancedSectionSubtitle;
+
+  /// Menu title for publishing Key Package
+  ///
+  /// In en, this message translates to:
+  /// **'Publish Key Package'**
+  String get keyPackagePublishTitle;
+
+  /// Menu subtitle for publishing Key Package
+  ///
+  /// In en, this message translates to:
+  /// **'Required to receive group invites'**
+  String get keyPackagePublishSubtitle;
+
+  /// Menu title for MLS integration test
+  ///
+  /// In en, this message translates to:
+  /// **'MLS Integration Test (PoC)'**
+  String get mlsIntegrationTestTitle;
+
+  /// Menu subtitle for MLS integration test
+  ///
+  /// In en, this message translates to:
+  /// **'Option B: verify with 1-person group'**
+  String get mlsIntegrationTestSubtitle;
+
+  /// Dialog title for publishing Key Package
+  ///
+  /// In en, this message translates to:
+  /// **'Publish Key Package'**
+  String get keyPackagePublishDialogTitle;
+
+  /// Dialog body for publishing Key Package
+  ///
+  /// In en, this message translates to:
+  /// **'This will publish your Key Package to relays.\n\nOnce published, other users can invite you to groups.\n\nContinue?'**
+  String get keyPackagePublishDialogBody;
+
+  /// Button to publish
+  ///
+  /// In en, this message translates to:
+  /// **'Publish'**
+  String get publishButton;
+
+  /// Text shown while publishing Key Package
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing Key Package...'**
+  String get publishingKeyPackage;
+
+  /// Dialog title for successful Key Package publish
+  ///
+  /// In en, this message translates to:
+  /// **'Publish completed'**
+  String get keyPackagePublishCompletedTitle;
+
+  /// Message shown after successful Key Package publish
+  ///
+  /// In en, this message translates to:
+  /// **'Published Key Package to relays!'**
+  String get keyPackagePublishCompletedMessage;
+
+  /// Description shown after successful Key Package publish
+  ///
+  /// In en, this message translates to:
+  /// **'Other users can now invite you to groups using your npub.'**
+  String get keyPackagePublishCompletedDescription;
+
+  /// Label for event id
+  ///
+  /// In en, this message translates to:
+  /// **'Event ID'**
+  String get eventIdLabel;
+
+  /// Dialog title for failed Key Package publish
+  ///
+  /// In en, this message translates to:
+  /// **'Publish failed'**
+  String get keyPackagePublishFailedTitle;
+
+  /// Dialog body for failed Key Package publish
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to publish Key Package.\n\nError: {error}'**
+  String keyPackagePublishFailedBody(String error);
+
+  /// Error when event id is missing
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to get event id'**
+  String get keyPackagePublishNoEventIdError;
+
+  /// Title for MLS test dialog
+  ///
+  /// In en, this message translates to:
+  /// **'MLS Integration Test'**
+  String get mlsTestDialogTitle;
+
+  /// Subtitle for MLS test dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Option B PoC: 2-person group test'**
+  String get mlsTestDialogSubtitle;
+
+  /// Label for your key package
+  ///
+  /// In en, this message translates to:
+  /// **'📋 Your Key Package:'**
+  String get mlsYourKeyPackageLabel;
+
+  /// Snackbar message after copying key package
+  ///
+  /// In en, this message translates to:
+  /// **'Key Package copied'**
+  String get keyPackageCopied;
+
+  /// Label for peer npub input
+  ///
+  /// In en, this message translates to:
+  /// **'Peer npub'**
+  String get mlsPeerNpubLabel;
+
+  /// Hint for peer npub input
+  ///
+  /// In en, this message translates to:
+  /// **'npub1...'**
+  String get mlsPeerNpubHint;
+
+  /// Placeholder message when no logs
+  ///
+  /// In en, this message translates to:
+  /// **'Press a test button'**
+  String get mlsPressTestButton;
+
+  /// Button to generate key package
+  ///
+  /// In en, this message translates to:
+  /// **'Generate KP'**
+  String get mlsGenerateKpButton;
+
+  /// Button to publish key package
+  ///
+  /// In en, this message translates to:
+  /// **'Publish KP'**
+  String get mlsPublishKpButton;
+
+  /// Button to create 2-person group
+  ///
+  /// In en, this message translates to:
+  /// **'Create 2-person group'**
+  String get mlsCreate2PersonGroupButton;
+
+  /// Button to send a test todo
+  ///
+  /// In en, this message translates to:
+  /// **'Send TODO'**
+  String get mlsSendTodoButton;
+
+  /// Button to run 1-person MLS test
+  ///
+  /// In en, this message translates to:
+  /// **'1-person test'**
+  String get mlsOnePersonTestButton;
+
+  /// Label shown while MLS test is running
+  ///
+  /// In en, this message translates to:
+  /// **'Running...'**
+  String get mlsRunning;
+
+  /// Error when user public key is not available
+  ///
+  /// In en, this message translates to:
+  /// **'User public key not available'**
+  String get mlsUserPublicKeyNotAvailable;
+
+  /// Default group name for 2-person MLS test
+  ///
+  /// In en, this message translates to:
+  /// **'2 Person Test Group'**
+  String get mlsTwoPersonTestGroupName;
+
+  /// Default list name for 1-person MLS test
+  ///
+  /// In en, this message translates to:
+  /// **'MLS Test List'**
+  String get mlsTestListName;
+
+  /// Default todo title for 2-person MLS test
+  ///
+  /// In en, this message translates to:
+  /// **'Test TODO for 2 Person Group'**
+  String get mlsTwoPersonTestTodoTitle;
+
+  /// Default todo title for 1-person MLS test
+  ///
+  /// In en, this message translates to:
+  /// **'Test TODO in MLS Group'**
+  String get mlsOnePersonTestTodoTitle;
+
+  /// Title for recurring delete confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Delete recurring to-do'**
+  String get deleteRecurringTodoTitle;
+
+  /// Option to delete only this instance of a recurring todo
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this instance'**
+  String get removeThisInstance;
+
+  /// Option to delete all instances of a recurring todo
+  ///
+  /// In en, this message translates to:
+  /// **'Remove all instances'**
+  String get removeAllInstances;
+
+  /// Title for the Todo JSON dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Todo JSON'**
+  String get todoJsonTitle;
+
+  /// Snackbar message after copying JSON
+  ///
+  /// In en, this message translates to:
+  /// **'JSON copied'**
+  String get jsonCopied;
+
   /// Version information text
   ///
   /// In en, this message translates to:
@@ -939,6 +1197,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting'**
   String get waiting;
+
+  /// Sync step counter
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} / {total}'**
+  String syncStep(int current, int total);
+
+  /// Sync: reconnecting relays
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting relays...'**
+  String get syncReconnectingRelays;
+
+  /// Sync phase: delta
+  ///
+  /// In en, this message translates to:
+  /// **'Delta sync...'**
+  String get syncPhaseDelta;
+
+  /// Sync phase: app settings
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing settings...'**
+  String get syncPhaseAppSettings;
+
+  /// Sync phase: custom lists
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing lists...'**
+  String get syncPhaseCustomLists;
+
+  /// Sync phase: todos
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing todos...'**
+  String get syncPhaseTodos;
+
+  /// Sync phase: MLS group todos
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing group todos...'**
+  String get syncPhaseMls;
 
   /// Time indicator for recent sync
   ///

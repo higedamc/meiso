@@ -21,6 +21,32 @@ class CustomList with _$CustomList {
     
     /// 更新日時
     required DateTime updatedAt,
+    
+    /// グループリストかどうか（マルチパーティ暗号化使用）
+    @Default(false) bool isGroup,
+    
+    /// グループメンバーの公開鍵リスト（hex形式）
+    @Default([]) List<String> groupMembers,
+    
+    /// インビテーション待ちかどうか（Phase 6.4: MLS招待システム）
+    @Default(false) bool isPendingInvitation,
+    
+    /// 招待者のnpub（Phase 6.4: MLS招待システム）
+    String? inviterNpub,
+    
+    /// 招待者の名前（Phase 6.4: MLS招待システム）
+    String? inviterName,
+    
+    /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
+    String? welcomeMsg,
+    
+    /// 招待を承諾した日時（Phase 8.7: Bug #1修正）
+    /// この値が存在する場合、招待は既に承諾済みと見なす
+    DateTime? acceptedAt,
+    
+    /// NostrイベントID（Phase E: リスト削除・更新の同期用）
+    /// Personal Listのリモート削除・更新に必要
+    String? eventId,
   }) = _CustomList;
 
   factory CustomList.fromJson(Map<String, dynamic> json) =>
@@ -104,13 +130,13 @@ extension PlanningCategoryExtension on PlanningCategory {
         
       case PlanningCategory.thisMonth:
         // 今月
-        final firstDay = DateTime(now.year, now.month, 1);
+        final firstDay = DateTime(now.year, now.month);
         final lastDay = DateTime(now.year, now.month + 1, 0);
         return DateRange(start: firstDay, end: lastDay);
         
       case PlanningCategory.nextMonth:
         // 来月
-        final firstDay = DateTime(now.year, now.month + 1, 1);
+        final firstDay = DateTime(now.year, now.month + 1);
         final lastDay = DateTime(now.year, now.month + 2, 0);
         return DateRange(start: firstDay, end: lastDay);
     }

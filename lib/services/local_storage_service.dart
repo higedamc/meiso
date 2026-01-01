@@ -15,17 +15,26 @@ class LocalStorageService {
   static const String _appSettingsKey = 'app_settings';
   static const String _recurringTasksTipsDismissedKey = 'recurring_tasks_tips_dismissed';
   static const String _languageKey = 'language';
+  static const String _lastKeyPackagePublishTimeKey = 'last_key_package_publish_time'; // Phase 8.1
+  static const String _deletedEventIdsKey = 'deleted_event_ids'; // Issue #80: kind 5削除イベント
   
-  Box<Map>? _todosBox;
-  Box? _settingsBox;
-  Box<Map>? _customListsBox;
+  // === Sync state (Joplin-like) ===
+  // 背景復帰/再起動時に「全履歴fetch」を避けるため、最終成功同期時刻を永続化する。
+  static const String _lastTodoListSyncTimeKey = 'last_todo_list_sync_time';
+  static const String _lastAppSettingsSyncTimeKey = 'last_app_settings_sync_time';
+  static const String _lastCustomListsSyncTimeKey = 'last_custom_lists_sync_time';
+  static const String _lastMlsGroupTodosSyncTimesKey = 'last_mls_group_todos_sync_times';
+  
+  Box<Map<dynamic, dynamic>>? _todosBox;
+  Box<dynamic>? _settingsBox;
+  Box<Map<dynamic, dynamic>>? _customListsBox;
 
   /// Hiveを初期化
   Future<void> initialize() async {
     await Hive.initFlutter();
-    _todosBox = await Hive.openBox<Map>(_todosBoxName);
-    _settingsBox = await Hive.openBox(_settingsBoxName);
-    _customListsBox = await Hive.openBox<Map>(_customListsBoxName);
+    _todosBox = await Hive.openBox<Map<dynamic, dynamic>>(_todosBoxName);
+    _settingsBox = await Hive.openBox<dynamic>(_settingsBoxName);
+    _customListsBox = await Hive.openBox<Map<dynamic, dynamic>>(_customListsBoxName);
   }
 
   /// すべてのTodoを保存
@@ -49,7 +58,7 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
 
-    final List<Todo> todos = [];
+    final todos = <Todo>[];
     
     for (final value in _todosBox!.values) {
       try {
@@ -158,7 +167,7 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
 
-    final List<CustomList> lists = [];
+    final lists = <CustomList>[];
     
     for (final value in _customListsBox!.values) {
       try {
@@ -322,6 +331,205 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.delete(_languageKey);
+  }
+  
+  // === Phase 8.1: Key Package自動公開関連 ===
+  
+  /// 最後にKey Packageを公開した時刻を保存
+  Future<void> setLastKeyPackagePublishTime(DateTime dateTime) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_lastKeyPackagePublishTimeKey, dateTime.toIso8601String());
+  }
+  
+  /// 最後にKey Packageを公開した時刻を取得
+  DateTime? getLastKeyPackagePublishTime() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final timeString = _settingsBox!.get(_lastKeyPackagePublishTimeKey) as String?;
+    if (timeString == null) return null;
+    
+    try {
+      return DateTime.parse(timeString);
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  /// Key Package公開時刻をクリア
+  Future<void> clearLastKeyPackagePublishTime() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_lastKeyPackagePublishTimeKey);
+  }
+  
+  // === Issue #80: kind 5削除イベント管理 ===
+  
+  /// 削除済みイベントIDリストを保存
+  Future<void> saveDeletedEventIds(List<String> eventIds) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_deletedEventIdsKey, eventIds);
+    AppLogger.info('🗑️ Saved ${eventIds.length} deleted event IDs to storage');
+  }
+  
+  /// 削除済みイベントIDリストを取得
+  Future<List<String>> loadDeletedEventIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    
+    final dynamic stored = _settingsBox!.get(_deletedEventIdsKey);
+    if (stored == null) {
+      return [];
+    }
+    
+    if (stored is List) {
+      return stored.map((e) => e.toString()).toList();
+    }
+    
+    return [];
+  }
+  
+  /// 削除済みイベントIDリストをクリア
+  Future<void> clearDeletedEventIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_deletedEventIdsKey);
+    AppLogger.info('🗑️ Cleared deleted event IDs from storage');
+  }
+  
+  // === Sync timestamps ===
+  
+  Future<void> setLastTodoListSyncTime(DateTime dateTime) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_lastTodoListSyncTimeKey, dateTime.toIso8601String());
+  }
+  
+  DateTime? getLastTodoListSyncTime() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final timeString = _settingsBox!.get(_lastTodoListSyncTimeKey) as String?;
+    if (timeString == null) return null;
+    try {
+      return DateTime.parse(timeString);
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  Future<void> clearLastTodoListSyncTime() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_lastTodoListSyncTimeKey);
+  }
+  
+  Future<void> setLastAppSettingsSyncTime(DateTime dateTime) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_lastAppSettingsSyncTimeKey, dateTime.toIso8601String());
+  }
+  
+  DateTime? getLastAppSettingsSyncTime() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final timeString = _settingsBox!.get(_lastAppSettingsSyncTimeKey) as String?;
+    if (timeString == null) return null;
+    try {
+      return DateTime.parse(timeString);
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  Future<void> clearLastAppSettingsSyncTime() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_lastAppSettingsSyncTimeKey);
+  }
+  
+  Future<void> setLastCustomListsSyncTime(DateTime dateTime) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_lastCustomListsSyncTimeKey, dateTime.toIso8601String());
+  }
+  
+  DateTime? getLastCustomListsSyncTime() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final timeString = _settingsBox!.get(_lastCustomListsSyncTimeKey) as String?;
+    if (timeString == null) return null;
+    try {
+      return DateTime.parse(timeString);
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  Future<void> clearLastCustomListsSyncTime() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_lastCustomListsSyncTimeKey);
+  }
+
+  // === MLS group todos sync timestamps ===
+
+  DateTime? getLastMlsGroupTodosSyncTime(String groupId) {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+
+    final dynamic raw = _settingsBox!.get(_lastMlsGroupTodosSyncTimesKey);
+    if (raw is! Map) return null;
+
+    final timeString = raw[groupId]?.toString();
+    if (timeString == null || timeString.isEmpty) return null;
+    try {
+      return DateTime.parse(timeString);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setLastMlsGroupTodosSyncTime(String groupId, DateTime? dateTime) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+
+    final dynamic raw = _settingsBox!.get(_lastMlsGroupTodosSyncTimesKey);
+    final map = raw is Map
+        ? raw.map((k, v) => MapEntry(k.toString(), v))
+        : <String, dynamic>{};
+
+    if (dateTime == null) {
+      // nullの場合はマップから削除（初回同期として扱う）
+      map.remove(groupId);
+    } else {
+      map[groupId] = dateTime.toIso8601String();
+    }
+    await _settingsBox!.put(_lastMlsGroupTodosSyncTimesKey, map);
+  }
+
+  Future<void> clearLastMlsGroupTodosSyncTimes() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_lastMlsGroupTodosSyncTimesKey);
   }
 }
 

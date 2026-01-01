@@ -5,12 +5,13 @@ import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
+import '../../services/logger_service.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/todo_edit_screen.dart';
 
 /// カスタムリスト詳細画面
-class ListDetailScreen extends StatelessWidget {
+class ListDetailScreen extends ConsumerStatefulWidget {
   const ListDetailScreen({
     required this.customList,
     super.key,
@@ -18,6 +19,59 @@ class ListDetailScreen extends StatelessWidget {
 
   final CustomList customList;
 
+  @override
+  ConsumerState<ListDetailScreen> createState() => _ListDetailScreenState();
+}
+
+class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
+  TodosNotifier? _todosNotifier;
+  int _subscriptionGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _todosNotifier = ref.read(todosProvider.notifier);
+    
+    // Phase D.5修正: 招待受諾時に既にsyncGroupTodos()を実行しているため、
+    // 画面を開いた時の自動同期は不要（二重実行を防止）
+    // 
+    // 理由:
+    // - someday_screen.dart (line 641) で招待受諾時に既に同期済み
+    // - 二重実行によりローディングインジケータが表示され続ける問題が発生
+    // 
+    // 将来的な改善案:
+    // - Pull-to-refreshでの手動同期機能を追加
+    // - または、最終同期時刻を記録して一定時間経過後のみ自動同期
+
+    // ✅ 即反映: グループリストの場合はリアルタイム購読を開始
+    if (widget.customList.isGroup) {
+      final generation = ++_subscriptionGeneration;
+      Future<void>(() async {
+        if (!mounted || generation != _subscriptionGeneration) return;
+        try {
+          await _todosNotifier?.startRealtimeGroupTodos(widget.customList.id);
+        } catch (e) {
+          // 失敗しても画面は表示する（購読なしでpull-to-refresh運用可能）
+          AppLogger.warning('⚠️ [ListDetailScreen] Failed to start realtime group subscription: ${widget.customList.id} ($e)');
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscriptionGeneration++;
+    // ✅ 即反映: 画面を閉じたら購読を停止
+    if (widget.customList.isGroup) {
+      final todoNotifier = _todosNotifier;
+      Future<void>(() async {
+        await todoNotifier?.stopRealtimeGroupTodos(widget.customList.id);
+      });
+    }
+    _todosNotifier = null;
+    super.dispose();
+  }
+  
   @override
   Widget build(BuildContext context) {
     final statusBarHeight = MediaQuery.of(context).padding.top;
@@ -39,17 +93,26 @@ class ListDetailScreen extends StatelessWidget {
             color: theme.cardTheme.color,
             child: Row(
               children: [
+                // グループアイコン（グループリストの場合）
+                if (widget.customList.isGroup) ...[
+                  const Icon(
+                    Icons.group,
+                    size: 20,
+                    color: AppTheme.primaryColor,
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 // リスト名
                 Expanded(
                   child: Text(
-                    customList.name,
+                    widget.customList.name,
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                       color: isDark
                           ? AppTheme.darkTextPrimary
                           : AppTheme.lightTextPrimary,
-                      letterSpacing: 1.0,
+                      letterSpacing: 1,
                     ),
                   ),
                 ),
@@ -95,7 +158,7 @@ class ListDetailScreen extends StatelessWidget {
                     final listTodos = <Todo>[];
                     for (final dateGroup in allTodos.values) {
                       for (final todo in dateGroup) {
-                        if (todo.customListId == customList.id) {
+                        if (todo.customListId == widget.customList.id) {
                           listTodos.add(todo);
                         }
                       }
@@ -190,9 +253,9 @@ class ListDetailScreen extends StatelessWidget {
 
   /// リスト名編集ダイアログ
   void _showEditDialog(BuildContext context) {
-    final controller = TextEditingController(text: customList.name);
+    final controller = TextEditingController(text: widget.customList.name);
 
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => Consumer(
         builder: (context, ref, child) => AlertDialog(
@@ -208,7 +271,7 @@ class ListDetailScreen extends StatelessWidget {
             onSubmitted: (value) {
               if (value.trim().isNotEmpty) {
                 ref.read(customListsProvider.notifier).updateList(
-                  customList.copyWith(name: value.trim().toUpperCase()),
+                  widget.customList.copyWith(name: value.trim().toUpperCase()),
                 );
                 Navigator.pop(context);
               }
@@ -224,7 +287,7 @@ class ListDetailScreen extends StatelessWidget {
                 final text = controller.text.trim();
                 if (text.isNotEmpty) {
                   ref.read(customListsProvider.notifier).updateList(
-                    customList.copyWith(name: text.toUpperCase()),
+                    widget.customList.copyWith(name: text.toUpperCase()),
                   );
                   Navigator.pop(context);
                 }
@@ -243,12 +306,12 @@ class ListDetailScreen extends StatelessWidget {
 
   /// リスト削除確認ダイアログ
   void _showDeleteDialog(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => Consumer(
         builder: (context, ref, child) => AlertDialog(
           title: const Text('リストを削除'),
-          content: Text('「${customList.name}」を削除しますか？\n\nこのリストに属するタスクは削除されません。'),
+          content: Text('「${widget.customList.name}」を削除しますか？\n\nこのリストに属するタスクは削除されません。'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -256,7 +319,7 @@ class ListDetailScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                ref.read(customListsProvider.notifier).deleteList(customList.id);
+                ref.read(customListsProvider.notifier).deleteList(widget.customList.id);
                 Navigator.pop(context); // ダイアログを閉じる
                 Navigator.pop(context); // 詳細画面を閉じる
               },
@@ -272,11 +335,11 @@ class ListDetailScreen extends StatelessWidget {
   /// Todo追加画面を表示
   void _showAddTodoScreen(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (context) => TodoEditScreen(
-          date: null, // カスタムリストに属するTodoは date=null（Someday）
-          customListId: customList.id,
-          customListName: customList.name,
+          customListId: widget.customList.id,
+          customListName: widget.customList.name,
+          isGroupList: widget.customList.isGroup,
         ),
         fullscreenDialog: true,
       ),

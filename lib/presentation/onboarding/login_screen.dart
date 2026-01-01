@@ -10,6 +10,9 @@ import '../../services/amber_service.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
+import '../../features/mls/application/providers/usecase_providers.dart';
+import '../../features/mls/application/usecases/auto_publish_key_package_usecase.dart';
+import '../../features/mls/domain/value_objects/key_package_publish_policy.dart';
 
 /// ログインスクリーン
 /// AmberまたはNostr秘密鍵生成でログイン
@@ -29,12 +32,67 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  /// Nostr初期化完了後にKey Packageを公開（Phase D.7: 戦略B）
+  Future<void> _publishKeyPackageAfterInit(WidgetRef ref, String publicKeyHex) async {
+    const maxWaitSeconds = 10;
+    const checkIntervalMs = 500;
+    final startTime = DateTime.now();
+    
+    AppLogger.info('[Login] Waiting for Nostr initialization...', tag: 'MLS');
+    
+    // Nostr初期化完了を待つ（ポーリング、最大10秒）
+    while (true) {
+      final isInitialized = ref.read(nostrInitializedProvider);
+      
+      if (isInitialized) {
+        AppLogger.info('[Login] Nostr initialized, publishing Key Package...', tag: 'MLS');
+        break;
+      }
+      
+      final elapsed = DateTime.now().difference(startTime).inSeconds;
+      if (elapsed >= maxWaitSeconds) {
+        AppLogger.warning('[Login] Nostr initialization timeout (${maxWaitSeconds}s), aborting Key Package publish', tag: 'MLS');
+        return;
+      }
+      
+      await Future<void>.delayed(const Duration(milliseconds: checkIntervalMs));
+    }
+    
+    // Key Package公開を実行
+    try {
+      final autoPublishUseCase = ref.read(autoPublishKeyPackageUseCaseProvider);
+      final result = await autoPublishUseCase(AutoPublishKeyPackageParams(
+        publicKey: publicKeyHex,
+        trigger: KeyPackagePublishTrigger.accountCreation,
+        forceUpload: true, // 初回は必ず公開
+      ));
+      
+      result.fold(
+        (failure) {
+          AppLogger.warning('[Login] Key Package publish failed: ${failure.message}', tag: 'MLS');
+          // TODO: UI通知（Snackbar）を表示
+        },
+        (eventId) {
+          if (eventId != null) {
+            AppLogger.info('[Login] ✅ Key Package published: ${eventId.substring(0, 16)}...', tag: 'MLS');
+            // TODO: Success通知（Snackbar）を表示（オプション）
+          } else {
+            AppLogger.debug('[Login] Key Package publish returned null (unexpected)', tag: 'MLS');
+          }
+        },
+      );
+    } catch (e, st) {
+      AppLogger.warning('[Login] Key Package publish error', error: e, stackTrace: st, tag: 'MLS');
+      // TODO: UI通知（Snackbar）を表示
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     return Scaffold(
-      body: Container(
+      body: DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -226,7 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Amberでログイン
   Future<void> _loginWithAmber(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     try {
       // Amberがインストールされているか確認
@@ -319,6 +377,10 @@ class _LoginScreenState extends State<LoginScreen> {
             context.go('/');
             AppLogger.debug('GoRouter navigation triggered', tag: 'ROUTER');
             
+            // 🔥 Phase D.7: 初回Key Package公開（Amberモード）
+            // 戦略B: Nostr初期化完了を確実に待つ（タイムアウト10秒）
+            _publishKeyPackageAfterInit(ref, publicKeyHex);
+            
             // バックグラウンドでNostrからデータを同期（カスタムリストとTodoを取得）
             AppLogger.info('Starting background sync...', tag: 'SYNC');
             Future.microtask(() async {
@@ -333,7 +395,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppLogger.error('Error during Amber login', error: e, stackTrace: stackTrace, tag: 'AMBER');
             
             if (!context.mounted) return;
-            final l10n = AppLocalizations.of(context)!;
+            final l10n = AppLocalizations.of(context);
             
             // エラー時のみローディングダイアログを閉じる
             SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -364,7 +426,7 @@ class _LoginScreenState extends State<LoginScreen> {
           AppLogger.warning('No public key received from Amber', tag: 'AMBER');
           
           if (!context.mounted) return;
-          final l10n = AppLocalizations.of(context)!;
+          final l10n = AppLocalizations.of(context);
           
           // エラー時のみローディングダイアログを閉じる
           SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -395,7 +457,7 @@ class _LoginScreenState extends State<LoginScreen> {
         AppLogger.error('Failed to get public key from Amber', error: e, tag: 'AMBER');
         
         if (!context.mounted) return;
-        final l10n = AppLocalizations.of(context)!;
+        final l10n = AppLocalizations.of(context);
         
         // エラー時のみローディングダイアログを閉じる
         SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -425,7 +487,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     } catch (e) {
       if (!context.mounted) return;
-      final l10n = AppLocalizations.of(context)!;
+      final l10n = AppLocalizations.of(context);
       
       // エラーダイアログ表示
       showDialog(
@@ -446,7 +508,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// 新しい秘密鍵を生成
   Future<void> _generateNewKey(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     try {
       // パスワード入力ダイアログ
@@ -459,7 +521,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) {
-          final dialogL10n = AppLocalizations.of(context)!;
+          final dialogL10n = AppLocalizations.of(context);
           return AlertDialog(
             title: Text(dialogL10n.setPassword),
             content: AutofillGroup(
@@ -513,7 +575,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(null),
+                onPressed: () => Navigator.of(context).pop(),
                 child: Text(dialogL10n.cancelButton),
               ),
               TextButton(
@@ -590,7 +652,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) {
-          final dialogL10n = AppLocalizations.of(context)!;
+          final dialogL10n = AppLocalizations.of(context);
           return AlertDialog(
             title: Text(dialogL10n.secretKeyGenerated),
             content: SingleChildScrollView(
@@ -707,7 +769,7 @@ class _LoginScreenState extends State<LoginScreen> {
       AppLogger.error('Failed to generate keypair', error: e, stackTrace: stackTrace, tag: 'KEYPAIR');
 
       if (!context.mounted) return;
-      final errorL10n = AppLocalizations.of(context)!;
+      final errorL10n = AppLocalizations.of(context);
       Navigator.of(context).pop(); // ローディング閉じる
 
       // エラーダイアログ表示

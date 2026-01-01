@@ -1,7 +1,6 @@
 import 'dart:async';
-import '../services/logger_service.dart';
 import 'dart:convert';
-import '../services/logger_service.dart';
+
 import '../bridge_generated.dart/api.dart' as rust_api;
 import '../services/logger_service.dart';
 
@@ -86,7 +85,7 @@ class NostrSubscriptionService {
     
     _isPolling = true;
     _pollingTimer = Timer.periodic(
-      Duration(milliseconds: _pollingIntervalMs),
+      const Duration(milliseconds: _pollingIntervalMs),
       (_) => _pollEvents(),
     );
     

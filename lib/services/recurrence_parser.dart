@@ -63,7 +63,6 @@ class RecurrenceParser {
       return RecurrenceParseResult(
         pattern: const RecurrencePattern(
           type: RecurrenceType.daily,
-          interval: 1,
         ),
         cleanTitle: cleanTitle,
       );
@@ -95,7 +94,6 @@ class RecurrenceParser {
       return RecurrenceParseResult(
         pattern: const RecurrencePattern(
           type: RecurrenceType.weekly,
-          interval: 1,
           weekdays: [1, 2, 3, 4, 5], // 月〜金
         ),
         cleanTitle: cleanTitle,
@@ -130,7 +128,6 @@ class RecurrenceParser {
       return RecurrenceParseResult(
         pattern: const RecurrencePattern(
           type: RecurrenceType.daily,
-          interval: 1,
         ),
         cleanTitle: cleanTitle,
       );
@@ -206,7 +203,6 @@ class RecurrenceParser {
       return RecurrenceParseResult(
         pattern: RecurrencePattern(
           type: RecurrenceType.weekly,
-          interval: 1,
           weekdays: [weekday],
         ),
         cleanTitle: cleanTitle,
@@ -252,7 +248,6 @@ class RecurrenceParser {
         return RecurrenceParseResult(
           pattern: RecurrencePattern(
             type: RecurrenceType.weekly,
-            interval: 1,
             weekdays: [weekdayNumber],
           ),
           cleanTitle: cleanTitle,
@@ -308,7 +303,6 @@ class RecurrenceParser {
       return RecurrenceParseResult(
         pattern: RecurrencePattern(
           type: RecurrenceType.monthly,
-          interval: 1,
           dayOfMonth: dayOfMonth,
         ),
         cleanTitle: cleanTitle,
@@ -363,7 +357,6 @@ class RecurrenceParser {
       return RecurrenceParseResult(
         pattern: RecurrencePattern(
           type: RecurrenceType.yearly,
-          interval: 1,
           dayOfMonth: dayOfMonth,
         ),
         cleanTitle: cleanTitle,
@@ -376,12 +369,12 @@ class RecurrenceParser {
 
 /// パース結果
 class RecurrenceParseResult {
-  final RecurrencePattern? pattern;
-  final String cleanTitle;
   
   const RecurrenceParseResult({
     required this.pattern,
     required this.cleanTitle,
   });
+  final RecurrencePattern? pattern;
+  final String cleanTitle;
 }
 

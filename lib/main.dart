@@ -20,7 +20,13 @@ import 'providers/app_settings_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/todos_provider.dart';
+import 'providers/custom_lists_provider.dart';
 import 'providers/locale_provider.dart';
+import 'widgets/sync_loading_overlay.dart'; // Phase 8.5.1
+// Phase D.5: MLS UseCase統合
+import 'features/mls/application/providers/usecase_providers.dart';
+import 'features/mls/application/usecases/auto_publish_key_package_usecase.dart';
+import 'features/mls/domain/value_objects/key_package_publish_policy.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -197,14 +203,51 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           AppLogger.debug('復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
           AppLogger.debug('復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
           
-          // Nostrからデータを同期（カスタムリストとTodoを取得）
-          AppLogger.info('[復元] Nostrからデータを同期中...', tag: 'SYNC');
+          // Nostrからデータを同期（復帰/再起動時の体感改善のため、ここではブロックしない）
+          AppLogger.info('[復元] Nostr同期をバックグラウンドで開始...', tag: 'SYNC');
+          Future.microtask(() async {
+            try {
+              await ref.read(todosProvider.notifier).syncFromNostr(trigger: TodoSyncTrigger.appStart);
+              AppLogger.info('[復元] Nostr同期完了', tag: 'SYNC');
+            } catch (e) {
+              AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
+            }
+          });
+          
+          // Phase 8.1.3: グループ招待の自動同期（Issue #116修正）
           try {
-            await ref.read(todosProvider.notifier).syncFromNostr();
-            AppLogger.info('[復元] Nostr同期完了', tag: 'SYNC');
+            AppLogger.info('[復元] グループ招待を同期中...', tag: 'MLS');
+            await ref.read(customListsProvider.notifier).syncGroupInvitations();
+            AppLogger.info('[復元] グループ招待同期完了', tag: 'MLS');
           } catch (e) {
-            AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
-            // エラーがあってもアプリ起動は継続
+            AppLogger.warning('[復元] グループ招待同期エラー', error: e, tag: 'MLS');
+            // エラーは無視（必須ではない）
+          }
+          
+          // Phase 8.1 + Phase D.5: Key Package自動公開（UseCase統合）
+          try {
+            AppLogger.info('[復元] Key Package自動公開チェック...', tag: 'MLS');
+            final autoPublishUseCase = ref.read(autoPublishKeyPackageUseCaseProvider);
+            final result = await autoPublishUseCase(AutoPublishKeyPackageParams(
+              publicKey: publicKey,
+              trigger: KeyPackagePublishTrigger.appStart,
+            ));
+            
+            result.fold(
+              (failure) {
+                AppLogger.warning('[復元] Key Package自動公開エラー: ${failure.message}', tag: 'MLS');
+              },
+              (eventId) {
+                if (eventId != null) {
+                  AppLogger.info('[復元] Key Package自動公開成功: ${eventId.substring(0, 16)}...', tag: 'MLS');
+                } else {
+                  AppLogger.debug('[復元] Key Package は最新（公開スキップ）', tag: 'MLS');
+                }
+              },
+            );
+          } catch (e) {
+            AppLogger.warning('[復元] Key Package自動公開エラー', error: e, tag: 'MLS');
+            // エラーは無視（必須ではない）
           }
         } else {
           AppLogger.warning('公開鍵が見つかりませんでした（Amberモード）', tag: 'AMBER');
@@ -280,6 +323,15 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             // マッチする言語がない場合は英語をデフォルトとする
             return const Locale('en');
           },
+          // Phase 8.5.1: 同期中のローディングオーバーレイをbuilderで統合
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
+          },
         );
       },
       loading: () {
@@ -319,6 +371,14 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             
             return const Locale('en');
           },
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
+          },
         );
       },
       error: (error, stack) {
@@ -357,6 +417,14 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             }
             
             return const Locale('en');
+          },
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const SyncLoadingOverlay(),
+              ],
+            );
           },
         );
       },

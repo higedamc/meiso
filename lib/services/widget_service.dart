@@ -41,7 +41,7 @@ class WidgetService {
       });
       
       // JSONに変換（Android側で解析しやすい形式）
-      final Map<String, dynamic> todosMap = {};
+      final todosMap = <String, dynamic>{};
       
       todos.forEach((date, todoList) {
         final key = date?.toIso8601String() ?? 'null';

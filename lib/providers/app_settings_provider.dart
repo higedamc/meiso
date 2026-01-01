@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_settings.dart';
-import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/amber_service.dart';
+import '../services/logger_service.dart';
 import 'nostr_provider.dart';
 import '../bridge_generated.dart/api.dart' as bridge;
 
@@ -47,7 +47,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
 
   /// バックグラウンド同期（UIブロックしない）
   Future<void> _backgroundSync() async {
-    await Future.delayed(const Duration(seconds: 1));
+    await Future<void>.delayed(const Duration(seconds: 1));
     
     if (_ref.read(nostrInitializedProvider)) {
       try {
@@ -218,13 +218,6 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
     });
   }
 
-  /// 最後に見ていたカスタムリストIDを更新
-  Future<void> setLastViewedCustomListId(String? listId) async {
-    state.whenData((settings) async {
-      await updateSettings(settings.copyWith(lastViewedCustomListId: listId));
-    });
-  }
-
   /// Nostrに設定を同期
   Future<void> _syncToNostr(AppSettings settings) async {
     if (!_ref.read(nostrInitializedProvider)) {
@@ -249,7 +242,6 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'tor_enabled': settings.torEnabled,
           'proxy_url': settings.proxyUrl,
           'custom_list_order': settings.customListOrder,
-          'last_viewed_custom_list_id': settings.lastViewedCustomListId,
           'updated_at': settings.updatedAt.toIso8601String(),
         });
         
@@ -342,7 +334,6 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           torEnabled: settings.torEnabled,
           proxyUrl: settings.proxyUrl,
           customListOrder: settings.customListOrder,
-          lastViewedCustomListId: settings.lastViewedCustomListId,
           updatedAt: settings.updatedAt.toIso8601String(),
         );
         
@@ -359,10 +350,22 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
   }
 
   /// Nostrから設定を同期
-  Future<void> syncFromNostr() async {
+  Future<void> syncFromNostr({
+    bool skipIfFresh = false,
+    Duration minInterval = const Duration(minutes: 5),
+  }) async {
     if (!_ref.read(nostrInitializedProvider)) {
       AppLogger.warning(' Nostr未初期化のため設定同期をスキップ');
       return;
+    }
+
+    // ✅ 復帰/起動直後の体感改善: 短時間での連続同期を間引く
+    if (skipIfFresh) {
+      final last = localStorageService.getLastAppSettingsSyncTime();
+      if (last != null && DateTime.now().difference(last) < minInterval) {
+        AppLogger.debug(' [AppSettings] Skip syncFromNostr (fresh)');
+        return;
+      }
     }
 
     final isAmberMode = _ref.read(isAmberModeProvider);
@@ -432,7 +435,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         final settingsMap = jsonDecode(decryptedJson) as Map<String, dynamic>;
         
         // リレーリストは別途同期（NIP-65 Kind 10002は暗号化されない）
-        List<String> syncedRelays = [];
+        var syncedRelays = <String>[];
         if (settingsMap.containsKey('relays')) {
           syncedRelays = List<String>.from(settingsMap['relays'] as List);
         }
@@ -456,16 +459,13 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           relays: syncedRelays,
           torEnabled: settingsMap['tor_enabled'] as bool? ?? false,
           proxyUrl: settingsMap['proxy_url'] as String? ?? 'socks5://127.0.0.1:9050',
-          customListOrder: settingsMap['custom_list_order'] != null 
-              ? List<String>.from(settingsMap['custom_list_order'] as List)
-              : [],
-          lastViewedCustomListId: settingsMap['last_viewed_custom_list_id'] as String?,
           updatedAt: DateTime.parse(settingsMap['updated_at'] as String),
         );
         
         state = AsyncValue.data(syncedSettings);
         await localStorageService.saveAppSettings(syncedSettings);
         AppLogger.info(' 設定同期完了（Amberモード）');
+        await localStorageService.setLastAppSettingsSyncTime(DateTime.now());
         
       } else {
         // 通常モード: Rust側で復号化済みの設定を取得
@@ -479,7 +479,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
         }
         
         // リレーリストを別途同期（NIP-65 Kind 10002）
-        List<String> syncedRelays = [];
+        var syncedRelays = <String>[];
         try {
           syncedRelays = await bridge.syncRelayList();
           AppLogger.info(' リレーリスト同期完了: ${syncedRelays.length}件');
@@ -497,14 +497,13 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           relays: syncedRelays,
           torEnabled: bridgeSettings.torEnabled,
           proxyUrl: bridgeSettings.proxyUrl,
-          customListOrder: bridgeSettings.customListOrder,
-          lastViewedCustomListId: bridgeSettings.lastViewedCustomListId,
           updatedAt: DateTime.parse(bridgeSettings.updatedAt),
         );
         
         state = AsyncValue.data(syncedSettings);
         await localStorageService.saveAppSettings(syncedSettings);
         AppLogger.info(' 設定同期完了（通常モード）');
+        await localStorageService.setLastAppSettingsSyncTime(DateTime.now());
       }
       
     } catch (e, stackTrace) {
@@ -515,5 +514,5 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
 }
 
 /// AmberServiceのProvider
-final amberServiceProvider = Provider((ref) => AmberService());
+final Provider<AmberService> amberServiceProvider = Provider((ref) => AmberService());
 

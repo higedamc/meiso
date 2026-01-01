@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../providers/calendar_provider.dart';
 import '../../providers/date_provider.dart';
-import '../../providers/app_settings_provider.dart';
-import '../../providers/custom_lists_provider.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
@@ -12,7 +11,6 @@ import '../../widgets/expandable_custom_list_modal.dart';
 import '../../widgets/todo_edit_screen.dart';
 import '../settings/settings_screen.dart';
 import '../someday/someday_screen.dart';
-import '../list_detail/list_detail_screen.dart';
 
 /// Meisoのメイン画面
 /// 1日分を全画面表示し、スワイプで日付移動
@@ -109,49 +107,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _showSomeday() {
-    // モーダルが既に表示されている場合は、最後に見たカスタムリストに直接ジャンプ
-    final isModalVisible = ref.read(customListModalVisibleProvider);
+    // SOMEDAY画面（フルスクリーン）を表示
+    setState(() {
+      _showingSomeday = true;
+    });
     
-    if (isModalVisible) {
-      // 最後に見ていたカスタムリストを取得
-      final appSettings = ref.read(appSettingsProvider);
-      appSettings.whenData((settings) {
-        final lastViewedListId = settings.lastViewedCustomListId;
-        
-        if (lastViewedListId != null) {
-          // カスタムリストを取得
-          final customListsAsync = ref.read(customListsProvider);
-          customListsAsync.whenData((customLists) {
-            final targetList = customLists.firstWhere(
-              (list) => list.id == lastViewedListId,
-              orElse: () => customLists.first,
-            );
-            
-            // モーダルを閉じる
-            ref.read(customListModalVisibleProvider.notifier).state = false;
-            
-            // リスト詳細画面に遷移
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ListDetailScreen(
-                  customList: targetList,
-                ),
-              ),
-            );
-          });
-        } else {
-          // 最後に見たリストがない場合は、モーダルを閉じる
-          ref.read(customListModalVisibleProvider.notifier).state = false;
-        }
-      });
-    } else {
-      // モーダルを表示
-      ref.read(customListModalVisibleProvider.notifier).state = true;
-      
-      // カレンダーは閉じる
-      ref.read(calendarVisibleProvider.notifier).state = false;
-    }
+    // カレンダーとモーダルは閉じる
+    ref.read(calendarVisibleProvider.notifier).state = false;
+    ref.read(customListModalVisibleProvider.notifier).state = false;
   }
 
   void _onDateTabTap(int index) {

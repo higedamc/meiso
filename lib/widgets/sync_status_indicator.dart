@@ -152,11 +152,35 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
 
   /// ステータステキスト
   String _getStatusText(BuildContext context, SyncStatus status) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     // カスタムメッセージがあればそれを優先
     if (status.message != null && status.message!.isNotEmpty) {
-      return status.message!;
+      final msg = status.message!;
+      const prefix = '__l10n__:';
+      if (msg.startsWith(prefix)) {
+        final key = msg.substring(prefix.length);
+        switch (key) {
+          case 'syncReconnectingRelays':
+            return l10n.syncReconnectingRelays;
+          case 'syncPhaseDelta':
+            return l10n.syncPhaseDelta;
+          case 'syncPhaseAppSettings':
+            return l10n.syncPhaseAppSettings;
+          case 'syncPhaseCustomLists':
+            return l10n.syncPhaseCustomLists;
+          case 'syncPhaseTodos':
+            return l10n.syncPhaseTodos;
+          case 'syncPhaseMls':
+            return l10n.syncPhaseMls;
+          case 'syncCompleted':
+            return l10n.syncCompleted;
+          default:
+            // 未定義キーは表示しない（英日混在の温床を避ける）
+            break;
+        }
+      }
+      // 生文字列は英日混在の原因になるので、クラウドインジケータでは使わない
     }
     
     switch (status.state) {
@@ -187,7 +211,7 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
 
   /// 最終同期時刻をフォーマット
   String _formatSyncTime(BuildContext context, DateTime time) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     final now = DateTime.now();
     final difference = now.difference(time);
 

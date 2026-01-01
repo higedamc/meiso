@@ -4,6 +4,7 @@ import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../models/app_settings.dart';
 import '../../providers/app_settings_provider.dart';
+
 import '../../providers/nostr_provider.dart';
 import '../../providers/proxy_status_provider.dart';
 import '../../providers/locale_provider.dart';
@@ -13,7 +14,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
   /// 曜日名を取得
   String _getWeekDayName(BuildContext context, int day) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     final days = [
       l10n.sunday,
       l10n.monday,
@@ -29,7 +30,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   /// 週の開始曜日選択ダイアログ
   Future<void> _showWeekStartDayDialog(
       BuildContext context, WidgetRef ref, int currentDay) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     final selected = await showDialog<int>(
       context: context,
@@ -58,7 +59,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   /// カレンダー表示形式選択ダイアログ
   Future<void> _showCalendarViewDialog(
       BuildContext context, WidgetRef ref, String currentView) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     final selected = await showDialog<String>(
       context: context,
@@ -98,7 +99,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
   /// プロキシ接続状態インジケーターを構築
   Widget _buildProxyStatusIndicator(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     final proxyStatus = ref.watch(proxyStatusProvider);
     
     // 状態に応じた色とアイコン、メッセージを設定
@@ -111,22 +112,18 @@ class AppSettingsDetailScreen extends ConsumerWidget {
         statusColor = Colors.grey;
         statusIcon = Icons.help_outline;
         statusText = l10n.untested;
-        break;
       case ProxyConnectionStatus.testing:
         statusColor = Colors.orange;
         statusIcon = Icons.sync;
         statusText = l10n.testing;
-        break;
       case ProxyConnectionStatus.connected:
         statusColor = Colors.green;
         statusIcon = Icons.check_circle;
         statusText = l10n.connectionSuccess;
-        break;
       case ProxyConnectionStatus.failed:
         statusColor = Colors.red;
         statusIcon = Icons.error;
         statusText = l10n.connectionFailed;
-        break;
     }
     
     return Container(
@@ -195,7 +192,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   /// 言語選択ダイアログ
   Future<void> _showLanguageDialog(
       BuildContext context, WidgetRef ref, Locale? currentLocale) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     final selected = await showDialog<Locale?>(
       context: context,
@@ -203,7 +200,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
         title: Text(l10n.languageSelection),
         children: [
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(dialogContext, null),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Row(
               children: [
                 if (currentLocale == null)
@@ -266,11 +263,11 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   /// プロキシURL編集ダイアログ
   Future<void> _showProxyUrlDialog(
       BuildContext context, WidgetRef ref, String currentProxyUrl) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     
     // 現在のプロキシURLをパース
-    String host = '127.0.0.1';
-    String port = '9050';
+    var host = '127.0.0.1';
+    var port = '9050';
     
     try {
       final uri = Uri.parse(currentProxyUrl);
@@ -292,7 +289,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setState) {
-          final dialogL10n = AppLocalizations.of(dialogContext)!;
+          final dialogL10n = AppLocalizations.of(dialogContext);
           return AlertDialog(
             title: Text(dialogL10n.proxySettings),
             content: SingleChildScrollView(
@@ -393,7 +390,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
       await ref.read(appSettingsProvider.notifier).setProxyUrl(newProxyUrl);
       
       if (context.mounted) {
-        final snackbarL10n = AppLocalizations.of(context)!;
+        final snackbarL10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(snackbarL10n.proxyUrlUpdated(newProxyUrl)),
@@ -406,7 +403,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
   /// ロケールの表示名を取得
   String _getLocaleName(BuildContext context, Locale? locale) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     if (locale == null) return l10n.languageSystem;
     switch (locale.languageCode) {
       case 'en':
@@ -422,7 +419,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     final appSettingsAsync = ref.watch(appSettingsProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final currentLocale = ref.watch(localeProvider);
@@ -521,48 +518,57 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
                   const Divider(height: 1),
 
-                  // 週の開始曜日
+                  // 週の開始曜日（ステージング版では無効化）
                   ListTile(
-                    leading:
-                        Icon(Icons.calendar_today, color: Colors.purple.shade700),
-                    title: Text(l10n.weekStartDay),
-                    subtitle: Text(_getWeekDayName(context, settings.weekStartDay)),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => _showWeekStartDayDialog(
-                        context, ref, settings.weekStartDay),
-                  ),
-
-                  const Divider(height: 1),
-
-                  // カレンダー表示形式
-                  ListTile(
-                    leading:
-                        Icon(Icons.view_week, color: Colors.purple.shade700),
-                    title: Text(l10n.calendarView),
+                    enabled: false,
+                    leading: Icon(Icons.calendar_today, color: Colors.grey.shade400),
+                    title: Text(
+                      l10n.weekStartDay,
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
                     subtitle: Text(
-                        settings.calendarView == 'week' ? l10n.weekView : l10n.monthView),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => _showCalendarViewDialog(
-                        context, ref, settings.calendarView),
+                      '${_getWeekDayName(context, settings.weekStartDay)} (開発中)',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
                   ),
 
                   const Divider(height: 1),
 
-                  // 通知設定
+                  // カレンダー表示形式（ステージング版では無効化）
+                  ListTile(
+                    enabled: false,
+                    leading: Icon(Icons.view_week, color: Colors.grey.shade400),
+                    title: Text(
+                      l10n.calendarView,
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    subtitle: Text(
+                      '${settings.calendarView == 'week' ? l10n.weekView : l10n.monthView} (開発中)',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                  ),
+
+                  const Divider(height: 1),
+
+                  // 通知設定（ステージング版では無効化）
                   SwitchListTile(
-                    title: Text(l10n.notifications),
-                    subtitle: Text(l10n.notificationsSubtitle),
+                    title: Text(
+                      l10n.notifications,
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    subtitle: Text(
+                      '${l10n.notificationsSubtitle} (開発中)',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
                     value: settings.notificationsEnabled,
-                    onChanged: (value) async {
-                      await ref
-                          .read(appSettingsProvider.notifier)
-                          .toggleNotifications();
-                    },
+                    onChanged: null,
                     secondary: Icon(
                       settings.notificationsEnabled
                           ? Icons.notifications_active
                           : Icons.notifications_off,
-                      color: Colors.purple.shade700,
+                      color: Colors.grey.shade400,
                     ),
                   ),
 
@@ -582,7 +588,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       await ref.read(appSettingsProvider.notifier).toggleTor();
                       
                       if (context.mounted) {
-                        final snackbarL10n = AppLocalizations.of(context)!;
+                        final snackbarL10n = AppLocalizations.of(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
@@ -590,7 +596,6 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                                 ? snackbarL10n.torEnabledMessage
                                 : snackbarL10n.torDisabledMessage,
                             ),
-                            duration: const Duration(seconds: 4),
                           ),
                         );
                       }
@@ -633,11 +638,11 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.info, color: AppTheme.primaryPurple),
+                                const Icon(Icons.info, color: AppTheme.primaryPurple),
                                 const SizedBox(width: 8),
                                 Text(
                                   l10n.appSettingsInfo,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: AppTheme.darkPurple,
                                   ),
@@ -647,7 +652,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                             const SizedBox(height: 8),
                             Text(
                               l10n.appSettingsInfoText,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 12,
                                 color: AppTheme.darkPurple,
                               ),

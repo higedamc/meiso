@@ -1,27 +1,18 @@
 import 'dart:convert';
-import '../services/logger_service.dart';
 import 'package:flutter/material.dart';
-import '../services/logger_service.dart';
 import 'package:flutter/services.dart';
-import '../services/logger_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/logger_service.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/logger_service.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../app_theme.dart';
-import '../services/logger_service.dart';
 import '../models/todo.dart';
-import '../services/logger_service.dart';
 import '../models/link_preview.dart';
-import '../services/logger_service.dart';
 import '../providers/todos_provider.dart';
-import '../services/logger_service.dart';
 import '../providers/nostr_provider.dart';
+import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
-import '../services/logger_service.dart';
 import 'circular_checkbox.dart';
-import '../services/logger_service.dart';
 
 /// リカーリングタスク削除オプション
 enum RecurringDeleteOption {
@@ -41,7 +32,7 @@ class TodoItem extends StatelessWidget {
 
   void _showEditDialog(BuildContext context, WidgetRef ref) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (context) => TodoEditScreen(todo: todo),
         fullscreenDialog: true,
       ),
@@ -49,6 +40,7 @@ class TodoItem extends StatelessWidget {
   }
 
   void _showJsonDialog(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final jsonData = {
       'id': todo.id,
       'title': todo.title,
@@ -62,24 +54,24 @@ class TodoItem extends StatelessWidget {
 
     final jsonString = const JsonEncoder.withIndent('  ').convert(jsonData);
 
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
             const Icon(Icons.code, size: 20),
             const SizedBox(width: 8),
-            const Text('Todo JSON'),
+            Text(l10n.todoJsonTitle),
             const Spacer(),
             IconButton(
               icon: const Icon(Icons.copy, size: 20),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: jsonString));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('JSONをコピーしました')),
+                  SnackBar(content: Text(l10n.jsonCopied)),
                 );
               },
-              tooltip: 'コピー',
+              tooltip: l10n.copyButton,
             ),
           ],
         ),
@@ -174,7 +166,7 @@ class TodoItem extends StatelessWidget {
             ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('閉じる'),
+            child: Text(l10n.closeButton),
           ),
         ],
       ),
@@ -188,11 +180,10 @@ class TodoItem extends StatelessWidget {
       child: InkWell(
         onTap: () => _openUrl(linkPreview.url),
         borderRadius: BorderRadius.circular(8),
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(
               color: Theme.of(context).dividerColor,
-              width: 1,
             ),
             borderRadius: BorderRadius.circular(8),
             color: Theme.of(context).cardColor,
@@ -334,10 +325,11 @@ class TodoItem extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
+        final l10n = AppLocalizations.of(context);
         return AlertDialog(
-          title: const Text(
-            'Delete recurring to-do',
-            style: TextStyle(
+          title: Text(
+            l10n.deleteRecurringTodoTitle,
+            style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w600,
             ),
@@ -357,7 +349,7 @@ class TodoItem extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                   child: Text(
-                    'Remove this instance',
+                    l10n.removeThisInstance,
                     style: TextStyle(
                       fontSize: 17,
                       color: Colors.red.shade600,
@@ -374,7 +366,7 @@ class TodoItem extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                   child: Text(
-                    'Remove all instances',
+                    l10n.removeAllInstances,
                     style: TextStyle(
                       fontSize: 17,
                       color: Colors.red.shade600,
@@ -387,7 +379,7 @@ class TodoItem extends StatelessWidget {
             ],
           ),
           actions: [
-            Container(
+            DecoratedBox(
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(color: Colors.grey.shade300),
@@ -398,13 +390,13 @@ class TodoItem extends StatelessWidget {
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.blue,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                  shape: const RoundedRectangleBorder(),
                 ),
-                child: const SizedBox(
+                child: SizedBox(
                   width: double.infinity,
                   child: Text(
-                    'Cancel',
-                    style: TextStyle(
+                    l10n.cancelButton,
+                    style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
                     ),
@@ -425,7 +417,6 @@ class TodoItem extends StatelessWidget {
       builder: (context, ref, child) {
         return Dismissible(
           key: Key(todo.id),
-          direction: DismissDirection.horizontal,
           // 右スワイプ時の背景（明日に移動）
           background: Container(
             alignment: Alignment.centerLeft,
@@ -517,13 +508,31 @@ class TodoItem extends StatelessWidget {
               }
             }
           },
-          onDismissed: (direction) {
+          onDismissed: (direction) async {
             if (direction == DismissDirection.endToStart) {
               // 左スワイプの場合のみ削除
               // 削除前にTodoを保持（元に戻す用）
               final deletedTodo = todo;
               
-              ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
+              // グループリストかどうかを確認
+              var isGroupList = false;
+              if (todo.customListId != null) {
+                final customListsAsync = ref.read(customListsProvider);
+                final customLists = customListsAsync.whenOrNull(data: (lists) => lists) ?? [];
+                final customList = customLists.where((l) => l.id == todo.customListId).firstOrNull;
+                isGroupList = customList?.isGroup ?? false;
+              }
+              
+              if (isGroupList) {
+                // グループタスクの削除
+                ref.read(todosProvider.notifier).deleteTodoFromGroup(
+                  groupId: todo.customListId!,
+                  todoId: todo.id,
+                );
+              } else {
+                // 通常のタスクの削除
+                ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
+              }
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -541,7 +550,7 @@ class TodoItem extends StatelessWidget {
               );
             }
           },
-          child: Container(
+          child: DecoratedBox(
             decoration: BoxDecoration(
               color: Theme.of(context).cardTheme.color,
               border: Border(
@@ -560,8 +569,8 @@ class TodoItem extends StatelessWidget {
                   // Todo タイトル行
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 14.0,
+                      horizontal: 16,
+                      vertical: 14,
                     ),
                     child: Row(
                       children: [
@@ -573,7 +582,7 @@ class TodoItem extends StatelessWidget {
                                 .read(todosProvider.notifier)
                                 .toggleTodo(todo.id, todo.date);
                           },
-                          size: 22.0,
+                          size: 22,
                         ),
                         
                         const SizedBox(width: 12),

@@ -32,14 +32,14 @@ class CryptographyDetailScreen extends StatelessWidget {
             backgroundColor: AppTheme.primaryPurple,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
-                AppLocalizations.of(context)!.cryptographyTitle,
+                AppLocalizations.of(context).cryptographyTitle,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
-              background: Container(
-                decoration: BoxDecoration(
+              background: DecoratedBox(
+                decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -615,13 +615,12 @@ class CryptographyDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppTheme.primaryPurple.withOpacity(0.2),
-          width: 1,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             '📖 目次',
             style: TextStyle(
               fontSize: 18,
@@ -648,7 +647,7 @@ class CryptographyDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Icon(
+          const Icon(
             Icons.arrow_right,
             size: 20,
             color: AppTheme.primaryPurple,
@@ -741,7 +740,7 @@ class CryptographyDetailScreen extends StatelessWidget {
             margin: const EdgeInsets.only(top: 6),
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppTheme.primaryPurple,
               shape: BoxShape.circle,
             ),
@@ -778,7 +777,6 @@ class CryptographyDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Colors.grey.shade300,
-          width: 1,
         ),
       ),
       child: Text(
@@ -797,7 +795,7 @@ class CryptographyDetailScreen extends StatelessWidget {
     return RichText(
       text: TextSpan(
         text: text,
-        style: TextStyle(
+        style: const TextStyle(
           color: AppTheme.primaryPurple,
           fontSize: 14,
           fontWeight: FontWeight.w500,
@@ -816,7 +814,6 @@ class CryptographyDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Colors.orange.shade300,
-          width: 1,
         ),
       ),
       child: Column(
@@ -852,7 +849,6 @@ class CryptographyDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Colors.blue.shade300,
-          width: 1,
         ),
       ),
       child: Column(
@@ -897,7 +893,7 @@ class CryptographyDetailScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             '🔒 セキュリティに関する質問や報告',
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -918,7 +914,7 @@ class CryptographyDetailScreen extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              Icon(Icons.code, size: 16, color: AppTheme.primaryPurple),
+              const Icon(Icons.code, size: 16, color: AppTheme.primaryPurple),
               const SizedBox(width: 8),
               Text(
                 'すべてのコードはオープンソースです',

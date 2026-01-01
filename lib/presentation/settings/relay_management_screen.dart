@@ -5,6 +5,7 @@ import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/app_settings_provider.dart';
+
 import '../../services/logger_service.dart';
 import '../../bridge_generated.dart/api.dart' as bridge;
 
@@ -59,7 +60,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final url = _newRelayController.text.trim();
     if (url.isEmpty) return;
 
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     if (!url.startsWith('wss://') && !url.startsWith('ws://')) {
       setState(() {
         _errorMessage = l10n.relayUrlError;
@@ -99,7 +100,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
   }
 
   Future<void> _removeRelay(String url) async {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     ref.read(relayStatusProvider.notifier).removeRelay(url);
 
     // AppSettingsにも反映（ローカルのみ）
@@ -136,7 +137,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
   Future<void> _syncFromNostr() async {
     if (_isSyncing) return;
     
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _isSyncing = true;
       _errorMessage = null;
@@ -219,7 +220,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     final relayStatuses = ref.watch(relayStatusProvider);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final appSettingsAsync = ref.watch(appSettingsProvider);
@@ -406,10 +407,10 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
                         Icon(Icons.info, color: AppTheme.primaryPurple),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           'リレーについて',
                           style: TextStyle(
@@ -429,7 +430,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                       '• 「Nostrから同期」ボタンで他のデバイスの設定を取得できます\n'
                       '• 同期時、リモートとローカルが異なる場合のみ更新されます\n'
                       '${torEnabled ? "• 現在Tor経由で接続しています（Orbotプロキシ使用）" : ""}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         color: AppTheme.darkPurple,
                       ),
@@ -450,13 +451,13 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
       case RelayConnectionState.connected:
         return Icon(Icons.cloud_done, color: Colors.green.shade400, size: 20);
       case RelayConnectionState.connecting:
-        return SizedBox(
+        return const SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
             valueColor:
-                const AlwaysStoppedAnimation<Color>(AppTheme.primaryPurple),
+                AlwaysStoppedAnimation<Color>(AppTheme.primaryPurple),
           ),
         );
       case RelayConnectionState.error:

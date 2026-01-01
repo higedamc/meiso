@@ -42,10 +42,9 @@ class _ExpandableCalendarState extends State<ExpandableCalendar> {
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: TableCalendar(
-            firstDay: DateTime.utc(2020, 1, 1),
+            firstDay: DateTime.utc(2020, 1),
             lastDay: DateTime.utc(2030, 12, 31),
             focusedDay: _focusedDay,
-            calendarFormat: CalendarFormat.month,
             selectedDayPredicate: (day) {
               return _selectedDay != null 
                   ? isSameDay(_selectedDay, day)
@@ -63,20 +62,20 @@ class _ExpandableCalendarState extends State<ExpandableCalendar> {
                 _focusedDay = focusedDay;
               });
             },
-            headerStyle: HeaderStyle(
+            headerStyle: const HeaderStyle(
               formatButtonVisible: false,
               titleCentered: true,
-              titleTextStyle: const TextStyle(
+              titleTextStyle: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.0,
+                letterSpacing: 1,
               ),
-              leftChevronIcon: const Icon(
+              leftChevronIcon: Icon(
                 Icons.chevron_left,
                 color: Colors.white,
               ),
-              rightChevronIcon: const Icon(
+              rightChevronIcon: Icon(
                 Icons.chevron_right,
                 color: Colors.white,
               ),

@@ -41,6 +41,23 @@ class SyncStatus with _$SyncStatus {
     
     /// リトライ回数
     @Default(0) int retryCount,
+    
+    /// Phase 8.5: 進捗追跡フィールド
+    
+    /// 全体のステップ数（同期フェーズの総数）
+    @Default(0) int totalSteps,
+    
+    /// 完了したステップ数
+    @Default(0) int completedSteps,
+    
+    /// 進捗パーセンテージ (0-100)
+    @Default(0) int percentage,
+    
+    /// 現在のフェーズ名（「AppSettings同期中」「カスタムリスト同期中」など）
+    String? currentPhase,
+    
+    /// 初回同期フラグ（ローカルストレージが空の状態からの初回起動時のみtrue）
+    @Default(false) bool isInitialSync,
   }) = _SyncStatus;
 }
 
@@ -51,6 +68,13 @@ final syncStatusProvider = StateNotifierProvider<SyncStatusNotifier, SyncStatus>
 
 class SyncStatusNotifier extends StateNotifier<SyncStatus> {
   SyncStatusNotifier() : super(const SyncStatus());
+
+  static const String _l10nPrefix = '__l10n__:';
+
+  /// ローカライズキーを `message` に格納する（UI側で解決）
+  void updateMessageKey(String key) {
+    state = state.copyWith(message: '$_l10nPrefix$key');
+  }
 
   /// Nostr初期化状態を設定
   void setInitialized(bool initialized) {
@@ -65,23 +89,36 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
 
   /// 同期開始
   void startSync({int itemCount = 1}) {
+    final oldPendingItems = state.pendingItems;
+    final newPendingItems = state.pendingItems + itemCount;
+    
+    print('🔍 [SyncStatus] startSync() called: pendingItems: $oldPendingItems → $newPendingItems');
+    
     state = state.copyWith(
       state: SyncState.syncing,
-      pendingItems: state.pendingItems + itemCount,
+      pendingItems: newPendingItems,
     );
+    
+    print('🔍 [SyncStatus] startSync() completed: current pendingItems: ${state.pendingItems}');
   }
 
   /// 同期成功
   void syncSuccess({int itemCount = 1}) {
+    final oldPendingItems = state.pendingItems;
     final newPendingItems = (state.pendingItems - itemCount).clamp(0, 9999);
+    final newState = newPendingItems > 0 ? SyncState.syncing : SyncState.success;
+    
+    print('🔍 [SyncStatus] syncSuccess() called: pendingItems: $oldPendingItems → $newPendingItems, state → $newState');
     
     state = state.copyWith(
-      state: newPendingItems > 0 ? SyncState.syncing : SyncState.success,
+      state: newState,
       lastSyncTime: DateTime.now(),
       pendingItems: newPendingItems,
       retryCount: 0,
       errorMessage: null,
     );
+    
+    print('🔍 [SyncStatus] syncSuccess() completed: current pendingItems: ${state.pendingItems}, current state: ${state.state}');
   }
 
   /// 同期エラー
@@ -124,6 +161,63 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
   /// メッセージをクリア
   void clearMessage() {
     state = state.copyWith(message: null);
+  }
+  
+  /// Phase 8.5: 進捗追跡メソッド
+  
+  /// 同期を開始し、全体のステップ数を設定
+  void startSyncWithProgress({
+    required int totalSteps,
+    String? initialPhase,
+    bool isInitialSync = false,
+  }) {
+    state = state.copyWith(
+      state: SyncState.syncing,
+      totalSteps: totalSteps,
+      completedSteps: 0,
+      percentage: 0,
+      currentPhase: initialPhase,
+      errorMessage: null,
+      isInitialSync: isInitialSync,
+    );
+  }
+  
+  /// ステップを完了し、進捗を更新
+  void completeStep({String? nextPhase}) {
+    final newCompletedSteps = state.completedSteps + 1;
+    final newPercentage = state.totalSteps > 0
+        ? ((newCompletedSteps / state.totalSteps) * 100).round()
+        : 0;
+    
+    state = state.copyWith(
+      completedSteps: newCompletedSteps,
+      percentage: newPercentage,
+      currentPhase: nextPhase,
+    );
+  }
+  
+  /// 特定のフェーズにジャンプ（ステップ数とパーセンテージを直接設定）
+  void setProgress({
+    required int completedSteps,
+    required int percentage,
+    String? currentPhase,
+  }) {
+    state = state.copyWith(
+      completedSteps: completedSteps,
+      percentage: percentage,
+      currentPhase: currentPhase,
+    );
+  }
+  
+  /// 進捗をリセット
+  void resetProgress() {
+    state = state.copyWith(
+      totalSteps: 0,
+      completedSteps: 0,
+      percentage: 0,
+      currentPhase: null,
+      isInitialSync: false,
+    );
   }
 }
 

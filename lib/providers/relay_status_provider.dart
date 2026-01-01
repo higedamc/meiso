@@ -10,15 +10,15 @@ enum RelayConnectionState {
 
 /// 個別リレーの状態
 class RelayStatus {
-  final String url;
-  final RelayConnectionState state;
-  final String? errorMessage;
 
   const RelayStatus({
     required this.url,
     required this.state,
     this.errorMessage,
   });
+  final String url;
+  final RelayConnectionState state;
+  final String? errorMessage;
 
   RelayStatus copyWith({
     String? url,
@@ -76,7 +76,7 @@ class RelayStatusNotifier extends StateNotifier<Map<String, RelayStatus>> {
 
   /// デフォルトリレーで初期化
   void initializeWithRelays(List<String> relays) {
-    final Map<String, RelayStatus> newState = {};
+    final newState = <String, RelayStatus>{};
     for (final url in relays) {
       newState[url] = RelayStatus(url: url, state: RelayConnectionState.disconnected);
     }

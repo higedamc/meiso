@@ -18,6 +18,7 @@ class TodoEditScreen extends ConsumerStatefulWidget {
     this.date,
     this.customListId,
     this.customListName,
+    this.isGroupList = false,
     super.key,
   });
 
@@ -25,6 +26,7 @@ class TodoEditScreen extends ConsumerStatefulWidget {
   final DateTime? date;
   final String? customListId;
   final String? customListName;
+  final bool isGroupList;
 
   @override
   ConsumerState<TodoEditScreen> createState() => _TodoEditScreenState();
@@ -187,7 +189,6 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
               border: Border(
                 top: BorderSide(
                   color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
-                  width: 1,
                 ),
               ),
             ),
@@ -200,7 +201,6 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                     onPressed: _showMoveToDialog,
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 0,
                         vertical: 8,
                       ),
                     ),
@@ -250,7 +250,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
+                      letterSpacing: 1,
                     ),
                   ),
                 ),
@@ -496,23 +496,46 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
 
     if (isEditing) {
       // 編集モード: タイトルと繰り返しパターンを更新
-      AppLogger.debug(' Updating todo: "$text" (id: ${widget.todo!.id})');
-      await ref.read(todosProvider.notifier).updateTodoWithRecurrence(
-        widget.todo!.id,
-        widget.todo!.date,
-        text,
-        _recurrence,
-      );
-      AppLogger.info(' Todo update completed and synced');
+      if (widget.isGroupList) {
+        AppLogger.debug(' [Group] Updating todo: "$text" (id: ${widget.todo!.id})');
+        final updatedTodo = widget.todo!.copyWith(
+          title: text,
+          recurrence: _recurrence,
+        );
+        await ref.read(todosProvider.notifier).updateTodoInGroup(
+          groupId: widget.customListId!,
+          updatedTodo: updatedTodo,
+        );
+        AppLogger.info(' [Group] Todo update completed and synced');
+      } else {
+        AppLogger.debug(' Updating todo: "$text" (id: ${widget.todo!.id})');
+        await ref.read(todosProvider.notifier).updateTodoWithRecurrence(
+          widget.todo!.id,
+          widget.todo!.date,
+          text,
+          _recurrence,
+        );
+        AppLogger.info(' Todo update completed and synced');
+      }
     } else {
       // 追加モード: 新しいTodoを作成
-      AppLogger.debug(' Adding todo to list: "$text" (customListId: ${widget.customListId})');
-      await ref.read(todosProvider.notifier).addTodo(
-        text,
-        widget.date,
-        customListId: widget.customListId,
-      );
-      AppLogger.info(' Todo added and synced to Nostr');
+      if (widget.isGroupList) {
+        AppLogger.debug(' [Group] Adding todo to group: "$text" (groupId: ${widget.customListId})');
+        await ref.read(todosProvider.notifier).addTodoToGroup(
+          groupId: widget.customListId!,
+          title: text,
+          date: widget.date,
+        );
+        AppLogger.info(' [Group] Todo added and synced to Nostr');
+      } else {
+        AppLogger.debug(' Adding todo to list: "$text" (customListId: ${widget.customListId})');
+        await ref.read(todosProvider.notifier).addTodo(
+          text,
+          widget.date,
+          customListId: widget.customListId,
+        );
+        AppLogger.info(' Todo added and synced to Nostr');
+      }
     }
 
     if (mounted) {
@@ -603,7 +626,6 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
       decoration: BoxDecoration(
         border: Border.all(
           color: Theme.of(context).dividerColor,
-          width: 1,
         ),
         borderRadius: BorderRadius.circular(8),
         color: Theme.of(context).cardColor,
@@ -726,7 +748,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
               color: Colors.black.withOpacity(0.6),
               borderRadius: BorderRadius.circular(16),
               child: InkWell(
-                onTap: () => _removeLinkPreview(),
+                onTap: _removeLinkPreview,
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
                   padding: const EdgeInsets.all(6),

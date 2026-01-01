@@ -21,7 +21,7 @@ class DateTabBar extends ConsumerStatefulWidget {
 
 class _DateTabBarState extends ConsumerState<DateTabBar> {
   late ScrollController _scrollController;
-  static const double _itemWidth = 80.0; // 各日付タブの幅
+  static const double _itemWidth = 80; // 各日付タブの幅
 
   @override
   void initState() {
