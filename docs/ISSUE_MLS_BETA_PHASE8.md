@@ -129,7 +129,7 @@ MLS Beta版への移行（Phase 8）の進捗報告と残タスクの整理。
 
 ---
 
-## 📝 残タスク: Phase 8.3-8.6
+## 📝 残タスク: Phase 8.3-8.7
 
 ### Phase 8.3: TODO送受信機能の完全実装
 
@@ -227,6 +227,182 @@ MLS Beta版への移行（Phase 8）の進捗報告と残タスクの整理。
 
 ---
 
+### Phase 8.7: 既知のバグ修正
+
+**優先度**: Critical（Beta版リリースブロッカー）
+
+#### Bug #1: 招待承諾後も招待マークが再表示される
+
+**発見日**: 2026-01-01  
+**ステータス**: 🔴 未修正
+
+**症状**:
+1. Alice → Bob へMLSグループリストを共有
+2. Bob が招待を承諾し、グループリストに入れる
+3. Bob がアプリを終了し、再度起動
+4. **承諾済みのはずのグループリストに再度招待マーク（🔔）が表示される**
+5. 招待マークが表示されたグループに再度入ることができない
+
+**影響範囲**:
+- ✅ 送信処理: 正常（`Successful relays: 2` 確認済み）
+- ✅ リレーへのイベント保存: 正常（`nak req -k 445 --tag h=<groupId>` で確認済み）
+- ❌ **CustomListsProviderの状態管理**: 異常
+  - アプリ再起動後、`CustomList.isPendingInvitation` が再び `true` になる
+  - `CustomList.isGroup` が正しく保存/復元されていない可能性
+  - `groupMembers` が空になっている可能性
+
+**根本原因（推測）**:
+1. **ローカルストレージへの保存タイミングが不適切**
+   - 招待承諾時に `CustomList` を更新しているが、ローカルストレージに保存されていない
+   - または、保存されているが復元時に上書きされている
+
+2. **`updateList()` の race condition**（既知の問題、修正済み）
+   - 以前は `state.whenData()` を使用していたため、`AsyncLoading` 状態時に更新がスキップされていた
+   - 修正: `state.valueOrNull` を使用するように変更（2026-01-01）
+   - ただし、この修正後も問題が継続している可能性
+
+3. **`syncGroupInvitations()` との競合**
+   - アプリ起動時に `syncGroupInvitations()` が実行される
+   - 招待情報をリレーから再取得し、既存の `CustomList` を上書きしている可能性
+   - Welcome メッセージ（招待情報）がリレーに残っているため、毎回「未承諾」状態として認識される
+
+**修正方針**:
+
+##### Option A: 承諾状態をローカルに永続化（推奨）
+```dart
+// CustomList に acceptedAt フィールドを追加
+class CustomList {
+  ...
+  final DateTime? acceptedAt; // 招待を承諾した日時
+}
+
+// syncGroupInvitations() で承諾済みを判定
+if (existingList != null && existingList.acceptedAt != null) {
+  // 既に承諾済み → 招待情報を無視
+  continue;
+}
+```
+
+**利点**:
+- シンプルで理解しやすい
+- ローカルストレージに承諾状態を保存
+- リレーから取得した招待情報と照合可能
+
+**欠点**:
+- マイグレーション必要（既存の `CustomList` に `acceptedAt` 追加）
+
+##### Option B: 承諾済み招待をリレーから削除
+```dart
+// 招待承諾時に Welcome メッセージを削除（Kind 5 イベント送信）
+await rust_api.deleteEvent(welcomeEventId);
+```
+
+**利点**:
+- リレーに不要なデータが残らない
+- `syncGroupInvitations()` で自動的に承諾済みが除外される
+
+**欠点**:
+- NIP-17 Gift Wrap の削除は非標準的
+- リレーが削除をサポートしていない可能性
+- マルチデバイス同期時に問題が発生する可能性
+
+##### Option C: MLS Group State で判定
+```rust
+// Rust側で MLS グループの状態を確認
+pub fn is_mls_group_member(group_id: String) -> Result<bool> {
+    // グループに参加済みかどうかを判定
+}
+```
+
+```dart
+// Flutter側で判定
+final isMember = await rust_api.isMlsGroupMember(groupId: groupId);
+if (isMember) {
+  // 既にメンバー → 招待情報を無視
+}
+```
+
+**利点**:
+- MLS内部状態が真実の情報源（Single Source of Truth）
+- マイグレーション不要
+
+**欠点**:
+- Rustとのやり取りが増える（パフォーマンス）
+- MLS状態とFlutter側の状態が一致しない場合に複雑化
+
+**推奨**: **Option A（acceptedAt フィールド追加）**
+- 最もシンプルで確実
+- マイグレーションは1回で済む
+- 将来的に「招待履歴」機能にも活用可能
+
+**実装タスク**:
+- [ ] `CustomList` に `acceptedAt: DateTime?` フィールドを追加
+- [ ] `CustomList.toJson()` / `fromJson()` に `acceptedAt` を追加
+- [ ] `_acceptGroupInvitation()` で `acceptedAt: DateTime.now()` を設定
+- [ ] `syncGroupInvitations()` で `acceptedAt != null` の場合はスキップ
+- [ ] 既存データのマイグレーション処理（`acceptedAt` が `null` の場合、`isGroup && !isPendingInvitation` なら現在時刻を設定）
+- [ ] テスト: 招待承諾 → アプリ再起動 → 招待マークが表示されないことを確認
+
+**テストシナリオ**:
+1. Alice → Bob へグループ招待
+2. Bob が招待を承諾
+3. Bob がアプリを終了
+4. Bob が再度アプリを起動
+5. ✅ グループリストに招待マークが表示されない
+6. ✅ グループリストに入れる
+7. ✅ グループ内のTODOが同期されている
+
+---
+
+#### Bug #2: MLSグループが CustomListsProvider に登録されない
+
+**発見日**: 2026-01-01  
+**ステータス**: 🔴 未修正（Bug #1 と同根の可能性）
+
+**症状**:
+- Alice側のログ: `📭 [MLS] No MLS groups to sync`
+- `CustomListsProvider` に `isGroup: true` のリストが1つも存在しない
+- グループ招待を承諾したはずなのに、バッチ同期でスキップされる
+
+**根本原因**:
+- Bug #1 と同じ原因の可能性が高い
+- `syncGroupInvitations()` で招待情報が上書きされ、`isGroup` フラグが失われている
+
+**修正方針**:
+- Bug #1 の修正（Option A）で同時に解決されるはず
+- テストで確認が必要
+
+**実装タスク**:
+- [ ] Bug #1 修正後、`isGroup` フラグが正しく保持されるか確認
+- [ ] `_syncAllMlsGroupTodos()` でグループが正しく検出されるか確認
+- [ ] ログに `🔐 [MLS] Syncing MLS group: <groupId>` が出力されることを確認
+
+---
+
+#### Bug #3: `since` フィルタが新しすぎて過去のイベントを取得できない（修正済み）
+
+**発見日**: 2026-01-01  
+**ステータス**: ✅ 修正完了
+
+**症状**:
+- Alice側で `since: 1767255574` (17:19:34) でフィルタ
+- しかし、Bob のイベントは `created_at: 1767254774` (17:06:14) と `created_at: 1767255299` (17:14:59)
+- → フィルタで除外され、0 events になっていた
+
+**修正内容**:
+```dart
+// Phase 8.3 Fix: 初回同期時は since:0 で全イベントを取得
+final effectiveSince = last != null
+    ? last.subtract(const Duration(minutes: 2))
+    : DateTime.fromMillisecondsSinceEpoch(0);
+```
+
+**テスト**:
+- ✅ 初回同期時に `since: 0` が使われることを確認
+- ✅ nakで確認されたイベントがFlutterでも取得できることを確認
+
+---
+
 ## 🎯 Phase 8完了条件
 
 ### 必須要件（Must Have）
@@ -236,6 +412,9 @@ MLS Beta版への移行（Phase 8）の進捗報告と残タスクの整理。
 - ⏳ MLSグループとkind: 30001の統合/廃止完了（Phase 8.4）
 - ✅ エラーハンドリング完備
 - ⏳ 3人グループでの動作確認（Phase 8.6）
+- 🔴 **既知のバグ修正完了（Phase 8.7）** ← **Beta版リリースブロッカー**
+  - 🔴 Bug #1: 招待承諾後も招待マークが再表示される
+  - 🔴 Bug #2: MLSグループが CustomListsProvider に登録されない
 
 ### 推奨要件（Should Have）
 - ✅ バックグラウンド同期
@@ -247,10 +426,17 @@ MLS Beta版への移行（Phase 8）の進捗報告と残タスクの整理。
 
 ## 🗓️ タイムライン（推定）
 
+### 🔥 Priority 0: 既知のバグ修正（Phase 8.7） - **即時対応**
+- **Day 1** (2026-01-02):
+  - Bug #1 修正（`acceptedAt` フィールド追加）
+  - マイグレーション実装
+  - 実機テスト（Alice ↔ Bob）
+- **影響**: Phase 8.3 の TODO送受信実装はこの修正後に実施
+
 ### Week 1: TODO送受信実装（Phase 8.3）
-- Day 1-3: 暗号化送信フロー
-- Day 4-5: 復号化受信フロー
-- Day 6-7: 同期ロジック実装
+- Day 2-4: 暗号化送信フロー
+- Day 5-6: 復号化受信フロー
+- Day 7: 同期ロジック実装
 
 ### Week 2: 統合と最適化（Phase 8.4, 8.6）
 - Day 1-2: グループリスト統合（kind: 30001廃止）
@@ -282,9 +468,50 @@ commit 2e9cbc4 - fix: Phase 8.5 performance optimization
 **変更ファイル**:
 - `lib/providers/todos_provider.dart`: 並列同期、タイムアウト短縮、バックグラウンド同期実装
 
+### Phase 8.7 調査・修正（進行中）
+```
+commit xxx - unfix: Phase 8.7 Bug investigation and documentation
+Date: 2026-01-01
+Status: 調査中 → 修正計画作成完了
+```
+
+**調査内容**:
+- MLS グループ TODO 送受信機能のデバッグ
+- Bob → Alice へのTODO送信は成功（`Successful relays: 2`、nakで確認済み）
+- Alice側で受信できない原因を調査
+- **根本原因判明**: 招待承諾後も招待マークが再表示される（Bug #1）
+- CustomListsProvider に MLSグループが登録されていないため、同期がスキップされる
+
+**変更ファイル**:
+- `lib/providers/todos_provider.dart`: 
+  - `since` フィルタ修正（初回同期時は `since: 0`）
+  - グループTODO送信時の `needsSync: true` 追加
+  - バッチ同期でのグループTODO処理追加
+  - ローカルストレージ保存追加
+- `lib/providers/custom_lists_provider.dart`:
+  - `updateList()` の race condition 修正（`state.whenData()` → `state.valueOrNull`）
+- `lib/features/todo/application/usecases/create_todo_usecase.dart`:
+  - `needsSync: true` 追加
+- `lib/providers/nostr_provider.dart`:
+  - 送信結果の詳細ログ追加（`successfulRelays`, `failedRelays`）
+
+**次のステップ**:
+- Bug #1 の修正実装（`acceptedAt` フィールド追加）
+
 ---
 
 ## 🧪 テスト計画
+
+### 優先度: Critical（Bug修正検証）
+0. [ ] **Bug #1 修正検証テスト**
+   - Alice → Bob へグループ招待送信
+   - Bob が招待を承諾
+   - Bob がアプリを終了
+   - Bob が再度アプリを起動
+   - ✅ グループリストに招待マークが表示されない
+   - ✅ グループリストに入れる
+   - ✅ CustomListsProvider に `isGroup: true` のリストが存在する
+   - ✅ `📭 [MLS] No MLS groups to sync` が表示されない
 
 ### 優先度: High
 1. [ ] 実デバイスでの初回起動パフォーマンステスト
