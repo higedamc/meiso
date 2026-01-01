@@ -100,12 +100,18 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
   /// 初回起動時のデフォルトリストを作成（Nostr同期後にリストが空の場合のみ）
   Future<void> createDefaultListsIfEmpty() async {
-    await state.whenData((lists) async {
-      // 既にリストがある場合は何もしない
-      if (lists.isNotEmpty) {
-        AppLogger.debug(' [CustomLists] Lists already exist, skipping default creation');
-        return;
-      }
+    // 🔥 Phase 8.7: Bug #2修正 - state.whenData() → valueOrNull に変更
+    final lists = state.valueOrNull;
+    if (lists == null) {
+      AppLogger.warning(' [CustomLists] CustomListsProvider state is null, cannot create default lists.');
+      return;
+    }
+    
+    // 既にリストがある場合は何もしない
+    if (lists.isNotEmpty) {
+      AppLogger.debug(' [CustomLists] Lists already exist, skipping default creation');
+      return;
+    }
       
       AppLogger.info(' [CustomLists] Creating default lists (no lists found after Nostr sync)');
       
@@ -148,50 +154,54 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           AppLogger.info(' [CustomLists] Created ${initialLists.length} default lists');
         },
       );
-    }).value;
   }
 
   /// 新しいリストを追加
   Future<void> addList(String name) async {
     if (name.trim().isEmpty) return;
 
-    await state.whenData((lists) async {
-      final now = DateTime.now();
-      final normalizedName = name.trim().toUpperCase();
-      
-      // リスト名から決定的なIDを生成（NIP-51準拠）
-      final listId = CustomListHelpers.generateIdFromName(normalizedName);
-      
-      // 同じIDのリストが既に存在するかチェック
-      if (lists.any((list) => list.id == listId)) {
-        AppLogger.warning(' List with ID "$listId" already exists');
-        return;
-      }
-      
-      final newList = CustomList(
-        id: listId, // UUID v4の代わりに名前ベースのIDを使用
-        name: normalizedName,
-        order: _getNextOrder(lists),
-        createdAt: now,
-        updatedAt: now,
-      );
+    // 🔥 Phase 8.7: Bug #2修正 - state.whenData() → valueOrNull に変更
+    final lists = state.valueOrNull;
+    if (lists == null) {
+      AppLogger.warning(' [CustomLists] CustomListsProvider state is null, cannot add list.');
+      return;
+    }
 
-      AppLogger.info(' Creating new list: "$normalizedName" with ID: "$listId"');
+    final now = DateTime.now();
+    final normalizedName = name.trim().toUpperCase();
+    
+    // リスト名から決定的なIDを生成（NIP-51準拠）
+    final listId = CustomListHelpers.generateIdFromName(normalizedName);
+    
+    // 同じIDのリストが既に存在するかチェック
+    if (lists.any((list) => list.id == listId)) {
+      AppLogger.warning(' List with ID "$listId" already exists');
+      return;
+    }
+    
+    final newList = CustomList(
+      id: listId, // UUID v4の代わりに名前ベースのIDを使用
+      name: normalizedName,
+      order: _getNextOrder(lists),
+      createdAt: now,
+      updatedAt: now,
+    );
 
-      final updatedLists = [...lists, newList];
-      state = AsyncValue.data(updatedLists);
+    AppLogger.info(' Creating new list: "$normalizedName" with ID: "$listId"');
 
-      // Phase C.3.1: Repository経由でローカルストレージに保存
-      final result = await _repository.saveCustomListsToLocal(updatedLists);
-      
-      result.fold(
-        (failure) => AppLogger.warning(' Failed to save list: ${failure.message}'),
-        (_) {
-          // AppSettingsのcustomListOrderも更新
-          _updateCustomListOrderInSettings(updatedLists);
-        },
-      );
-    }).value;
+    final updatedLists = [...lists, newList];
+    state = AsyncValue.data(updatedLists);
+
+    // Phase C.3.1: Repository経由でローカルストレージに保存
+    final result = await _repository.saveCustomListsToLocal(updatedLists);
+    
+    result.fold(
+      (failure) => AppLogger.warning(' Failed to save list: ${failure.message}'),
+      (_) {
+        // AppSettingsのcustomListOrderも更新
+        _updateCustomListOrderInSettings(updatedLists);
+      },
+    );
   }
 
   /// リストを更新
@@ -230,79 +240,93 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// 2. Personal Listの場合、バックグラウンドでNostr削除（Kind 5）
   /// 3. エラー時はロールバック
   Future<void> deleteList(String id) async {
-    await state.whenData((lists) async {
-      // 削除対象リストを取得
-      final targetList = lists.firstWhere(
-        (l) => l.id == id,
-        orElse: () => throw Exception('List not found: $id'),
-      );
-      
-      // 1. 楽観的UI更新: 即座にローカルから削除
-      final updatedLists = lists.where((l) => l.id != id).toList();
-      state = AsyncValue.data(updatedLists);
-      
-      AppLogger.info(' [CustomLists] Deleting list locally: ${targetList.name} (id: $id)');
+    // 🔥 Phase 8.7: Bug #2修正 - state.whenData() → valueOrNull に変更
+    // syncListsFromNostr() と並行実行される場合にレースコンディションが発生するため
+    final lists = state.valueOrNull;
+    if (lists == null) {
+      AppLogger.warning(' [CustomLists] CustomListsProvider state is null, cannot delete list.');
+      return;
+    }
+    
+    // 削除対象リストを取得
+    final targetIndex = lists.indexWhere((l) => l.id == id);
+    if (targetIndex == -1) {
+      AppLogger.warning(' [CustomLists] List with id $id not found, cannot delete.');
+      return;
+    }
+    
+    final targetList = lists[targetIndex];
+    
+    // 1. 楽観的UI更新: 即座にローカルから削除
+    final updatedLists = lists.where((l) => l.id != id).toList();
+    state = AsyncValue.data(updatedLists);
+    
+    AppLogger.info(' [CustomLists] Deleting list locally: ${targetList.name} (id: $id)');
 
-      // Phase C.3.1: Repository経由でローカルストレージに保存
-      final localResult = await _repository.deleteCustomListFromLocal(id);
-      
-      await localResult.fold(
-        (failure) async {
-          AppLogger.warning(' [CustomLists] Failed to delete from local storage: ${failure.message}');
-          // ローカル削除失敗時はロールバック
-          state = AsyncValue.data(lists);
-        },
-        (_) async {
-          // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
-          _updateCustomListOrderInSettings(updatedLists);
+    // Phase C.3.1: Repository経由でローカルストレージに保存
+    final localResult = await _repository.deleteCustomListFromLocal(id);
+    
+    await localResult.fold(
+      (failure) async {
+        AppLogger.warning(' [CustomLists] Failed to delete from local storage: ${failure.message}');
+        // ローカル削除失敗時はロールバック
+        state = AsyncValue.data(lists);
+      },
+      (_) async {
+        // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
+        _updateCustomListOrderInSettings(updatedLists);
+        
+        // 2. Personal Listの場合、バックグラウンドでNostr削除（Phase E.6）
+        if (!targetList.isGroup) {
+          AppLogger.info('📤 [CustomLists] Deleting personal list from Nostr: ${targetList.name}');
           
-          // 2. Personal Listの場合、バックグラウンドでNostr削除（Phase E.6）
-          if (!targetList.isGroup) {
-            AppLogger.info('📤 [CustomLists] Deleting personal list from Nostr: ${targetList.name}');
-            
-            // Phase E.6: Nostrから動的にeventIdを取得してKind 5削除イベント送信
-            _deletePersonalListFromNostr(targetList, lists);
-          } else if (targetList.isGroup) {
-            AppLogger.debug('ℹ️  [CustomLists] Group list deleted locally: ${targetList.name}');
-          }
-        },
-      );
-    }).value;
+          // Phase E.6: Nostrから動的にeventIdを取得してKind 5削除イベント送信
+          _deletePersonalListFromNostr(targetList, lists);
+        } else if (targetList.isGroup) {
+          AppLogger.debug('ℹ️  [CustomLists] Group list deleted locally: ${targetList.name}');
+        }
+      },
+    );
   }
 
   /// リストを並び替え
   Future<void> reorderLists(int oldIndex, int newIndex) async {
-    await state.whenData((lists) async {
-      final updatedLists = List<CustomList>.from(lists);
+    // 🔥 Phase 8.7: Bug #2修正 - state.whenData() → valueOrNull に変更
+    final lists = state.valueOrNull;
+    if (lists == null) {
+      AppLogger.warning(' [CustomLists] CustomListsProvider state is null, cannot reorder lists.');
+      return;
+    }
 
-      if (oldIndex < newIndex) {
-        newIndex -= 1;
-      }
+    final updatedLists = List<CustomList>.from(lists);
 
-      final item = updatedLists.removeAt(oldIndex);
-      updatedLists.insert(newIndex, item);
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
 
-      // orderを再計算
-      for (var i = 0; i < updatedLists.length; i++) {
-        updatedLists[i] = updatedLists[i].copyWith(
-          order: i,
-          updatedAt: DateTime.now(),
-        );
-      }
+    final item = updatedLists.removeAt(oldIndex);
+    updatedLists.insert(newIndex, item);
 
-      state = AsyncValue.data(updatedLists);
-
-      // Phase C.3.1: Repository経由でローカルストレージに保存
-      final result = await _repository.saveCustomListsToLocal(updatedLists);
-      
-      result.fold(
-        (failure) => AppLogger.warning(' Failed to reorder lists: ${failure.message}'),
-        (_) {
-          // AppSettingsのcustomListOrderも更新
-          _updateCustomListOrderInSettings(updatedLists);
-        },
+    // orderを再計算
+    for (var i = 0; i < updatedLists.length; i++) {
+      updatedLists[i] = updatedLists[i].copyWith(
+        order: i,
+        updatedAt: DateTime.now(),
       );
-    }).value;
+    }
+
+    state = AsyncValue.data(updatedLists);
+
+    // Phase C.3.1: Repository経由でローカルストレージに保存
+    final result = await _repository.saveCustomListsToLocal(updatedLists);
+    
+    result.fold(
+      (failure) => AppLogger.warning(' Failed to reorder lists: ${failure.message}'),
+      (_) {
+        // AppSettingsのcustomListOrderも更新
+        _updateCustomListOrderInSettings(updatedLists);
+      },
+    );
   }
   
   /// AppSettingsのcustomListOrderを更新
@@ -418,22 +442,57 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   }
   
   /// 削除済みイベントIDをチェックして、リストをフィルタリング
-  List<CustomList> _filterDeletedLists(List<CustomList> lists) {
+  Future<List<CustomList>> _filterDeletedLists(List<CustomList> lists) async {
     if (_deletedEventIds.isEmpty) {
       return lists;
     }
     
-    // kind 30001イベントの場合、d tagがリストIDになる
-    // カスタムリストのIDがkind 30001のd tagと一致する場合、削除済みとみなす
-    final filtered = lists.where((list) {
-      // グループリストの場合、eventIdをチェック
-      // 個人リストの場合、リスト名から生成されたIDをチェック
-      // 注: kind 30001のイベントIDは「pubkey:30001:d-tag」のようになっているが、
-      //     ここでは単純にリストIDが削除済みイベントIDに含まれるかチェック
+    // 🔥 Phase 8.7: Bug #2修正 - eventIdで削除済みリストを正しくフィルタリング
+    // Kind 5削除イベントの e タグには Nostr イベントID が含まれる
+    // list.id (名前ベースID) ではなく list.eventId (NostrイベントID) で比較する必要がある
+    
+    // eventIdがない場合、Rustから検索して設定する
+    final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
+    
+    final filtered = <CustomList>[];
+    for (final list in lists) {
+      // グループリストは削除対象外
+      if (list.isGroup) {
+        filtered.add(list);
+        continue;
+      }
       
-      // 削除済みイベントIDのセットに含まれていたら除外
-      return !_deletedEventIds.contains(list.id);
-    }).toList();
+      var isDeleted = false;
+      
+      if (list.eventId != null) {
+        // eventIdがある場合は、直接チェック
+        isDeleted = _deletedEventIds.contains(list.eventId);
+      } else if (publicKey != null) {
+        // eventIdがない場合、Rustから検索
+        try {
+          final eventId = await rust_api.findPersonalListEventId(
+            listId: list.id,
+            publicKeyHex: publicKey,
+          );
+          
+          if (eventId != null) {
+            isDeleted = _deletedEventIds.contains(eventId);
+            
+            if (isDeleted) {
+              AppLogger.debug('🗑️ [CustomLists] Found deleted list via Rust search: "${list.name}" (eventId: ${eventId.substring(0, 16)}...)');
+            }
+          }
+        } catch (e) {
+          AppLogger.warning('⚠️ [CustomLists] Failed to search eventId for list: ${list.name} ($e)');
+        }
+      }
+      
+      if (isDeleted) {
+        AppLogger.debug('🗑️ [CustomLists] Filtering deleted list: "${list.name}"');
+      } else {
+        filtered.add(list);
+      }
+    }
     
     if (filtered.length < lists.length) {
       AppLogger.info('🗑️ [CustomLists] Filtered out ${lists.length - filtered.length} deleted lists');
@@ -514,7 +573,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     AppLogger.info(' [CustomLists] 📊 Sync result: hasChanges=$hasChanges, updatedListsCount=${updatedLists.length}, needsStateUpdate=$needsStateUpdate');
     
     // Issue #80: 削除済みリストをフィルタリング
-    final filteredLists = _filterDeletedLists(updatedLists);
+    final filteredLists = await _filterDeletedLists(updatedLists);
     
     // 変更があった場合、または stateの更新が必要な場合
     if (hasChanges || needsStateUpdate) {
@@ -996,42 +1055,47 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     required String groupId,
     required String memberPubkey,
   }) async {
-    await state.whenData((lists) async {
-      final listIndex = lists.indexWhere((l) => l.id == groupId && l.isGroup);
-      if (listIndex == -1) {
-        AppLogger.warning('⚠️ Group list not found: $groupId');
-        return;
-      }
-      
-      final groupList = lists[listIndex];
-      
-      // 既にメンバーの場合はスキップ
-      if (groupList.groupMembers.contains(memberPubkey)) {
-        AppLogger.info('ℹ️ Member already exists in group: $groupId');
-        return;
-      }
-      
-      // メンバーを追加
-      final updatedMembers = [...groupList.groupMembers, memberPubkey];
-      final updatedList = groupList.copyWith(
-        groupMembers: updatedMembers,
-        updatedAt: DateTime.now(),
-      );
-      
-      final updatedLists = [...lists];
-      updatedLists[listIndex] = updatedList;
-      
-      // Phase C.3.1: Repository経由でローカルストレージに保存
-      final result = await _repository.saveCustomListsToLocal(updatedLists);
-      
-      result.fold(
-        (failure) => AppLogger.warning('⚠️ Failed to add member: ${failure.message}'),
-        (_) {
-          state = AsyncValue.data(updatedLists);
-          AppLogger.info('✅ Added member to group list: ${groupList.name}');
-        },
-      );
-    }).value;
+    // 🔥 Phase 8.7: Bug #2修正 - state.whenData() → valueOrNull に変更
+    final lists = state.valueOrNull;
+    if (lists == null) {
+      AppLogger.warning('⚠️ [CustomLists] CustomListsProvider state is null, cannot add member to group list.');
+      return;
+    }
+
+    final listIndex = lists.indexWhere((l) => l.id == groupId && l.isGroup);
+    if (listIndex == -1) {
+      AppLogger.warning('⚠️ Group list not found: $groupId');
+      return;
+    }
+    
+    final groupList = lists[listIndex];
+    
+    // 既にメンバーの場合はスキップ
+    if (groupList.groupMembers.contains(memberPubkey)) {
+      AppLogger.info('ℹ️ Member already exists in group: $groupId');
+      return;
+    }
+    
+    // メンバーを追加
+    final updatedMembers = [...groupList.groupMembers, memberPubkey];
+    final updatedList = groupList.copyWith(
+      groupMembers: updatedMembers,
+      updatedAt: DateTime.now(),
+    );
+    
+    final updatedLists = [...lists];
+    updatedLists[listIndex] = updatedList;
+    
+    // Phase C.3.1: Repository経由でローカルストレージに保存
+    final result = await _repository.saveCustomListsToLocal(updatedLists);
+    
+    result.fold(
+      (failure) => AppLogger.warning('⚠️ Failed to add member: ${failure.message}'),
+      (_) {
+        state = AsyncValue.data(updatedLists);
+        AppLogger.info('✅ Added member to group list: ${groupList.name}');
+      },
+    );
   }
   
   /// グループリストからメンバーを削除
@@ -1039,44 +1103,49 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     required String groupId,
     required String memberPubkey,
   }) async {
-    await state.whenData((lists) async {
-      final listIndex = lists.indexWhere((l) => l.id == groupId && l.isGroup);
-      if (listIndex == -1) {
-        AppLogger.warning('⚠️ Group list not found: $groupId');
-        return;
-      }
-      
-      final groupList = lists[listIndex];
-      
-      // メンバーを削除
-      final updatedMembers = groupList.groupMembers
-          .where((pubkey) => pubkey != memberPubkey)
-          .toList();
-      
-      if (updatedMembers.isEmpty) {
-        AppLogger.warning('⚠️ Cannot remove last member from group');
-        return;
-      }
-      
-      final updatedList = groupList.copyWith(
-        groupMembers: updatedMembers,
-        updatedAt: DateTime.now(),
-      );
-      
-      final updatedLists = [...lists];
-      updatedLists[listIndex] = updatedList;
-      
-      // Phase C.3.1: Repository経由でローカルストレージに保存
-      final result = await _repository.saveCustomListsToLocal(updatedLists);
-      
-      result.fold(
-        (failure) => AppLogger.warning('⚠️ Failed to remove member: ${failure.message}'),
-        (_) {
-          state = AsyncValue.data(updatedLists);
-          AppLogger.info('✅ Removed member from group list: ${groupList.name}');
-        },
-      );
-    }).value;
+    // 🔥 Phase 8.7: Bug #2修正 - state.whenData() → valueOrNull に変更
+    final lists = state.valueOrNull;
+    if (lists == null) {
+      AppLogger.warning('⚠️ [CustomLists] CustomListsProvider state is null, cannot remove member from group list.');
+      return;
+    }
+
+    final listIndex = lists.indexWhere((l) => l.id == groupId && l.isGroup);
+    if (listIndex == -1) {
+      AppLogger.warning('⚠️ Group list not found: $groupId');
+      return;
+    }
+    
+    final groupList = lists[listIndex];
+    
+    // メンバーを削除
+    final updatedMembers = groupList.groupMembers
+        .where((pubkey) => pubkey != memberPubkey)
+        .toList();
+    
+    if (updatedMembers.isEmpty) {
+      AppLogger.warning('⚠️ Cannot remove last member from group');
+      return;
+    }
+    
+    final updatedList = groupList.copyWith(
+      groupMembers: updatedMembers,
+      updatedAt: DateTime.now(),
+    );
+    
+    final updatedLists = [...lists];
+    updatedLists[listIndex] = updatedList;
+    
+    // Phase C.3.1: Repository経由でローカルストレージに保存
+    final result = await _repository.saveCustomListsToLocal(updatedLists);
+    
+    result.fold(
+      (failure) => AppLogger.warning('⚠️ Failed to remove member: ${failure.message}'),
+      (_) {
+        state = AsyncValue.data(updatedLists);
+        AppLogger.info('✅ Removed member from group list: ${groupList.name}');
+      },
+    );
   }
   
   /// Nostrからグループリストを同期
@@ -1179,7 +1248,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       }
       
       // Issue #80: 削除済みリストをフィルタリング
-      final filteredLists = _filterDeletedLists(updatedLists);
+      final filteredLists = await _filterDeletedLists(updatedLists);
       
       // 変更があった場合、または stateの更新が必要な場合
       if (hasChanges || needsStateUpdate) {
@@ -1273,8 +1342,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             },
           );
         },
-        (_) {
+        (_) async {
           AppLogger.info('✅ [CustomLists] Successfully deleted personal list from Nostr: ${targetList.name}');
+          
+          // 🔥 Phase 8.7: Bug #2修正 - 削除済みイベントIDを記録して、再同期時に復活しないようにする
+          _deletedEventIds.add(eventId);
+          final saveResult = await _repository.saveDeletedEventIds(_deletedEventIds);
+          saveResult.fold(
+            (failure) => AppLogger.warning('⚠️ [CustomLists] Failed to save deleted event ID: ${failure.message}'),
+            (_) => AppLogger.debug('💾 [CustomLists] Saved deleted event ID (total: ${_deletedEventIds.length})'),
+          );
         },
       );
     } catch (e, stack) {

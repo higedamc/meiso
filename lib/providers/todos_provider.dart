@@ -3430,9 +3430,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       await localStorageService.saveTodos(allTodos);
       
-      // 🔥 重要: state.whenData()ではなく直接更新
-      // これにより、stateがloading/errorの場合でも確実にdataに更新される
-      _setTodosStateAsync(updated);
+      // 🔥 Phase 8.7: グループTODO受信時は即座にUI更新
+      // addPostFrameCallback による遅延ではなく、即座に state を更新する
+      // これにより、受信したTODOが即座にUIに反映される
+      state = AsyncValue.data(updated);
+      AppLogger.info('🎨 [MLS] UI updated immediately with received group todos');
       
       AppLogger.info('✅ [MLS] Group todos synced to local storage');
       await localStorageService.setLastMlsGroupTodosSyncTime(groupId, DateTime.now());
@@ -3546,7 +3548,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // 新しいタスクを追加
       updated[date]!.insert(0, newTodo);
       
-      _setTodosStateAsync(updated);
+      // 🔥 Phase 8.7: グループTODO追加時は即座にUI更新
+      // addPostFrameCallback による遅延ではなく、即座に state を更新する
+      state = AsyncValue.data(updated);
+      AppLogger.info('🎨 [Group] UI updated immediately for new group todo');
       
       // ローカルストレージに保存
       final allTodos = <Todo>[];
@@ -3589,7 +3594,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }).toList();
       }
       
-      _setTodosStateAsync(updated);
+      // 🔥 Phase 8.7: グループTODO更新時は即座にUI更新
+      state = AsyncValue.data(updated);
+      AppLogger.info('🎨 [Group] UI updated immediately for updated group todo');
       
       // ローカルストレージに保存
       final allTodos = <Todo>[];
