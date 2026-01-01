@@ -19,6 +19,8 @@ echo ""
 echo "🦀 Building Rust library (release mode)..."
 cd rust
 if command -v cargo &> /dev/null; then
+    # Ensure rustup's cargo is used instead of Homebrew's
+    export PATH="$HOME/.cargo/bin:$PATH"
     cargo build --release
 else
     echo "❌ Error: cargo command not found. Please install Rust."
