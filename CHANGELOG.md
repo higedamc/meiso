@@ -5,6 +5,36 @@ All notable changes to Meiso will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-01-01
+
+### Added
+- **MLS Group Todo Lists (Beta)**
+  - Full bidirectional synchronization (Alice ↔ Bob)
+  - Real-time group task sharing with instant UI updates
+  - Secure group communication via MLS protocol
+  - Group invitation and acceptance flow
+
+### Fixed
+- **Bug #1**: Fixed invitation mark reappearing after app restart for accepted group lists
+  - Added `acceptedAt` field to track accepted invitations
+  - Modified `syncGroupInvitations()` to preserve accepted state
+  - Resolved race condition in `CustomListsProvider.updateList()`
+- **Bug #2**: Fixed "Zombie List" problem where deleted lists immediately reappeared
+  - Corrected `_filterDeletedLists()` to use `list.eventId` instead of `list.id`
+  - Added Rust API fallback to find event IDs for personal lists
+  - Fixed `deleteList()` to properly update `_deletedEventIds`
+- **Bug #3**: Fixed UI update delay for MLS group todos
+  - Changed `_syncMlsGroupTodos()`, `addTodoToGroup()`, and `updateTodoInGroup()` to update state immediately
+  - Removed unnecessary `_setTodosStateAsync()` calls that delayed UI updates
+
+### Changed
+- All state update methods in `CustomListsProvider` now use `state.valueOrNull` instead of `state.whenData()` to prevent race conditions
+- Improved error handling and logging for MLS group operations
+
+### Technical
+- Major refactoring of `lib/providers/custom_lists_provider.dart` (461 lines changed)
+- Updated `lib/providers/todos_provider.dart` for immediate state updates
+
 ## [1.0.0] - 2025-11-21
 
 ### Added
