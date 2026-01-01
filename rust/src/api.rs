@@ -166,6 +166,72 @@ pub fn fetch_mls_group_todo_events_since(
     fetch_mls_group_todo_events_since_with_client_id(listen_key, since, timeout_secs, None)
 }
 
+/// Phase 8.3: kind:445 + #h フィルタで MLS Group Events を取得（one-shot fetch）
+/// 
+/// subscription方式ではなく、直接fetch_events()を使用してより確実に取得する
+/// 
+/// - `group_id`: グループID（#h タグの値）
+/// - `since`: UNIX秒（0なら全件取得）
+/// - `timeout_secs`: タイムアウト秒
+pub fn fetch_mls_group_events_by_group_id(
+    group_id: String,
+    since: i64,
+    timeout_secs: u64,
+) -> Result<Vec<ReceivedEvent>> {
+    fetch_mls_group_events_by_group_id_with_client_id(group_id, since, timeout_secs, None)
+}
+
+pub fn fetch_mls_group_events_by_group_id_with_client_id(
+    group_id: String,
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<ReceivedEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+
+        // kind:445 + #h:<group_id> フィルタを構築
+        let mut filter = Filter::new()
+            .kind(Kind::Custom(445)) // NIP-EE: MLS Group Event
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::H),
+                vec![group_id.clone()],
+            );
+
+        if since > 0 {
+            let since_u64 = since.max(0) as u64;
+            filter = filter.since(Timestamp::from(since_u64));
+        }
+
+        println!("📡 [Rust] Fetching kind:445 events with #h={}", group_id);
+        println!("📡 [Rust] since: {} ({})", since, if since == 0 { "all events" } else { "after timestamp" });
+
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+
+        println!("📨 [Rust] Fetched {} kind:445 events for group {}", events.len(), &group_id[..16]);
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let received: Vec<ReceivedEvent> = events
+            .into_iter()
+            .map(|event| ReceivedEvent {
+                event_id: event.id.to_hex(),
+                kind: event.kind.as_u16() as u64,
+                created_at: event.created_at.as_u64() as i64,
+                event_json: event.as_json(),
+                received_at: now,
+                subscription_id: String::new(), // fetch用途なので空文字
+            })
+            .collect();
+
+        Ok(received)
+    })
+}
+
 pub fn fetch_mls_group_todo_events_since_with_client_id(
     listen_key: String,
     since: i64,

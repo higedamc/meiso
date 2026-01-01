@@ -1104,6 +1104,20 @@ class NostrService {
 
       AppLogger.info('✅ [MLS] Group event sent (kind:445)');
       AppLogger.info('   Event ID: ${sendResult.eventId.substring(0, 16)}...');
+      AppLogger.info('   Success: ${sendResult.success}');
+      AppLogger.info('   Successful relays: ${sendResult.successfulRelays}');
+      AppLogger.info('   Failed relays: ${sendResult.failedRelays}');
+      AppLogger.info('   Timed out: ${sendResult.timedOut}');
+      
+      if (sendResult.errorMessage != null) {
+        AppLogger.warning('   Error: ${sendResult.errorMessage}');
+      }
+      
+      // 🔥 重要: 少なくとも1つのリレーに成功していない場合はnullを返す
+      if (sendResult.successfulRelays == 0) {
+        AppLogger.error('❌ [MLS] Failed to send to any relay!');
+        return null;
+      }
 
       return sendResult.eventId;
       
@@ -1165,34 +1179,30 @@ class NostrService {
   /// ✅ 体感改善: MLS group events(kind:445) を since で差分取得（短タイムアウト）
   ///
   /// [since]: 取得開始時刻（この時刻以降のイベントを取得）
+  /// Phase 8.3 Fix: subscription方式から fetch_events() に変更
+  /// 
+  /// より確実にイベントを取得するため、Rust側の fetch_events() を直接使用する
   Future<List<rust_api.ReceivedEvent>> fetchMlsGroupTodoEventsSince({
     required String groupId,
     required DateTime since,
-    int timeoutSeconds = 3,
+    int timeoutSeconds = 5,
   }) async {
     try {
       final sinceSec = since.millisecondsSinceEpoch ~/ 1000;
-      if (_subscriptionService == null) {
-        throw Exception('Subscription service not initialized');
-      }
+      
+      AppLogger.debug('📡 [MLS] Fetching events with filter (fetch_events):');
+      AppLogger.debug('   kinds: [445]');
+      AppLogger.debug('   #h: [$groupId]');
+      AppLogger.debug('   since: $sinceSec (${since.toIso8601String()})');
 
-      final filters = [
-        {
-          'kinds': [445],
-          '#h': [groupId],
-          'since': sinceSec,
-        }
-      ];
-
-      final events = <rust_api.ReceivedEvent>[];
-
-      final subscriptionId = await _subscriptionService!.startSubscription(
-        filters: filters,
-        onEventsReceived: events.addAll,
+      // 🔥 Phase 8.3 Fix: subscription方式ではなく、one-shot fetch を使用
+      final events = await rust_api.fetchMlsGroupEventsByGroupId(
+        groupId: groupId,
+        since: sinceSec, // PlatformInt64 = int
+        timeoutSecs: BigInt.from(timeoutSeconds), // BigInt
       );
-
-      await Future<void>.delayed(Duration(seconds: timeoutSeconds));
-      await _subscriptionService!.stopSubscription(subscriptionId);
+      
+      AppLogger.info('📨 [MLS] Received ${events.length} events for group $groupId');
 
       return events;
     } catch (e, st) {

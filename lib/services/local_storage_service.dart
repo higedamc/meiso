@@ -506,7 +506,7 @@ class LocalStorageService {
     }
   }
 
-  Future<void> setLastMlsGroupTodosSyncTime(String groupId, DateTime dateTime) async {
+  Future<void> setLastMlsGroupTodosSyncTime(String groupId, DateTime? dateTime) async {
     if (_settingsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
@@ -516,7 +516,12 @@ class LocalStorageService {
         ? raw.map((k, v) => MapEntry(k.toString(), v))
         : <String, dynamic>{};
 
-    map[groupId] = dateTime.toIso8601String();
+    if (dateTime == null) {
+      // nullの場合はマップから削除（初回同期として扱う）
+      map.remove(groupId);
+    } else {
+      map[groupId] = dateTime.toIso8601String();
+    }
     await _settingsBox!.put(_lastMlsGroupTodosSyncTimesKey, map);
   }
 

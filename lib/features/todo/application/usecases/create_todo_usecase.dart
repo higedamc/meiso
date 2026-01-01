@@ -112,6 +112,7 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
         customListId: params.customListId,
         recurrence: autoRecurrence, // 自動検出された繰り返しパターンを設定
         linkPreview: initialLinkPreview, // 一時的なリンクプレビューを設定
+        needsSync: true, // 🔥 Phase 8.3: 新規作成Todoは同期が必要
       );
 
       AppLogger.info('✅ Created new Todo object:');

@@ -401,8 +401,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           };
 
           // 【楽観的UI更新】即座にUI更新
-          _setTodosStateAsync(updatedTodos);
-          AppLogger.info(' UI updated immediately (optimistic)');
+          // 🔥 Phase 8.3 Fix: グループTodoの場合、state を即座に更新
+          // （_syncGroupToNostr() が state.valueOrNull を読み取るため）
+          final isGroupTodo = customListId != null;
+          if (isGroupTodo) {
+            state = AsyncValue.data(updatedTodos);
+            AppLogger.info(' UI updated immediately (group todo)');
+          } else {
+            _setTodosStateAsync(updatedTodos);
+            AppLogger.info(' UI updated immediately (optimistic)');
+          }
 
           // 以下、全てバックグラウンドで実行（UIをブロックしない）
           // Future.microtaskで真のバックグラウンド実行
@@ -486,6 +494,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }).value ?? false;
         
         if (isGroup) {
+          // 🔥 Phase 8.3 Fix: グループTodoをローカルストレージに保存
+          await _saveAllTodosToLocal();
           AppLogger.info('📤 Syncing to group list: $customListId');
           _syncToNostr(() async {
             await _syncGroupToNostr(customListId);
@@ -1557,16 +1567,108 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
     final unsyncedTodos = _getUnsyncedTodos();
     
-    if (unsyncedTodos.isEmpty) {
-      AppLogger.info(' No unsynced todos - skipping batch sync');
-      return;
+    // 🔥 Phase 8.3 Fix: 送信すべきTodoの処理
+    if (unsyncedTodos.isNotEmpty) {
+      AppLogger.info(' Batch sync: ${unsyncedTodos.length} unsynced todos found');
+      
+      // グループTodoと個人Todoを分けて処理
+      final groupTodos = <String, List<Todo>>{}; // groupId -> todos
+      final personalTodos = <Todo>[];
+      
+      for (final todo in unsyncedTodos) {
+        if (todo.customListId != null) {
+          // カスタムリストに属するTodo → グループかどうか確認
+          final customListsAsync = _ref.read(customListsProvider);
+          final isGroup = await customListsAsync.whenData((customLists) async {
+            final list = customLists.firstWhere(
+              (l) => l.id == todo.customListId, 
+              orElse: () => CustomList(
+                id: '', 
+                name: '', 
+                createdAt: DateTime.now(), 
+                updatedAt: DateTime.now(),
+              ),
+            );
+            return list.isGroup;
+          }).value ?? false;
+          
+          if (isGroup) {
+            groupTodos[todo.customListId!] ??= [];
+            groupTodos[todo.customListId!]!.add(todo);
+          } else {
+            personalTodos.add(todo);
+          }
+        } else {
+          personalTodos.add(todo);
+        }
+      }
+      
+      // グループTodoを送信（各グループごと）
+      if (groupTodos.isNotEmpty) {
+        AppLogger.info(' Sending ${groupTodos.length} group lists (${groupTodos.values.fold(0, (sum, list) => sum + list.length)} todos)');
+        for (final groupId in groupTodos.keys) {
+          _syncToNostr(() async {
+            await _syncGroupToNostr(groupId);
+          });
+        }
+      }
+      
+      // 個人Todoを送信
+      if (personalTodos.isNotEmpty) {
+        AppLogger.info(' Sending ${personalTodos.length} personal todos');
+        _syncToNostrBackground();
+      }
     }
-
-    AppLogger.info(' Batch sync: ${unsyncedTodos.length} unsynced todos found');
-    AppLogger.debug(' Syncing to Nostr...');
     
-    // バックグラウンドで同期
-    _syncToNostrBackground();
+    // 🔥 Phase 8.3 Fix: MLSグループTodoの定期受信（全グループ）
+    // ⚠️ 重要: 送信すべきTodoがなくても、受信処理は常に実行する
+    await _syncAllMlsGroupTodos();
+  }
+  
+  /// 全MLSグループからTodoを受信（Phase 8.3）
+  Future<void> _syncAllMlsGroupTodos() async {
+    try {
+      final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
+      if (publicKey == null) {
+        return;
+      }
+      
+      // 全カスタムリストを取得
+      final customListsAsync = _ref.read(customListsProvider);
+      final customLists = await customListsAsync.whenData((lists) => lists).value;
+      if (customLists == null) {
+        return;
+      }
+      
+      // MLSグループのみをフィルタリング
+      final mlsGroups = customLists.where((list) => 
+        list.isGroup && !list.isPendingInvitation
+      ).toList();
+      
+      if (mlsGroups.isEmpty) {
+        AppLogger.debug('📭 [MLS] No MLS groups to sync');
+        return;
+      }
+      
+      AppLogger.info('📥 [MLS] Syncing ${mlsGroups.length} MLS groups for new todos...');
+      
+      // 各グループからTodoを受信
+      for (final group in mlsGroups) {
+        try {
+          await _syncMlsGroupTodos(
+            groupId: group.id,
+            publicKey: publicKey,
+          );
+        } catch (e) {
+          AppLogger.warning('⚠️ [MLS] Failed to sync group ${group.name}: $e');
+          // エラーは無視して他のグループを続行
+        }
+      }
+      
+      AppLogger.info('✅ [MLS] Completed syncing all MLS groups');
+    } catch (e) {
+      AppLogger.error('❌ [MLS] Failed to sync all MLS groups: $e');
+    }
   }
 
   /// Notifierがdisposeされたときにタイマーをキャンセル
@@ -3199,10 +3301,22 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       // 1. Group Event(kind:445 + #h) を取得（NIP-EE準拠）
       final nostrService = _ref.read(nostrServiceProvider);
+      
+      // 🔥 TEMPORARY DEBUG: 同期時刻を強制リセット（初回同期として扱う）
+      // TODO: Phase 8.4で削除
+      await localStorageService.setLastMlsGroupTodosSyncTime(groupId, null);
+      
       final last = localStorageService.getLastMlsGroupTodosSyncTime(groupId);
-      // クロックスキュー/EOSE遅延対策で少し巻き戻して取得
-      final effectiveSince = (last ?? DateTime.fromMillisecondsSinceEpoch(0))
-          .subtract(const Duration(minutes: 2));
+      
+      // 🔥 Phase 8.3 Fix: 初回同期時は since:0 で全イベントを取得
+      // その後は前回の同期時刻から2分前を起点にする（クロックスキュー対策）
+      final effectiveSince = last != null
+          ? last.subtract(const Duration(minutes: 2))
+          : DateTime.fromMillisecondsSinceEpoch(0);
+      
+      AppLogger.debug('🕐 [MLS] Last sync: ${last?.toIso8601String() ?? "never"}');
+      AppLogger.debug('🕐 [MLS] Effective since: ${effectiveSince.toIso8601String()}');
+      
       final events = await nostrService.fetchMlsGroupTodoEventsSince(
         groupId: groupId,
         since: effectiveSince,
@@ -3410,6 +3524,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       createdAt: now,
       updatedAt: now,
       customListId: groupId,
+      needsSync: true, // 🔥 Phase 8.3: グループTodoは同期が必要
     );
     
     // 楽観的UI更新
@@ -3862,11 +3977,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
       
-      // Phase 8.3: MLSグループ判定
-      // TODO: グループメンバー情報からMLS/旧実装を判定
-      // 現在はgroupMembersが空でない = MLSグループと仮定
-      final isMlsGroup = groupList.groupMembers.isNotEmpty || 
-                        groupList.isPendingInvitation; // 招待済みグループもMLS
+      // Phase 8.3: MLSグループ判定（改善版）
+      // 
+      // 判定基準:
+      // 1. isGroup=true かつ groupMembers が空でない → 確実にMLS
+      // 2. isGroup=true のみ → デフォルトでMLSとして扱う（Phase 8.4で旧実装廃止のため）
+      // 3. isPendingInvitation=true → まだ未受諾なので旧実装
+      //
+      // 🔥 重要: Phase 8.4で旧実装（kind: 30001）は完全廃止予定のため、
+      // isGroup=true ならデフォルトでMLSとして扱う
+      final isMlsGroup = groupList.isGroup && !groupList.isPendingInvitation;
       
       String? eventId;
       

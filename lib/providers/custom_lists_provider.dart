@@ -196,28 +196,29 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
   /// リストを更新
   Future<void> updateList(CustomList list) async {
-    await state.whenData((lists) async {
-      final index = lists.indexWhere((l) => l.id == list.id);
-      if (index == -1) return;
+    // 🔥 Phase D.9.2: state.whenData() → valueOrNull に変更
+    // syncGroupInvitations() と並行実行される場合にレースコンディションが発生するため
+    final lists = state.valueOrNull ?? [];
+    final index = lists.indexWhere((l) => l.id == list.id);
+    if (index == -1) return;
 
-      final updatedList = list.copyWith(updatedAt: DateTime.now());
-      final updatedLists = [...lists];
-      updatedLists[index] = updatedList;
+    final updatedList = list.copyWith(updatedAt: DateTime.now());
+    final updatedLists = [...lists];
+    updatedLists[index] = updatedList;
 
-      state = AsyncValue.data(updatedLists);
+    state = AsyncValue.data(updatedLists);
 
-      // Phase C.3.1: Repository経由でローカルストレージに保存
-      final result = await _repository.saveCustomListsToLocal(updatedLists);
-      
-      result.fold(
-        (failure) => AppLogger.warning(' Failed to update list: ${failure.message}'),
-        (_) {
-          // リスト名が変更された場合、IDも変わる可能性があるため、
-          // customListOrderも更新（ただし現在はIDは不変なので、実質影響なし）
-          _updateCustomListOrderInSettings(updatedLists);
-        },
-      );
-    }).value;
+    // Phase C.3.1: Repository経由でローカルストレージに保存
+    final result = await _repository.saveCustomListsToLocal(updatedLists);
+    
+    result.fold(
+      (failure) => AppLogger.warning(' Failed to update list: ${failure.message}'),
+      (_) {
+        // リスト名が変更された場合、IDも変わる可能性があるため、
+        // customListOrderも更新（ただし現在はIDは不変なので、実質影響なし）
+        _updateCustomListOrderInSettings(updatedLists);
+      },
+    );
   }
 
   /// リストを削除
