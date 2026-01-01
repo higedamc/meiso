@@ -270,7 +270,7 @@ fi
 # build_runner
 if [ "$RUN_BUILD_RUNNER" = true ]; then
   echo -e "${BLUE}🔧 build_runnerを実行中...${NC}"
-  if ! fvm flutter pub run build_runner build --delete-conflicting-outputs; then
+  if ! fvm dart run build_runner build --delete-conflicting-outputs; then
     echo -e "${RED}エラー: build_runnerに失敗しました${NC}"
     exit 1
   fi
