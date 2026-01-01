@@ -40,6 +40,10 @@ class CustomList with _$CustomList {
     /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
     String? welcomeMsg,
     
+    /// 招待を承諾した日時（Phase 8.7: Bug #1修正）
+    /// この値が存在する場合、招待は既に承諾済みと見なす
+    DateTime? acceptedAt,
+    
     /// NostrイベントID（Phase E: リスト削除・更新の同期用）
     /// Personal Listのリモート削除・更新に必要
     String? eventId,

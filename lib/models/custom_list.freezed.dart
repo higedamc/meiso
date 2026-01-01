@@ -54,6 +54,10 @@ mixin _$CustomList {
   /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
   String? get welcomeMsg => throw _privateConstructorUsedError;
 
+  /// 招待を承諾した日時（Phase 8.7: Bug #1修正）
+  /// この値が存在する場合、招待は既に承諾済みと見なす
+  DateTime? get acceptedAt => throw _privateConstructorUsedError;
+
   /// NostrイベントID（Phase E: リスト削除・更新の同期用）
   /// Personal Listのリモート削除・更新に必要
   String? get eventId => throw _privateConstructorUsedError;
@@ -87,6 +91,7 @@ abstract class $CustomListCopyWith<$Res> {
     String? inviterNpub,
     String? inviterName,
     String? welcomeMsg,
+    DateTime? acceptedAt,
     String? eventId,
   });
 }
@@ -117,6 +122,7 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
     Object? inviterNpub = freezed,
     Object? inviterName = freezed,
     Object? welcomeMsg = freezed,
+    Object? acceptedAt = freezed,
     Object? eventId = freezed,
   }) {
     return _then(
@@ -165,6 +171,10 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
                 ? _value.welcomeMsg
                 : welcomeMsg // ignore: cast_nullable_to_non_nullable
                       as String?,
+            acceptedAt: freezed == acceptedAt
+                ? _value.acceptedAt
+                : acceptedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
             eventId: freezed == eventId
                 ? _value.eventId
                 : eventId // ignore: cast_nullable_to_non_nullable
@@ -196,6 +206,7 @@ abstract class _$$CustomListImplCopyWith<$Res>
     String? inviterNpub,
     String? inviterName,
     String? welcomeMsg,
+    DateTime? acceptedAt,
     String? eventId,
   });
 }
@@ -225,6 +236,7 @@ class __$$CustomListImplCopyWithImpl<$Res>
     Object? inviterNpub = freezed,
     Object? inviterName = freezed,
     Object? welcomeMsg = freezed,
+    Object? acceptedAt = freezed,
     Object? eventId = freezed,
   }) {
     return _then(
@@ -273,6 +285,10 @@ class __$$CustomListImplCopyWithImpl<$Res>
             ? _value.welcomeMsg
             : welcomeMsg // ignore: cast_nullable_to_non_nullable
                   as String?,
+        acceptedAt: freezed == acceptedAt
+            ? _value.acceptedAt
+            : acceptedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
         eventId: freezed == eventId
             ? _value.eventId
             : eventId // ignore: cast_nullable_to_non_nullable
@@ -297,6 +313,7 @@ class _$CustomListImpl implements _CustomList {
     this.inviterNpub,
     this.inviterName,
     this.welcomeMsg,
+    this.acceptedAt,
     this.eventId,
   });
 
@@ -351,6 +368,11 @@ class _$CustomListImpl implements _CustomList {
   @override
   final String? welcomeMsg;
 
+  /// 招待を承諾した日時（Phase 8.7: Bug #1修正）
+  /// この値が存在する場合、招待は既に承諾済みと見なす
+  @override
+  final DateTime? acceptedAt;
+
   /// NostrイベントID（Phase E: リスト削除・更新の同期用）
   /// Personal Listのリモート削除・更新に必要
   @override
@@ -358,7 +380,7 @@ class _$CustomListImpl implements _CustomList {
 
   @override
   String toString() {
-    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg, eventId: $eventId)';
+    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg, acceptedAt: $acceptedAt, eventId: $eventId)';
   }
 
   @override
@@ -386,6 +408,8 @@ class _$CustomListImpl implements _CustomList {
                 other.inviterName == inviterName) &&
             (identical(other.welcomeMsg, welcomeMsg) ||
                 other.welcomeMsg == welcomeMsg) &&
+            (identical(other.acceptedAt, acceptedAt) ||
+                other.acceptedAt == acceptedAt) &&
             (identical(other.eventId, eventId) || other.eventId == eventId));
   }
 
@@ -404,6 +428,7 @@ class _$CustomListImpl implements _CustomList {
     inviterNpub,
     inviterName,
     welcomeMsg,
+    acceptedAt,
     eventId,
   );
 
@@ -434,6 +459,7 @@ abstract class _CustomList implements CustomList {
     final String? inviterNpub,
     final String? inviterName,
     final String? welcomeMsg,
+    final DateTime? acceptedAt,
     final String? eventId,
   }) = _$CustomListImpl;
 
@@ -483,6 +509,11 @@ abstract class _CustomList implements CustomList {
   /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
   @override
   String? get welcomeMsg;
+
+  /// 招待を承諾した日時（Phase 8.7: Bug #1修正）
+  /// この値が存在する場合、招待は既に承諾済みと見なす
+  @override
+  DateTime? get acceptedAt;
 
   /// NostrイベントID（Phase E: リスト削除・更新の同期用）
   /// Personal Listのリモート削除・更新に必要

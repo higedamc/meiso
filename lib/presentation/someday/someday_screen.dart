@@ -932,6 +932,8 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             inviterNpub: null,
             inviterName: null,
             welcomeMsg: null,
+            // 🔥 Phase 8.7: Bug #1修正 - 承諾日時を記録して再表示を防ぐ
+            acceptedAt: DateTime.now(),
             // Rust側から取得した実メンバー情報を保存（後続のUI/同期で参照可能に）
             groupMembers: mlsGroup.memberPubkeys,
           );

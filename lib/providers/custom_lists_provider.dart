@@ -613,6 +613,13 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             } else {
               // 既存のリストを更新（招待情報を追加）
               final existingList = updatedLists[existingIndex];
+              
+              // 🔥 Phase 8.7: Bug #1修正 - 承諾済み（acceptedAt != null）は絶対に上書きしない
+              if (existingList.acceptedAt != null) {
+                AppLogger.info('ℹ️ [GroupInvitations] Skipping already accepted invitation: ${invitation.groupName}');
+                continue; // 承諾済みリストは更新しない
+              }
+              
               // ✅ 受諾済み（isPendingInvitation=false）に戻すことは絶対にしない
               // Nostr上の招待イベントが残っていても、ローカルの受諾状態を優先する。
               if (existingList.isPendingInvitation) {
