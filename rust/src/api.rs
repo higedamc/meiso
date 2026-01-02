@@ -16,6 +16,24 @@ pub enum ClientMode {
     Amber { public_key_hex: String },
 }
 
+/// Tor接続モード
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum TorMode {
+    /// Tor無効（直接接続）
+    Disabled,
+    /// 内蔵Tor (Embedded Tor)
+    Internal,
+    /// Orbot経由 (SOCKS5 Proxy)
+    Orbot,
+}
+
+impl Default for TorMode {
+    fn default() -> Self {
+        TorMode::Disabled
+    }
+}
+
 /// イベント送信結果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventSendResult {
@@ -71,10 +89,10 @@ pub struct AppSettings {
     pub notifications_enabled: bool,
     /// リレーリスト（NIP-65 kind 10002から同期）
     pub relays: Vec<String>,
-    /// Tor有効/無効（Orbot経由での接続）
+    /// Tor接続モード
     #[serde(default)]
-    pub tor_enabled: bool,
-    /// プロキシURL（通常は socks5://127.0.0.1:9050）
+    pub tor_mode: TorMode,
+    /// プロキシURL（Orbotモード使用時、通常は socks5://127.0.0.1:9050）
     #[serde(default = "default_proxy_url")]
     pub proxy_url: String,
     /// カスタムリストの順番（リストIDの配列）
@@ -290,10 +308,95 @@ pub struct MeisoNostrClient {
 impl MeisoNostrClient {
     /// 新しいクライアントを作成（秘密鍵から）
     pub async fn new(secret_key_hex: &str, relays: Vec<String>) -> Result<Self> {
-        Self::new_with_proxy(secret_key_hex, relays, None).await
+        Self::new_with_tor_mode(secret_key_hex, relays, TorMode::Disabled, None).await
+    }
+
+    /// 新しいクライアントを作成（Torモード指定）
+    pub async fn new_with_tor_mode(
+        secret_key_hex: &str,
+        relays: Vec<String>,
+        tor_mode: TorMode,
+        proxy_url: Option<String>,
+    ) -> Result<Self> {
+        println!("Parsing secret key (format: {})", 
+            if secret_key_hex.starts_with("nsec") { "nsec" } else { "hex" });
+        
+        let keys = Keys::parse(secret_key_hex)
+            .map_err(|e| anyhow::anyhow!("秘密鍵のパースに失敗 ({}): {}. フォーマットを確認してください (hex or nsec1...)", 
+                if secret_key_hex.starts_with("nsec") { "nsec形式" } else { "hex形式" }, e))?;
+
+        // Torモードに応じてクライアントを作成
+        let client = match tor_mode {
+            TorMode::Disabled => {
+                println!("🔓 Direct connection (no Tor)");
+                Client::new(keys.clone())
+            }
+            TorMode::Internal => {
+                // Embedded Tor: tor featureが有効な場合、.onion リレーへの接続時に自動的に使用される
+                println!("🔐 Embedded Tor を有効化 (自動: .onion リレー検出時)");
+                Client::new(keys.clone())
+            }
+            TorMode::Orbot => {
+                // Orbotモード: SOCKS5プロキシ経由（環境変数で設定）
+                let proxy = proxy_url.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Proxy URL is required for Orbot mode"))?;
+                    
+                println!("🔐 Connecting via Orbot proxy: {}", proxy);
+                
+                // SOCKS5プロキシを環境変数に設定
+                std::env::set_var("all_proxy", proxy);
+                std::env::set_var("ALL_PROXY", proxy);
+                std::env::set_var("socks_proxy", proxy);
+                std::env::set_var("SOCKS_PROXY", proxy);
+                
+                println!("✅ Proxy environment variables set: {}", proxy);
+                Client::new(keys.clone())
+            }
+        };
+
+        // リレー追加
+        for relay_url in &relays {
+            println!("Adding relay: {}", relay_url);
+            match client.add_relay(relay_url).await {
+                Ok(_) => println!("✅ Relay added: {}", relay_url),
+                Err(e) => {
+                    eprintln!("⚠️ Failed to add relay {}: {}", relay_url, e);
+                }
+            }
+        }
+
+        // リレーに接続（タイムアウト付き）
+        let timeout_sec = match tor_mode {
+            TorMode::Disabled => 5,
+            TorMode::Internal | TorMode::Orbot => 15, // Tor経由は時間がかかる
+        };
+        
+        println!("🔌 Connecting to relays{}...", 
+            match tor_mode {
+                TorMode::Disabled => "",
+                TorMode::Internal => " (via embedded Tor)",
+                TorMode::Orbot => " (via Orbot proxy)",
+            });
+        
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_sec), 
+            client.connect()
+        ).await {
+            Ok(_) => println!("✅ Connected to relays"),
+            Err(_) => {
+                eprintln!("⚠️ Relay connection timeout ({}s) - continuing offline mode", timeout_sec);
+            }
+        }
+
+        Ok(Self { 
+            keys: Some(keys), 
+            client,
+            mode: ClientMode::SecretKey,
+        })
     }
 
     /// 新しいクライアントを作成（秘密鍵 + プロキシオプション）
+    /// 後方互換性のため残す
     pub async fn new_with_proxy(
         secret_key_hex: &str, 
         relays: Vec<String>,
@@ -357,7 +460,92 @@ impl MeisoNostrClient {
         })
     }
     
+    /// 新しいクライアントを作成（Amberモード - 公開鍵のみ、Torモード指定）
+    pub async fn new_amber_mode_with_tor(
+        public_key_hex: String,
+        relays: Vec<String>,
+        tor_mode: TorMode,
+        proxy_url: Option<String>,
+    ) -> Result<Self> {
+        println!("🟡 Creating Amber mode client (no secret key)");
+        
+        let _public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // ダミーの秘密鍵を生成（署名はAmber経由で行うため使用しない）
+        let dummy_keys = Keys::generate();
+        
+        // Torモードに応じてクライアントを作成
+        let client = match tor_mode {
+            TorMode::Disabled => {
+                println!("🔓 Direct connection (no Tor, Amber mode)");
+                Client::new(dummy_keys)
+            }
+            TorMode::Internal => {
+                // Embedded Tor: tor featureが有効な場合、.onion リレーへの接続時に自動的に使用される
+                println!("🔐 Embedded Tor を有効化 (Amber mode, 自動: .onion リレー検出時)");
+                Client::new(dummy_keys)
+            }
+            TorMode::Orbot => {
+                let proxy = proxy_url.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Proxy URL is required for Orbot mode"))?;
+                    
+                println!("🔐 Connecting via Orbot proxy (Amber mode): {}", proxy);
+                
+                // SOCKS5プロキシを環境変数に設定
+                std::env::set_var("all_proxy", proxy);
+                std::env::set_var("ALL_PROXY", proxy);
+                std::env::set_var("socks_proxy", proxy);
+                std::env::set_var("SOCKS_PROXY", proxy);
+                
+                println!("✅ Proxy environment variables set (Amber mode): {}", proxy);
+                Client::new(dummy_keys)
+            }
+        };
+        
+        // リレー追加
+        for relay_url in &relays {
+            println!("Adding relay: {}", relay_url);
+            match client.add_relay(relay_url).await {
+                Ok(_) => println!("✅ Relay added: {}", relay_url),
+                Err(e) => {
+                    eprintln!("⚠️ Failed to add relay {}: {}", relay_url, e);
+                }
+            }
+        }
+        
+        // リレーに接続（タイムアウト付き）
+        let timeout_sec = match tor_mode {
+            TorMode::Disabled => 10,
+            TorMode::Internal | TorMode::Orbot => 20, // Tor経由は時間がかかる
+        };
+        
+        println!("🔌 Connecting to relays (Amber mode){}...",
+            match tor_mode {
+                TorMode::Disabled => "",
+                TorMode::Internal => " (via embedded Tor)",
+                TorMode::Orbot => " (via Orbot proxy)",
+            });
+        
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_sec),
+            client.connect()
+        ).await {
+            Ok(_) => println!("✅ Connected to relays (Amber mode)"),
+            Err(_) => {
+                eprintln!("⚠️ Relay connection timeout ({}s, Amber mode) - continuing offline mode", timeout_sec);
+            }
+        }
+        
+        Ok(Self {
+            keys: None,
+            client,
+            mode: ClientMode::Amber { public_key_hex },
+        })
+    }
+    
     /// 新しいクライアントを作成（Amberモード - 公開鍵のみ）
+    /// 後方互換性のため残す
     pub async fn new_amber_mode(
         public_key_hex: String,
         relays: Vec<String>,
@@ -1213,12 +1401,46 @@ pub fn init_nostr_client(secret_key_hex: String, relays: Vec<String>) -> Result<
 }
 
 /// Nostrクライアントを初期化（プロキシオプション付き）
+/// 後方互換性のため残す
 pub fn init_nostr_client_with_proxy(
     secret_key_hex: String, 
     relays: Vec<String>,
     proxy_url: Option<String>,
 ) -> Result<String> {
     init_nostr_client_with_id(DEFAULT_CLIENT_ID.to_string(), secret_key_hex, relays, proxy_url)
+}
+
+/// Nostrクライアントを初期化（Torモード指定）
+pub fn init_nostr_client_with_tor_mode(
+    secret_key_hex: String,
+    relays: Vec<String>,
+    tor_mode: TorMode,
+    proxy_url: Option<String>,
+) -> Result<String> {
+    println!("🔧 Initializing Nostr client with Tor mode: {:?}", tor_mode);
+    println!("Secret key (first 10 chars): {}...", &secret_key_hex[..10.min(secret_key_hex.len())]);
+    println!("Relays: {:?}", relays);
+    if let Some(ref proxy) = proxy_url {
+        println!("Proxy: {}", proxy);
+    }
+
+    TOKIO_RUNTIME.block_on(async {
+        match MeisoNostrClient::new_with_tor_mode(&secret_key_hex, relays, tor_mode, proxy_url).await {
+            Ok(client) => {
+                let public_key = client.public_key_hex();
+                println!("✅ Nostr client initialized with Tor mode. Public key: {}", &public_key[..16]);
+
+                let mut clients = NOSTR_CLIENTS.lock().await;
+                clients.insert(DEFAULT_CLIENT_ID.to_string(), client);
+
+                Ok(public_key)
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to initialize Nostr client with Tor mode: {}", e);
+                Err(e)
+            }
+        }
+    })
 }
 
 /// Nostrクライアントを初期化（client_id指定可能）
@@ -1477,12 +1699,45 @@ pub fn init_nostr_client_with_pubkey(
 }
 
 /// Amberモードで初期化（プロキシオプション付き）
+/// 後方互換性のため残す
 pub fn init_nostr_client_with_pubkey_and_proxy(
     public_key_hex: String,
     relays: Vec<String>,
     proxy_url: Option<String>,
 ) -> Result<String> {
     init_nostr_client_with_pubkey_and_id(DEFAULT_CLIENT_ID.to_string(), public_key_hex, relays, proxy_url)
+}
+
+/// Amberモードで初期化（Torモード指定）
+pub fn init_nostr_client_with_pubkey_and_tor_mode(
+    public_key_hex: String,
+    relays: Vec<String>,
+    tor_mode: TorMode,
+    proxy_url: Option<String>,
+) -> Result<String> {
+    println!("🔧 Initializing Nostr client (Amber mode) with Tor mode: {:?}", tor_mode);
+    println!("Public key: {}...", &public_key_hex[..16.min(public_key_hex.len())]);
+    println!("Relays: {:?}", relays);
+    if let Some(ref proxy) = proxy_url {
+        println!("Proxy: {}", proxy);
+    }
+    
+    TOKIO_RUNTIME.block_on(async {
+        match MeisoNostrClient::new_amber_mode_with_tor(public_key_hex.clone(), relays, tor_mode, proxy_url).await {
+            Ok(client) => {
+                println!("✅ Nostr client (Amber mode) initialized with Tor mode");
+                
+                let mut clients = NOSTR_CLIENTS.lock().await;
+                clients.insert(DEFAULT_CLIENT_ID.to_string(), client);
+                
+                Ok(public_key_hex)
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to initialize Nostr client (Amber mode) with Tor mode: {}", e);
+                Err(e)
+            }
+        }
+    })
 }
 
 /// Amberモードで初期化（client_id指定可能）

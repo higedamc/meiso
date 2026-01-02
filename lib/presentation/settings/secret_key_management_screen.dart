@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
+import '../../models/app_settings.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/todos_provider.dart';
@@ -472,7 +473,10 @@ class _SecretKeyManagementScreenState
       // アプリ設定からTor/プロキシ設定を取得
       final appSettingsAsync = ref.read(appSettingsProvider);
       final proxyUrl = appSettingsAsync.maybeWhen(
-        data: (settings) => settings.torEnabled ? settings.proxyUrl : null,
+        data: (settings) {
+          // Orbotモード時のみプロキシURLを使用
+          return settings.torMode == TorMode.orbot ? settings.proxyUrl : null;
+        },
         orElse: () => null,
       );
 

@@ -1,0 +1,20 @@
+[env]
+# Ensure rustup's cargo is used instead of Homebrew's
+PATH = "$HOME/.cargo/bin:$PATH"
+
+[target.armv7-linux-androideabi]
+linker = "/Users/apple/Library/Android/sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/darwin-aarch64/bin/armv7a-linux-androideabi21-clang"
+ar = "/Users/apple/Library/Android/sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/darwin-aarch64/bin/llvm-ar"
+
+[target.aarch64-linux-android]
+linker = "/Users/apple/Library/Android/sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/darwin-aarch64/bin/aarch64-linux-android21-clang"
+ar = "/Users/apple/Library/Android/sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/darwin-aarch64/bin/llvm-ar"
+
+[target.i686-linux-android]
+linker = "/Users/apple/Library/Android/sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/darwin-aarch64/bin/i686-linux-android21-clang"
+ar = "/Users/apple/Library/Android/sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/darwin-aarch64/bin/llvm-ar"
+
+[target.x86_64-linux-android]
+linker = "/Users/apple/Library/Android/sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/darwin-aarch64/bin/x86_64-linux-android21-clang"
+ar = "/Users/apple/Library/Android/sdk/ndk/28.0.13004108/toolchains/llvm/prebuilt/darwin-aarch64/bin/llvm-ar"
+

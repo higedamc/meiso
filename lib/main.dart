@@ -16,6 +16,7 @@ import 'presentation/settings/cryptography_detail_screen.dart';
 import 'bridge_generated.dart/frb_generated.dart';
 import 'services/local_storage_service.dart';
 import 'services/logger_service.dart';
+import 'models/app_settings.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
@@ -181,8 +182,10 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           final relays = appSettingsAsync.value?.relays.isNotEmpty == true
               ? appSettingsAsync.value!.relays
               : null;
-          final proxyUrl = appSettingsAsync.value?.torEnabled == true
-              ? 'socks5://127.0.0.1:9050'
+          // TorMode に応じてプロキシURLを設定
+          final torMode = appSettingsAsync.value?.torMode ?? TorMode.disabled;
+          final proxyUrl = torMode == TorMode.orbot
+              ? appSettingsAsync.value?.proxyUrl ?? 'socks5://127.0.0.1:9050'
               : null;
           
           AppLogger.debug('リレー設定: ${relays ?? "デフォルトリレー"}', tag: 'NOSTR');
@@ -193,6 +196,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           await nostrService.initializeNostrWithPubkey(
             publicKeyHex: publicKey,
             relays: relays,
+            torMode: torMode,
             proxyUrl: proxyUrl,
           );
           

@@ -17,7 +17,9 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const [],
-      torEnabled: json['torEnabled'] as bool? ?? false,
+      torMode:
+          $enumDecodeNullable(_$TorModeEnumMap, json['torMode']) ??
+          TorMode.disabled,
       proxyUrl: json['proxyUrl'] as String? ?? 'socks5://127.0.0.1:9050',
       customListOrder:
           (json['customListOrder'] as List<dynamic>?)
@@ -35,9 +37,15 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'calendarView': instance.calendarView,
       'notificationsEnabled': instance.notificationsEnabled,
       'relays': instance.relays,
-      'torEnabled': instance.torEnabled,
+      'torMode': _$TorModeEnumMap[instance.torMode]!,
       'proxyUrl': instance.proxyUrl,
       'customListOrder': instance.customListOrder,
       'lastViewedCustomListId': instance.lastViewedCustomListId,
       'updatedAt': instance.updatedAt.toIso8601String(),
     };
+
+const _$TorModeEnumMap = {
+  TorMode.disabled: 'disabled',
+  TorMode.internal: 'internal',
+  TorMode.orbot: 'orbot',
+};

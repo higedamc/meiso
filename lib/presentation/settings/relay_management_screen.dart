@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
+import '../../models/app_settings.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/app_settings_provider.dart';
@@ -225,11 +226,12 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final appSettingsAsync = ref.watch(appSettingsProvider);
     
-    // Tor有効状態を取得
-    final torEnabled = appSettingsAsync.maybeWhen(
-      data: (settings) => settings.torEnabled,
-      orElse: () => false,
+    // Torモードを取得
+    final torMode = appSettingsAsync.maybeWhen(
+      data: (settings) => settings.torMode,
+      orElse: () => TorMode.disabled,
     );
+    final torEnabled = torMode != TorMode.disabled;
 
     return Scaffold(
       appBar: AppBar(

@@ -7,6 +7,7 @@ import '../bridge_generated.dart/api.dart' as rust_api;
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
+import '../models/app_settings.dart';
 import '../services/local_storage_service.dart';
 import '../services/logger_service.dart';
 import '../services/nostr_cache_service.dart';
@@ -193,24 +194,47 @@ class NostrService {
   Future<String> initializeNostr({
     required String secretKey,
     List<String>? relays,
+    TorMode? torMode,
     String? proxyUrl,
   }) async {
     final relayList = relays ?? defaultRelays;
+    final effectiveTorMode = torMode ?? TorMode.disabled;
     
-    // プロキシURLが指定されている場合はプロキシ経由で接続
+    // TorMode に応じて接続方法を選択
     final String publicKey;
-    if (proxyUrl != null && proxyUrl.isNotEmpty) {
-      AppLogger.debug(' Connecting via proxy: $proxyUrl');
-      publicKey = await rust_api.initNostrClientWithProxy(
-        secretKeyHex: secretKey,
-        relays: relayList,
-        proxyUrl: proxyUrl,
-      );
-    } else {
-      publicKey = await rust_api.initNostrClient(
-        secretKeyHex: secretKey,
-        relays: relayList,
-      );
+    
+    switch (effectiveTorMode) {
+      case TorMode.disabled:
+        // 直接接続（Torなし）
+        AppLogger.debug('🔓 Connecting directly (no Tor)');
+        publicKey = await rust_api.initNostrClient(
+          secretKeyHex: secretKey,
+          relays: relayList,
+        );
+        break;
+        
+      case TorMode.internal:
+        // 内蔵Tor (Embedded Tor)
+        AppLogger.debug('🧅 Connecting via embedded Tor');
+        publicKey = await rust_api.initNostrClientWithTorMode(
+          secretKeyHex: secretKey,
+          relays: relayList,
+          torMode: rust_api.TorMode.internal,
+          proxyUrl: null,
+        );
+        break;
+        
+      case TorMode.orbot:
+        // Orbot経由 (SOCKS5 Proxy)
+        final effectiveProxyUrl = proxyUrl ?? 'socks5://127.0.0.1:9050';
+        AppLogger.debug('🔐 Connecting via Orbot proxy: $effectiveProxyUrl');
+        publicKey = await rust_api.initNostrClientWithTorMode(
+          secretKeyHex: secretKey,
+          relays: relayList,
+          torMode: rust_api.TorMode.orbot,
+          proxyUrl: effectiveProxyUrl,
+        );
+        break;
     }
 
     // Providerの状態を更新
@@ -226,7 +250,12 @@ class NostrService {
     // キャッシュとSubscriptionサービスを初期化
     await _initializeCacheAndSubscription(publicKey);
 
-    AppLogger.info(' Nostr client initialized with secret key${proxyUrl != null ? " (via proxy)" : ""}');
+    final modeStr = effectiveTorMode == TorMode.disabled 
+        ? '' 
+        : effectiveTorMode == TorMode.internal 
+            ? ' (via embedded Tor)' 
+            : ' (via Orbot proxy)';
+    AppLogger.info('✅ Nostr client initialized with secret key$modeStr');
     return publicKey;
   }
 
@@ -234,24 +263,47 @@ class NostrService {
   Future<String> initializeNostrWithPubkey({
     required String publicKeyHex,
     List<String>? relays,
+    TorMode? torMode,
     String? proxyUrl,
   }) async {
     final relayList = relays ?? defaultRelays;
+    final effectiveTorMode = torMode ?? TorMode.disabled;
     
-    // プロキシURLが指定されている場合はプロキシ経由で接続
+    // TorMode に応じて接続方法を選択
     final String publicKey;
-    if (proxyUrl != null && proxyUrl.isNotEmpty) {
-      AppLogger.debug(' Connecting via proxy (Amber mode): $proxyUrl');
-      publicKey = await rust_api.initNostrClientWithPubkeyAndProxy(
-        publicKeyHex: publicKeyHex,
-        relays: relayList,
-        proxyUrl: proxyUrl,
-      );
-    } else {
-      publicKey = await rust_api.initNostrClientWithPubkey(
-        publicKeyHex: publicKeyHex,
-        relays: relayList,
-      );
+    
+    switch (effectiveTorMode) {
+      case TorMode.disabled:
+        // 直接接続（Torなし）
+        AppLogger.debug('🔓 Connecting directly (no Tor, Amber mode)');
+        publicKey = await rust_api.initNostrClientWithPubkey(
+          publicKeyHex: publicKeyHex,
+          relays: relayList,
+        );
+        break;
+        
+      case TorMode.internal:
+        // 内蔵Tor (Embedded Tor)
+        AppLogger.debug('🧅 Connecting via embedded Tor (Amber mode)');
+        publicKey = await rust_api.initNostrClientWithPubkeyAndTorMode(
+          publicKeyHex: publicKeyHex,
+          relays: relayList,
+          torMode: rust_api.TorMode.internal,
+          proxyUrl: null,
+        );
+        break;
+        
+      case TorMode.orbot:
+        // Orbot経由 (SOCKS5 Proxy)
+        final effectiveProxyUrl = proxyUrl ?? 'socks5://127.0.0.1:9050';
+        AppLogger.debug('🔐 Connecting via Orbot proxy (Amber mode): $effectiveProxyUrl');
+        publicKey = await rust_api.initNostrClientWithPubkeyAndTorMode(
+          publicKeyHex: publicKeyHex,
+          relays: relayList,
+          torMode: rust_api.TorMode.orbot,
+          proxyUrl: effectiveProxyUrl,
+        );
+        break;
     }
 
     // Providerの状態を更新
@@ -262,9 +314,9 @@ class NostrService {
     try {
       final npubKey = await rust_api.hexToNpub(hex: publicKey);
       _ref.read(nostrPublicKeyProvider.notifier).state = npubKey;
-      AppLogger.info(' npub公開鍵を設定しました: ${npubKey.substring(0, 16)}...');
+      AppLogger.info('ℹ️ npub公開鍵を設定しました: ${npubKey.substring(0, 16)}...');
     } catch (e) {
-      AppLogger.error(' hex→npub変換エラー: $e');
+      AppLogger.error('❌ hex→npub変換エラー: $e');
     }
     
     // Amber使用フラグを設定
@@ -276,7 +328,12 @@ class NostrService {
     // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
-    AppLogger.info(' Nostr client initialized in Amber mode${proxyUrl != null ? " (via proxy)" : ""}');
+    final modeStr = effectiveTorMode == TorMode.disabled 
+        ? '' 
+        : effectiveTorMode == TorMode.internal 
+            ? ' (via embedded Tor)' 
+            : ' (via Orbot proxy)';
+    AppLogger.info('✅ Nostr client initialized in Amber mode$modeStr');
     return publicKey;
   }
 

@@ -6,12 +6,16 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "staticlib"]
 
+[features]
+default = ["tor"]
+tor = []
+
 [dependencies]
 # Flutter Rust Bridge
 flutter_rust_bridge = "=2.11.1"
 
 # Nostr SDK
-nostr-sdk = { version = "0.37", features = ["nip44"] }
+nostr-sdk = { version = "0.37", features = ["nip44", "tor"] }
 
 # Async Runtime
 tokio = { version = "1.41", features = ["full"] }
