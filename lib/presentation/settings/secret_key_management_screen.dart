@@ -137,11 +137,11 @@ class _SecretKeyManagementScreenState
       builder: (context) {
         final l10n = AppLocalizations.of(context);
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.key, color: AppTheme.primaryPurple),
-              SizedBox(width: 8),
-              Text('秘密鍵 (nsec)'),
+              const Icon(Icons.key, color: AppTheme.primaryPurple),
+              const SizedBox(width: 8),
+              Text(l10n.secretKeyNsecLabel),
             ],
           ),
           content: SingleChildScrollView(
@@ -604,9 +604,10 @@ class _SecretKeyManagementScreenState
   }
 
   void _copyToClipboard(String text, String label) {
+    final l10n = AppLocalizations.of(context);
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$labelをコピーしました')),
+      SnackBar(content: Text(l10n.copiedToClipboard(label))),
     );
   }
 
@@ -633,6 +634,7 @@ class _SecretKeyManagementScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final publicKeyHex = ref.watch(publicKeyProvider);
     final publicKeyNpubAsync = ref.watch(publicKeyNpubProvider);
@@ -707,17 +709,17 @@ class _SecretKeyManagementScreenState
                                           children: [
                                             TextButton.icon(
                                               onPressed: () => _copyToClipboard(
-                                                  npubKey, 'npub公開鍵'),
+                                                  npubKey, 'npub'),
                                               icon: const Icon(Icons.copy,
                                                   size: 16),
-                                              label: const Text('npubコピー'),
+                                              label: Text(l10n.copyNpub),
                                             ),
                                             TextButton.icon(
                                               onPressed: () => _copyToClipboard(
-                                                  publicKeyHex, 'hex公開鍵'),
+                                                  publicKeyHex, 'hex'),
                                               icon: const Icon(Icons.copy,
                                                   size: 16),
-                                              label: const Text('hexコピー'),
+                                              label: Text(l10n.copyHex),
                                             ),
                                           ],
                                         ),
@@ -822,7 +824,7 @@ class _SecretKeyManagementScreenState
                           child: OutlinedButton.icon(
                             onPressed: _isLoading ? null : _generateNewSecretKey,
                             icon: const Icon(Icons.refresh),
-                            label: const Text('生成'),
+                            label: Text(l10n.generateButton),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -830,7 +832,7 @@ class _SecretKeyManagementScreenState
                           child: ElevatedButton.icon(
                             onPressed: _isLoading ? null : _saveSecretKey,
                             icon: const Icon(Icons.save),
-                            label: const Text('保存して接続'),
+                            label: Text(l10n.saveAndConnect),
                           ),
                         ),
                       ],

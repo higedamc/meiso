@@ -750,4 +750,87 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get logoutDescription =>
       'La clave secreta cifrada será eliminada.\nPor favor, guarda tu clave secreta antes de cerrar sesión.';
+
+  @override
+  String get torModeDisabled => 'Deshabilitado';
+
+  @override
+  String get torModeInternal => 'Interno (Integrado)';
+
+  @override
+  String get torModeOrbot => 'Orbot (Proxy)';
+
+  @override
+  String get torModeDescriptionDisabled => 'Conexión directa sin Tor';
+
+  @override
+  String get torModeDescriptionInternal =>
+      'Usar cliente Tor integrado (en desarrollo, aún no disponible)';
+
+  @override
+  String get torModeDescriptionOrbot =>
+      'Conectar vía aplicación Orbot (requiere instalación de Orbot)';
+
+  @override
+  String get torConnectionModeTitle => 'Modo de Conexión Tor';
+
+  @override
+  String get inDevelopment => '(en desarrollo)';
+
+  @override
+  String torModeUpdated(String mode) {
+    return 'Modo Tor actualizado: $mode';
+  }
+
+  @override
+  String get orbotRequired => 'Orbot Requerido';
+
+  @override
+  String get orbotRequiredDescription =>
+      'La aplicación Orbot debe estar instalada y en ejecución para usar este modo.';
+
+  @override
+  String get openGooglePlayOrbot => 'Abrir Google Play: Orbot';
+
+  @override
+  String get openFDroidOrbot => 'Abrir F-Droid: Orbot';
+
+  @override
+  String get googlePlay => 'Google Play';
+
+  @override
+  String get fDroid => 'F-Droid';
+
+  @override
+  String get embeddedTorDescription =>
+      'Usando cliente Tor integrado. No se requieren aplicaciones adicionales.';
+
+  @override
+  String get secretKeyNsecLabel => 'Clave Secreta (nsec)';
+
+  @override
+  String copiedToClipboard(String label) {
+    return '$label copiado al portapapeles';
+  }
+
+  @override
+  String get copyNpub => 'Copiar npub';
+
+  @override
+  String get copyHex => 'Copiar hex';
+
+  @override
+  String get generateButton => 'Generar';
+
+  @override
+  String get saveAndConnect => 'Guardar y Conectar';
+
+  @override
+  String get nostrConnectedStatus => 'Nostr Conectado';
+
+  @override
+  String get nostrConnectedViaTor => 'Nostr Conectado (vía Tor)';
+
+  @override
+  String get nostrDisconnectedStatus => 'Nostr Desconectado';
 }

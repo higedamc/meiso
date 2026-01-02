@@ -725,4 +725,84 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get logoutDescription => '暗号化された秘密鍵が削除されます。\nログアウト前に秘密鍵を保存してください。';
+
+  @override
+  String get torModeDisabled => '無効';
+
+  @override
+  String get torModeInternal => '内蔵 (組み込み)';
+
+  @override
+  String get torModeOrbot => 'Orbot (プロキシ)';
+
+  @override
+  String get torModeDescriptionDisabled => 'Torを使用せず直接接続';
+
+  @override
+  String get torModeDescriptionInternal => '組み込みTorクライアントを使用（開発中、まだ利用できません）';
+
+  @override
+  String get torModeDescriptionOrbot => 'Orbotアプリ経由で接続（Orbotのインストールが必要）';
+
+  @override
+  String get torConnectionModeTitle => 'Tor接続モード';
+
+  @override
+  String get inDevelopment => '（開発中）';
+
+  @override
+  String torModeUpdated(String mode) {
+    return 'Torモードを更新しました: $mode';
+  }
+
+  @override
+  String get orbotRequired => 'Orbot が必要です';
+
+  @override
+  String get orbotRequiredDescription =>
+      'このモードを使用するには、Orbotアプリをインストールして起動する必要があります。';
+
+  @override
+  String get openGooglePlayOrbot => 'Google Playを開く: Orbot';
+
+  @override
+  String get openFDroidOrbot => 'F-Droidを開く: Orbot';
+
+  @override
+  String get googlePlay => 'Google Play';
+
+  @override
+  String get fDroid => 'F-Droid';
+
+  @override
+  String get embeddedTorDescription => '組み込みTorクライアントを使用。追加のアプリは不要です。';
+
+  @override
+  String get secretKeyNsecLabel => '秘密鍵 (nsec)';
+
+  @override
+  String copiedToClipboard(String label) {
+    return '$labelをコピーしました';
+  }
+
+  @override
+  String get copyNpub => 'npubコピー';
+
+  @override
+  String get copyHex => 'hexコピー';
+
+  @override
+  String get generateButton => '生成';
+
+  @override
+  String get saveAndConnect => '保存して接続';
+
+  @override
+  String get nostrConnectedStatus => 'Nostr接続中';
+
+  @override
+  String get nostrConnectedViaTor => 'Nostr接続中 (Tor経由)';
+
+  @override
+  String get nostrDisconnectedStatus => 'Nostr未接続';
 }

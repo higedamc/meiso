@@ -1431,6 +1431,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Encrypted secret key will be deleted.\nPlease save your secret key before logout.'**
   String get logoutDescription;
+
+  /// Tor mode: Disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get torModeDisabled;
+
+  /// Tor mode: Internal embedded Tor client
+  ///
+  /// In en, this message translates to:
+  /// **'Internal (Embedded)'**
+  String get torModeInternal;
+
+  /// Tor mode: Orbot proxy
+  ///
+  /// In en, this message translates to:
+  /// **'Orbot (Proxy)'**
+  String get torModeOrbot;
+
+  /// Description for disabled Tor mode
+  ///
+  /// In en, this message translates to:
+  /// **'Direct connection without Tor'**
+  String get torModeDescriptionDisabled;
+
+  /// Description for internal Tor mode
+  ///
+  /// In en, this message translates to:
+  /// **'Use embedded Tor client (under development, not available yet)'**
+  String get torModeDescriptionInternal;
+
+  /// Description for Orbot Tor mode
+  ///
+  /// In en, this message translates to:
+  /// **'Connect via Orbot app (requires Orbot installation)'**
+  String get torModeDescriptionOrbot;
+
+  /// Title for Tor connection mode dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Tor Connection Mode'**
+  String get torConnectionModeTitle;
+
+  /// Label for features under development
+  ///
+  /// In en, this message translates to:
+  /// **'(in development)'**
+  String get inDevelopment;
+
+  /// Message when Tor mode is updated
+  ///
+  /// In en, this message translates to:
+  /// **'Tor mode updated: {mode}'**
+  String torModeUpdated(String mode);
+
+  /// Title for Orbot requirement notice
+  ///
+  /// In en, this message translates to:
+  /// **'Orbot Required'**
+  String get orbotRequired;
+
+  /// Description for Orbot requirement
+  ///
+  /// In en, this message translates to:
+  /// **'Orbot app must be installed and running to use this mode.'**
+  String get orbotRequiredDescription;
+
+  /// Snackbar message for Google Play link
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Play: Orbot'**
+  String get openGooglePlayOrbot;
+
+  /// Snackbar message for F-Droid link
+  ///
+  /// In en, this message translates to:
+  /// **'Open F-Droid: Orbot'**
+  String get openFDroidOrbot;
+
+  /// Google Play button label
+  ///
+  /// In en, this message translates to:
+  /// **'Google Play'**
+  String get googlePlay;
+
+  /// F-Droid button label
+  ///
+  /// In en, this message translates to:
+  /// **'F-Droid'**
+  String get fDroid;
+
+  /// Description for embedded Tor mode
+  ///
+  /// In en, this message translates to:
+  /// **'Using embedded Tor client. No additional apps required.'**
+  String get embeddedTorDescription;
+
+  /// Label for secret key in nsec format
+  ///
+  /// In en, this message translates to:
+  /// **'Secret Key (nsec)'**
+  String get secretKeyNsecLabel;
+
+  /// Message when text is copied
+  ///
+  /// In en, this message translates to:
+  /// **'{label} copied to clipboard'**
+  String copiedToClipboard(String label);
+
+  /// Button to copy npub
+  ///
+  /// In en, this message translates to:
+  /// **'Copy npub'**
+  String get copyNpub;
+
+  /// Button to copy hex format
+  ///
+  /// In en, this message translates to:
+  /// **'Copy hex'**
+  String get copyHex;
+
+  /// Button to generate new key
+  ///
+  /// In en, this message translates to:
+  /// **'Generate'**
+  String get generateButton;
+
+  /// Button to save and connect
+  ///
+  /// In en, this message translates to:
+  /// **'Save and Connect'**
+  String get saveAndConnect;
+
+  /// Status when Nostr is connected
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr Connected'**
+  String get nostrConnectedStatus;
+
+  /// Status when Nostr is connected via Tor
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr Connected (via Tor)'**
+  String get nostrConnectedViaTor;
+
+  /// Status when Nostr is disconnected
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr Disconnected'**
+  String get nostrDisconnectedStatus;
 }
 
 class _AppLocalizationsDelegate

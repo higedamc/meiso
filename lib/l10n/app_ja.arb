@@ -444,6 +444,56 @@
   
   "logoutConfirm": "本当にログアウトしますか？",
   
-  "logoutDescription": "暗号化された秘密鍵が削除されます。\nログアウト前に秘密鍵を保存してください。"
+  "logoutDescription": "暗号化された秘密鍵が削除されます。\nログアウト前に秘密鍵を保存してください。",
+  
+  "torModeDisabled": "無効",
+  
+  "torModeInternal": "内蔵 (組み込み)",
+  
+  "torModeOrbot": "Orbot (プロキシ)",
+  
+  "torModeDescriptionDisabled": "Torを使用せず直接接続",
+  
+  "torModeDescriptionInternal": "組み込みTorクライアントを使用（開発中、まだ利用できません）",
+  
+  "torModeDescriptionOrbot": "Orbotアプリ経由で接続（Orbotのインストールが必要）",
+  
+  "torConnectionModeTitle": "Tor接続モード",
+  
+  "inDevelopment": "（開発中）",
+  
+  "torModeUpdated": "Torモードを更新しました: {mode}",
+  
+  "orbotRequired": "Orbot が必要です",
+  
+  "orbotRequiredDescription": "このモードを使用するには、Orbotアプリをインストールして起動する必要があります。",
+  
+  "openGooglePlayOrbot": "Google Playを開く: Orbot",
+  
+  "openFDroidOrbot": "F-Droidを開く: Orbot",
+  
+  "googlePlay": "Google Play",
+  
+  "fDroid": "F-Droid",
+  
+  "embeddedTorDescription": "組み込みTorクライアントを使用。追加のアプリは不要です。",
+  
+  "secretKeyNsecLabel": "秘密鍵 (nsec)",
+  
+  "copiedToClipboard": "{label}をコピーしました",
+  
+  "copyNpub": "npubコピー",
+  
+  "copyHex": "hexコピー",
+  
+  "generateButton": "生成",
+  
+  "saveAndConnect": "保存して接続",
+  
+  "nostrConnectedStatus": "Nostr接続中",
+  
+  "nostrConnectedViaTor": "Nostr接続中 (Tor経由)",
+  
+  "nostrDisconnectedStatus": "Nostr未接続"
 }
 

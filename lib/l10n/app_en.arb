@@ -1192,6 +1192,141 @@
   "logoutDescription": "Encrypted secret key will be deleted.\nPlease save your secret key before logout.",
   "@logoutDescription": {
     "description": "Logout warning description"
+  },
+  
+  "torModeDisabled": "Disabled",
+  "@torModeDisabled": {
+    "description": "Tor mode: Disabled"
+  },
+  
+  "torModeInternal": "Internal (Embedded)",
+  "@torModeInternal": {
+    "description": "Tor mode: Internal embedded Tor client"
+  },
+  
+  "torModeOrbot": "Orbot (Proxy)",
+  "@torModeOrbot": {
+    "description": "Tor mode: Orbot proxy"
+  },
+  
+  "torModeDescriptionDisabled": "Direct connection without Tor",
+  "@torModeDescriptionDisabled": {
+    "description": "Description for disabled Tor mode"
+  },
+  
+  "torModeDescriptionInternal": "Use embedded Tor client (under development, not available yet)",
+  "@torModeDescriptionInternal": {
+    "description": "Description for internal Tor mode"
+  },
+  
+  "torModeDescriptionOrbot": "Connect via Orbot app (requires Orbot installation)",
+  "@torModeDescriptionOrbot": {
+    "description": "Description for Orbot Tor mode"
+  },
+  
+  "torConnectionModeTitle": "Tor Connection Mode",
+  "@torConnectionModeTitle": {
+    "description": "Title for Tor connection mode dialog"
+  },
+  
+  "inDevelopment": "(in development)",
+  "@inDevelopment": {
+    "description": "Label for features under development"
+  },
+  
+  "torModeUpdated": "Tor mode updated: {mode}",
+  "@torModeUpdated": {
+    "description": "Message when Tor mode is updated",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "orbotRequired": "Orbot Required",
+  "@orbotRequired": {
+    "description": "Title for Orbot requirement notice"
+  },
+  
+  "orbotRequiredDescription": "Orbot app must be installed and running to use this mode.",
+  "@orbotRequiredDescription": {
+    "description": "Description for Orbot requirement"
+  },
+  
+  "openGooglePlayOrbot": "Open Google Play: Orbot",
+  "@openGooglePlayOrbot": {
+    "description": "Snackbar message for Google Play link"
+  },
+  
+  "openFDroidOrbot": "Open F-Droid: Orbot",
+  "@openFDroidOrbot": {
+    "description": "Snackbar message for F-Droid link"
+  },
+  
+  "googlePlay": "Google Play",
+  "@googlePlay": {
+    "description": "Google Play button label"
+  },
+  
+  "fDroid": "F-Droid",
+  "@fDroid": {
+    "description": "F-Droid button label"
+  },
+  
+  "embeddedTorDescription": "Using embedded Tor client. No additional apps required.",
+  "@embeddedTorDescription": {
+    "description": "Description for embedded Tor mode"
+  },
+  
+  "secretKeyNsecLabel": "Secret Key (nsec)",
+  "@secretKeyNsecLabel": {
+    "description": "Label for secret key in nsec format"
+  },
+  
+  "copiedToClipboard": "{label} copied to clipboard",
+  "@copiedToClipboard": {
+    "description": "Message when text is copied",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "copyNpub": "Copy npub",
+  "@copyNpub": {
+    "description": "Button to copy npub"
+  },
+  
+  "copyHex": "Copy hex",
+  "@copyHex": {
+    "description": "Button to copy hex format"
+  },
+  
+  "generateButton": "Generate",
+  "@generateButton": {
+    "description": "Button to generate new key"
+  },
+  
+  "saveAndConnect": "Save and Connect",
+  "@saveAndConnect": {
+    "description": "Button to save and connect"
+  },
+  
+  "nostrConnectedStatus": "Nostr Connected",
+  "@nostrConnectedStatus": {
+    "description": "Status when Nostr is connected"
+  },
+  
+  "nostrConnectedViaTor": "Nostr Connected (via Tor)",
+  "@nostrConnectedViaTor": {
+    "description": "Status when Nostr is connected via Tor"
+  },
+  
+  "nostrDisconnectedStatus": "Nostr Disconnected",
+  "@nostrDisconnectedStatus": {
+    "description": "Status when Nostr is disconnected"
   }
 }
 

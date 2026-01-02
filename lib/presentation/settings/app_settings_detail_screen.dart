@@ -263,8 +263,6 @@ class AppSettingsDetailScreen extends ConsumerWidget {
   /// プロキシURL編集ダイアログ
   Future<void> _showProxyUrlDialog(
       BuildContext context, WidgetRef ref, String currentProxyUrl) async {
-    final l10n = AppLocalizations.of(context);
-    
     // 現在のプロキシURLをパース
     var host = '127.0.0.1';
     var port = '9050';
@@ -419,39 +417,39 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
   /// TorModeの表示名を取得
   String _getTorModeName(BuildContext context, TorMode mode) {
-    // TODO: l10n 対応（後回し）
+    final l10n = AppLocalizations.of(context);
     switch (mode) {
       case TorMode.disabled:
-        return 'Disabled';
+        return l10n.torModeDisabled;
       case TorMode.internal:
-        return 'Internal (Embedded)';
+        return l10n.torModeInternal;
       case TorMode.orbot:
-        return 'Orbot (Proxy)';
+        return l10n.torModeOrbot;
     }
   }
 
   /// TorModeの説明を取得
   String _getTorModeDescription(BuildContext context, TorMode mode) {
-    // TODO: l10n 対応（後回し）
+    final l10n = AppLocalizations.of(context);
     switch (mode) {
       case TorMode.disabled:
-        return 'Direct connection without Tor';
+        return l10n.torModeDescriptionDisabled;
       case TorMode.internal:
-        return 'Use embedded Tor client (under development, not available yet)';
+        return l10n.torModeDescriptionInternal;
       case TorMode.orbot:
-        return 'Connect via Orbot app (requires Orbot installation)';
+        return l10n.torModeDescriptionOrbot;
     }
   }
 
   /// Torモード選択ダイアログ
   Future<void> _showTorModeDialog(
       BuildContext context, WidgetRef ref, TorMode currentMode) async {
-    final l10n = AppLocalizations.of(context);
-    
     final selected = await showDialog<TorMode>(
       context: context,
-      builder: (dialogContext) => SimpleDialog(
-        title: const Text('Tor Connection Mode'), // TODO: l10n 対応
+      builder: (dialogContext) {
+        final dialogL10n = AppLocalizations.of(dialogContext);
+        return SimpleDialog(
+        title: Text(dialogL10n.torConnectionModeTitle),
         children: [
           // Disabled
           SimpleDialogOption(
@@ -521,7 +519,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '（開発中）',
+                              dialogL10n.inDevelopment,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade600,
@@ -583,7 +581,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
             ),
           ),
         ],
-      ),
+      );
+      },
     );
 
     if (selected != null && selected != currentMode) {
@@ -594,7 +593,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
         final modeName = _getTorModeName(context, selected);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Tor mode updated: $modeName'),
+            content: Text(snackbarL10n.torModeUpdated(modeName)),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -712,7 +711,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       style: TextStyle(color: Colors.grey.shade400),
                     ),
                     subtitle: Text(
-                      '${_getWeekDayName(context, settings.weekStartDay)} (開発中)',
+                      '${_getWeekDayName(context, settings.weekStartDay)} ${l10n.inDevelopment}',
                       style: TextStyle(color: Colors.grey.shade400),
                     ),
                     trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
@@ -729,7 +728,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       style: TextStyle(color: Colors.grey.shade400),
                     ),
                     subtitle: Text(
-                      '${settings.calendarView == 'week' ? l10n.weekView : l10n.monthView} (開発中)',
+                      '${settings.calendarView == 'week' ? l10n.weekView : l10n.monthView} ${l10n.inDevelopment}',
                       style: TextStyle(color: Colors.grey.shade400),
                     ),
                     trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
@@ -744,7 +743,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       style: TextStyle(color: Colors.grey.shade400),
                     ),
                     subtitle: Text(
-                      '${l10n.notificationsSubtitle} (開発中)',
+                      '${l10n.notificationsSubtitle} ${l10n.inDevelopment}',
                       style: TextStyle(color: Colors.grey.shade400),
                     ),
                     value: settings.notificationsEnabled,
@@ -769,7 +768,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                           ? Colors.purple.shade700 
                           : Colors.green.shade700,
                     ),
-                    title: Text(l10n.torConnection ?? 'Tor Connection'),
+                    title: Text(l10n.torConnection),
                     subtitle: Text(
                       _getTorModeName(context, settings.torMode),
                       style: const TextStyle(fontSize: 12),
@@ -797,7 +796,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                               Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
                               const SizedBox(width: 8),
                               Text(
-                                'Orbot Required', // TODO: l10n 対応
+                                l10n.orbotRequired,
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -808,7 +807,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Orbot app must be installed and running to use this mode.', // TODO: l10n 対応
+                            l10n.orbotRequiredDescription,
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.blue.shade800,
@@ -824,14 +823,14 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                                   // Google Play ストアへのリンク
                                   // url_launcher を使用する場合はここに実装
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Open Google Play: Orbot'),
-                                      duration: Duration(seconds: 2),
+                                    SnackBar(
+                                      content: Text(l10n.openGooglePlayOrbot),
+                                      duration: const Duration(seconds: 2),
                                     ),
                                   );
                                 },
                                 icon: const Icon(Icons.shop, size: 16),
-                                label: const Text('Google Play', style: TextStyle(fontSize: 12)),
+                                label: Text(l10n.googlePlay, style: const TextStyle(fontSize: 12)),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.green,
                                   foregroundColor: Colors.white,
@@ -843,14 +842,14 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                                 onPressed: () {
                                   // F-Droid へのリンク
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Open F-Droid: Orbot'),
-                                      duration: Duration(seconds: 2),
+                                    SnackBar(
+                                      content: Text(l10n.openFDroidOrbot),
+                                      duration: const Duration(seconds: 2),
                                     ),
                                   );
                                 },
                                 icon: const Icon(Icons.download, size: 16),
-                                label: const Text('F-Droid', style: TextStyle(fontSize: 12)),
+                                label: Text(l10n.fDroid, style: const TextStyle(fontSize: 12)),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blue,
                                   foregroundColor: Colors.white,
@@ -894,8 +893,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                           Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
                           const SizedBox(width: 8),
                           Expanded(
-                            child:                             Text(
-                              'Using embedded Tor client. No additional apps required.', // TODO: l10n 対応
+                            child: Text(
+                              l10n.embeddedTorDescription,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.green.shade900,

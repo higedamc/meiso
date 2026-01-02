@@ -443,6 +443,56 @@
   
   "logoutConfirm": "¿Estás seguro de que deseas cerrar sesión?",
   
-  "logoutDescription": "La clave secreta cifrada será eliminada.\nPor favor, guarda tu clave secreta antes de cerrar sesión."
+  "logoutDescription": "La clave secreta cifrada será eliminada.\nPor favor, guarda tu clave secreta antes de cerrar sesión.",
+  
+  "torModeDisabled": "Deshabilitado",
+  
+  "torModeInternal": "Interno (Integrado)",
+  
+  "torModeOrbot": "Orbot (Proxy)",
+  
+  "torModeDescriptionDisabled": "Conexión directa sin Tor",
+  
+  "torModeDescriptionInternal": "Usar cliente Tor integrado (en desarrollo, aún no disponible)",
+  
+  "torModeDescriptionOrbot": "Conectar vía aplicación Orbot (requiere instalación de Orbot)",
+  
+  "torConnectionModeTitle": "Modo de Conexión Tor",
+  
+  "inDevelopment": "(en desarrollo)",
+  
+  "torModeUpdated": "Modo Tor actualizado: {mode}",
+  
+  "orbotRequired": "Orbot Requerido",
+  
+  "orbotRequiredDescription": "La aplicación Orbot debe estar instalada y en ejecución para usar este modo.",
+  
+  "openGooglePlayOrbot": "Abrir Google Play: Orbot",
+  
+  "openFDroidOrbot": "Abrir F-Droid: Orbot",
+  
+  "googlePlay": "Google Play",
+  
+  "fDroid": "F-Droid",
+  
+  "embeddedTorDescription": "Usando cliente Tor integrado. No se requieren aplicaciones adicionales.",
+  
+  "secretKeyNsecLabel": "Clave Secreta (nsec)",
+  
+  "copiedToClipboard": "{label} copiado al portapapeles",
+  
+  "copyNpub": "Copiar npub",
+  
+  "copyHex": "Copiar hex",
+  
+  "generateButton": "Generar",
+  
+  "saveAndConnect": "Guardar y Conectar",
+  
+  "nostrConnectedStatus": "Nostr Conectado",
+  
+  "nostrConnectedViaTor": "Nostr Conectado (vía Tor)",
+  
+  "nostrDisconnectedStatus": "Nostr Desconectado"
 }
 
