@@ -192,15 +192,26 @@ class _SyncStatusIndicatorState extends ConsumerState<SyncStatusIndicator> {
       case SyncState.success:
         return l10n.syncCompleted;
       case SyncState.error:
-        // エラーメッセージを短縮表示
-        final errorMsg = status.errorMessage ?? l10n.syncError;
-        if (errorMsg.contains('タイムアウト') || errorMsg.contains('timeout')) {
-          return l10n.timeout;
-        } else if (errorMsg.contains('failed') || errorMsg.contains('失敗')) {
-          return l10n.connectionError;
-        } else if (status.retryCount > 0) {
+        // リトライ回数がある場合はそれを表示
+        if (status.retryCount > 0) {
           return l10n.errorRetry(status.retryCount);
         }
+        // エラーメッセージが __l10n__: プレフィックス付きの場合は解決
+        final errorMsg = status.errorMessage;
+        if (errorMsg != null && errorMsg.startsWith('__l10n__:')) {
+          final key = errorMsg.substring('__l10n__:'.length);
+          switch (key) {
+            case 'timeout':
+              return l10n.timeout;
+            case 'connectionError':
+              return l10n.connectionError;
+            case 'syncError':
+              return l10n.syncError;
+            default:
+              return l10n.syncError;
+          }
+        }
+        // デフォルトは一般的な同期エラー
         return l10n.syncError;
       case SyncState.idle:
         return l10n.waiting;
