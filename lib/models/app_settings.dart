@@ -3,6 +3,18 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'app_settings.freezed.dart';
 part 'app_settings.g.dart';
 
+/// Tor接続モード
+enum TorMode {
+  /// Tor無効（直接接続）
+  disabled,
+  
+  /// 内蔵Tor (Embedded Tor)
+  internal,
+  
+  /// Orbot経由 (SOCKS5 Proxy)
+  orbot,
+}
+
 /// アプリ設定データ（NIP-78 Application-specific data - Kind 30078）
 @Freezed(makeCollectionsUnmodifiable: false)
 class AppSettings with _$AppSettings {
@@ -22,10 +34,10 @@ class AppSettings with _$AppSettings {
     /// リレーリスト（NIP-65 kind 10002から同期）
     @Default([]) List<String> relays,
     
-    /// Tor有効/無効（Orbot経由での接続）
-    @Default(false) bool torEnabled,
+    /// Tor接続モード
+    @Default(TorMode.disabled) TorMode torMode,
     
-    /// プロキシURL（通常は socks5://127.0.0.1:9050）
+    /// プロキシURL（Orbotモード使用時、通常は socks5://127.0.0.1:9050）
     @Default('socks5://127.0.0.1:9050') String proxyUrl,
     
     /// カスタムリストの順番（リストIDの配列）

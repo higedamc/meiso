@@ -417,6 +417,191 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     }
   }
 
+  /// TorModeの表示名を取得
+  String _getTorModeName(BuildContext context, TorMode mode) {
+    // TODO: l10n 対応（後回し）
+    switch (mode) {
+      case TorMode.disabled:
+        return 'Disabled';
+      case TorMode.internal:
+        return 'Internal (Embedded)';
+      case TorMode.orbot:
+        return 'Orbot (Proxy)';
+    }
+  }
+
+  /// TorModeの説明を取得
+  String _getTorModeDescription(BuildContext context, TorMode mode) {
+    // TODO: l10n 対応（後回し）
+    switch (mode) {
+      case TorMode.disabled:
+        return 'Direct connection without Tor';
+      case TorMode.internal:
+        return 'Use embedded Tor client (under development, not available yet)';
+      case TorMode.orbot:
+        return 'Connect via Orbot app (requires Orbot installation)';
+    }
+  }
+
+  /// Torモード選択ダイアログ
+  Future<void> _showTorModeDialog(
+      BuildContext context, WidgetRef ref, TorMode currentMode) async {
+    final l10n = AppLocalizations.of(context);
+    
+    final selected = await showDialog<TorMode>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Tor Connection Mode'), // TODO: l10n 対応
+        children: [
+          // Disabled
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, TorMode.disabled),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      currentMode == TorMode.disabled ? Icons.check_circle : Icons.circle_outlined,
+                      color: currentMode == TorMode.disabled ? Colors.green : Colors.grey,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _getTorModeName(context, TorMode.disabled),
+                        style: TextStyle(
+                          fontWeight: currentMode == TorMode.disabled 
+                              ? FontWeight.bold 
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 28, top: 4),
+                  child: Text(
+                    _getTorModeDescription(context, TorMode.disabled),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          
+          // Internal (Embedded Tor) - 開発中のため無効化
+          SimpleDialogOption(
+            onPressed: null, // 無効化
+            child: Opacity(
+              opacity: 0.5, // グレーアウト
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        currentMode == TorMode.internal ? Icons.check_circle : Icons.circle_outlined,
+                        color: Colors.grey,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Text(
+                              _getTorModeName(context, TorMode.internal),
+                              style: TextStyle(
+                                fontWeight: currentMode == TorMode.internal 
+                                    ? FontWeight.bold 
+                                    : FontWeight.normal,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '（開発中）',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 28, top: 4),
+                    child: Text(
+                      _getTorModeDescription(context, TorMode.internal),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          
+          // Orbot (SOCKS5 Proxy)
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, TorMode.orbot),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      currentMode == TorMode.orbot ? Icons.check_circle : Icons.circle_outlined,
+                      color: currentMode == TorMode.orbot ? Colors.green : Colors.grey,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _getTorModeName(context, TorMode.orbot),
+                        style: TextStyle(
+                          fontWeight: currentMode == TorMode.orbot 
+                              ? FontWeight.bold 
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 28, top: 4),
+                  child: Text(
+                    _getTorModeDescription(context, TorMode.orbot),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (selected != null && selected != currentMode) {
+      await ref.read(appSettingsProvider.notifier).setTorMode(selected);
+      
+      if (context.mounted) {
+        final snackbarL10n = AppLocalizations.of(context);
+        final modeName = _getTorModeName(context, selected);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tor mode updated: $modeName'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
@@ -424,20 +609,20 @@ class AppSettingsDetailScreen extends ConsumerWidget {
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final currentLocale = ref.watch(localeProvider);
 
-    // Tor有効時に自動的にプロキシテストを実行
+    // Torモード変更時に自動的にプロキシテストを実行
     ref.listen<AsyncValue<AppSettings>>(appSettingsProvider, (previous, next) {
       final prevSettings = previous?.value;
       final nextSettings = next.value;
       
-      // Tor設定が変更された場合のみ実行
-      if (prevSettings?.torEnabled != nextSettings?.torEnabled) {
-        if (nextSettings?.torEnabled == true) {
-          // 少し遅延させてからテスト実行
+      // Torモード設定が変更された場合のみ実行
+      if (prevSettings?.torMode != nextSettings?.torMode) {
+        if (nextSettings?.torMode == TorMode.orbot) {
+          // Orbotモード時はプロキシテストを実行
           Future.delayed(const Duration(milliseconds: 500), () {
             ref.read(proxyStatusProvider.notifier).testProxyConnection();
           });
         } else {
-          // Tor無効時は状態をリセット
+          // Orbot以外のモード時は状態をリセット
           ref.read(proxyStatusProvider.notifier).reset();
         }
       }
@@ -574,40 +759,111 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
                   const Divider(height: 1),
 
-                  // Tor設定（Orbot経由）
-                  SwitchListTile(
-                    title: Text(l10n.torConnection),
+                  // Tor接続モード設定
+                  ListTile(
+                    leading: Icon(
+                      settings.torMode == TorMode.disabled 
+                          ? Icons.shield_outlined 
+                          : Icons.shield,
+                      color: settings.torMode == TorMode.disabled 
+                          ? Colors.purple.shade700 
+                          : Colors.green.shade700,
+                    ),
+                    title: Text(l10n.torConnection ?? 'Tor Connection'),
                     subtitle: Text(
-                      settings.torEnabled 
-                        ? l10n.torEnabledSubtitle(settings.proxyUrl)
-                        : l10n.torDisabledSubtitle,
+                      _getTorModeName(context, settings.torMode),
                       style: const TextStyle(fontSize: 12),
                     ),
-                    value: settings.torEnabled,
-                    onChanged: (value) async {
-                      await ref.read(appSettingsProvider.notifier).toggleTor();
-                      
-                      if (context.mounted) {
-                        final snackbarL10n = AppLocalizations.of(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              value
-                                ? snackbarL10n.torEnabledMessage
-                                : snackbarL10n.torDisabledMessage,
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    secondary: Icon(
-                      settings.torEnabled ? Icons.shield : Icons.shield_outlined,
-                      color: settings.torEnabled ? Colors.green.shade700 : Colors.purple.shade700,
-                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => _showTorModeDialog(context, ref, settings.torMode),
                   ),
 
-                  // プロキシURL設定（Tor有効時のみ表示）
-                  if (settings.torEnabled) ...[
+                  // Orbotモード時の設定とガイド
+                  if (settings.torMode == TorMode.orbot) ...[
+                    // Orbot インストールガイド
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Orbot Required', // TODO: l10n 対応
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade900,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Orbot app must be installed and running to use this mode.', // TODO: l10n 対応
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  // Google Play ストアへのリンク
+                                  // url_launcher を使用する場合はここに実装
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Open Google Play: Orbot'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.shop, size: 16),
+                                label: const Text('Google Play', style: TextStyle(fontSize: 12)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  minimumSize: const Size(0, 32),
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  // F-Droid へのリンク
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Open F-Droid: Orbot'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.download, size: 16),
+                                label: const Text('F-Droid', style: TextStyle(fontSize: 12)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  minimumSize: const Size(0, 32),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    
                     ListTile(
                       leading: Icon(Icons.settings_ethernet, color: Colors.purple.shade700),
                       title: Text(l10n.proxyAddress),
@@ -621,6 +877,34 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     
                     // プロキシ接続状態インジケーター
                     _buildProxyStatusIndicator(context, ref),
+                  ],
+                  
+                  // Internal Torモード時の説明
+                  if (settings.torMode == TorMode.internal) ...[
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child:                             Text(
+                              'Using embedded Tor client. No additional apps required.', // TODO: l10n 対応
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
 
                   const Divider(height: 1),

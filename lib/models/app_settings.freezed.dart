@@ -36,10 +36,10 @@ mixin _$AppSettings {
   /// リレーリスト（NIP-65 kind 10002から同期）
   List<String> get relays => throw _privateConstructorUsedError;
 
-  /// Tor有効/無効（Orbot経由での接続）
-  bool get torEnabled => throw _privateConstructorUsedError;
+  /// Tor接続モード
+  TorMode get torMode => throw _privateConstructorUsedError;
 
-  /// プロキシURL（通常は socks5://127.0.0.1:9050）
+  /// プロキシURL（Orbotモード使用時、通常は socks5://127.0.0.1:9050）
   String get proxyUrl => throw _privateConstructorUsedError;
 
   /// カスタムリストの順番（リストIDの配列）
@@ -74,7 +74,7 @@ abstract class $AppSettingsCopyWith<$Res> {
     String calendarView,
     bool notificationsEnabled,
     List<String> relays,
-    bool torEnabled,
+    TorMode torMode,
     String proxyUrl,
     List<String> customListOrder,
     String? lastViewedCustomListId,
@@ -102,7 +102,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? calendarView = null,
     Object? notificationsEnabled = null,
     Object? relays = null,
-    Object? torEnabled = null,
+    Object? torMode = null,
     Object? proxyUrl = null,
     Object? customListOrder = null,
     Object? lastViewedCustomListId = freezed,
@@ -130,10 +130,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
                 ? _value.relays
                 : relays // ignore: cast_nullable_to_non_nullable
                       as List<String>,
-            torEnabled: null == torEnabled
-                ? _value.torEnabled
-                : torEnabled // ignore: cast_nullable_to_non_nullable
-                      as bool,
+            torMode: null == torMode
+                ? _value.torMode
+                : torMode // ignore: cast_nullable_to_non_nullable
+                      as TorMode,
             proxyUrl: null == proxyUrl
                 ? _value.proxyUrl
                 : proxyUrl // ignore: cast_nullable_to_non_nullable
@@ -171,7 +171,7 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     String calendarView,
     bool notificationsEnabled,
     List<String> relays,
-    bool torEnabled,
+    TorMode torMode,
     String proxyUrl,
     List<String> customListOrder,
     String? lastViewedCustomListId,
@@ -198,7 +198,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? calendarView = null,
     Object? notificationsEnabled = null,
     Object? relays = null,
-    Object? torEnabled = null,
+    Object? torMode = null,
     Object? proxyUrl = null,
     Object? customListOrder = null,
     Object? lastViewedCustomListId = freezed,
@@ -226,10 +226,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             ? _value.relays
             : relays // ignore: cast_nullable_to_non_nullable
                   as List<String>,
-        torEnabled: null == torEnabled
-            ? _value.torEnabled
-            : torEnabled // ignore: cast_nullable_to_non_nullable
-                  as bool,
+        torMode: null == torMode
+            ? _value.torMode
+            : torMode // ignore: cast_nullable_to_non_nullable
+                  as TorMode,
         proxyUrl: null == proxyUrl
             ? _value.proxyUrl
             : proxyUrl // ignore: cast_nullable_to_non_nullable
@@ -260,7 +260,7 @@ class _$AppSettingsImpl implements _AppSettings {
     this.calendarView = 'week',
     this.notificationsEnabled = true,
     this.relays = const [],
-    this.torEnabled = false,
+    this.torMode = TorMode.disabled,
     this.proxyUrl = 'socks5://127.0.0.1:9050',
     this.customListOrder = const [],
     this.lastViewedCustomListId,
@@ -295,12 +295,12 @@ class _$AppSettingsImpl implements _AppSettings {
   @JsonKey()
   final List<String> relays;
 
-  /// Tor有効/無効（Orbot経由での接続）
+  /// Tor接続モード
   @override
   @JsonKey()
-  final bool torEnabled;
+  final TorMode torMode;
 
-  /// プロキシURL（通常は socks5://127.0.0.1:9050）
+  /// プロキシURL（Orbotモード使用時、通常は socks5://127.0.0.1:9050）
   @override
   @JsonKey()
   final String proxyUrl;
@@ -320,7 +320,7 @@ class _$AppSettingsImpl implements _AppSettings {
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torEnabled: $torEnabled, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, updatedAt: $updatedAt)';
   }
 
   @override
@@ -337,8 +337,7 @@ class _$AppSettingsImpl implements _AppSettings {
             (identical(other.notificationsEnabled, notificationsEnabled) ||
                 other.notificationsEnabled == notificationsEnabled) &&
             const DeepCollectionEquality().equals(other.relays, relays) &&
-            (identical(other.torEnabled, torEnabled) ||
-                other.torEnabled == torEnabled) &&
+            (identical(other.torMode, torMode) || other.torMode == torMode) &&
             (identical(other.proxyUrl, proxyUrl) ||
                 other.proxyUrl == proxyUrl) &&
             const DeepCollectionEquality().equals(
@@ -360,7 +359,7 @@ class _$AppSettingsImpl implements _AppSettings {
     calendarView,
     notificationsEnabled,
     const DeepCollectionEquality().hash(relays),
-    torEnabled,
+    torMode,
     proxyUrl,
     const DeepCollectionEquality().hash(customListOrder),
     lastViewedCustomListId,
@@ -388,7 +387,7 @@ abstract class _AppSettings implements AppSettings {
     final String calendarView,
     final bool notificationsEnabled,
     final List<String> relays,
-    final bool torEnabled,
+    final TorMode torMode,
     final String proxyUrl,
     final List<String> customListOrder,
     final String? lastViewedCustomListId,
@@ -418,11 +417,11 @@ abstract class _AppSettings implements AppSettings {
   @override
   List<String> get relays;
 
-  /// Tor有効/無効（Orbot経由での接続）
+  /// Tor接続モード
   @override
-  bool get torEnabled;
+  TorMode get torMode;
 
-  /// プロキシURL（通常は socks5://127.0.0.1:9050）
+  /// プロキシURL（Orbotモード使用時、通常は socks5://127.0.0.1:9050）
   @override
   String get proxyUrl;
 

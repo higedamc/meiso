@@ -8,6 +8,50 @@ import '../services/logger_service.dart';
 import 'nostr_provider.dart';
 import '../bridge_generated.dart/api.dart' as bridge;
 
+/// TorMode をパースするヘルパー関数（Flutter AppSettings 用）
+TorMode _parseTorMode(dynamic value) {
+  if (value == null) return TorMode.disabled;
+  
+  // Bridge TorMode から Flutter TorMode へ変換
+  if (value is bridge.TorMode) {
+    switch (value) {
+      case bridge.TorMode.internal:
+        return TorMode.internal;
+      case bridge.TorMode.orbot:
+        return TorMode.orbot;
+      case bridge.TorMode.disabled:
+        return TorMode.disabled;
+    }
+  }
+  
+  // Flutter TorMode はそのまま返す
+  if (value is TorMode) return value;
+  
+  // String から enum に変換
+  final String strValue = value.toString().toLowerCase();
+  switch (strValue) {
+    case 'internal':
+      return TorMode.internal;
+    case 'orbot':
+      return TorMode.orbot;
+    case 'disabled':
+    default:
+      return TorMode.disabled;
+  }
+}
+
+/// Flutter TorMode を Bridge TorMode に変換するヘルパー関数
+bridge.TorMode _toBridgeTorMode(TorMode mode) {
+  switch (mode) {
+    case TorMode.internal:
+      return bridge.TorMode.internal;
+    case TorMode.orbot:
+      return bridge.TorMode.orbot;
+    case TorMode.disabled:
+      return bridge.TorMode.disabled;
+  }
+}
+
 /// アプリ設定を管理するProvider
 final appSettingsProvider =
     StateNotifierProvider<AppSettingsNotifier, AsyncValue<AppSettings>>((ref) {
@@ -207,7 +251,18 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
   /// Tor設定を切り替え
   Future<void> toggleTor() async {
     state.whenData((settings) async {
-      await updateSettings(settings.copyWith(torEnabled: !settings.torEnabled));
+      // 後方互換性のため残す（torEnabled -> torMode への移行）
+      final newMode = settings.torMode == TorMode.disabled 
+          ? TorMode.orbot 
+          : TorMode.disabled;
+      await updateSettings(settings.copyWith(torMode: newMode));
+    });
+  }
+
+  /// Torモードを変更
+  Future<void> setTorMode(TorMode mode) async {
+    state.whenData((settings) async {
+      await updateSettings(settings.copyWith(torMode: mode));
     });
   }
 
@@ -239,7 +294,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'calendar_view': settings.calendarView,
           'notifications_enabled': settings.notificationsEnabled,
           'relays': settings.relays,
-          'tor_enabled': settings.torEnabled,
+          'tor_mode': settings.torMode.name,
           'proxy_url': settings.proxyUrl,
           'custom_list_order': settings.customListOrder,
           'updated_at': settings.updatedAt.toIso8601String(),
@@ -331,7 +386,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           calendarView: settings.calendarView,
           notificationsEnabled: settings.notificationsEnabled,
           relays: settings.relays,
-          torEnabled: settings.torEnabled,
+          torMode: _toBridgeTorMode(settings.torMode),
           proxyUrl: settings.proxyUrl,
           customListOrder: settings.customListOrder,
           updatedAt: settings.updatedAt.toIso8601String(),
@@ -457,7 +512,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           calendarView: settingsMap['calendar_view'] as String,
           notificationsEnabled: settingsMap['notifications_enabled'] as bool,
           relays: syncedRelays,
-          torEnabled: settingsMap['tor_enabled'] as bool? ?? false,
+          torMode: _parseTorMode(settingsMap['tor_mode']),
           proxyUrl: settingsMap['proxy_url'] as String? ?? 'socks5://127.0.0.1:9050',
           updatedAt: DateTime.parse(settingsMap['updated_at'] as String),
         );
@@ -495,7 +550,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           calendarView: bridgeSettings.calendarView,
           notificationsEnabled: bridgeSettings.notificationsEnabled,
           relays: syncedRelays,
-          torEnabled: bridgeSettings.torEnabled,
+          torMode: _parseTorMode(bridgeSettings.torMode),
           proxyUrl: bridgeSettings.proxyUrl,
           updatedAt: DateTime.parse(bridgeSettings.updatedAt),
         );

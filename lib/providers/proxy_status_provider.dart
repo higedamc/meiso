@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/app_settings.dart';
 import '../services/logger_service.dart';
 import 'app_settings_provider.dart';
 
@@ -29,7 +30,7 @@ class ProxyStatusNotifier extends StateNotifier<ProxyConnectionStatus> {
     final appSettingsAsync = _ref.read(appSettingsProvider);
     final settings = appSettingsAsync.value;
 
-    if (settings == null || !settings.torEnabled) {
+    if (settings == null || settings.torMode != TorMode.orbot) {
       AppLogger.info('🔍 Tor無効のためプロキシテストをスキップ');
       state = ProxyConnectionStatus.unknown;
       return;
