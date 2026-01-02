@@ -943,4 +943,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cryptoThreatModelTitle => '8. Threat Model and Limitations';
+
+  @override
+  String get relayList => 'Relay List';
+
+  @override
+  String get noRelaysRegistered => 'No relays registered';
+
+  @override
+  String get deleteTooltip => 'Delete';
+
+  @override
+  String get aboutRelaysDescription =>
+      '• Relays are servers on the Nostr network\n• Connecting to multiple relays improves redundancy\n• Relay URLs must start with wss:// or ws://\n• Adding/removing relays are immediately saved to Nostr (Kind 10002)\n• Relay changes take effect immediately (no restart required)\n• Use the \"Sync from Nostr\" button to fetch settings from other devices\n• During sync, only updates if remote and local differ';
+
+  @override
+  String get currentlyConnectedViaTor =>
+      '• Currently connected via Tor (using Orbot proxy)';
 }

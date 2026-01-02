@@ -1785,6 +1785,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'8. Threat Model and Limitations'**
   String get cryptoThreatModelTitle;
+
+  /// Title for relay list section
+  ///
+  /// In en, this message translates to:
+  /// **'Relay List'**
+  String get relayList;
+
+  /// Message when no relays are registered
+  ///
+  /// In en, this message translates to:
+  /// **'No relays registered'**
+  String get noRelaysRegistered;
+
+  /// Tooltip for delete button
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get deleteTooltip;
+
+  /// Description of relay functionality
+  ///
+  /// In en, this message translates to:
+  /// **'• Relays are servers on the Nostr network\n• Connecting to multiple relays improves redundancy\n• Relay URLs must start with wss:// or ws://\n• Adding/removing relays are immediately saved to Nostr (Kind 10002)\n• Relay changes take effect immediately (no restart required)\n• Use the \"Sync from Nostr\" button to fetch settings from other devices\n• During sync, only updates if remote and local differ'**
+  String get aboutRelaysDescription;
+
+  /// Message shown when connected via Tor
+  ///
+  /// In en, this message translates to:
+  /// **'• Currently connected via Tor (using Orbot proxy)'**
+  String get currentlyConnectedViaTor;
 }
 
 class _AppLocalizationsDelegate

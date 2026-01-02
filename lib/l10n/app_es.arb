@@ -561,6 +561,16 @@
   
   "cryptoSecureStorageTitle": "7. Almacenamiento Seguro - Implementación en Rust",
   
-  "cryptoThreatModelTitle": "8. Modelo de Amenazas y Limitaciones"
+  "cryptoThreatModelTitle": "8. Modelo de Amenazas y Limitaciones",
+  
+  "relayList": "Lista de Relays",
+  
+  "noRelaysRegistered": "No hay relays registrados",
+  
+  "deleteTooltip": "Eliminar",
+  
+  "aboutRelaysDescription": "• Los relays son servidores en la red Nostr\n• Conectarse a múltiples relays mejora la redundancia\n• Las URLs de relay deben comenzar con wss:// o ws://\n• Agregar/eliminar relays se guarda inmediatamente en Nostr (Kind 10002)\n• Los cambios de relay toman efecto inmediatamente (no requiere reinicio)\n• Use el botón \"Sincronizar desde Nostr\" para obtener configuraciones de otros dispositivos\n• Durante la sincronización, solo actualiza si remoto y local difieren",
+  
+  "currentlyConnectedViaTor": "• Actualmente conectado a través de Tor (usando proxy Orbot)"
 }
 

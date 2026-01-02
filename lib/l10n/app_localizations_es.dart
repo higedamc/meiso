@@ -958,4 +958,21 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cryptoThreatModelTitle => '8. Modelo de Amenazas y Limitaciones';
+
+  @override
+  String get relayList => 'Lista de Relays';
+
+  @override
+  String get noRelaysRegistered => 'No hay relays registrados';
+
+  @override
+  String get deleteTooltip => 'Eliminar';
+
+  @override
+  String get aboutRelaysDescription =>
+      '• Los relays son servidores en la red Nostr\n• Conectarse a múltiples relays mejora la redundancia\n• Las URLs de relay deben comenzar con wss:// o ws://\n• Agregar/eliminar relays se guarda inmediatamente en Nostr (Kind 10002)\n• Los cambios de relay toman efecto inmediatamente (no requiere reinicio)\n• Use el botón \"Sincronizar desde Nostr\" para obtener configuraciones de otros dispositivos\n• Durante la sincronización, solo actualiza si remoto y local difieren';
+
+  @override
+  String get currentlyConnectedViaTor =>
+      '• Actualmente conectado a través de Tor (usando proxy Orbot)';
 }

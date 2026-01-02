@@ -920,4 +920,20 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get cryptoThreatModelTitle => '8. 脅威モデルと制限事項';
+
+  @override
+  String get relayList => 'リレーリスト';
+
+  @override
+  String get noRelaysRegistered => 'リレーが登録されていません';
+
+  @override
+  String get deleteTooltip => '削除';
+
+  @override
+  String get aboutRelaysDescription =>
+      '• リレーはNostrネットワーク上のサーバーです\n• 複数のリレーに接続することで冗長性が向上します\n• リレーURLは wss:// または ws:// で始める必要があります\n• リレーを追加・削除すると即座にNostr（Kind 10002）に保存されます\n• リレー変更は即座に反映されます（再起動不要）\n• 「Nostrから同期」ボタンで他のデバイスの設定を取得できます\n• 同期時、リモートとローカルが異なる場合のみ更新されます';
+
+  @override
+  String get currentlyConnectedViaTor => '• 現在Tor経由で接続しています（Orbotプロキシ使用）';
 }

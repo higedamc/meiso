@@ -1527,6 +1527,31 @@
   "cryptoThreatModelTitle": "8. Threat Model and Limitations",
   "@cryptoThreatModelTitle": {
     "description": "Section title for threat model"
+  },
+  
+  "relayList": "Relay List",
+  "@relayList": {
+    "description": "Title for relay list section"
+  },
+  
+  "noRelaysRegistered": "No relays registered",
+  "@noRelaysRegistered": {
+    "description": "Message when no relays are registered"
+  },
+  
+  "deleteTooltip": "Delete",
+  "@deleteTooltip": {
+    "description": "Tooltip for delete button"
+  },
+  
+  "aboutRelaysDescription": "• Relays are servers on the Nostr network\n• Connecting to multiple relays improves redundancy\n• Relay URLs must start with wss:// or ws://\n• Adding/removing relays are immediately saved to Nostr (Kind 10002)\n• Relay changes take effect immediately (no restart required)\n• Use the \"Sync from Nostr\" button to fetch settings from other devices\n• During sync, only updates if remote and local differ",
+  "@aboutRelaysDescription": {
+    "description": "Description of relay functionality"
+  },
+  
+  "currentlyConnectedViaTor": "• Currently connected via Tor (using Orbot proxy)",
+  "@currentlyConnectedViaTor": {
+    "description": "Message shown when connected via Tor"
   }
 }
 
