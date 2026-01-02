@@ -2062,6 +2062,66 @@
   "cryptoTableOfContents": "📖 Table of Contents",
   "@cryptoTableOfContents": {
     "description": "Table of contents title"
+  },
+  
+  "cryptoTocItem1": "1. Architecture Overview",
+  "@cryptoTocItem1": {
+    "description": "Table of contents item 1"
+  },
+  
+  "cryptoTocItem2": "2. Argon2id - Password Derivation Function",
+  "@cryptoTocItem2": {
+    "description": "Table of contents item 2"
+  },
+  
+  "cryptoTocItem3": "3. AES-256-GCM - Encryption Algorithm",
+  "@cryptoTocItem3": {
+    "description": "Table of contents item 3"
+  },
+  
+  "cryptoTocItem4": "4. NIP-44 - Nostr Encryption Standard",
+  "@cryptoTocItem4": {
+    "description": "Table of contents item 4"
+  },
+  
+  "cryptoTocItem5": "5. Ed25519 - Digital Signatures",
+  "@cryptoTocItem5": {
+    "description": "Table of contents item 5"
+  },
+  
+  "cryptoTocItem6": "6. Amber Integration - Hardware Wallet-like Security",
+  "@cryptoTocItem6": {
+    "description": "Table of contents item 6"
+  },
+  
+  "cryptoTocItem7": "7. Secure Storage - Rust Implementation",
+  "@cryptoTocItem7": {
+    "description": "Table of contents item 7"
+  },
+  
+  "cryptoTocItem8": "8. Threat Model and Limitations",
+  "@cryptoTocItem8": {
+    "description": "Table of contents item 8"
+  },
+  
+  "cryptoFooterSecurityTitle": "🔒 Security Questions and Reports",
+  "@cryptoFooterSecurityTitle": {
+    "description": "Footer security title"
+  },
+  
+  "cryptoFooterSecurityDesc": "If you discover a security issue, please report it via GitHub Issues or Nostr (DM).",
+  "@cryptoFooterSecurityDesc": {
+    "description": "Footer security description"
+  },
+  
+  "cryptoFooterOpenSource": "All code is open source",
+  "@cryptoFooterOpenSource": {
+    "description": "Footer open source text"
+  },
+  
+  "cryptographyDetailsDescription": "Details of cryptographic technologies used in Meiso",
+  "@cryptographyDetailsDescription": {
+    "description": "Cryptography details description in Secret Key Management"
   }
 }
 

@@ -986,7 +986,7 @@ class _SecretKeyManagementScreenState
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'Meisoで採用している暗号技術の詳細',
+                              l10n.cryptographyDetailsDescription,
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey.shade700,

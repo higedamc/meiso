@@ -1281,4 +1281,41 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get cryptoTableOfContents => '📖 目次';
+
+  @override
+  String get cryptoTocItem1 => '1. アーキテクチャ概要';
+
+  @override
+  String get cryptoTocItem2 => '2. Argon2id - パスワード派生関数';
+
+  @override
+  String get cryptoTocItem3 => '3. AES-256-GCM - 暗号化アルゴリズム';
+
+  @override
+  String get cryptoTocItem4 => '4. NIP-44 - Nostr暗号化規格';
+
+  @override
+  String get cryptoTocItem5 => '5. Ed25519 - デジタル署名';
+
+  @override
+  String get cryptoTocItem6 => '6. Amber統合 - ハードウェアウォレット的セキュリティ';
+
+  @override
+  String get cryptoTocItem7 => '7. セキュアストレージ - Rust実装';
+
+  @override
+  String get cryptoTocItem8 => '8. 脅威モデルと制限事項';
+
+  @override
+  String get cryptoFooterSecurityTitle => '🔒 セキュリティに関する質問や報告';
+
+  @override
+  String get cryptoFooterSecurityDesc =>
+      'セキュリティ上の問題を発見した場合は、GitHubのIssueまたはNostr (DM) でご報告ください。';
+
+  @override
+  String get cryptoFooterOpenSource => 'すべてのコードはオープンソースです';
+
+  @override
+  String get cryptographyDetailsDescription => 'Meisoで採用している暗号技術の詳細';
 }

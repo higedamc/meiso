@@ -775,6 +775,30 @@
   
   "cryptoThreatRecommendAmberDesc": "Si se requiere mayor seguridad, use el modo Amber.",
   
-  "cryptoTableOfContents": "📖 Tabla de Contenidos"
+  "cryptoTableOfContents": "📖 Tabla de Contenidos",
+  
+  "cryptoTocItem1": "1. Descripción de la Arquitectura",
+  
+  "cryptoTocItem2": "2. Argon2id - Función de Derivación de Contraseña",
+  
+  "cryptoTocItem3": "3. AES-256-GCM - Algoritmo de Cifrado",
+  
+  "cryptoTocItem4": "4. NIP-44 - Estándar de Cifrado Nostr",
+  
+  "cryptoTocItem5": "5. Ed25519 - Firmas Digitales",
+  
+  "cryptoTocItem6": "6. Integración Amber - Seguridad Tipo Billetera de Hardware",
+  
+  "cryptoTocItem7": "7. Almacenamiento Seguro - Implementación Rust",
+  
+  "cryptoTocItem8": "8. Modelo de Amenazas y Limitaciones",
+  
+  "cryptoFooterSecurityTitle": "🔒 Preguntas y Reportes de Seguridad",
+  
+  "cryptoFooterSecurityDesc": "Si descubre un problema de seguridad, repórtelo a través de GitHub Issues o Nostr (DM).",
+  
+  "cryptoFooterOpenSource": "Todo el código es de código abierto",
+  
+  "cryptographyDetailsDescription": "Detalles de las tecnologías criptográficas utilizadas en Meiso"
 }
 

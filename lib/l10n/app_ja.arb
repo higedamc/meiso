@@ -776,6 +776,30 @@
   
   "cryptoThreatRecommendAmberDesc": "より高いセキュリティが必要な場合は、Amberモードを使用してください。",
   
-  "cryptoTableOfContents": "📖 目次"
+  "cryptoTableOfContents": "📖 目次",
+  
+  "cryptoTocItem1": "1. アーキテクチャ概要",
+  
+  "cryptoTocItem2": "2. Argon2id - パスワード派生関数",
+  
+  "cryptoTocItem3": "3. AES-256-GCM - 暗号化アルゴリズム",
+  
+  "cryptoTocItem4": "4. NIP-44 - Nostr暗号化規格",
+  
+  "cryptoTocItem5": "5. Ed25519 - デジタル署名",
+  
+  "cryptoTocItem6": "6. Amber統合 - ハードウェアウォレット的セキュリティ",
+  
+  "cryptoTocItem7": "7. セキュアストレージ - Rust実装",
+  
+  "cryptoTocItem8": "8. 脅威モデルと制限事項",
+  
+  "cryptoFooterSecurityTitle": "🔒 セキュリティに関する質問や報告",
+  
+  "cryptoFooterSecurityDesc": "セキュリティ上の問題を発見した場合は、GitHubのIssueまたはNostr (DM) でご報告ください。",
+  
+  "cryptoFooterOpenSource": "すべてのコードはオープンソースです",
+  
+  "cryptographyDetailsDescription": "Meisoで採用している暗号技術の詳細"
 }
 

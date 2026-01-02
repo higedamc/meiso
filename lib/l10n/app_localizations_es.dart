@@ -1338,4 +1338,45 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cryptoTableOfContents => '📖 Tabla de Contenidos';
+
+  @override
+  String get cryptoTocItem1 => '1. Descripción de la Arquitectura';
+
+  @override
+  String get cryptoTocItem2 =>
+      '2. Argon2id - Función de Derivación de Contraseña';
+
+  @override
+  String get cryptoTocItem3 => '3. AES-256-GCM - Algoritmo de Cifrado';
+
+  @override
+  String get cryptoTocItem4 => '4. NIP-44 - Estándar de Cifrado Nostr';
+
+  @override
+  String get cryptoTocItem5 => '5. Ed25519 - Firmas Digitales';
+
+  @override
+  String get cryptoTocItem6 =>
+      '6. Integración Amber - Seguridad Tipo Billetera de Hardware';
+
+  @override
+  String get cryptoTocItem7 => '7. Almacenamiento Seguro - Implementación Rust';
+
+  @override
+  String get cryptoTocItem8 => '8. Modelo de Amenazas y Limitaciones';
+
+  @override
+  String get cryptoFooterSecurityTitle =>
+      '🔒 Preguntas y Reportes de Seguridad';
+
+  @override
+  String get cryptoFooterSecurityDesc =>
+      'Si descubre un problema de seguridad, repórtelo a través de GitHub Issues o Nostr (DM).';
+
+  @override
+  String get cryptoFooterOpenSource => 'Todo el código es de código abierto';
+
+  @override
+  String get cryptographyDetailsDescription =>
+      'Detalles de las tecnologías criptográficas utilizadas en Meiso';
 }

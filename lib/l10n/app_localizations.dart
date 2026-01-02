@@ -2427,6 +2427,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'📖 Table of Contents'**
   String get cryptoTableOfContents;
+
+  /// Table of contents item 1
+  ///
+  /// In en, this message translates to:
+  /// **'1. Architecture Overview'**
+  String get cryptoTocItem1;
+
+  /// Table of contents item 2
+  ///
+  /// In en, this message translates to:
+  /// **'2. Argon2id - Password Derivation Function'**
+  String get cryptoTocItem2;
+
+  /// Table of contents item 3
+  ///
+  /// In en, this message translates to:
+  /// **'3. AES-256-GCM - Encryption Algorithm'**
+  String get cryptoTocItem3;
+
+  /// Table of contents item 4
+  ///
+  /// In en, this message translates to:
+  /// **'4. NIP-44 - Nostr Encryption Standard'**
+  String get cryptoTocItem4;
+
+  /// Table of contents item 5
+  ///
+  /// In en, this message translates to:
+  /// **'5. Ed25519 - Digital Signatures'**
+  String get cryptoTocItem5;
+
+  /// Table of contents item 6
+  ///
+  /// In en, this message translates to:
+  /// **'6. Amber Integration - Hardware Wallet-like Security'**
+  String get cryptoTocItem6;
+
+  /// Table of contents item 7
+  ///
+  /// In en, this message translates to:
+  /// **'7. Secure Storage - Rust Implementation'**
+  String get cryptoTocItem7;
+
+  /// Table of contents item 8
+  ///
+  /// In en, this message translates to:
+  /// **'8. Threat Model and Limitations'**
+  String get cryptoTocItem8;
+
+  /// Footer security title
+  ///
+  /// In en, this message translates to:
+  /// **'🔒 Security Questions and Reports'**
+  String get cryptoFooterSecurityTitle;
+
+  /// Footer security description
+  ///
+  /// In en, this message translates to:
+  /// **'If you discover a security issue, please report it via GitHub Issues or Nostr (DM).'**
+  String get cryptoFooterSecurityDesc;
+
+  /// Footer open source text
+  ///
+  /// In en, this message translates to:
+  /// **'All code is open source'**
+  String get cryptoFooterOpenSource;
+
+  /// Cryptography details description in Secret Key Management
+  ///
+  /// In en, this message translates to:
+  /// **'Details of cryptographic technologies used in Meiso'**
+  String get cryptographyDetailsDescription;
 }
 
 class _AppLocalizationsDelegate

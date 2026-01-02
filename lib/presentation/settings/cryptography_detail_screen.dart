@@ -556,14 +556,14 @@ class CryptographyDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _buildTocItem(context, '1. アーキテクチャ概要'),
-          _buildTocItem(context, '2. Argon2id - パスワード派生関数'),
-          _buildTocItem(context, '3. AES-256-GCM - 暗号化アルゴリズム'),
-          _buildTocItem(context, '4. NIP-44 - Nostr暗号化規格'),
-          _buildTocItem(context, '5. Ed25519 - デジタル署名'),
-          _buildTocItem(context, '6. Amber統合 - ハードウェアウォレット的セキュリティ'),
-          _buildTocItem(context, '7. セキュアストレージ - Rust実装'),
-          _buildTocItem(context, '8. 脅威モデルと制限事項'),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem1),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem2),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem3),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem4),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem5),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem6),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem7),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem8),
         ],
       ),
     );
@@ -820,9 +820,9 @@ class CryptographyDetailScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '🔒 セキュリティに関する質問や報告',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).cryptoFooterSecurityTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               color: AppTheme.darkPurple,
               fontSize: 16,
@@ -830,8 +830,7 @@ class CryptographyDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'セキュリティ上の問題を発見した場合は、'
-            'GitHubのIssueまたはNostr (DM) でご報告ください。',
+            AppLocalizations.of(context).cryptoFooterSecurityDesc,
             style: TextStyle(
               color: Colors.grey.shade800,
               fontSize: 14,
@@ -844,7 +843,7 @@ class CryptographyDetailScreen extends StatelessWidget {
               const Icon(Icons.code, size: 16, color: AppTheme.primaryPurple),
               const SizedBox(width: 8),
               Text(
-                'すべてのコードはオープンソースです',
+                AppLocalizations.of(context).cryptoFooterOpenSource,
                 style: TextStyle(
                   color: Colors.grey.shade700,
                   fontSize: 12,
