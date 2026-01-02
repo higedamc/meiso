@@ -196,6 +196,59 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       return;
     }
     
+    // Issue #101: 削除済みリストの再作成を許可
+    // ブラックリストに含まれている場合は削除して再作成可能にする
+    var removedFromBlacklists = false;
+    
+    if (_deletedListIds.contains(listId)) {
+      AppLogger.info('🔄 [CustomLists] Re-creating previously deleted list: "$normalizedName"');
+      _deletedListIds.remove(listId);
+      final saveResult = await _repository.saveDeletedListIds(_deletedListIds);
+      saveResult.fold(
+        (failure) => AppLogger.warning('⚠️  [CustomLists] Failed to remove from list ID blacklist: ${failure.message}'),
+        (_) {
+          AppLogger.info('✅ [CustomLists] Removed from list ID blacklist (remaining: ${_deletedListIds.length})');
+          removedFromBlacklists = true;
+        },
+      );
+    }
+    
+    // event_idブラックリストからも削除を試みる
+    // （古いevent_idがある場合、それも削除対象から外す）
+    if (_deletedEventIds.isNotEmpty) {
+      // Nostr上の古いevent_idを検索
+      final nostrService = _ref.read(nostrServiceProvider);
+      final publicKey = await nostrService.getPublicKey();
+      
+      if (publicKey != null) {
+        try {
+          final oldEventId = await rust_api.findPersonalListEventId(
+            listId: listId,
+            publicKeyHex: publicKey,
+          );
+          
+          if (oldEventId != null && _deletedEventIds.contains(oldEventId)) {
+            AppLogger.info('🔄 [CustomLists] Removing old event ID from blacklist: ${oldEventId.substring(0, 16)}...');
+            _deletedEventIds.remove(oldEventId);
+            final saveResult = await _repository.saveDeletedEventIds(_deletedEventIds);
+            saveResult.fold(
+              (failure) => AppLogger.warning('⚠️  [CustomLists] Failed to remove from event ID blacklist: ${failure.message}'),
+              (_) {
+                AppLogger.info('✅ [CustomLists] Removed from event ID blacklist (remaining: ${_deletedEventIds.length})');
+                removedFromBlacklists = true;
+              },
+            );
+          }
+        } catch (e) {
+          AppLogger.debug('ℹ️  [CustomLists] Could not find old event ID (this is OK for new list): $e');
+        }
+      }
+    }
+    
+    if (removedFromBlacklists) {
+      AppLogger.info('♻️  [CustomLists] List "$normalizedName" is now ready for re-creation');
+    }
+    
     final newList = CustomList(
       id: listId, // UUID v4の代わりに名前ベースのIDを使用
       name: normalizedName,
