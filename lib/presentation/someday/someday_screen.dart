@@ -856,11 +856,42 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () async {
+                // Issue #102: 辞退ボタン - 招待を辞退してリストを削除
+                Navigator.pop(context);
+                
+                // リストを削除
+                try {
+                  await ref.read(customListsProvider.notifier).deleteList(list.id);
+                  
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('「${list.name}」への招待を辞退しました'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                  
+                  AppLogger.info('✅ [GroupInvitation] Declined invitation for: ${list.name}');
+                } catch (e) {
+                  AppLogger.error('❌ [GroupInvitation] Failed to decline invitation: $e');
+                  
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('辞退処理に失敗しました: $e'),
+                        duration: const Duration(seconds: 3),
+                        backgroundColor: Colors.red.shade700,
+                      ),
+                    );
+                  }
+                }
+              },
               child: Text(
-                'キャンセル',
+                '辞退',
                 style: TextStyle(
-                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                  color: Colors.red.shade400,
                 ),
               ),
             ),

@@ -1513,6 +1513,14 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// 2. 各グループのWelcome Messageを再処理（mlsJoinGroup）
   /// 3. エラーが発生した場合も、他のグループの復元を続行
   /// 
+  /// ⚠️ 既知の問題 (2026-01-02):
+  /// アプリ再インストール時に新しいKey Packageが生成されるため、
+  /// 古いKey Packageで作成されたWelcome Messageは復号化できない。
+  /// このため、現状この自動復元機能は動作しない。
+  /// 
+  /// 対策として、ユーザーは「辞退」ボタンで不要な招待を削除できる。
+  /// 将来的な解決策: Key Packageの永続化、またはグループ管理者による再招待フロー。
+  /// 
   /// Note: Oracleの要件より、リレーが同じであれば必ず復元できる必要がある。
   /// Key Packageのハンドリングが失敗している場合は許容されるが、
   /// 正常なケースでは100%復元できなければならない。
