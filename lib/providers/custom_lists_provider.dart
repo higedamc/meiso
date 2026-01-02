@@ -259,16 +259,33 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   Future<void> deleteList(String id) async {
     // 🔥 Phase 8.7: Bug #2修正 - state.whenData() → valueOrNull に変更
     // syncListsFromNostr() と並行実行される場合にレースコンディションが発生するため
-    final lists = state.valueOrNull;
-    if (lists == null) {
-      AppLogger.warning(' [CustomLists] CustomListsProvider state is null, cannot delete list.');
-      return;
+    
+    // Issue #101: state.valueOrNullがnullの場合、Repositoryから読み込む
+    List<CustomList> lists;
+    if (state.valueOrNull != null) {
+      lists = state.valueOrNull!;
+    } else {
+      AppLogger.warning('⚠️  [CustomLists] State is null, loading from repository...');
+      final result = await _repository.loadCustomListsFromLocal();
+      lists = result.fold(
+        (failure) {
+          AppLogger.error('❌ [CustomLists] Failed to load lists from repository: ${failure.message}');
+          return <CustomList>[];
+        },
+        (loadedLists) => loadedLists,
+      );
+      
+      if (lists.isEmpty) {
+        AppLogger.error('❌ [CustomLists] Cannot delete list: no lists available');
+        return;
+      }
     }
     
     // 削除対象リストを取得
     final targetIndex = lists.indexWhere((l) => l.id == id);
     if (targetIndex == -1) {
-      AppLogger.warning(' [CustomLists] List with id $id not found, cannot delete.');
+      AppLogger.warning('⚠️  [CustomLists] List with id $id not found in ${lists.length} lists');
+      AppLogger.debug('   Available list IDs: ${lists.map((l) => l.id).join(", ")}');
       return;
     }
     

@@ -427,13 +427,13 @@ class ExpandableCustomListModal extends ConsumerWidget {
     );
     
     if (confirmed == true) {
-      // リストを削除
-      await ref.read(customListsProvider.notifier).deleteList(list.id);
-      
-      // TODO削除も実行（Phase E.5.1で実装予定）
-      // そのリストに属する全てのTODOも削除する
+      // Issue #101: 削除処理の順序を修正
+      // 1. まずタスクを削除（失敗してもリストは残るのでやり直せる）
       final todosNotifier = ref.read(todosProvider.notifier);
       await todosNotifier.deleteAllTodosInList(list.id);
+      
+      // 2. 次にリストを削除（タスク削除が成功してから）
+      await ref.read(customListsProvider.notifier).deleteList(list.id);
     }
   }
 
