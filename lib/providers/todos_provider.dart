@@ -764,11 +764,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   ) async {
     if (newTitle.trim().isEmpty) return;
 
+    AppLogger.info('🔄 [UPDATE] updateTodoWithRecurrence called: id=${id.substring(0, 8)}, newTitle="$newTitle"');
+
     await state.whenData((todos) async {
       final list = List<Todo>.from(todos[date] ?? []);
       final index = list.indexWhere((t) => t.id == id);
 
       if (index != -1) {
+        final oldTitle = list[index].title;
+        AppLogger.info('🔄 [UPDATE] Found todo: oldTitle="$oldTitle", newTitle="$newTitle"');
         // URLを検出してメタデータを取得（バックグラウンド）
         final detectedUrl = LinkPreviewService.extractUrl(newTitle.trim());
         AppLogger.debug(' URL detected in update: $detectedUrl');
@@ -811,20 +815,27 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           needsSync: true, // 同期が必要
         );
         
+        AppLogger.info('🔄 [UPDATE] Updating todo: title="${updatedTodo.title}", needsSync=${updatedTodo.needsSync}');
+        
         list[index] = updatedTodo;
         
         state = AsyncValue.data({
           ...todos,
           date: list,
         });
+        
+        AppLogger.info('✅ [UPDATE] State updated with new title: "${updatedTodo.title}"');
 
         // Phase C.2.3: リカーリングタスクの場合、将来のインスタンスを事前生成
         if (recurrence != null && date != null) {
+          // 最新のstateを取得
+          var currentTodos = state.valueOrNull ?? {};
+          
           // 既存の子インスタンスを削除
           final removeUseCase = _ref.read(removeChildInstancesUseCaseProvider);
           final removeResult = await removeUseCase(RemoveChildInstancesParams(
             parentId: id,
-            currentTodos: todos,
+            currentTodos: currentTodos,
           ));
           
           removeResult.fold(
@@ -832,7 +843,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               AppLogger.error('❌ Failed to remove child instances: ${failure.message}');
             },
             (todosAfterRemove) {
-              todos = todosAfterRemove;
+              currentTodos = todosAfterRemove;
               AppLogger.debug('[Todos] ✅ Child instances removed');
             },
           );
@@ -841,7 +852,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           final generateUseCase = _ref.read(generateRecurringInstancesUseCaseProvider);
           final generateResult = await generateUseCase(GenerateRecurringInstancesParams(
             parentTodo: updatedTodo,
-            currentTodos: todos,
+            currentTodos: currentTodos,
           ));
           
           generateResult.fold(
@@ -849,17 +860,19 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               AppLogger.error('❌ Failed to generate recurring instances: ${failure.message}');
             },
             (updatedTodosWithRecurring) {
-              todos = updatedTodosWithRecurring;
-              state = AsyncValue.data(todos);
+              state = AsyncValue.data(updatedTodosWithRecurring);
               AppLogger.info('[Todos] ✅ Recurring instances generated');
             },
           );
         } else if (recurrence == null) {
           // Phase C.2.3: 繰り返しを解除した場合、子タスクを削除
           final removeUseCase = _ref.read(removeChildInstancesUseCaseProvider);
+          
+          // 最新のstateを取得してから削除処理を実行
+          final currentTodos = state.valueOrNull ?? {};
           final removeResult = await removeUseCase(RemoveChildInstancesParams(
             parentId: id,
-            currentTodos: todos,
+            currentTodos: currentTodos,
           ));
           
           removeResult.fold(
@@ -867,15 +880,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               AppLogger.error('❌ Failed to remove child instances: ${failure.message}');
             },
             (todosAfterRemove) {
-              todos = todosAfterRemove;
-              state = AsyncValue.data(todos);
+              state = AsyncValue.data(todosAfterRemove);
               AppLogger.debug('[Todos] ✅ Child instances removed (recurrence disabled)');
             },
           );
         }
 
         // ローカルストレージに保存（awaitする）
+        AppLogger.info('💾 [UPDATE] Saving to local storage...');
         await _saveAllTodosToLocal();
+        AppLogger.info('✅ [UPDATE] Saved to local storage');
         
         // Widgetを更新
         await _updateWidget();
@@ -888,6 +902,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // 【楽観的UI更新】バッチ同期タイマーに追加（即座の同期を避ける）
         _updateUnsyncedCount();
         _startBatchSyncTimer();
+        AppLogger.info('🚀 [UPDATE] updateTodoWithRecurrence completed successfully');
+      } else {
+        AppLogger.error('❌ [UPDATE] Todo not found in list: id=${id.substring(0, 8)}');
       }
     }).value;
   }
@@ -2117,34 +2134,47 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// すべてのTodoをローカルストレージに保存
   Future<void> _saveAllTodosToLocal() async {
     AppLogger.debug('💾 [Provider] _saveAllTodosToLocal() called');
-    state.whenData((todos) async {
-      final allTodos = <Todo>[];
-      
-      // すべてのTodoをフラットなリストに変換
-      for (final dateGroup in todos.values) {
-        allTodos.addAll(dateGroup);
-      }
-      
-      AppLogger.debug('💾 [Provider] Saving ${allTodos.length} todos to local storage');
-      try {
-        await localStorageService.saveTodos(allTodos);
-        AppLogger.info('✅ [Provider] Saved ${allTodos.length} todos to local storage');
-      } catch (e) {
-        AppLogger.warning(' ローカル保存エラー: $e');
-      }
-    });
+    
+    // 🔥 FIX: whenData()は非同期処理を正しくawaitしない
+    // state.valueOrNullを使って直接データを取得し、awaitする
+    final todos = state.valueOrNull;
+    if (todos == null) {
+      AppLogger.warning(' State is not ready, skipping save');
+      return;
+    }
+    
+    final allTodos = <Todo>[];
+    
+    // すべてのTodoをフラットなリストに変換
+    for (final dateGroup in todos.values) {
+      allTodos.addAll(dateGroup);
+    }
+    
+    AppLogger.debug('💾 [Provider] Saving ${allTodos.length} todos to local storage');
+    try {
+      await localStorageService.saveTodos(allTodos);
+      AppLogger.info('✅ [Provider] Saved ${allTodos.length} todos to local storage');
+    } catch (e) {
+      AppLogger.warning(' ローカル保存エラー: $e');
+    }
   }
   
   /// Widgetを更新
   Future<void> _updateWidget() async {
-    state.whenData((todos) async {
-      try {
-        await WidgetService.updateWidget(todos);
-      } catch (e) {
-        // Widget更新の失敗はログに残すのみ
-        AppLogger.warning(' Widget更新エラー: $e');
-      }
-    });
+    // 🔥 FIX: whenData()は非同期処理を正しくawaitしない
+    // state.valueOrNullを使って直接データを取得し、awaitする
+    final todos = state.valueOrNull;
+    if (todos == null) {
+      AppLogger.warning(' State is not ready, skipping widget update');
+      return;
+    }
+    
+    try {
+      await WidgetService.updateWidget(todos);
+    } catch (e) {
+      // Widget更新の失敗はログに残すのみ
+      AppLogger.warning(' Widget更新エラー: $e');
+    }
   }
 
 
@@ -2238,6 +2268,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     bool isInitialSync = false,
     TodoSyncTrigger trigger = TodoSyncTrigger.manual,
   }) async {
+    AppLogger.warning('⬇️ [SYNC] syncFromNostr called: trigger=$trigger, isInitialSync=$isInitialSync');
+    
     if (!_ref.read(nostrInitializedProvider)) {
       return;
     }
@@ -2922,7 +2954,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 4. リモートのみに存在 → リモートを採用
   void _updateStateWithSyncedTodos(List<Todo> syncedTodos) {
     try {
-      AppLogger.info(' Starting merge: ${syncedTodos.length} remote todos');
+      AppLogger.warning('🔀 [MERGE] Starting merge: ${syncedTodos.length} remote todos');
       
       // 防御的コーディング: stateから現在のTodoを取得
       final Map<DateTime?, List<Todo>> localTodos;
@@ -2972,9 +3004,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           if (localTodo.needsSync) {
             mergedTodos[remoteTodo.id] = localTodo;
             localWinsCount++;
-            AppLogger.debug(' Conflict resolved (needsSync): Local wins - "${localTodo.title}"');
-            AppLogger.debug('   Local updated: ${localTodo.updatedAt.toIso8601String()}');
-            AppLogger.debug('   Remote updated: ${remoteTodo.updatedAt.toIso8601String()}');
+            AppLogger.warning('🔀 [MERGE] Conflict resolved (needsSync): Local wins - "${localTodo.title}"');
+            AppLogger.warning('   Local updated: ${localTodo.updatedAt.toIso8601String()}');
+            AppLogger.warning('   Remote updated: ${remoteTodo.updatedAt.toIso8601String()}');
             continue;
           }
           
