@@ -161,6 +161,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
   Future<Either<Failure, List<String>>> fetchCustomListNamesFromNostr({
     required String publicKey,
     required Set<String> deletedEventIds,
+    required Set<String> deletedListIds,
   }) async {
     try {
       AppLogger.info('📋 [CustomListRepo] Fetching custom list names from Nostr...');
@@ -178,16 +179,33 @@ class CustomListRepositoryImpl implements CustomListRepository {
         return const Right([]);
       }
       
-      // Issue #101: 削除済みイベントをフィルタリング
-      int filteredCount = 0;
+      // Issue #101: 削除済みイベント・リストIDをフィルタリング
+      int filteredEventCount = 0;
+      int filteredListIdCount = 0;
       
       // list_idからリスト名を抽出
       final listNames = <String>[];
       for (final data in listNamesData) {
-        // 削除済みイベントIDをチェック
+        // Issue #101: 削除済みイベントIDをチェック
         if (deletedEventIds.contains(data.eventId)) {
-          filteredCount++;
-          AppLogger.debug('🗑️ [CustomListRepo] Filtering deleted list: ${data.listId} (eventId: ${data.eventId.substring(0, 16)}...)');
+          filteredEventCount++;
+          AppLogger.debug('🗑️ [CustomListRepo] Filtering deleted list by eventId: ${data.listId} (eventId: ${data.eventId.substring(0, 16)}...)');
+          continue;
+        }
+        
+        // Issue #101: list_idから名前ベースIDを抽出（meiso-list-プレフィックスを削除）
+        // data.listId: "meiso-list-brain-dump" → nameBasedId: "brain-dump"
+        String nameBasedId;
+        if (data.listId.startsWith('meiso-list-')) {
+          nameBasedId = data.listId.substring('meiso-list-'.length);
+        } else {
+          nameBasedId = data.listId;
+        }
+        
+        // Issue #101: 削除済みリストIDをチェック（最優先）
+        if (deletedListIds.contains(nameBasedId)) {
+          filteredListIdCount++;
+          AppLogger.debug('🗑️ [CustomListRepo] [Issue#101] Filtering deleted list by listId (blacklist): $nameBasedId (from ${data.listId})');
           continue;
         }
         
@@ -209,8 +227,8 @@ class CustomListRepositoryImpl implements CustomListRepository {
         }
       }
       
-      if (filteredCount > 0) {
-        AppLogger.info('🗑️ [CustomListRepo] Filtered out $filteredCount deleted lists');
+      if (filteredEventCount > 0 || filteredListIdCount > 0) {
+        AppLogger.info('🗑️ [CustomListRepo] Filtered out $filteredEventCount by eventId, $filteredListIdCount by listId (blacklist)');
       }
       
       AppLogger.info('✅ [CustomListRepo] Fetched ${listNames.length} custom list names');
@@ -306,6 +324,48 @@ class CustomListRepositoryImpl implements CustomListRepository {
   }
   
   // ============================================================
+  // 削除済みリストID（永久ブラックリスト）（Issue #101）
+  // ============================================================
+  
+  @override
+  Future<Either<Failure, void>> saveDeletedListIds(Set<String> listIds) async {
+    try {
+      AppLogger.debug('💾 [CustomListRepo] Saving ${listIds.length} deleted list IDs to blacklist...');
+      
+      await _localStorageService.saveDeletedListIds(listIds.toList());
+      
+      AppLogger.info('✅ [CustomListRepo] Saved ${listIds.length} deleted list IDs to blacklist');
+      return const Right(null);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to save deleted list IDs',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('削除リストIDの保存に失敗しました: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, Set<String>>> loadDeletedListIds() async {
+    try {
+      AppLogger.debug('📂 [CustomListRepo] Loading deleted list IDs from blacklist...');
+      
+      final listIds = await _localStorageService.loadDeletedListIds();
+      
+      AppLogger.info('✅ [CustomListRepo] Loaded ${listIds.length} deleted list IDs from blacklist');
+      return Right(listIds.toSet());
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to load deleted list IDs',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('削除リストIDの読み込みに失敗しました: $e'));
+    }
+  }
+  
+  // ============================================================
   // MLS操作（Phase Dで実装予定）
   // ============================================================
   
@@ -338,19 +398,8 @@ class CustomListRepositoryImpl implements CustomListRepository {
         reason: 'Deleted by user',
       );
       
-      // 削除済みイベントIDをローカルに保存
-      final deletedIdsResult = await loadDeletedEventIds();
-      await deletedIdsResult.fold(
-        (failure) async {
-          AppLogger.warning('⚠️  [CustomListRepo] Failed to load deleted event IDs: ${failure.message}');
-          // 新規作成
-          await saveDeletedEventIds({eventId});
-        },
-        (ids) async {
-          ids.add(eventId);
-          await saveDeletedEventIds(ids);
-        },
-      );
+      // Issue #101: 削除済みイベントIDの保存はProvider側で行う（重複を避ける）
+      // Provider側の_deletedEventIdsメモリ変数と同期するため
       
       AppLogger.info('✅ [CustomListRepo] Successfully deleted personal list: $listId (deletion event: ${sendResult.eventId.substring(0, 16)}...)');
       return const Right(null);

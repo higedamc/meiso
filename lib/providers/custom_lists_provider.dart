@@ -43,6 +43,10 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   
   /// Issue #80: 削除済みイベントIDのセット（kind 5で削除されたリスト）
   Set<String> _deletedEventIds = {};
+  
+  /// Issue #101: 削除済みリストIDの永久ブラックリスト（list_idベース）
+  /// 一度削除されたリストは二度と表示されない
+  Set<String> _deletedListIds = {};
 
   Future<void> _initialize() async {
     try {
@@ -56,6 +60,19 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         (deletedIds) {
           _deletedEventIds = deletedIds;
           AppLogger.info('🗑️ [CustomLists] Loaded ${_deletedEventIds.length} deleted event IDs');
+        },
+      );
+      
+      // Issue #101: 削除済みリストIDブラックリストを読み込み
+      final deletedListIdsResult = await _repository.loadDeletedListIds();
+      deletedListIdsResult.fold(
+        (failure) {
+          AppLogger.warning('🗑️ [CustomLists] [Issue#101] Failed to load deleted list IDs: ${failure.message}');
+          _deletedListIds = {};
+        },
+        (deletedListIds) {
+          _deletedListIds = deletedListIds;
+          AppLogger.info('🗑️ [CustomLists] [Issue#101] Loaded ${_deletedListIds.length} deleted list IDs from blacklist');
         },
       );
       
@@ -276,6 +293,14 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
         _updateCustomListOrderInSettings(updatedLists);
         
+        // Issue #101: 削除済みリストIDを永久ブラックリストに追加
+        _deletedListIds.add(id);
+        final saveBlacklistResult = await _repository.saveDeletedListIds(_deletedListIds);
+        saveBlacklistResult.fold(
+          (failure) => AppLogger.warning('⚠️  [CustomLists] [Issue#101] Failed to save deleted list ID to blacklist: ${failure.message}'),
+          (_) => AppLogger.info('🗑️  [CustomLists] [Issue#101] Added list ID to blacklist: $id (total: ${_deletedListIds.length})'),
+        );
+        
         // 2. Personal Listの場合、バックグラウンドでNostr削除（Phase E.6）
         if (!targetList.isGroup) {
           AppLogger.info('📤 [CustomLists] Deleting personal list from Nostr: ${targetList.name}');
@@ -380,10 +405,11 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       AppLogger.info('📋 [CustomLists] Fetching custom list names from Nostr...');
 
       // Phase C.3.2.2: Repository経由でリスト名を取得
-      // Issue #101: 削除済みイベントIDを渡してフィルタリング
+      // Issue #101: 削除済みイベントIDと削除済みリストIDを渡してフィルタリング
       final result = await _repository.fetchCustomListNamesFromNostr(
         publicKey: userPubkey,
         deletedEventIds: _deletedEventIds,
+        deletedListIds: _deletedListIds,
       );
 
       return await result.fold(
@@ -447,14 +473,17 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   }
   
   /// 削除済みイベントIDをチェックして、リストをフィルタリング
+  /// Issue #101: 削除済みリストIDブラックリストも使用
   Future<List<CustomList>> _filterDeletedLists(List<CustomList> lists) async {
-    if (_deletedEventIds.isEmpty) {
+    if (_deletedEventIds.isEmpty && _deletedListIds.isEmpty) {
       return lists;
     }
     
     // 🔥 Phase 8.7: Bug #2修正 - eventIdで削除済みリストを正しくフィルタリング
     // Kind 5削除イベントの e タグには Nostr イベントID が含まれる
     // list.id (名前ベースID) ではなく list.eventId (NostrイベントID) で比較する必要がある
+    
+    // Issue #101: list_idベースのブラックリストも追加（最優先）
     
     // eventIdがない場合、Rustから検索して設定する
     final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
@@ -469,7 +498,11 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       var isDeleted = false;
       
-      if (list.eventId != null) {
+      // Issue #101: 最優先 - list_idベースのブラックリストをチェック
+      if (_deletedListIds.contains(list.id)) {
+        isDeleted = true;
+        AppLogger.debug('🗑️ [CustomLists] [Issue#101] Filtering deleted list (in blacklist): "${list.name}" (ID: ${list.id})');
+      } else if (list.eventId != null) {
         // eventIdがある場合は、直接チェック
         isDeleted = _deletedEventIds.contains(list.eventId);
       } else if (publicKey != null) {
@@ -553,6 +586,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       // 名前から決定的なIDを生成
       final listId = CustomListHelpers.generateIdFromName(listName);
       AppLogger.debug(' [CustomLists] Processing Nostr list: "$listName" → ID: "$listId"');
+      
+      // Issue #101: 削除済みリストIDブラックリストをチェック
+      if (_deletedListIds.contains(listId)) {
+        AppLogger.info('🗑️  [CustomLists] [Issue#101] Skipping deleted list (in blacklist): "$listName" (ID: $listId)');
+        continue;
+      }
       
       // すでに存在するか確認（IDで）
       final exists = updatedLists.any((list) => list.id == listId);

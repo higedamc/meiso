@@ -34,10 +34,11 @@ abstract class CustomListRepository {
   /// カスタムリスト名のリストを抽出する
   /// 
   /// Phase C.3.2.2: `_fetchEncryptedEventsForListNames()`を移植
-  /// Issue #101: 削除済みイベントIDでフィルタリング
+  /// Issue #101: 削除済みイベントIDと削除済みリストIDでフィルタリング
   Future<Either<Failure, List<String>>> fetchCustomListNamesFromNostr({
     required String publicKey,
     required Set<String> deletedEventIds,
+    required Set<String> deletedListIds,
   });
   
   /// Nostrから個人カスタムリストを同期（Phase Dで実装予定）
@@ -71,6 +72,17 @@ abstract class CustomListRepository {
   
   /// 削除済みイベントIDをローカルから読み込み
   Future<Either<Failure, Set<String>>> loadDeletedEventIds();
+  
+  // ============================================================
+  // 削除済みリストID（永久ブラックリスト）（Issue #101）
+  // ============================================================
+  
+  /// 削除済みリストIDをローカルに保存（list_idベース）
+  /// 一度削除されたリストは二度と表示されない
+  Future<Either<Failure, void>> saveDeletedListIds(Set<String> listIds);
+  
+  /// 削除済みリストIDをローカルから読み込み
+  Future<Either<Failure, Set<String>>> loadDeletedListIds();
   
   // ============================================================
   // Personal List削除・更新（Phase E）
