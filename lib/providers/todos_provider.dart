@@ -202,7 +202,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.debug(' [Todos] データステータスを確認中...');
           
           // まずKind 30001（新形式）をチェック
-          _ref.read(syncStatusProvider.notifier).updateMessage('データ読み込み中...');
+          _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncLoadingData');
           AppLogger.debug(' [Todos] Kind 30001の存在確認...');
           final hasNewData = await checkKind30001Exists();
           AppLogger.debug(' [Todos] Kind 30001: $hasNewData');
@@ -226,7 +226,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             if (needsMigration) {
               AppLogger.debug(' [Todos] 旧Kind 30078データ検出。マイグレーション開始...');
               AppLogger.warning(' [Todos] マイグレーション実行 - Amber復号化が必要');
-              _ref.read(syncStatusProvider.notifier).updateMessage('データ移行中...');
+              _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncMigratingData');
               
               // マイグレーション実行（Kind 30078 → Kind 30001）
               await migrateFromKind30078ToKind30001();
@@ -242,7 +242,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.info(' [Todos] マイグレーション済み（キャッシュ）');
         }
         
-        _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
+        _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncSyncingData');
         await syncFromNostr(isInitialSync: isInitialSync);
         AppLogger.info(' [Todos] 優先同期完了');
       });
@@ -291,7 +291,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.debug(' Checking data status...');
           
           // まずKind 30001（新形式）をチェック
-          _ref.read(syncStatusProvider.notifier).updateMessage('データ読み込み中...');
+          _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncLoadingData');
           AppLogger.debug(' Step 1: Checking Kind 30001 existence...');
           final hasNewData = await checkKind30001Exists();
           AppLogger.debug(' Step 1 result: hasNewData=$hasNewData');
@@ -315,7 +315,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             if (needsMigration) {
               AppLogger.debug(' Found old Kind 30078 TODO events. Starting migration...');
               AppLogger.warning('  MIGRATION WILL START - THIS WILL TRIGGER AMBER DECRYPTION');
-              _ref.read(syncStatusProvider.notifier).updateMessage('データ移行中...');
+              _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncMigratingData');
               
               // マイグレーション実行（Kind 30078 → Kind 30001）
               await migrateFromKind30078ToKind30001();
@@ -331,7 +331,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.info(' Migration already completed (cached)');
         }
         
-        _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
+        _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncSyncingData');
         await syncFromNostr();
         AppLogger.info(' Background sync completed');
       });
@@ -3064,12 +3064,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     AppLogger.info(' Starting migration from Kind 30078 to Kind 30001...');
     
     _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.checking;
-    _ref.read(syncStatusProvider.notifier).updateMessage('データ移行準備中...');
+    _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncPreparingMigration');
     
     try {
       // 1. 既存のKind 30078イベントを取得
       AppLogger.debug(' Fetching existing Kind 30078 events...');
-      _ref.read(syncStatusProvider.notifier).updateMessage('旧データ取得中...');
+      _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncFetchingOldData');
       
       // Phase C.2.1: Repository経由で旧データ取得
       final repository = _ref.read(todoRepositoryProvider);
@@ -3102,7 +3102,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // 2. Kind 30001形式で再送信
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.inProgress;
       AppLogger.debug(' Migrating todos to Kind 30001 format...');
-      _ref.read(syncStatusProvider.notifier).updateMessage('新形式に変換中...');
+      _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncConvertingToNewFormat');
       
       // 一時的に状態を更新（UIに反映）
       final grouped = <DateTime?, List<Todo>>{};
@@ -3126,7 +3126,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       if (oldEventIds.isNotEmpty) {
         AppLogger.debug(' Deleting ${oldEventIds.length} old Kind 30078 events...');
-        _ref.read(syncStatusProvider.notifier).updateMessage('旧データ削除中...');
+        _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncDeletingOldData');
         
         // Phase C.2.2: Repository経由で削除
         final deleteResult = await repository.deleteNostrEvents(
@@ -3146,7 +3146,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
       
       _ref.read(migrationStatusProvider.notifier).state = MigrationStatus.completed;
-      _ref.read(syncStatusProvider.notifier).updateMessage('データ移行完了');
+      _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncMigrationCompleted');
       AppLogger.debug('🎉 Migration completed successfully!');
       
       // Phase C.2.2: Repository経由でマイグレーション完了フラグを保存

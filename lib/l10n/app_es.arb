@@ -517,6 +517,22 @@
   
   "nostrNotInitialized": "Nostr no está inicializado. Por favor, conéctate desde la pantalla de configuración.",
   
-  "sendError": "❌ Error de envío: {error}"
+  "sendError": "❌ Error de envío: {error}",
+  
+  "syncLoadingData": "Cargando datos...",
+  
+  "syncMigratingData": "Migrando datos...",
+  
+  "syncSyncingData": "Sincronizando datos...",
+  
+  "syncPreparingMigration": "Preparando migración de datos...",
+  
+  "syncFetchingOldData": "Obteniendo datos antiguos...",
+  
+  "syncConvertingToNewFormat": "Convirtiendo a nuevo formato...",
+  
+  "syncDeletingOldData": "Eliminando datos antiguos...",
+  
+  "syncMigrationCompleted": "Migración de datos completada"
 }
 

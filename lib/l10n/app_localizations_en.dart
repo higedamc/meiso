@@ -871,4 +871,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String sendError(String error) {
     return '❌ Send error: $error';
   }
+
+  @override
+  String get syncLoadingData => 'Loading data...';
+
+  @override
+  String get syncMigratingData => 'Migrating data...';
+
+  @override
+  String get syncSyncingData => 'Syncing data...';
+
+  @override
+  String get syncPreparingMigration => 'Preparing data migration...';
+
+  @override
+  String get syncFetchingOldData => 'Fetching old data...';
+
+  @override
+  String get syncConvertingToNewFormat => 'Converting to new format...';
+
+  @override
+  String get syncDeletingOldData => 'Deleting old data...';
+
+  @override
+  String get syncMigrationCompleted => 'Data migration completed';
 }

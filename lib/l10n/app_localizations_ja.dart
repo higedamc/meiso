@@ -853,4 +853,28 @@ class AppLocalizationsJa extends AppLocalizations {
   String sendError(String error) {
     return '❌ 送信エラー: $error';
   }
+
+  @override
+  String get syncLoadingData => 'データ読み込み中...';
+
+  @override
+  String get syncMigratingData => 'データ移行中...';
+
+  @override
+  String get syncSyncingData => 'データ同期中...';
+
+  @override
+  String get syncPreparingMigration => 'データ移行準備中...';
+
+  @override
+  String get syncFetchingOldData => '旧データ取得中...';
+
+  @override
+  String get syncConvertingToNewFormat => '新形式に変換中...';
+
+  @override
+  String get syncDeletingOldData => '旧データ削除中...';
+
+  @override
+  String get syncMigrationCompleted => 'データ移行完了';
 }

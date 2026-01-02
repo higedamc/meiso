@@ -1653,6 +1653,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'❌ Send error: {error}'**
   String sendError(String error);
+
+  /// Message when loading data during sync
+  ///
+  /// In en, this message translates to:
+  /// **'Loading data...'**
+  String get syncLoadingData;
+
+  /// Message when migrating data during sync
+  ///
+  /// In en, this message translates to:
+  /// **'Migrating data...'**
+  String get syncMigratingData;
+
+  /// Message when syncing data
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing data...'**
+  String get syncSyncingData;
+
+  /// Message when preparing migration
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing data migration...'**
+  String get syncPreparingMigration;
+
+  /// Message when fetching old format data
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching old data...'**
+  String get syncFetchingOldData;
+
+  /// Message when converting data to new format
+  ///
+  /// In en, this message translates to:
+  /// **'Converting to new format...'**
+  String get syncConvertingToNewFormat;
+
+  /// Message when deleting old format data
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting old data...'**
+  String get syncDeletingOldData;
+
+  /// Message when migration is completed
+  ///
+  /// In en, this message translates to:
+  /// **'Data migration completed'**
+  String get syncMigrationCompleted;
 }
 
 class _AppLocalizationsDelegate

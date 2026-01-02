@@ -518,6 +518,22 @@
   
   "nostrNotInitialized": "Nostrが初期化されていません。設定画面で接続してください。",
   
-  "sendError": "❌ 送信エラー: {error}"
+  "sendError": "❌ 送信エラー: {error}",
+  
+  "syncLoadingData": "データ読み込み中...",
+  
+  "syncMigratingData": "データ移行中...",
+  
+  "syncSyncingData": "データ同期中...",
+  
+  "syncPreparingMigration": "データ移行準備中...",
+  
+  "syncFetchingOldData": "旧データ取得中...",
+  
+  "syncConvertingToNewFormat": "新形式に変換中...",
+  
+  "syncDeletingOldData": "旧データ削除中...",
+  
+  "syncMigrationCompleted": "データ移行完了"
 }
 

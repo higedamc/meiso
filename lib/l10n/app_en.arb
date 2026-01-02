@@ -1417,6 +1417,46 @@
         "type": "String"
       }
     }
+  },
+  
+  "syncLoadingData": "Loading data...",
+  "@syncLoadingData": {
+    "description": "Message when loading data during sync"
+  },
+  
+  "syncMigratingData": "Migrating data...",
+  "@syncMigratingData": {
+    "description": "Message when migrating data during sync"
+  },
+  
+  "syncSyncingData": "Syncing data...",
+  "@syncSyncingData": {
+    "description": "Message when syncing data"
+  },
+  
+  "syncPreparingMigration": "Preparing data migration...",
+  "@syncPreparingMigration": {
+    "description": "Message when preparing migration"
+  },
+  
+  "syncFetchingOldData": "Fetching old data...",
+  "@syncFetchingOldData": {
+    "description": "Message when fetching old format data"
+  },
+  
+  "syncConvertingToNewFormat": "Converting to new format...",
+  "@syncConvertingToNewFormat": {
+    "description": "Message when converting data to new format"
+  },
+  
+  "syncDeletingOldData": "Deleting old data...",
+  "@syncDeletingOldData": {
+    "description": "Message when deleting old format data"
+  },
+  
+  "syncMigrationCompleted": "Data migration completed",
+  "@syncMigrationCompleted": {
+    "description": "Message when migration is completed"
   }
 }
 
