@@ -137,11 +137,11 @@ class _SecretKeyManagementScreenState
       builder: (context) {
         final l10n = AppLocalizations.of(context);
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.key, color: AppTheme.primaryPurple),
-              SizedBox(width: 8),
-              Text('秘密鍵 (nsec)'),
+              const Icon(Icons.key, color: AppTheme.primaryPurple),
+              const SizedBox(width: 8),
+              Text(l10n.secretKeyNsecLabel),
             ],
           ),
           content: SingleChildScrollView(
@@ -257,7 +257,7 @@ class _SecretKeyManagementScreenState
 
         if (decryptedKey == null) {
           setState(() {
-            _errorMessage = 'パスワードが間違っているか、秘密鍵の復号に失敗しました';
+            _errorMessage = l10n.passwordIncorrectOrDecryptFailed;
           });
           return;
         }
@@ -268,7 +268,7 @@ class _SecretKeyManagementScreenState
         }
       } catch (e) {
         setState(() {
-          _errorMessage = '秘密鍵の復号に失敗: $e';
+          _errorMessage = l10n.secretKeyDecryptFailed(e.toString());
         });
       } finally {
         if (mounted) {
@@ -357,6 +357,8 @@ class _SecretKeyManagementScreenState
   }
 
   Future<void> _generateNewSecretKey() async {
+    final l10n = AppLocalizations.of(context);
+    
     // パスワード入力
     final password = await _showPasswordDialog(
       'パスワードを設定',
@@ -390,7 +392,7 @@ class _SecretKeyManagementScreenState
       await _autoConnectWithKey(newKey);
     } catch (e) {
       setState(() {
-        _errorMessage = '秘密鍵の生成に失敗: $e';
+        _errorMessage = l10n.secretKeyGenerationFailed(e.toString());
       });
     } finally {
       setState(() {
@@ -445,7 +447,6 @@ class _SecretKeyManagementScreenState
         _hasEncryptedKey = true;
         _secretKeyController.text = _encryptedPlaceholder;
         _obscureSecretKey = true;
-        final l10n = AppLocalizations.of(context);
         _successMessage = l10n.secretKeyEncrypted(_detectedKeyFormat ?? l10n.formatUnknown);
       });
 
@@ -453,7 +454,7 @@ class _SecretKeyManagementScreenState
       await _autoConnectWithKey(secretKey);
     } catch (e) {
       setState(() {
-        _errorMessage = '秘密鍵の保存に失敗: $e';
+        _errorMessage = l10n.secretKeySaveFailed(e.toString());
       });
     } finally {
       setState(() {
@@ -464,6 +465,7 @@ class _SecretKeyManagementScreenState
 
   /// 秘密鍵を指定して自動接続（Tor対応）
   Future<void> _autoConnectWithKey(String secretKey) async {
+    final l10n = AppLocalizations.of(context);
     if (secretKey.isEmpty) return;
 
     try {
@@ -503,7 +505,7 @@ class _SecretKeyManagementScreenState
       await _autoSync();
     } catch (e) {
       setState(() {
-        _errorMessage = 'リレー接続エラー: $e';
+        _errorMessage = l10n.relayConnectionError(e.toString());
       });
     }
   }
@@ -525,6 +527,8 @@ class _SecretKeyManagementScreenState
 
   /// ログアウト処理（全データ削除）
   Future<void> _logout() async {
+    final l10n = AppLocalizations.of(context);
+    
     // 確認ダイアログを表示
     final confirmed = await showDialog<bool>(
       context: context,
@@ -597,16 +601,17 @@ class _SecretKeyManagementScreenState
       if (!mounted) return;
 
       setState(() {
-        _errorMessage = 'ログアウト失敗: $e';
+        _errorMessage = l10n.logoutFailed(e.toString());
         _isLoading = false;
       });
     }
   }
 
   void _copyToClipboard(String text, String label) {
+    final l10n = AppLocalizations.of(context);
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$labelをコピーしました')),
+      SnackBar(content: Text(l10n.copiedToClipboard(label))),
     );
   }
 
@@ -633,6 +638,7 @@ class _SecretKeyManagementScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
     final publicKeyHex = ref.watch(publicKeyProvider);
     final publicKeyNpubAsync = ref.watch(publicKeyNpubProvider);
@@ -672,7 +678,7 @@ class _SecretKeyManagementScreenState
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              isAmberMode ? 'ログイン中 (Amber)' : 'Nostr接続中',
+                              isAmberMode ? l10n.loggingInAmber : l10n.nostrConnectedStatus,
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -707,17 +713,17 @@ class _SecretKeyManagementScreenState
                                           children: [
                                             TextButton.icon(
                                               onPressed: () => _copyToClipboard(
-                                                  npubKey, 'npub公開鍵'),
+                                                  npubKey, 'npub'),
                                               icon: const Icon(Icons.copy,
                                                   size: 16),
-                                              label: const Text('npubコピー'),
+                                              label: Text(l10n.copyNpub),
                                             ),
                                             TextButton.icon(
                                               onPressed: () => _copyToClipboard(
-                                                  publicKeyHex, 'hex公開鍵'),
+                                                  publicKeyHex, 'hex'),
                                               icon: const Icon(Icons.copy,
                                                   size: 16),
-                                              label: const Text('hexコピー'),
+                                              label: Text(l10n.copyHex),
                                             ),
                                           ],
                                         ),
@@ -822,7 +828,7 @@ class _SecretKeyManagementScreenState
                           child: OutlinedButton.icon(
                             onPressed: _isLoading ? null : _generateNewSecretKey,
                             icon: const Icon(Icons.refresh),
-                            label: const Text('生成'),
+                            label: Text(l10n.generateButton),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -830,7 +836,7 @@ class _SecretKeyManagementScreenState
                           child: ElevatedButton.icon(
                             onPressed: _isLoading ? null : _saveSecretKey,
                             icon: const Icon(Icons.save),
-                            label: const Text('保存して接続'),
+                            label: Text(l10n.saveAndConnect),
                           ),
                         ),
                       ],
@@ -842,40 +848,28 @@ class _SecretKeyManagementScreenState
                   if (isAmberMode)
                     Card(
                       color: AppTheme.primaryPurple.withOpacity(0.1),
-                      child: const Padding(
-                        padding: EdgeInsets.all(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.security, color: AppTheme.primaryPurple),
-                                SizedBox(width: 8),
+                                const Icon(Icons.security, color: AppTheme.primaryPurple),
+                                const SizedBox(width: 8),
                                 Text(
-                                  'Amberモード',
-                                  style: TextStyle(
+                                  l10n.amberMode,
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: AppTheme.darkPurple,
                                   ),
                                 ),
                               ],
                             ),
-                            SizedBox(height: 8),
+                            const SizedBox(height: 8),
                             Text(
-                              '✅ Amberモードで接続中\n\n'
-                              '🔒 セキュリティ機能:\n'
-                              '• Todoの作成・編集時にAmberで署名\n'
-                              '• NIP-44暗号化でコンテンツを保護\n'
-                              '• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n'
-                              '⚡ 復号化の最適化:\n'
-                              'Todoの同期時に復号化の承認が必要です。\n'
-                              '毎回承認するのを避けるために、Amberアプリで\n'
-                              '「Meisoアプリを常に許可」を設定することを推奨します。\n\n'
-                              '📝 設定方法:\n'
-                              '1. Amberアプリを開く\n'
-                              '2. アプリ一覧から「Meiso」を選択\n'
-                              '3. 「NIP-44 Decrypt」を常に許可に設定',
-                              style: TextStyle(
+                              l10n.amberModeInfo,
+                              style: const TextStyle(
                                 fontSize: 12,
                                 color: AppTheme.darkPurple,
                               ),
@@ -891,9 +885,9 @@ class _SecretKeyManagementScreenState
                     OutlinedButton.icon(
                       onPressed: _isLoading ? null : _logout,
                       icon: const Icon(Icons.logout, color: Colors.red),
-                      label: const Text(
-                        'ログアウト',
-                        style: TextStyle(color: Colors.red),
+                      label: Text(
+                        l10n.logout,
+                        style: const TextStyle(color: Colors.red),
                       ),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.all(16),
@@ -973,10 +967,10 @@ class _SecretKeyManagementScreenState
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                const Expanded(
+                                Expanded(
                                   child: Text(
-                                    '使用している暗号技術',
-                                    style: TextStyle(
+                                    l10n.cryptographyInUse,
+                                    style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
                                       color: AppTheme.darkPurple,
@@ -992,7 +986,7 @@ class _SecretKeyManagementScreenState
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'Meisoで採用している暗号技術の詳細',
+                              l10n.cryptographyDetailsDescription,
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey.shade700,

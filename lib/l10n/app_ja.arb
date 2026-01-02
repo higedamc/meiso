@@ -5,7 +5,7 @@
   
   "onboardingWelcomeTitle": "Meisoへようこそ",
   
-  "onboardingWelcomeDescription": "シンプルで美しいToDoアプリ\nNostrで同期して、どこでもタスク管理",
+  "onboardingWelcomeDescription": "シンプルで美しいTo-Doアプリ\nNostrで同期して、どこでもタスク管理",
   
   "onboardingNostrSyncTitle": "Nostrで同期",
   
@@ -59,7 +59,7 @@
   
   "amberModeTitle": "Amberモード",
   
-  "amberModeInfo": "✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• Todoの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ 復号化の最適化:\nTodoの同期時に復号化の承認が必要です。\n毎回承認するのを避けるために、Amberアプリで\n「Meisoアプリを常に許可」を設定することを推奨します。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. アプリ一覧から「Meiso」を選択\n3. 「NIP-44 Decrypt」を常に許可に設定",
+  "amberModeInfo": "✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• タスクの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ 復号化の最適化:\nタスクの同期時に復号化の承認が必要です。\n毎回承認するのを避けるために、Amberアプリで\n「Meisoアプリを常に許可」を設定することを推奨します。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. アプリ一覧から「Meiso」を選択\n3. 「NIP-44 Decrypt」を常に許可に設定",
   
   "autoSyncInfoTitle": "自動同期について",
   
@@ -141,7 +141,7 @@
 
   "mlsOnePersonTestTodoTitle": "MLSグループ内テストTODO",
 
-  "deleteRecurringTodoTitle": "繰り返しTodoを削除",
+  "deleteRecurringTodoTitle": "繰り返しタスクを削除",
 
   "removeThisInstance": "このインスタンスのみ削除",
 
@@ -379,8 +379,8 @@
   "syncPhaseDelta": "差分同期中...",
   "syncPhaseAppSettings": "設定同期中...",
   "syncPhaseCustomLists": "リスト同期中...",
-  "syncPhaseTodos": "Todo同期中...",
-  "syncPhaseMls": "グループTodo同期中...",
+  "syncPhaseTodos": "タスク同期中...",
+  "syncPhaseMls": "グループタスク同期中...",
   
   "justNow": "たった今",
   
@@ -444,6 +444,362 @@
   
   "logoutConfirm": "本当にログアウトしますか？",
   
-  "logoutDescription": "暗号化された秘密鍵が削除されます。\nログアウト前に秘密鍵を保存してください。"
+  "logoutDescription": "暗号化された秘密鍵が削除されます。\nログアウト前に秘密鍵を保存してください。",
+  
+  "torModeDisabled": "無効",
+  
+  "torModeInternal": "内蔵 (組み込み)",
+  
+  "torModeOrbot": "Orbot (プロキシ)",
+  
+  "torModeDescriptionDisabled": "Torを使用せず直接接続",
+  
+  "torModeDescriptionInternal": "組み込みTorクライアントを使用（開発中、まだ利用できません）",
+  
+  "torModeDescriptionOrbot": "Orbotアプリ経由で接続（Orbotのインストールが必要）",
+  
+  "torConnectionModeTitle": "Tor接続モード",
+  
+  "inDevelopment": "（開発中）",
+  
+  "torModeUpdated": "Torモードを更新しました: {mode}",
+  
+  "orbotRequired": "Orbot が必要です",
+  
+  "orbotRequiredDescription": "このモードを使用するには、Orbotアプリをインストールして起動する必要があります。",
+  
+  "openGooglePlayOrbot": "Google Playを開く: Orbot",
+  
+  "openFDroidOrbot": "F-Droidを開く: Orbot",
+  
+  "googlePlay": "Google Play",
+  
+  "fDroid": "F-Droid",
+  
+  "embeddedTorDescription": "組み込みTorクライアントを使用。追加のアプリは不要です。",
+  
+  "secretKeyNsecLabel": "秘密鍵 (nsec)",
+  
+  "copiedToClipboard": "{label}をコピーしました",
+  
+  "copyNpub": "npubコピー",
+  
+  "copyHex": "hexコピー",
+  
+  "generateButton": "生成",
+  
+  "saveAndConnect": "保存して接続",
+  
+  "nostrConnectedStatus": "Nostr接続中",
+  
+  "nostrConnectedViaTor": "Nostr接続中 (Tor経由)",
+  
+  "nostrDisconnectedStatus": "Nostr未接続",
+  
+  "passwordIncorrectOrDecryptFailed": "パスワードが間違っているか、秘密鍵の復号に失敗しました",
+  
+  "secretKeyDecryptFailed": "秘密鍵の復号に失敗: {error}",
+  
+  "secretKeyGenerationFailed": "秘密鍵の生成に失敗: {error}",
+  
+  "secretKeySaveFailed": "秘密鍵の保存に失敗: {error}",
+  
+  "relayConnectionError": "リレー接続エラー: {error}",
+  
+  "logoutFailed": "ログアウト失敗: {error}",
+  
+  "loggingInAmber": "ログイン中 (Amber)",
+  
+  "amberModeConnected": "✅ Amberモードで接続中\n\n",
+  
+  "secretKeySaveAutoConnect": "• 秘密鍵を保存すると自動的にリレーに接続します\n",
+  
+  "multipleRelaysRedundancy": "• 複数のリレーに接続することで冗長性が向上します\n",
+  
+  "nostrNotInitialized": "Nostrが初期化されていません。設定画面で接続してください。",
+  
+  "sendError": "❌ 送信エラー: {error}",
+  
+  "syncLoadingData": "データ読み込み中...",
+  
+  "syncMigratingData": "データ移行中...",
+  
+  "syncSyncingData": "データ同期中...",
+  
+  "syncPreparingMigration": "データ移行準備中...",
+  
+  "syncFetchingOldData": "旧データ取得中...",
+  
+  "syncConvertingToNewFormat": "新形式に変換中...",
+  
+  "syncDeletingOldData": "旧データ削除中...",
+  
+  "syncMigrationCompleted": "データ移行完了",
+  
+  "aboutRelays": "リレーについて",
+  
+  "amberMode": "Amberモード",
+  
+  "cryptographyInUse": "使用している暗号技術",
+  
+  "cryptographyDetailsUsedInMeiso": "Meisoで採用している暗号技術の詳細",
+  
+  "cryptographyIntroTitle": "Meisoは、現代の暗号学における最高水準の技術を採用しています。",
+  
+  "cryptographyIntroDescription": "このドキュメントでは、ビットコイナーやNostrichの皆さんに向けて、Meisoで使用している暗号技術の詳細を説明します。",
+  
+  "cryptoArchitectureTitle": "1. アーキテクチャ概要",
+  
+  "cryptoArgon2idTitle": "2. Argon2id - パスワード派生関数",
+  
+  "cryptoAes256GcmTitle": "3. AES-256-GCM - 暗号化アルゴリズム",
+  
+  "cryptoNip44Title": "4. NIP-44 - Nostr暗号化規格",
+  
+  "cryptoEd25519Title": "5. Ed25519 - デジタル署名",
+  
+  "cryptoAmberIntegrationTitle": "6. Amber統合 - ハードウェアウォレット的セキュリティ",
+  
+  "cryptoSecureStorageTitle": "7. セキュアストレージ - Rust実装",
+  
+  "cryptoThreatModelTitle": "8. 脅威モデルと制限事項",
+  
+  "relayList": "リレーリスト",
+  
+  "noRelaysRegistered": "リレーが登録されていません",
+  
+  "deleteTooltip": "削除",
+  
+  "aboutRelaysDescription": "• リレーはNostrネットワーク上のサーバーです\n• 複数のリレーに接続することで冗長性が向上します\n• リレーURLは wss:// または ws:// で始める必要があります\n• リレーを追加・削除すると即座にNostr（Kind 10002）に保存されます\n• リレー変更は即座に反映されます（再起動不要）\n• 「Nostrから同期」ボタンで他のデバイスの設定を取得できます\n• 同期時、リモートとローカルが異なる場合のみ更新されます",
+  
+  "currentlyConnectedViaTor": "• 現在Tor経由で接続しています（Orbotプロキシ使用）",
+  
+  "cryptoArchPara1": "Meisoは「Zero-Knowledge Architecture」を採用し、あなたの秘密鍵やタスクデータをサーバーに一切送信しません。全ての暗号化処理はあなたのデバイス上で実行されます。",
+  
+  "cryptoArchSecurityModel": "セキュリティモデル:\n• エンドツーエンド暗号化 (E2EE)\n• クライアントサイド暗号化\n• サーバーは暗号化済みデータのみを保管\n• 秘密鍵はあなただけが保有",
+  
+  "cryptoArgon2Intro": "Argon2idは、2015年のPassword Hashing Competition (PHC)で優勝した、最新かつ最強のパスワードハッシュアルゴリズムです。",
+  
+  "cryptoArgon2WhyTitle": "なぜArgon2idなのか？",
+  
+  "cryptoArgon2BruteForce": "耐ブルートフォース攻撃",
+  
+  "cryptoArgon2BruteForceDesc": "計算コストとメモリコストの両方を必要とするため、GPUやASICによる並列攻撃に極めて強い耐性を持ちます。",
+  
+  "cryptoArgon2SideChannel": "サイドチャネル攻撃への耐性",
+  
+  "cryptoArgon2SideChannelDesc": "Argon2iのメモリアクセスパターンの予測不可能性と、Argon2dの計算効率を組み合わせた「ハイブリッド型」です。",
+  
+  "cryptoArgon2Standard": "業界標準",
+  
+  "cryptoArgon2StandardDesc": "OWASP、NIST、CryptographyEngineering community推奨。bcryptやPBKDF2を上回る次世代標準です。",
+  
+  "cryptoArgon2Params": "Meisoでの実装パラメータ:\n• メモリコスト: 19 MiB (最適化済み)\n• 反復回数: 2回\n• 並列度: 1スレッド\n• 出力長: 32バイト (256ビット)\n• ソルト: ランダム生成 (16バイト)",
+  
+  "cryptoArgon2Reference": "📚 参考: Argon2 RFC 9106",
+  
+  "cryptoAesIntro": "AES-256-GCMは、米国政府が機密情報の保護に使用する「認証付き暗号化 (AEAD)」アルゴリズムです。",
+  
+  "cryptoAesStrengthTitle": "AES-256の強度",
+  
+  "cryptoAesStrengthDesc": "AES-256は2^256通りの鍵空間を持ち、現代のスーパーコンピュータでも総当たり攻撃は事実上不可能です。量子コンピュータ時代でも128ビットの有効セキュリティを維持します。",
+  
+  "cryptoAesGcmAdvantagesTitle": "GCMモードの利点",
+  
+  "cryptoAesAead": "認証付き暗号化 (AEAD)",
+  
+  "cryptoAesAeadDesc": "暗号化と同時にメッセージ認証コード (MAC)を生成。データの改ざん検知が可能です。",
+  
+  "cryptoAesPerformance": "高速処理",
+  
+  "cryptoAesPerformanceDesc": "並列処理が可能で、最新のCPUのAES-NI命令によりハードウェアアクセラレーションされます。",
+  
+  "cryptoAesPaddingResistance": "パディング攻撃への耐性",
+  
+  "cryptoAesPaddingResistanceDesc": "ストリーム暗号モードのため、パディングオラクル攻撃のリスクがありません。",
+  
+  "cryptoAesParams": "Meisoでの実装:\n• 暗号化アルゴリズム: AES-256-GCM\n• 鍵長: 256ビット (Argon2idから派生)\n• ノンス: ランダム生成 (96ビット)\n• タグ長: 128ビット (改ざん検知用)\n• 用途: 秘密鍵の暗号化保存",
+  
+  "cryptoAesReference": "📚 参考: NIST SP 800-38D (GCM)",
+  
+  "cryptoNip44Intro": "NIP-44は、Nostrプロトコルにおける暗号化メッセージの標準規格です。楕円曲線暗号 (ECC) を使った安全なエンドツーエンド暗号化を提供します。",
+  
+  "cryptoNip44MechanismTitle": "暗号化の仕組み",
+  
+  "cryptoNip44MechanismDesc": "NIP-44は、あなたの秘密鍵と受信者の公開鍵から「共有秘密 (shared secret)」を生成し、それを使ってメッセージを暗号化します。",
+  
+  "cryptoNip44Process": "暗号化プロセス:\n1. ECDH (Elliptic Curve Diffie-Hellman)\n   → secp256k1曲線で共有秘密を生成\n\n2. HMAC-SHA256による鍵派生 (HKDF)\n   → 暗号化鍵とメッセージ認証鍵を生成\n\n3. ChaCha20-Poly1305で暗号化\n   → 高速かつ安全なAEAD暗号化\n\n4. Base64エンコードして送信",
+  
+  "cryptoNip44UsageTitle": "Meisoでの利用",
+  
+  "cryptoNip44UsageDesc": "Meisoでは、全てのTodoデータをNIP-44で暗号化してNostrリレーに保存します。これにより、リレーサーバーはあなたのタスク内容を読み取ることができません。",
+  
+  "cryptoNip44SecurityTitle": "🔐 重要なセキュリティ特性",
+  
+  "cryptoNip44SecurityDesc": "• リレーサーバーは暗号文しか見えません\n• あなた自身の秘密鍵がないと復号化できません\n• 前方秘匿性 (Forward Secrecy) は提供されません\n• 秘密鍵が漏洩すると過去の全メッセージが復号化されます",
+  
+  "cryptoNip44Reference": "📚 参考: NIP-44 仕様",
+  
+  "cryptoEd25519Intro": "Ed25519は、楕円曲線暗号 (ECC) に基づく最新の署名アルゴリズムです。Bitcoin、SSH、TLS 1.3など、最新のセキュリティプロトコルで広く採用されています。",
+  
+  "cryptoEd25519AdvantagesTitle": "Ed25519の優位性",
+  
+  "cryptoEd25519Speed": "高速",
+  
+  "cryptoEd25519SpeedDesc": "RSA-2048の10倍以上の速度で署名・検証が可能。モバイルデバイスでも高速動作します。",
+  
+  "cryptoEd25519Compact": "コンパクト",
+  
+  "cryptoEd25519CompactDesc": "公開鍵: 32バイト、秘密鍵: 32バイト、署名: 64バイト。RSAの1/8のサイズで同等以上のセキュリティ。",
+  
+  "cryptoEd25519Deterministic": "決定論的",
+  
+  "cryptoEd25519DeterministicDesc": "同じメッセージに対して常に同じ署名を生成。乱数生成器の脆弱性リスクがありません。",
+  
+  "cryptoEd25519SafeImpl": "実装が安全",
+  
+  "cryptoEd25519SafeImplDesc": "サイドチャネル攻撃に対する耐性が設計段階から組み込まれています。",
+  
+  "cryptoEd25519NostrRoleTitle": "Nostrでの役割",
+  
+  "cryptoEd25519NostrRoleDesc": "Nostrでは、全てのイベント (メッセージ、Todo、プロフィール更新など)にEd25519署名が付けられます。これにより、イベントの作成者の真正性と、データの完全性が保証されます。",
+  
+  "cryptoEd25519SigningProcess": "Nostr署名プロセス:\n1. イベントをJSON形式でシリアライズ\n2. SHA-256でハッシュ化\n3. Ed25519秘密鍵で署名\n4. 署名をイベントに添付して送信",
+  
+  "cryptoEd25519Reference": "📚 参考: RFC 8032 (EdDSA)",
+  
+  "cryptoAmberIntro": "Amberは、Nostr秘密鍵を安全に管理するための専用アプリです。秘密鍵を他のアプリと共有せず、署名リクエストのみを処理します。",
+  
+  "cryptoAmberNcryptsecTitle": "ncryptsec形式",
+  
+  "cryptoAmberNcryptsecDesc": "Amberは、秘密鍵を「ncryptsec」形式で保存します。これは、AES-256-CBCで暗号化された秘密鍵を含むBech32エンコードされた文字列です。",
+  
+  "cryptoAmberNcryptsecStructure": "ncryptsec構造:\nncryptsec1... ← Bech32プレフィックス\n├─ バージョン (1バイト)\n├─ ソルト (16バイト)\n├─ ノンス/IV (16バイト)\n├─ 暗号化された秘密鍵 (32バイト)\n└─ 改ざん検知用タグ",
+  
+  "cryptoAmberBenefitsTitle": "Amberモードのメリット",
+  
+  "cryptoAmberIsolation": "秘密鍵の隔離",
+  
+  "cryptoAmberIsolationDesc": "Meisoは秘密鍵を保持せず、署名が必要な時だけAmberに依頼します。",
+  
+  "cryptoAmberBiometric": "生体認証",
+  
+  "cryptoAmberBiometricDesc": "Amberで署名時に指紋認証やPINを要求できます。",
+  
+  "cryptoAmberAuditable": "監査可能",
+  
+  "cryptoAmberAuditableDesc": "Amberアプリで全ての署名リクエストを確認・承認できます。",
+  
+  "cryptoAmberKeyReuse": "鍵の再利用",
+  
+  "cryptoAmberKeyReuseDesc": "1つの秘密鍵を複数のNostrアプリで安全に共有できます。",
+  
+  "cryptoAmberHardwareWalletTitle": "💡 ハードウェアウォレットとの類似性",
+  
+  "cryptoAmberHardwareWalletDesc": "Amberは、Bitcoinのハードウェアウォレット (Ledger、Trezor) と同じ「秘密鍵を外部に出さない」アーキテクチャを採用しています。",
+  
+  "cryptoAmberReference": "🔗 Amber on GitHub",
+  
+  "cryptoSecureStorageIntro": "Meisoの秘密鍵管理は、全てRustで実装されています。Rustは、メモリ安全性が言語レベルで保証された、セキュアなシステムプログラミング言語です。",
+  
+  "cryptoStorageWhyRustTitle": "なぜRust？",
+  
+  "cryptoStorageMemorySafety": "メモリ安全性",
+  
+  "cryptoStorageMemorySafetyDesc": "バッファオーバーフロー、Use-after-free、データ競合などのメモリ関連の脆弱性が原理的に発生しません。",
+  
+  "cryptoStorageZeroCost": "ゼロコスト抽象化",
+  
+  "cryptoStorageZeroCostDesc": "高レベルなコードを書きながら、C/C++と同等のパフォーマンスを実現。",
+  
+  "cryptoStorageTypeSystem": "強力な型システム",
+  
+  "cryptoStorageTypeSystemDesc": "Option型やResult型により、エラーハンドリングが強制されます。",
+  
+  "cryptoStorageImplTitle": "ストレージの実装",
+  
+  "cryptoStorageImplDesc": "Meisoは、暗号化された秘密鍵をFlutterの「ApplicationSupportDirectory」に保存します。このディレクトリは、OSによって他のアプリからアクセスできないよう保護されています。",
+  
+  "cryptoStoragePath": "ストレージパス (Android):\n/data/data/com.example.meiso/files/encrypted_key.bin\n\nファイル内容:\n• JSON形式\n• フィールド: salt, nonce, ciphertext\n• 全て Base64 エンコード済み",
+  
+  "cryptoStorageMemorySecurityTitle": "メモリセキュリティ",
+  
+  "cryptoStorageZeroize": "Zeroize",
+  
+  "cryptoStorageZeroizeDesc": "秘密鍵を使用後、メモリから安全に消去します。",
+  
+  "cryptoStorageStackAllocation": "スタック割り当て",
+  
+  "cryptoStorageStackAllocationDesc": "秘密鍵をヒープではなくスタックに配置し、寿命を最小化。",
+  
+  "cryptoStorageMemoryDump": "メモリダンプ対策",
+  
+  "cryptoStorageMemoryDumpDesc": "デバッグビルドでもRustコードは最適化され、機密データが残りにくい。",
+  
+  "cryptoThreatModelIntro": "Meisoは非常に強力な暗号技術を使用していますが、完璧なセキュリティは存在しません。以下の脅威を理解してください。",
+  
+  "cryptoThreatWhatWeCanProtectTitle": "保護できること",
+  
+  "cryptoThreatNetworkEavesdropping": "ネットワーク盗聴",
+  
+  "cryptoThreatNetworkEavesdroppingDesc": "TLS + E2EE暗号化により、通信経路での盗聴は無効化されます。",
+  
+  "cryptoThreatMaliciousRelay": "リレーサーバーの悪意",
+  
+  "cryptoThreatMaliciousRelayDesc": "リレーは暗号化されたデータしか見えません。",
+  
+  "cryptoThreatBruteForce": "ブルートフォース攻撃",
+  
+  "cryptoThreatBruteForceDesc": "Argon2id + AES-256により、現実的な時間での解読は不可能。",
+  
+  "cryptoThreatWhatWeCannotProtectTitle": "保護できないこと",
+  
+  "cryptoThreatWarningTitle": "⚠️ 以下の脅威には注意が必要です",
+  
+  "cryptoThreatWarningDesc": "• デバイスの物理的な盗難 + パスワード漏洩\n• キーロガーやスクリーンキャプチャマルウェア\n• ルート化/Jailbreak済みデバイス\n• OSやファームウェアの脆弱性\n• ソーシャルエンジニアリング攻撃\n• 量子コンピュータによる将来的な脅威 (RSA/ECCの破綻)",
+  
+  "cryptoThreatBestPracticesTitle": "ベストプラクティス",
+  
+  "cryptoThreatStrongPassword": "強力なパスワード",
+  
+  "cryptoThreatStrongPasswordDesc": "20文字以上のランダムなパスワードを使用してください。",
+  
+  "cryptoThreatDeviceEncryption": "デバイスの暗号化",
+  
+  "cryptoThreatDeviceEncryptionDesc": "Android/iOSのフルディスク暗号化を有効にしてください。",
+  
+  "cryptoThreatKeepOsUpdated": "OSを最新に保つ",
+  
+  "cryptoThreatKeepOsUpdatedDesc": "セキュリティパッチを定期的に適用してください。",
+  
+  "cryptoThreatRecommendAmber": "Amberモードの推奨",
+  
+  "cryptoThreatRecommendAmberDesc": "より高いセキュリティが必要な場合は、Amberモードを使用してください。",
+  
+  "cryptoTableOfContents": "📖 目次",
+  
+  "cryptoTocItem1": "1. アーキテクチャ概要",
+  
+  "cryptoTocItem2": "2. Argon2id - パスワード派生関数",
+  
+  "cryptoTocItem3": "3. AES-256-GCM - 暗号化アルゴリズム",
+  
+  "cryptoTocItem4": "4. NIP-44 - Nostr暗号化規格",
+  
+  "cryptoTocItem5": "5. Ed25519 - デジタル署名",
+  
+  "cryptoTocItem6": "6. Amber統合 - ハードウェアウォレット的セキュリティ",
+  
+  "cryptoTocItem7": "7. セキュアストレージ - Rust実装",
+  
+  "cryptoTocItem8": "8. 脅威モデルと制限事項",
+  
+  "cryptoFooterSecurityTitle": "🔒 セキュリティに関する質問や報告",
+  
+  "cryptoFooterSecurityDesc": "セキュリティ上の問題を発見した場合は、GitHubのIssueまたはNostr (DM) でご報告ください。",
+  
+  "cryptoFooterOpenSource": "すべてのコードはオープンソースです",
+  
+  "cryptographyDetailsDescription": "Meisoで採用している暗号技術の詳細"
 }
 

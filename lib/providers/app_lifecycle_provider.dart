@@ -174,7 +174,7 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       
       // 再接続成功後、データ同期を実行
       AppLogger.info(' Starting sync after reconnect...');
-      _ref.read(syncStatusProvider.notifier).updateMessage('データ同期中...');
+      _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncSyncingData');
       
       // TodosProviderの同期メソッドを呼び出し
       final todosNotifier = _ref.read(todosProvider.notifier);

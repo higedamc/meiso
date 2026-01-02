@@ -165,6 +165,22 @@ class SyncLoadingOverlay extends ConsumerWidget {
         return l10n.syncPhaseMls;
       case 'syncCompleted':
         return l10n.syncCompleted;
+      case 'syncLoadingData':
+        return l10n.syncLoadingData;
+      case 'syncMigratingData':
+        return l10n.syncMigratingData;
+      case 'syncSyncingData':
+        return l10n.syncSyncingData;
+      case 'syncPreparingMigration':
+        return l10n.syncPreparingMigration;
+      case 'syncFetchingOldData':
+        return l10n.syncFetchingOldData;
+      case 'syncConvertingToNewFormat':
+        return l10n.syncConvertingToNewFormat;
+      case 'syncDeletingOldData':
+        return l10n.syncDeletingOldData;
+      case 'syncMigrationCompleted':
+        return l10n.syncMigrationCompleted;
       default:
         return l10n.syncing;
     }

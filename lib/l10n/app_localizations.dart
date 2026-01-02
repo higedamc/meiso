@@ -277,7 +277,7 @@ abstract class AppLocalizations {
   /// Information about Amber mode
   ///
   /// In en, this message translates to:
-  /// **'✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign todos with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing todos.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow'**
+  /// **'✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing tasks.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow'**
   String get amberModeInfo;
 
   /// Title for auto sync info card
@@ -523,7 +523,7 @@ abstract class AppLocalizations {
   /// Title for recurring delete confirmation dialog
   ///
   /// In en, this message translates to:
-  /// **'Delete recurring to-do'**
+  /// **'Delete recurring task'**
   String get deleteRecurringTodoTitle;
 
   /// Option to delete only this instance of a recurring todo
@@ -1228,16 +1228,16 @@ abstract class AppLocalizations {
   /// **'Syncing lists...'**
   String get syncPhaseCustomLists;
 
-  /// Sync phase: todos
+  /// Sync phase: tasks
   ///
   /// In en, this message translates to:
-  /// **'Syncing todos...'**
+  /// **'Syncing tasks...'**
   String get syncPhaseTodos;
 
-  /// Sync phase: MLS group todos
+  /// Sync phase: MLS group tasks
   ///
   /// In en, this message translates to:
-  /// **'Syncing group todos...'**
+  /// **'Syncing group tasks...'**
   String get syncPhaseMls;
 
   /// Time indicator for recent sync
@@ -1431,6 +1431,1074 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Encrypted secret key will be deleted.\nPlease save your secret key before logout.'**
   String get logoutDescription;
+
+  /// Tor mode: Disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get torModeDisabled;
+
+  /// Tor mode: Internal embedded Tor client
+  ///
+  /// In en, this message translates to:
+  /// **'Internal (Embedded)'**
+  String get torModeInternal;
+
+  /// Tor mode: Orbot proxy
+  ///
+  /// In en, this message translates to:
+  /// **'Orbot (Proxy)'**
+  String get torModeOrbot;
+
+  /// Description for disabled Tor mode
+  ///
+  /// In en, this message translates to:
+  /// **'Direct connection without Tor'**
+  String get torModeDescriptionDisabled;
+
+  /// Description for internal Tor mode
+  ///
+  /// In en, this message translates to:
+  /// **'Use embedded Tor client (under development, not available yet)'**
+  String get torModeDescriptionInternal;
+
+  /// Description for Orbot Tor mode
+  ///
+  /// In en, this message translates to:
+  /// **'Connect via Orbot app (requires Orbot installation)'**
+  String get torModeDescriptionOrbot;
+
+  /// Title for Tor connection mode dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Tor Connection Mode'**
+  String get torConnectionModeTitle;
+
+  /// Label for features under development
+  ///
+  /// In en, this message translates to:
+  /// **'(in development)'**
+  String get inDevelopment;
+
+  /// Message when Tor mode is updated
+  ///
+  /// In en, this message translates to:
+  /// **'Tor mode updated: {mode}'**
+  String torModeUpdated(String mode);
+
+  /// Title for Orbot requirement notice
+  ///
+  /// In en, this message translates to:
+  /// **'Orbot Required'**
+  String get orbotRequired;
+
+  /// Description for Orbot requirement
+  ///
+  /// In en, this message translates to:
+  /// **'Orbot app must be installed and running to use this mode.'**
+  String get orbotRequiredDescription;
+
+  /// Snackbar message for Google Play link
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Play: Orbot'**
+  String get openGooglePlayOrbot;
+
+  /// Snackbar message for F-Droid link
+  ///
+  /// In en, this message translates to:
+  /// **'Open F-Droid: Orbot'**
+  String get openFDroidOrbot;
+
+  /// Google Play button label
+  ///
+  /// In en, this message translates to:
+  /// **'Google Play'**
+  String get googlePlay;
+
+  /// F-Droid button label
+  ///
+  /// In en, this message translates to:
+  /// **'F-Droid'**
+  String get fDroid;
+
+  /// Description for embedded Tor mode
+  ///
+  /// In en, this message translates to:
+  /// **'Using embedded Tor client. No additional apps required.'**
+  String get embeddedTorDescription;
+
+  /// Label for secret key in nsec format
+  ///
+  /// In en, this message translates to:
+  /// **'Secret Key (nsec)'**
+  String get secretKeyNsecLabel;
+
+  /// Message when text is copied
+  ///
+  /// In en, this message translates to:
+  /// **'{label} copied to clipboard'**
+  String copiedToClipboard(String label);
+
+  /// Button to copy npub
+  ///
+  /// In en, this message translates to:
+  /// **'Copy npub'**
+  String get copyNpub;
+
+  /// Button to copy hex format
+  ///
+  /// In en, this message translates to:
+  /// **'Copy hex'**
+  String get copyHex;
+
+  /// Button to generate new key
+  ///
+  /// In en, this message translates to:
+  /// **'Generate'**
+  String get generateButton;
+
+  /// Button to save and connect
+  ///
+  /// In en, this message translates to:
+  /// **'Save and Connect'**
+  String get saveAndConnect;
+
+  /// Status when Nostr is connected
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr Connected'**
+  String get nostrConnectedStatus;
+
+  /// Status when Nostr is connected via Tor
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr Connected (via Tor)'**
+  String get nostrConnectedViaTor;
+
+  /// Status when Nostr is disconnected
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr Disconnected'**
+  String get nostrDisconnectedStatus;
+
+  /// Error when password is wrong or decryption fails
+  ///
+  /// In en, this message translates to:
+  /// **'Password is incorrect or secret key decryption failed'**
+  String get passwordIncorrectOrDecryptFailed;
+
+  /// Error message for decryption failure
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key decryption failed: {error}'**
+  String secretKeyDecryptFailed(String error);
+
+  /// Error message for key generation failure
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key generation failed: {error}'**
+  String secretKeyGenerationFailed(String error);
+
+  /// Error message for key save failure
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key save failed: {error}'**
+  String secretKeySaveFailed(String error);
+
+  /// Error message for relay connection failure
+  ///
+  /// In en, this message translates to:
+  /// **'Relay connection error: {error}'**
+  String relayConnectionError(String error);
+
+  /// Error message for logout failure
+  ///
+  /// In en, this message translates to:
+  /// **'Logout failed: {error}'**
+  String logoutFailed(String error);
+
+  /// Status when logging in via Amber
+  ///
+  /// In en, this message translates to:
+  /// **'Logging in (Amber)'**
+  String get loggingInAmber;
+
+  /// Status prefix for Amber mode
+  ///
+  /// In en, this message translates to:
+  /// **'✅ Connected with Amber mode\n\n'**
+  String get amberModeConnected;
+
+  /// Information about auto-connect
+  ///
+  /// In en, this message translates to:
+  /// **'• Saving secret key will automatically connect to relay\n'**
+  String get secretKeySaveAutoConnect;
+
+  /// Information about relay redundancy
+  ///
+  /// In en, this message translates to:
+  /// **'• Connecting to multiple relays improves redundancy\n'**
+  String get multipleRelaysRedundancy;
+
+  /// Error when Nostr is not initialized
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr is not initialized. Please connect from settings screen.'**
+  String get nostrNotInitialized;
+
+  /// Error message when sending fails
+  ///
+  /// In en, this message translates to:
+  /// **'❌ Send error: {error}'**
+  String sendError(String error);
+
+  /// Message when loading data during sync
+  ///
+  /// In en, this message translates to:
+  /// **'Loading data...'**
+  String get syncLoadingData;
+
+  /// Message when migrating data during sync
+  ///
+  /// In en, this message translates to:
+  /// **'Migrating data...'**
+  String get syncMigratingData;
+
+  /// Message when syncing data
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing data...'**
+  String get syncSyncingData;
+
+  /// Message when preparing migration
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing data migration...'**
+  String get syncPreparingMigration;
+
+  /// Message when fetching old format data
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching old data...'**
+  String get syncFetchingOldData;
+
+  /// Message when converting data to new format
+  ///
+  /// In en, this message translates to:
+  /// **'Converting to new format...'**
+  String get syncConvertingToNewFormat;
+
+  /// Message when deleting old format data
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting old data...'**
+  String get syncDeletingOldData;
+
+  /// Message when migration is completed
+  ///
+  /// In en, this message translates to:
+  /// **'Data migration completed'**
+  String get syncMigrationCompleted;
+
+  /// Title for relay information section
+  ///
+  /// In en, this message translates to:
+  /// **'About Relays'**
+  String get aboutRelays;
+
+  /// Title for Amber mode
+  ///
+  /// In en, this message translates to:
+  /// **'Amber Mode'**
+  String get amberMode;
+
+  /// Title for cryptography section
+  ///
+  /// In en, this message translates to:
+  /// **'Cryptography in Use'**
+  String get cryptographyInUse;
+
+  /// Detailed cryptography documentation intro
+  ///
+  /// In en, this message translates to:
+  /// **'Details of Cryptography Used in Meiso'**
+  String get cryptographyDetailsUsedInMeiso;
+
+  /// Introduction title for cryptography details
+  ///
+  /// In en, this message translates to:
+  /// **'Meiso adopts the highest standards of modern cryptography.'**
+  String get cryptographyIntroTitle;
+
+  /// Introduction description for cryptography details
+  ///
+  /// In en, this message translates to:
+  /// **'This document explains the details of the cryptographic technologies used in Meiso for Bitcoiners and Nostriches.'**
+  String get cryptographyIntroDescription;
+
+  /// Section title for architecture
+  ///
+  /// In en, this message translates to:
+  /// **'1. Architecture Overview'**
+  String get cryptoArchitectureTitle;
+
+  /// Section title for Argon2id
+  ///
+  /// In en, this message translates to:
+  /// **'2. Argon2id - Password Derivation Function'**
+  String get cryptoArgon2idTitle;
+
+  /// Section title for AES-256-GCM
+  ///
+  /// In en, this message translates to:
+  /// **'3. AES-256-GCM - Encryption Algorithm'**
+  String get cryptoAes256GcmTitle;
+
+  /// Section title for NIP-44
+  ///
+  /// In en, this message translates to:
+  /// **'4. NIP-44 - Nostr Encryption Standard'**
+  String get cryptoNip44Title;
+
+  /// Section title for Ed25519
+  ///
+  /// In en, this message translates to:
+  /// **'5. Ed25519 - Digital Signature'**
+  String get cryptoEd25519Title;
+
+  /// Section title for Amber integration
+  ///
+  /// In en, this message translates to:
+  /// **'6. Amber Integration - Hardware Wallet-like Security'**
+  String get cryptoAmberIntegrationTitle;
+
+  /// Section title for secure storage
+  ///
+  /// In en, this message translates to:
+  /// **'7. Secure Storage - Rust Implementation'**
+  String get cryptoSecureStorageTitle;
+
+  /// Section title for threat model
+  ///
+  /// In en, this message translates to:
+  /// **'8. Threat Model and Limitations'**
+  String get cryptoThreatModelTitle;
+
+  /// Title for relay list section
+  ///
+  /// In en, this message translates to:
+  /// **'Relay List'**
+  String get relayList;
+
+  /// Message when no relays are registered
+  ///
+  /// In en, this message translates to:
+  /// **'No relays registered'**
+  String get noRelaysRegistered;
+
+  /// Tooltip for delete button
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get deleteTooltip;
+
+  /// Description of relay functionality
+  ///
+  /// In en, this message translates to:
+  /// **'• Relays are servers on the Nostr network\n• Connecting to multiple relays improves redundancy\n• Relay URLs must start with wss:// or ws://\n• Adding/removing relays are immediately saved to Nostr (Kind 10002)\n• Relay changes take effect immediately (no restart required)\n• Use the \"Sync from Nostr\" button to fetch settings from other devices\n• During sync, only updates if remote and local differ'**
+  String get aboutRelaysDescription;
+
+  /// Message shown when connected via Tor
+  ///
+  /// In en, this message translates to:
+  /// **'• Currently connected via Tor (using Orbot proxy)'**
+  String get currentlyConnectedViaTor;
+
+  /// Architecture section paragraph 1
+  ///
+  /// In en, this message translates to:
+  /// **'Meiso adopts a \"Zero-Knowledge Architecture\" and never sends your secret keys or task data to servers. All encryption processing is performed on your device.'**
+  String get cryptoArchPara1;
+
+  /// Architecture security model
+  ///
+  /// In en, this message translates to:
+  /// **'Security Model:\n• End-to-End Encryption (E2EE)\n• Client-side encryption\n• Server stores only encrypted data\n• Only you hold the secret keys'**
+  String get cryptoArchSecurityModel;
+
+  /// Argon2id introduction
+  ///
+  /// In en, this message translates to:
+  /// **'Argon2id is the latest and strongest password hashing algorithm, winner of the 2015 Password Hashing Competition (PHC).'**
+  String get cryptoArgon2Intro;
+
+  /// Argon2id why section title
+  ///
+  /// In en, this message translates to:
+  /// **'Why Argon2id?'**
+  String get cryptoArgon2WhyTitle;
+
+  /// Argon2id feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Brute-force attack resistance'**
+  String get cryptoArgon2BruteForce;
+
+  /// Argon2id brute-force description
+  ///
+  /// In en, this message translates to:
+  /// **'Requires both computational and memory costs, making it extremely resistant to parallel attacks using GPUs or ASICs.'**
+  String get cryptoArgon2BruteForceDesc;
+
+  /// Argon2id feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Side-channel attack resistance'**
+  String get cryptoArgon2SideChannel;
+
+  /// Argon2id side-channel description
+  ///
+  /// In en, this message translates to:
+  /// **'A \"hybrid\" combining Argon2i\'s unpredictable memory access patterns with Argon2d\'s computational efficiency.'**
+  String get cryptoArgon2SideChannelDesc;
+
+  /// Argon2id feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Industry standard'**
+  String get cryptoArgon2Standard;
+
+  /// Argon2id standard description
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended by OWASP, NIST, and the Cryptography Engineering community. Next-generation standard surpassing bcrypt and PBKDF2.'**
+  String get cryptoArgon2StandardDesc;
+
+  /// Argon2id parameters
+  ///
+  /// In en, this message translates to:
+  /// **'Implementation parameters in Meiso:\n• Memory cost: 19 MiB (optimized)\n• Iterations: 2 times\n• Parallelism: 1 thread\n• Output length: 32 bytes (256 bits)\n• Salt: Random generation (16 bytes)'**
+  String get cryptoArgon2Params;
+
+  /// Argon2id reference link text
+  ///
+  /// In en, this message translates to:
+  /// **'📚 Reference: Argon2 RFC 9106'**
+  String get cryptoArgon2Reference;
+
+  /// AES-256-GCM introduction
+  ///
+  /// In en, this message translates to:
+  /// **'AES-256-GCM is an \"Authenticated Encryption with Associated Data (AEAD)\" algorithm used by the U.S. government to protect classified information.'**
+  String get cryptoAesIntro;
+
+  /// AES-256 strength section title
+  ///
+  /// In en, this message translates to:
+  /// **'Strength of AES-256'**
+  String get cryptoAesStrengthTitle;
+
+  /// AES-256 strength description
+  ///
+  /// In en, this message translates to:
+  /// **'AES-256 has a key space of 2^256, making brute-force attacks practically impossible even with modern supercomputers. It maintains 128-bit effective security even in the quantum computing era.'**
+  String get cryptoAesStrengthDesc;
+
+  /// GCM mode advantages section title
+  ///
+  /// In en, this message translates to:
+  /// **'Advantages of GCM Mode'**
+  String get cryptoAesGcmAdvantagesTitle;
+
+  /// AES-GCM feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Authenticated Encryption (AEAD)'**
+  String get cryptoAesAead;
+
+  /// AES-GCM AEAD description
+  ///
+  /// In en, this message translates to:
+  /// **'Generates a Message Authentication Code (MAC) simultaneously with encryption. Enables detection of data tampering.'**
+  String get cryptoAesAeadDesc;
+
+  /// AES-GCM feature title
+  ///
+  /// In en, this message translates to:
+  /// **'High-speed processing'**
+  String get cryptoAesPerformance;
+
+  /// AES-GCM performance description
+  ///
+  /// In en, this message translates to:
+  /// **'Enables parallel processing and is hardware-accelerated by modern CPUs\' AES-NI instructions.'**
+  String get cryptoAesPerformanceDesc;
+
+  /// AES-GCM feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Padding attack resistance'**
+  String get cryptoAesPaddingResistance;
+
+  /// AES-GCM padding resistance description
+  ///
+  /// In en, this message translates to:
+  /// **'As a stream cipher mode, there is no risk of padding oracle attacks.'**
+  String get cryptoAesPaddingResistanceDesc;
+
+  /// AES-256-GCM parameters
+  ///
+  /// In en, this message translates to:
+  /// **'Implementation in Meiso:\n• Encryption algorithm: AES-256-GCM\n• Key length: 256 bits (derived from Argon2id)\n• Nonce: Random generation (96 bits)\n• Tag length: 128 bits (for tamper detection)\n• Purpose: Encrypted storage of secret keys'**
+  String get cryptoAesParams;
+
+  /// AES-GCM reference link text
+  ///
+  /// In en, this message translates to:
+  /// **'📚 Reference: NIST SP 800-38D (GCM)'**
+  String get cryptoAesReference;
+
+  /// NIP-44 introduction
+  ///
+  /// In en, this message translates to:
+  /// **'NIP-44 is the standard specification for encrypted messages in the Nostr protocol. It provides secure end-to-end encryption using Elliptic Curve Cryptography (ECC).'**
+  String get cryptoNip44Intro;
+
+  /// NIP-44 mechanism section title
+  ///
+  /// In en, this message translates to:
+  /// **'Encryption Mechanism'**
+  String get cryptoNip44MechanismTitle;
+
+  /// NIP-44 mechanism description
+  ///
+  /// In en, this message translates to:
+  /// **'NIP-44 generates a \"shared secret\" from your secret key and the recipient\'s public key, and uses it to encrypt messages.'**
+  String get cryptoNip44MechanismDesc;
+
+  /// NIP-44 encryption process
+  ///
+  /// In en, this message translates to:
+  /// **'Encryption Process:\n1. ECDH (Elliptic Curve Diffie-Hellman)\n   → Generate shared secret with secp256k1 curve\n\n2. Key derivation with HMAC-SHA256 (HKDF)\n   → Generate encryption key and message authentication key\n\n3. Encrypt with ChaCha20-Poly1305\n   → Fast and secure AEAD encryption\n\n4. Base64 encode and transmit'**
+  String get cryptoNip44Process;
+
+  /// NIP-44 usage section title
+  ///
+  /// In en, this message translates to:
+  /// **'Usage in Meiso'**
+  String get cryptoNip44UsageTitle;
+
+  /// NIP-44 usage description
+  ///
+  /// In en, this message translates to:
+  /// **'In Meiso, all Todo data is encrypted with NIP-44 and stored on Nostr relays. This prevents relay servers from reading your task contents.'**
+  String get cryptoNip44UsageDesc;
+
+  /// NIP-44 security warning title
+  ///
+  /// In en, this message translates to:
+  /// **'🔐 Important Security Characteristics'**
+  String get cryptoNip44SecurityTitle;
+
+  /// NIP-44 security characteristics
+  ///
+  /// In en, this message translates to:
+  /// **'• Relay servers can only see ciphertext\n• Cannot be decrypted without your own secret key\n• Forward Secrecy is not provided\n• If the secret key is leaked, all past messages can be decrypted'**
+  String get cryptoNip44SecurityDesc;
+
+  /// NIP-44 reference link text
+  ///
+  /// In en, this message translates to:
+  /// **'📚 Reference: NIP-44 Specification'**
+  String get cryptoNip44Reference;
+
+  /// Ed25519 introduction
+  ///
+  /// In en, this message translates to:
+  /// **'Ed25519 is a modern signature algorithm based on Elliptic Curve Cryptography (ECC). It is widely adopted in modern security protocols such as Bitcoin, SSH, and TLS 1.3.'**
+  String get cryptoEd25519Intro;
+
+  /// Ed25519 advantages section title
+  ///
+  /// In en, this message translates to:
+  /// **'Advantages of Ed25519'**
+  String get cryptoEd25519AdvantagesTitle;
+
+  /// Ed25519 feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Fast'**
+  String get cryptoEd25519Speed;
+
+  /// Ed25519 speed description
+  ///
+  /// In en, this message translates to:
+  /// **'More than 10 times faster than RSA-2048 for signing and verification. Runs fast even on mobile devices.'**
+  String get cryptoEd25519SpeedDesc;
+
+  /// Ed25519 feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get cryptoEd25519Compact;
+
+  /// Ed25519 compact description
+  ///
+  /// In en, this message translates to:
+  /// **'Public key: 32 bytes, Private key: 32 bytes, Signature: 64 bytes. 1/8 the size of RSA with equal or better security.'**
+  String get cryptoEd25519CompactDesc;
+
+  /// Ed25519 feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Deterministic'**
+  String get cryptoEd25519Deterministic;
+
+  /// Ed25519 deterministic description
+  ///
+  /// In en, this message translates to:
+  /// **'Always generates the same signature for the same message. No risk of random number generator vulnerabilities.'**
+  String get cryptoEd25519DeterministicDesc;
+
+  /// Ed25519 feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Safe implementation'**
+  String get cryptoEd25519SafeImpl;
+
+  /// Ed25519 safe implementation description
+  ///
+  /// In en, this message translates to:
+  /// **'Resistance to side-channel attacks is built in from the design stage.'**
+  String get cryptoEd25519SafeImplDesc;
+
+  /// Ed25519 Nostr role section title
+  ///
+  /// In en, this message translates to:
+  /// **'Role in Nostr'**
+  String get cryptoEd25519NostrRoleTitle;
+
+  /// Ed25519 Nostr role description
+  ///
+  /// In en, this message translates to:
+  /// **'In Nostr, all events (messages, Todos, profile updates, etc.) are signed with Ed25519. This guarantees the authenticity of the event creator and the integrity of the data.'**
+  String get cryptoEd25519NostrRoleDesc;
+
+  /// Ed25519 signing process
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr signing process:\n1. Serialize event in JSON format\n2. Hash with SHA-256\n3. Sign with Ed25519 private key\n4. Attach signature to event and send'**
+  String get cryptoEd25519SigningProcess;
+
+  /// Ed25519 reference link text
+  ///
+  /// In en, this message translates to:
+  /// **'📚 Reference: RFC 8032 (EdDSA)'**
+  String get cryptoEd25519Reference;
+
+  /// Amber introduction
+  ///
+  /// In en, this message translates to:
+  /// **'Amber is a dedicated app for securely managing Nostr secret keys. It does not share secret keys with other apps and only processes signing requests.'**
+  String get cryptoAmberIntro;
+
+  /// Amber ncryptsec section title
+  ///
+  /// In en, this message translates to:
+  /// **'ncryptsec Format'**
+  String get cryptoAmberNcryptsecTitle;
+
+  /// Amber ncryptsec description
+  ///
+  /// In en, this message translates to:
+  /// **'Amber stores secret keys in \"ncryptsec\" format. This is a Bech32-encoded string containing a secret key encrypted with AES-256-CBC.'**
+  String get cryptoAmberNcryptsecDesc;
+
+  /// Amber ncryptsec structure
+  ///
+  /// In en, this message translates to:
+  /// **'ncryptsec structure:\nncryptsec1... ← Bech32 prefix\n├─ Version (1 byte)\n├─ Salt (16 bytes)\n├─ Nonce/IV (16 bytes)\n├─ Encrypted secret key (32 bytes)\n└─ Tamper detection tag'**
+  String get cryptoAmberNcryptsecStructure;
+
+  /// Amber benefits section title
+  ///
+  /// In en, this message translates to:
+  /// **'Benefits of Amber Mode'**
+  String get cryptoAmberBenefitsTitle;
+
+  /// Amber feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key isolation'**
+  String get cryptoAmberIsolation;
+
+  /// Amber isolation description
+  ///
+  /// In en, this message translates to:
+  /// **'Meiso does not hold secret keys and only requests Amber when signing is needed.'**
+  String get cryptoAmberIsolationDesc;
+
+  /// Amber feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric authentication'**
+  String get cryptoAmberBiometric;
+
+  /// Amber biometric description
+  ///
+  /// In en, this message translates to:
+  /// **'Can require fingerprint authentication or PIN when signing with Amber.'**
+  String get cryptoAmberBiometricDesc;
+
+  /// Amber feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Auditable'**
+  String get cryptoAmberAuditable;
+
+  /// Amber auditable description
+  ///
+  /// In en, this message translates to:
+  /// **'Can review and approve all signing requests in the Amber app.'**
+  String get cryptoAmberAuditableDesc;
+
+  /// Amber feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Key reuse'**
+  String get cryptoAmberKeyReuse;
+
+  /// Amber key reuse description
+  ///
+  /// In en, this message translates to:
+  /// **'Can securely share one secret key across multiple Nostr apps.'**
+  String get cryptoAmberKeyReuseDesc;
+
+  /// Amber hardware wallet info title
+  ///
+  /// In en, this message translates to:
+  /// **'💡 Similarity to Hardware Wallets'**
+  String get cryptoAmberHardwareWalletTitle;
+
+  /// Amber hardware wallet description
+  ///
+  /// In en, this message translates to:
+  /// **'Amber adopts the same \"never export secret keys\" architecture as Bitcoin hardware wallets (Ledger, Trezor).'**
+  String get cryptoAmberHardwareWalletDesc;
+
+  /// Amber reference link text
+  ///
+  /// In en, this message translates to:
+  /// **'🔗 Amber on GitHub'**
+  String get cryptoAmberReference;
+
+  /// Secure storage introduction
+  ///
+  /// In en, this message translates to:
+  /// **'Meiso\'s secret key management is entirely implemented in Rust. Rust is a secure systems programming language with memory safety guaranteed at the language level.'**
+  String get cryptoSecureStorageIntro;
+
+  /// Why Rust section title
+  ///
+  /// In en, this message translates to:
+  /// **'Why Rust?'**
+  String get cryptoStorageWhyRustTitle;
+
+  /// Rust feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Memory safety'**
+  String get cryptoStorageMemorySafety;
+
+  /// Rust memory safety description
+  ///
+  /// In en, this message translates to:
+  /// **'Memory-related vulnerabilities such as buffer overflow, use-after-free, and data races are fundamentally impossible.'**
+  String get cryptoStorageMemorySafetyDesc;
+
+  /// Rust feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Zero-cost abstractions'**
+  String get cryptoStorageZeroCost;
+
+  /// Rust zero-cost description
+  ///
+  /// In en, this message translates to:
+  /// **'Achieves C/C++ equivalent performance while writing high-level code.'**
+  String get cryptoStorageZeroCostDesc;
+
+  /// Rust feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Strong type system'**
+  String get cryptoStorageTypeSystem;
+
+  /// Rust type system description
+  ///
+  /// In en, this message translates to:
+  /// **'Option and Result types enforce error handling.'**
+  String get cryptoStorageTypeSystemDesc;
+
+  /// Storage implementation section title
+  ///
+  /// In en, this message translates to:
+  /// **'Storage Implementation'**
+  String get cryptoStorageImplTitle;
+
+  /// Storage implementation description
+  ///
+  /// In en, this message translates to:
+  /// **'Meiso stores encrypted secret keys in Flutter\'s \"ApplicationSupportDirectory\". This directory is protected by the OS from access by other apps.'**
+  String get cryptoStorageImplDesc;
+
+  /// Storage path details
+  ///
+  /// In en, this message translates to:
+  /// **'Storage path (Android):\n/data/data/com.example.meiso/files/encrypted_key.bin\n\nFile contents:\n• JSON format\n• Fields: salt, nonce, ciphertext\n• All Base64 encoded'**
+  String get cryptoStoragePath;
+
+  /// Memory security section title
+  ///
+  /// In en, this message translates to:
+  /// **'Memory Security'**
+  String get cryptoStorageMemorySecurityTitle;
+
+  /// Memory security feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Zeroize'**
+  String get cryptoStorageZeroize;
+
+  /// Zeroize description
+  ///
+  /// In en, this message translates to:
+  /// **'Safely erases secret keys from memory after use.'**
+  String get cryptoStorageZeroizeDesc;
+
+  /// Memory security feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Stack allocation'**
+  String get cryptoStorageStackAllocation;
+
+  /// Stack allocation description
+  ///
+  /// In en, this message translates to:
+  /// **'Places secret keys on the stack rather than the heap, minimizing lifetime.'**
+  String get cryptoStorageStackAllocationDesc;
+
+  /// Memory security feature title
+  ///
+  /// In en, this message translates to:
+  /// **'Memory dump countermeasures'**
+  String get cryptoStorageMemoryDump;
+
+  /// Memory dump description
+  ///
+  /// In en, this message translates to:
+  /// **'Rust code is optimized even in debug builds, making sensitive data less likely to remain.'**
+  String get cryptoStorageMemoryDumpDesc;
+
+  /// Threat model introduction
+  ///
+  /// In en, this message translates to:
+  /// **'Meiso uses very strong cryptographic technologies, but perfect security does not exist. Please understand the following threats.'**
+  String get cryptoThreatModelIntro;
+
+  /// What we can protect section title
+  ///
+  /// In en, this message translates to:
+  /// **'What We Can Protect'**
+  String get cryptoThreatWhatWeCanProtectTitle;
+
+  /// Threat model protection title
+  ///
+  /// In en, this message translates to:
+  /// **'Network eavesdropping'**
+  String get cryptoThreatNetworkEavesdropping;
+
+  /// Network eavesdropping description
+  ///
+  /// In en, this message translates to:
+  /// **'TLS + E2EE encryption neutralizes eavesdropping on communication paths.'**
+  String get cryptoThreatNetworkEavesdroppingDesc;
+
+  /// Threat model protection title
+  ///
+  /// In en, this message translates to:
+  /// **'Malicious relay servers'**
+  String get cryptoThreatMaliciousRelay;
+
+  /// Malicious relay description
+  ///
+  /// In en, this message translates to:
+  /// **'Relays can only see encrypted data.'**
+  String get cryptoThreatMaliciousRelayDesc;
+
+  /// Threat model protection title
+  ///
+  /// In en, this message translates to:
+  /// **'Brute-force attacks'**
+  String get cryptoThreatBruteForce;
+
+  /// Brute-force description
+  ///
+  /// In en, this message translates to:
+  /// **'Argon2id + AES-256 makes decryption impossible in realistic time.'**
+  String get cryptoThreatBruteForceDesc;
+
+  /// What we cannot protect section title
+  ///
+  /// In en, this message translates to:
+  /// **'What We Cannot Protect'**
+  String get cryptoThreatWhatWeCannotProtectTitle;
+
+  /// Threat warning title
+  ///
+  /// In en, this message translates to:
+  /// **'⚠️ The following threats require attention'**
+  String get cryptoThreatWarningTitle;
+
+  /// Threat warning description
+  ///
+  /// In en, this message translates to:
+  /// **'• Physical device theft + password leak\n• Keylogger or screen capture malware\n• Rooted/Jailbroken devices\n• OS or firmware vulnerabilities\n• Social engineering attacks\n• Future threats from quantum computers (RSA/ECC breakdown)'**
+  String get cryptoThreatWarningDesc;
+
+  /// Best practices section title
+  ///
+  /// In en, this message translates to:
+  /// **'Best Practices'**
+  String get cryptoThreatBestPracticesTitle;
+
+  /// Best practice title
+  ///
+  /// In en, this message translates to:
+  /// **'Strong password'**
+  String get cryptoThreatStrongPassword;
+
+  /// Strong password description
+  ///
+  /// In en, this message translates to:
+  /// **'Use a random password of 20 characters or more.'**
+  String get cryptoThreatStrongPasswordDesc;
+
+  /// Best practice title
+  ///
+  /// In en, this message translates to:
+  /// **'Device encryption'**
+  String get cryptoThreatDeviceEncryption;
+
+  /// Device encryption description
+  ///
+  /// In en, this message translates to:
+  /// **'Enable full disk encryption on Android/iOS.'**
+  String get cryptoThreatDeviceEncryptionDesc;
+
+  /// Best practice title
+  ///
+  /// In en, this message translates to:
+  /// **'Keep OS up to date'**
+  String get cryptoThreatKeepOsUpdated;
+
+  /// Keep OS updated description
+  ///
+  /// In en, this message translates to:
+  /// **'Apply security patches regularly.'**
+  String get cryptoThreatKeepOsUpdatedDesc;
+
+  /// Best practice title
+  ///
+  /// In en, this message translates to:
+  /// **'Amber mode recommended'**
+  String get cryptoThreatRecommendAmber;
+
+  /// Recommend Amber description
+  ///
+  /// In en, this message translates to:
+  /// **'If higher security is required, use Amber mode.'**
+  String get cryptoThreatRecommendAmberDesc;
+
+  /// Table of contents title
+  ///
+  /// In en, this message translates to:
+  /// **'📖 Table of Contents'**
+  String get cryptoTableOfContents;
+
+  /// Table of contents item 1
+  ///
+  /// In en, this message translates to:
+  /// **'1. Architecture Overview'**
+  String get cryptoTocItem1;
+
+  /// Table of contents item 2
+  ///
+  /// In en, this message translates to:
+  /// **'2. Argon2id - Password Derivation Function'**
+  String get cryptoTocItem2;
+
+  /// Table of contents item 3
+  ///
+  /// In en, this message translates to:
+  /// **'3. AES-256-GCM - Encryption Algorithm'**
+  String get cryptoTocItem3;
+
+  /// Table of contents item 4
+  ///
+  /// In en, this message translates to:
+  /// **'4. NIP-44 - Nostr Encryption Standard'**
+  String get cryptoTocItem4;
+
+  /// Table of contents item 5
+  ///
+  /// In en, this message translates to:
+  /// **'5. Ed25519 - Digital Signatures'**
+  String get cryptoTocItem5;
+
+  /// Table of contents item 6
+  ///
+  /// In en, this message translates to:
+  /// **'6. Amber Integration - Hardware Wallet-like Security'**
+  String get cryptoTocItem6;
+
+  /// Table of contents item 7
+  ///
+  /// In en, this message translates to:
+  /// **'7. Secure Storage - Rust Implementation'**
+  String get cryptoTocItem7;
+
+  /// Table of contents item 8
+  ///
+  /// In en, this message translates to:
+  /// **'8. Threat Model and Limitations'**
+  String get cryptoTocItem8;
+
+  /// Footer security title
+  ///
+  /// In en, this message translates to:
+  /// **'🔒 Security Questions and Reports'**
+  String get cryptoFooterSecurityTitle;
+
+  /// Footer security description
+  ///
+  /// In en, this message translates to:
+  /// **'If you discover a security issue, please report it via GitHub Issues or Nostr (DM).'**
+  String get cryptoFooterSecurityDesc;
+
+  /// Footer open source text
+  ///
+  /// In en, this message translates to:
+  /// **'All code is open source'**
+  String get cryptoFooterOpenSource;
+
+  /// Cryptography details description in Secret Key Management
+  ///
+  /// In en, this message translates to:
+  /// **'Details of cryptographic technologies used in Meiso'**
+  String get cryptographyDetailsDescription;
 }
 
 class _AppLocalizationsDelegate

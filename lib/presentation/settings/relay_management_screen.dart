@@ -254,7 +254,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                       Icon(Icons.check_circle,
                           color: Colors.green.shade700, size: 20),
                       const SizedBox(width: 8),
-                      Text('Nostr接続中${torEnabled ? " (Tor経由)" : ""}'),
+                      Text(torEnabled ? l10n.nostrConnectedViaTor : l10n.nostrConnectedStatus),
                     ],
                   ),
                 ),
@@ -269,7 +269,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                       Icon(Icons.warning,
                           color: Colors.orange.shade700, size: 20),
                       const SizedBox(width: 8),
-                      const Text('Nostr未接続'),
+                      Text(l10n.nostrDisconnectedStatus),
                     ],
                   ),
                 ),
@@ -333,7 +333,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'リレーリスト',
+                  l10n.relayList,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 ElevatedButton.icon(
@@ -367,7 +367,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    'リレーが登録されていません',
+                    l10n.noRelaysRegistered,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey,
                         ),
@@ -394,7 +394,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, size: 20),
                         onPressed: () => _removeRelay(relay.url),
-                        tooltip: '削除',
+                        tooltip: l10n.deleteTooltip,
                       ),
                     ),
                   )),
@@ -409,13 +409,13 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.info, color: AppTheme.primaryPurple),
-                        SizedBox(width: 8),
+                        const Icon(Icons.info, color: AppTheme.primaryPurple),
+                        const SizedBox(width: 8),
                         Text(
-                          'リレーについて',
-                          style: TextStyle(
+                          l10n.aboutRelays,
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppTheme.darkPurple,
                           ),
@@ -424,14 +424,8 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '• リレーはNostrネットワーク上のサーバーです\n'
-                      '• 複数のリレーに接続することで冗長性が向上します\n'
-                      '• リレーURLは wss:// または ws:// で始める必要があります\n'
-                      '• リレーを追加・削除すると即座にNostr（Kind 10002）に保存されます\n'
-                      '• リレー変更は即座に反映されます（再起動不要）\n'
-                      '• 「Nostrから同期」ボタンで他のデバイスの設定を取得できます\n'
-                      '• 同期時、リモートとローカルが異なる場合のみ更新されます\n'
-                      '${torEnabled ? "• 現在Tor経由で接続しています（Orbotプロキシ使用）" : ""}',
+                      '${l10n.aboutRelaysDescription}\n'
+                      '${torEnabled ? l10n.currentlyConnectedViaTor : ""}',
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppTheme.darkPurple,

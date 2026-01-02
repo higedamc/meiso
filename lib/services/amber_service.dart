@@ -77,7 +77,7 @@ class AmberService {
 
     try {
       AppLogger.debug(' Requesting public key from Amber...');
-      final publicKey = await _channel.invokeMethod('getPublicKeyFromAmber');
+      final publicKey = await _channel.invokeMethod<String>('getPublicKeyFromAmber');
       
       if (publicKey != null && publicKey.isNotEmpty) {
         AppLogger.info(' Received public key from Amber: ${publicKey.substring(0, 10)}...');
@@ -106,7 +106,7 @@ class AmberService {
 
     try {
       AppLogger.debug('✍️ Requesting event signature from Amber...');
-      final signedEvent = await _channel.invokeMethod(
+      final signedEvent = await _channel.invokeMethod<String>(
         'signEventWithAmber',
         {'event': eventJson},
       );

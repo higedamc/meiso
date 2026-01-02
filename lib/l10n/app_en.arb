@@ -159,7 +159,7 @@
     "description": "Title for Amber mode info card"
   },
   
-  "amberModeInfo": "✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign todos with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing todos.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow",
+  "amberModeInfo": "✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing tasks.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow",
   "@amberModeInfo": {
     "description": "Information about Amber mode"
   },
@@ -369,7 +369,7 @@
     "description": "Default todo title for 1-person MLS test"
   },
 
-  "deleteRecurringTodoTitle": "Delete recurring to-do",
+  "deleteRecurringTodoTitle": "Delete recurring task",
   "@deleteRecurringTodoTitle": {
     "description": "Title for recurring delete confirmation dialog"
   },
@@ -994,10 +994,10 @@
   "@syncPhaseAppSettings": { "description": "Sync phase: app settings" },
   "syncPhaseCustomLists": "Syncing lists...",
   "@syncPhaseCustomLists": { "description": "Sync phase: custom lists" },
-  "syncPhaseTodos": "Syncing todos...",
-  "@syncPhaseTodos": { "description": "Sync phase: todos" },
-  "syncPhaseMls": "Syncing group todos...",
-  "@syncPhaseMls": { "description": "Sync phase: MLS group todos" },
+  "syncPhaseTodos": "Syncing tasks...",
+  "@syncPhaseTodos": { "description": "Sync phase: tasks" },
+  "syncPhaseMls": "Syncing group tasks...",
+  "@syncPhaseMls": { "description": "Sync phase: MLS group tasks" },
   
   "justNow": "Just now",
   "@justNow": {
@@ -1192,6 +1192,936 @@
   "logoutDescription": "Encrypted secret key will be deleted.\nPlease save your secret key before logout.",
   "@logoutDescription": {
     "description": "Logout warning description"
+  },
+  
+  "torModeDisabled": "Disabled",
+  "@torModeDisabled": {
+    "description": "Tor mode: Disabled"
+  },
+  
+  "torModeInternal": "Internal (Embedded)",
+  "@torModeInternal": {
+    "description": "Tor mode: Internal embedded Tor client"
+  },
+  
+  "torModeOrbot": "Orbot (Proxy)",
+  "@torModeOrbot": {
+    "description": "Tor mode: Orbot proxy"
+  },
+  
+  "torModeDescriptionDisabled": "Direct connection without Tor",
+  "@torModeDescriptionDisabled": {
+    "description": "Description for disabled Tor mode"
+  },
+  
+  "torModeDescriptionInternal": "Use embedded Tor client (under development, not available yet)",
+  "@torModeDescriptionInternal": {
+    "description": "Description for internal Tor mode"
+  },
+  
+  "torModeDescriptionOrbot": "Connect via Orbot app (requires Orbot installation)",
+  "@torModeDescriptionOrbot": {
+    "description": "Description for Orbot Tor mode"
+  },
+  
+  "torConnectionModeTitle": "Tor Connection Mode",
+  "@torConnectionModeTitle": {
+    "description": "Title for Tor connection mode dialog"
+  },
+  
+  "inDevelopment": "(in development)",
+  "@inDevelopment": {
+    "description": "Label for features under development"
+  },
+  
+  "torModeUpdated": "Tor mode updated: {mode}",
+  "@torModeUpdated": {
+    "description": "Message when Tor mode is updated",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "orbotRequired": "Orbot Required",
+  "@orbotRequired": {
+    "description": "Title for Orbot requirement notice"
+  },
+  
+  "orbotRequiredDescription": "Orbot app must be installed and running to use this mode.",
+  "@orbotRequiredDescription": {
+    "description": "Description for Orbot requirement"
+  },
+  
+  "openGooglePlayOrbot": "Open Google Play: Orbot",
+  "@openGooglePlayOrbot": {
+    "description": "Snackbar message for Google Play link"
+  },
+  
+  "openFDroidOrbot": "Open F-Droid: Orbot",
+  "@openFDroidOrbot": {
+    "description": "Snackbar message for F-Droid link"
+  },
+  
+  "googlePlay": "Google Play",
+  "@googlePlay": {
+    "description": "Google Play button label"
+  },
+  
+  "fDroid": "F-Droid",
+  "@fDroid": {
+    "description": "F-Droid button label"
+  },
+  
+  "embeddedTorDescription": "Using embedded Tor client. No additional apps required.",
+  "@embeddedTorDescription": {
+    "description": "Description for embedded Tor mode"
+  },
+  
+  "secretKeyNsecLabel": "Secret Key (nsec)",
+  "@secretKeyNsecLabel": {
+    "description": "Label for secret key in nsec format"
+  },
+  
+  "copiedToClipboard": "{label} copied to clipboard",
+  "@copiedToClipboard": {
+    "description": "Message when text is copied",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "copyNpub": "Copy npub",
+  "@copyNpub": {
+    "description": "Button to copy npub"
+  },
+  
+  "copyHex": "Copy hex",
+  "@copyHex": {
+    "description": "Button to copy hex format"
+  },
+  
+  "generateButton": "Generate",
+  "@generateButton": {
+    "description": "Button to generate new key"
+  },
+  
+  "saveAndConnect": "Save and Connect",
+  "@saveAndConnect": {
+    "description": "Button to save and connect"
+  },
+  
+  "nostrConnectedStatus": "Nostr Connected",
+  "@nostrConnectedStatus": {
+    "description": "Status when Nostr is connected"
+  },
+  
+  "nostrConnectedViaTor": "Nostr Connected (via Tor)",
+  "@nostrConnectedViaTor": {
+    "description": "Status when Nostr is connected via Tor"
+  },
+  
+  "nostrDisconnectedStatus": "Nostr Disconnected",
+  "@nostrDisconnectedStatus": {
+    "description": "Status when Nostr is disconnected"
+  },
+  
+  "passwordIncorrectOrDecryptFailed": "Password is incorrect or secret key decryption failed",
+  "@passwordIncorrectOrDecryptFailed": {
+    "description": "Error when password is wrong or decryption fails"
+  },
+  
+  "secretKeyDecryptFailed": "Secret key decryption failed: {error}",
+  "@secretKeyDecryptFailed": {
+    "description": "Error message for decryption failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "secretKeyGenerationFailed": "Secret key generation failed: {error}",
+  "@secretKeyGenerationFailed": {
+    "description": "Error message for key generation failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "secretKeySaveFailed": "Secret key save failed: {error}",
+  "@secretKeySaveFailed": {
+    "description": "Error message for key save failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "relayConnectionError": "Relay connection error: {error}",
+  "@relayConnectionError": {
+    "description": "Error message for relay connection failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "logoutFailed": "Logout failed: {error}",
+  "@logoutFailed": {
+    "description": "Error message for logout failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "loggingInAmber": "Logging in (Amber)",
+  "@loggingInAmber": {
+    "description": "Status when logging in via Amber"
+  },
+  
+  "amberModeConnected": "✅ Connected with Amber mode\n\n",
+  "@amberModeConnected": {
+    "description": "Status prefix for Amber mode"
+  },
+  
+  "secretKeySaveAutoConnect": "• Saving secret key will automatically connect to relay\n",
+  "@secretKeySaveAutoConnect": {
+    "description": "Information about auto-connect"
+  },
+  
+  "multipleRelaysRedundancy": "• Connecting to multiple relays improves redundancy\n",
+  "@multipleRelaysRedundancy": {
+    "description": "Information about relay redundancy"
+  },
+  
+  "nostrNotInitialized": "Nostr is not initialized. Please connect from settings screen.",
+  "@nostrNotInitialized": {
+    "description": "Error when Nostr is not initialized"
+  },
+  
+  "sendError": "❌ Send error: {error}",
+  "@sendError": {
+    "description": "Error message when sending fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "syncLoadingData": "Loading data...",
+  "@syncLoadingData": {
+    "description": "Message when loading data during sync"
+  },
+  
+  "syncMigratingData": "Migrating data...",
+  "@syncMigratingData": {
+    "description": "Message when migrating data during sync"
+  },
+  
+  "syncSyncingData": "Syncing data...",
+  "@syncSyncingData": {
+    "description": "Message when syncing data"
+  },
+  
+  "syncPreparingMigration": "Preparing data migration...",
+  "@syncPreparingMigration": {
+    "description": "Message when preparing migration"
+  },
+  
+  "syncFetchingOldData": "Fetching old data...",
+  "@syncFetchingOldData": {
+    "description": "Message when fetching old format data"
+  },
+  
+  "syncConvertingToNewFormat": "Converting to new format...",
+  "@syncConvertingToNewFormat": {
+    "description": "Message when converting data to new format"
+  },
+  
+  "syncDeletingOldData": "Deleting old data...",
+  "@syncDeletingOldData": {
+    "description": "Message when deleting old format data"
+  },
+  
+  "syncMigrationCompleted": "Data migration completed",
+  "@syncMigrationCompleted": {
+    "description": "Message when migration is completed"
+  },
+  
+  "aboutRelays": "About Relays",
+  "@aboutRelays": {
+    "description": "Title for relay information section"
+  },
+  
+  "amberMode": "Amber Mode",
+  "@amberMode": {
+    "description": "Title for Amber mode"
+  },
+  
+  "cryptographyInUse": "Cryptography in Use",
+  "@cryptographyInUse": {
+    "description": "Title for cryptography section"
+  },
+  
+  "cryptographyDetailsUsedInMeiso": "Details of Cryptography Used in Meiso",
+  "@cryptographyDetailsUsedInMeiso": {
+    "description": "Detailed cryptography documentation intro"
+  },
+  
+  "cryptographyIntroTitle": "Meiso adopts the highest standards of modern cryptography.",
+  "@cryptographyIntroTitle": {
+    "description": "Introduction title for cryptography details"
+  },
+  
+  "cryptographyIntroDescription": "This document explains the details of the cryptographic technologies used in Meiso for Bitcoiners and Nostriches.",
+  "@cryptographyIntroDescription": {
+    "description": "Introduction description for cryptography details"
+  },
+  
+  "cryptoArchitectureTitle": "1. Architecture Overview",
+  "@cryptoArchitectureTitle": {
+    "description": "Section title for architecture"
+  },
+  
+  "cryptoArgon2idTitle": "2. Argon2id - Password Derivation Function",
+  "@cryptoArgon2idTitle": {
+    "description": "Section title for Argon2id"
+  },
+  
+  "cryptoAes256GcmTitle": "3. AES-256-GCM - Encryption Algorithm",
+  "@cryptoAes256GcmTitle": {
+    "description": "Section title for AES-256-GCM"
+  },
+  
+  "cryptoNip44Title": "4. NIP-44 - Nostr Encryption Standard",
+  "@cryptoNip44Title": {
+    "description": "Section title for NIP-44"
+  },
+  
+  "cryptoEd25519Title": "5. Ed25519 - Digital Signature",
+  "@cryptoEd25519Title": {
+    "description": "Section title for Ed25519"
+  },
+  
+  "cryptoAmberIntegrationTitle": "6. Amber Integration - Hardware Wallet-like Security",
+  "@cryptoAmberIntegrationTitle": {
+    "description": "Section title for Amber integration"
+  },
+  
+  "cryptoSecureStorageTitle": "7. Secure Storage - Rust Implementation",
+  "@cryptoSecureStorageTitle": {
+    "description": "Section title for secure storage"
+  },
+  
+  "cryptoThreatModelTitle": "8. Threat Model and Limitations",
+  "@cryptoThreatModelTitle": {
+    "description": "Section title for threat model"
+  },
+  
+  "relayList": "Relay List",
+  "@relayList": {
+    "description": "Title for relay list section"
+  },
+  
+  "noRelaysRegistered": "No relays registered",
+  "@noRelaysRegistered": {
+    "description": "Message when no relays are registered"
+  },
+  
+  "deleteTooltip": "Delete",
+  "@deleteTooltip": {
+    "description": "Tooltip for delete button"
+  },
+  
+  "aboutRelaysDescription": "• Relays are servers on the Nostr network\n• Connecting to multiple relays improves redundancy\n• Relay URLs must start with wss:// or ws://\n• Adding/removing relays are immediately saved to Nostr (Kind 10002)\n• Relay changes take effect immediately (no restart required)\n• Use the \"Sync from Nostr\" button to fetch settings from other devices\n• During sync, only updates if remote and local differ",
+  "@aboutRelaysDescription": {
+    "description": "Description of relay functionality"
+  },
+  
+  "currentlyConnectedViaTor": "• Currently connected via Tor (using Orbot proxy)",
+  "@currentlyConnectedViaTor": {
+    "description": "Message shown when connected via Tor"
+  },
+  
+  "cryptoArchPara1": "Meiso adopts a \"Zero-Knowledge Architecture\" and never sends your secret keys or task data to servers. All encryption processing is performed on your device.",
+  "@cryptoArchPara1": {
+    "description": "Architecture section paragraph 1"
+  },
+  
+  "cryptoArchSecurityModel": "Security Model:\n• End-to-End Encryption (E2EE)\n• Client-side encryption\n• Server stores only encrypted data\n• Only you hold the secret keys",
+  "@cryptoArchSecurityModel": {
+    "description": "Architecture security model"
+  },
+  
+  "cryptoArgon2Intro": "Argon2id is the latest and strongest password hashing algorithm, winner of the 2015 Password Hashing Competition (PHC).",
+  "@cryptoArgon2Intro": {
+    "description": "Argon2id introduction"
+  },
+  
+  "cryptoArgon2WhyTitle": "Why Argon2id?",
+  "@cryptoArgon2WhyTitle": {
+    "description": "Argon2id why section title"
+  },
+  
+  "cryptoArgon2BruteForce": "Brute-force attack resistance",
+  "@cryptoArgon2BruteForce": {
+    "description": "Argon2id feature title"
+  },
+  
+  "cryptoArgon2BruteForceDesc": "Requires both computational and memory costs, making it extremely resistant to parallel attacks using GPUs or ASICs.",
+  "@cryptoArgon2BruteForceDesc": {
+    "description": "Argon2id brute-force description"
+  },
+  
+  "cryptoArgon2SideChannel": "Side-channel attack resistance",
+  "@cryptoArgon2SideChannel": {
+    "description": "Argon2id feature title"
+  },
+  
+  "cryptoArgon2SideChannelDesc": "A \"hybrid\" combining Argon2i's unpredictable memory access patterns with Argon2d's computational efficiency.",
+  "@cryptoArgon2SideChannelDesc": {
+    "description": "Argon2id side-channel description"
+  },
+  
+  "cryptoArgon2Standard": "Industry standard",
+  "@cryptoArgon2Standard": {
+    "description": "Argon2id feature title"
+  },
+  
+  "cryptoArgon2StandardDesc": "Recommended by OWASP, NIST, and the Cryptography Engineering community. Next-generation standard surpassing bcrypt and PBKDF2.",
+  "@cryptoArgon2StandardDesc": {
+    "description": "Argon2id standard description"
+  },
+  
+  "cryptoArgon2Params": "Implementation parameters in Meiso:\n• Memory cost: 19 MiB (optimized)\n• Iterations: 2 times\n• Parallelism: 1 thread\n• Output length: 32 bytes (256 bits)\n• Salt: Random generation (16 bytes)",
+  "@cryptoArgon2Params": {
+    "description": "Argon2id parameters"
+  },
+  
+  "cryptoArgon2Reference": "📚 Reference: Argon2 RFC 9106",
+  "@cryptoArgon2Reference": {
+    "description": "Argon2id reference link text"
+  },
+  
+  "cryptoAesIntro": "AES-256-GCM is an \"Authenticated Encryption with Associated Data (AEAD)\" algorithm used by the U.S. government to protect classified information.",
+  "@cryptoAesIntro": {
+    "description": "AES-256-GCM introduction"
+  },
+  
+  "cryptoAesStrengthTitle": "Strength of AES-256",
+  "@cryptoAesStrengthTitle": {
+    "description": "AES-256 strength section title"
+  },
+  
+  "cryptoAesStrengthDesc": "AES-256 has a key space of 2^256, making brute-force attacks practically impossible even with modern supercomputers. It maintains 128-bit effective security even in the quantum computing era.",
+  "@cryptoAesStrengthDesc": {
+    "description": "AES-256 strength description"
+  },
+  
+  "cryptoAesGcmAdvantagesTitle": "Advantages of GCM Mode",
+  "@cryptoAesGcmAdvantagesTitle": {
+    "description": "GCM mode advantages section title"
+  },
+  
+  "cryptoAesAead": "Authenticated Encryption (AEAD)",
+  "@cryptoAesAead": {
+    "description": "AES-GCM feature title"
+  },
+  
+  "cryptoAesAeadDesc": "Generates a Message Authentication Code (MAC) simultaneously with encryption. Enables detection of data tampering.",
+  "@cryptoAesAeadDesc": {
+    "description": "AES-GCM AEAD description"
+  },
+  
+  "cryptoAesPerformance": "High-speed processing",
+  "@cryptoAesPerformance": {
+    "description": "AES-GCM feature title"
+  },
+  
+  "cryptoAesPerformanceDesc": "Enables parallel processing and is hardware-accelerated by modern CPUs' AES-NI instructions.",
+  "@cryptoAesPerformanceDesc": {
+    "description": "AES-GCM performance description"
+  },
+  
+  "cryptoAesPaddingResistance": "Padding attack resistance",
+  "@cryptoAesPaddingResistance": {
+    "description": "AES-GCM feature title"
+  },
+  
+  "cryptoAesPaddingResistanceDesc": "As a stream cipher mode, there is no risk of padding oracle attacks.",
+  "@cryptoAesPaddingResistanceDesc": {
+    "description": "AES-GCM padding resistance description"
+  },
+  
+  "cryptoAesParams": "Implementation in Meiso:\n• Encryption algorithm: AES-256-GCM\n• Key length: 256 bits (derived from Argon2id)\n• Nonce: Random generation (96 bits)\n• Tag length: 128 bits (for tamper detection)\n• Purpose: Encrypted storage of secret keys",
+  "@cryptoAesParams": {
+    "description": "AES-256-GCM parameters"
+  },
+  
+  "cryptoAesReference": "📚 Reference: NIST SP 800-38D (GCM)",
+  "@cryptoAesReference": {
+    "description": "AES-GCM reference link text"
+  },
+  
+  "cryptoNip44Intro": "NIP-44 is the standard specification for encrypted messages in the Nostr protocol. It provides secure end-to-end encryption using Elliptic Curve Cryptography (ECC).",
+  "@cryptoNip44Intro": {
+    "description": "NIP-44 introduction"
+  },
+  
+  "cryptoNip44MechanismTitle": "Encryption Mechanism",
+  "@cryptoNip44MechanismTitle": {
+    "description": "NIP-44 mechanism section title"
+  },
+  
+  "cryptoNip44MechanismDesc": "NIP-44 generates a \"shared secret\" from your secret key and the recipient's public key, and uses it to encrypt messages.",
+  "@cryptoNip44MechanismDesc": {
+    "description": "NIP-44 mechanism description"
+  },
+  
+  "cryptoNip44Process": "Encryption Process:\n1. ECDH (Elliptic Curve Diffie-Hellman)\n   → Generate shared secret with secp256k1 curve\n\n2. Key derivation with HMAC-SHA256 (HKDF)\n   → Generate encryption key and message authentication key\n\n3. Encrypt with ChaCha20-Poly1305\n   → Fast and secure AEAD encryption\n\n4. Base64 encode and transmit",
+  "@cryptoNip44Process": {
+    "description": "NIP-44 encryption process"
+  },
+  
+  "cryptoNip44UsageTitle": "Usage in Meiso",
+  "@cryptoNip44UsageTitle": {
+    "description": "NIP-44 usage section title"
+  },
+  
+  "cryptoNip44UsageDesc": "In Meiso, all Todo data is encrypted with NIP-44 and stored on Nostr relays. This prevents relay servers from reading your task contents.",
+  "@cryptoNip44UsageDesc": {
+    "description": "NIP-44 usage description"
+  },
+  
+  "cryptoNip44SecurityTitle": "🔐 Important Security Characteristics",
+  "@cryptoNip44SecurityTitle": {
+    "description": "NIP-44 security warning title"
+  },
+  
+  "cryptoNip44SecurityDesc": "• Relay servers can only see ciphertext\n• Cannot be decrypted without your own secret key\n• Forward Secrecy is not provided\n• If the secret key is leaked, all past messages can be decrypted",
+  "@cryptoNip44SecurityDesc": {
+    "description": "NIP-44 security characteristics"
+  },
+  
+  "cryptoNip44Reference": "📚 Reference: NIP-44 Specification",
+  "@cryptoNip44Reference": {
+    "description": "NIP-44 reference link text"
+  },
+  
+  "cryptoEd25519Intro": "Ed25519 is a modern signature algorithm based on Elliptic Curve Cryptography (ECC). It is widely adopted in modern security protocols such as Bitcoin, SSH, and TLS 1.3.",
+  "@cryptoEd25519Intro": {
+    "description": "Ed25519 introduction"
+  },
+  
+  "cryptoEd25519AdvantagesTitle": "Advantages of Ed25519",
+  "@cryptoEd25519AdvantagesTitle": {
+    "description": "Ed25519 advantages section title"
+  },
+  
+  "cryptoEd25519Speed": "Fast",
+  "@cryptoEd25519Speed": {
+    "description": "Ed25519 feature title"
+  },
+  
+  "cryptoEd25519SpeedDesc": "More than 10 times faster than RSA-2048 for signing and verification. Runs fast even on mobile devices.",
+  "@cryptoEd25519SpeedDesc": {
+    "description": "Ed25519 speed description"
+  },
+  
+  "cryptoEd25519Compact": "Compact",
+  "@cryptoEd25519Compact": {
+    "description": "Ed25519 feature title"
+  },
+  
+  "cryptoEd25519CompactDesc": "Public key: 32 bytes, Private key: 32 bytes, Signature: 64 bytes. 1/8 the size of RSA with equal or better security.",
+  "@cryptoEd25519CompactDesc": {
+    "description": "Ed25519 compact description"
+  },
+  
+  "cryptoEd25519Deterministic": "Deterministic",
+  "@cryptoEd25519Deterministic": {
+    "description": "Ed25519 feature title"
+  },
+  
+  "cryptoEd25519DeterministicDesc": "Always generates the same signature for the same message. No risk of random number generator vulnerabilities.",
+  "@cryptoEd25519DeterministicDesc": {
+    "description": "Ed25519 deterministic description"
+  },
+  
+  "cryptoEd25519SafeImpl": "Safe implementation",
+  "@cryptoEd25519SafeImpl": {
+    "description": "Ed25519 feature title"
+  },
+  
+  "cryptoEd25519SafeImplDesc": "Resistance to side-channel attacks is built in from the design stage.",
+  "@cryptoEd25519SafeImplDesc": {
+    "description": "Ed25519 safe implementation description"
+  },
+  
+  "cryptoEd25519NostrRoleTitle": "Role in Nostr",
+  "@cryptoEd25519NostrRoleTitle": {
+    "description": "Ed25519 Nostr role section title"
+  },
+  
+  "cryptoEd25519NostrRoleDesc": "In Nostr, all events (messages, Todos, profile updates, etc.) are signed with Ed25519. This guarantees the authenticity of the event creator and the integrity of the data.",
+  "@cryptoEd25519NostrRoleDesc": {
+    "description": "Ed25519 Nostr role description"
+  },
+  
+  "cryptoEd25519SigningProcess": "Nostr signing process:\n1. Serialize event in JSON format\n2. Hash with SHA-256\n3. Sign with Ed25519 private key\n4. Attach signature to event and send",
+  "@cryptoEd25519SigningProcess": {
+    "description": "Ed25519 signing process"
+  },
+  
+  "cryptoEd25519Reference": "📚 Reference: RFC 8032 (EdDSA)",
+  "@cryptoEd25519Reference": {
+    "description": "Ed25519 reference link text"
+  },
+  
+  "cryptoAmberIntro": "Amber is a dedicated app for securely managing Nostr secret keys. It does not share secret keys with other apps and only processes signing requests.",
+  "@cryptoAmberIntro": {
+    "description": "Amber introduction"
+  },
+  
+  "cryptoAmberNcryptsecTitle": "ncryptsec Format",
+  "@cryptoAmberNcryptsecTitle": {
+    "description": "Amber ncryptsec section title"
+  },
+  
+  "cryptoAmberNcryptsecDesc": "Amber stores secret keys in \"ncryptsec\" format. This is a Bech32-encoded string containing a secret key encrypted with AES-256-CBC.",
+  "@cryptoAmberNcryptsecDesc": {
+    "description": "Amber ncryptsec description"
+  },
+  
+  "cryptoAmberNcryptsecStructure": "ncryptsec structure:\nncryptsec1... ← Bech32 prefix\n├─ Version (1 byte)\n├─ Salt (16 bytes)\n├─ Nonce/IV (16 bytes)\n├─ Encrypted secret key (32 bytes)\n└─ Tamper detection tag",
+  "@cryptoAmberNcryptsecStructure": {
+    "description": "Amber ncryptsec structure"
+  },
+  
+  "cryptoAmberBenefitsTitle": "Benefits of Amber Mode",
+  "@cryptoAmberBenefitsTitle": {
+    "description": "Amber benefits section title"
+  },
+  
+  "cryptoAmberIsolation": "Secret key isolation",
+  "@cryptoAmberIsolation": {
+    "description": "Amber feature title"
+  },
+  
+  "cryptoAmberIsolationDesc": "Meiso does not hold secret keys and only requests Amber when signing is needed.",
+  "@cryptoAmberIsolationDesc": {
+    "description": "Amber isolation description"
+  },
+  
+  "cryptoAmberBiometric": "Biometric authentication",
+  "@cryptoAmberBiometric": {
+    "description": "Amber feature title"
+  },
+  
+  "cryptoAmberBiometricDesc": "Can require fingerprint authentication or PIN when signing with Amber.",
+  "@cryptoAmberBiometricDesc": {
+    "description": "Amber biometric description"
+  },
+  
+  "cryptoAmberAuditable": "Auditable",
+  "@cryptoAmberAuditable": {
+    "description": "Amber feature title"
+  },
+  
+  "cryptoAmberAuditableDesc": "Can review and approve all signing requests in the Amber app.",
+  "@cryptoAmberAuditableDesc": {
+    "description": "Amber auditable description"
+  },
+  
+  "cryptoAmberKeyReuse": "Key reuse",
+  "@cryptoAmberKeyReuse": {
+    "description": "Amber feature title"
+  },
+  
+  "cryptoAmberKeyReuseDesc": "Can securely share one secret key across multiple Nostr apps.",
+  "@cryptoAmberKeyReuseDesc": {
+    "description": "Amber key reuse description"
+  },
+  
+  "cryptoAmberHardwareWalletTitle": "💡 Similarity to Hardware Wallets",
+  "@cryptoAmberHardwareWalletTitle": {
+    "description": "Amber hardware wallet info title"
+  },
+  
+  "cryptoAmberHardwareWalletDesc": "Amber adopts the same \"never export secret keys\" architecture as Bitcoin hardware wallets (Ledger, Trezor).",
+  "@cryptoAmberHardwareWalletDesc": {
+    "description": "Amber hardware wallet description"
+  },
+  
+  "cryptoAmberReference": "🔗 Amber on GitHub",
+  "@cryptoAmberReference": {
+    "description": "Amber reference link text"
+  },
+  
+  "cryptoSecureStorageIntro": "Meiso's secret key management is entirely implemented in Rust. Rust is a secure systems programming language with memory safety guaranteed at the language level.",
+  "@cryptoSecureStorageIntro": {
+    "description": "Secure storage introduction"
+  },
+  
+  "cryptoStorageWhyRustTitle": "Why Rust?",
+  "@cryptoStorageWhyRustTitle": {
+    "description": "Why Rust section title"
+  },
+  
+  "cryptoStorageMemorySafety": "Memory safety",
+  "@cryptoStorageMemorySafety": {
+    "description": "Rust feature title"
+  },
+  
+  "cryptoStorageMemorySafetyDesc": "Memory-related vulnerabilities such as buffer overflow, use-after-free, and data races are fundamentally impossible.",
+  "@cryptoStorageMemorySafetyDesc": {
+    "description": "Rust memory safety description"
+  },
+  
+  "cryptoStorageZeroCost": "Zero-cost abstractions",
+  "@cryptoStorageZeroCost": {
+    "description": "Rust feature title"
+  },
+  
+  "cryptoStorageZeroCostDesc": "Achieves C/C++ equivalent performance while writing high-level code.",
+  "@cryptoStorageZeroCostDesc": {
+    "description": "Rust zero-cost description"
+  },
+  
+  "cryptoStorageTypeSystem": "Strong type system",
+  "@cryptoStorageTypeSystem": {
+    "description": "Rust feature title"
+  },
+  
+  "cryptoStorageTypeSystemDesc": "Option and Result types enforce error handling.",
+  "@cryptoStorageTypeSystemDesc": {
+    "description": "Rust type system description"
+  },
+  
+  "cryptoStorageImplTitle": "Storage Implementation",
+  "@cryptoStorageImplTitle": {
+    "description": "Storage implementation section title"
+  },
+  
+  "cryptoStorageImplDesc": "Meiso stores encrypted secret keys in Flutter's \"ApplicationSupportDirectory\". This directory is protected by the OS from access by other apps.",
+  "@cryptoStorageImplDesc": {
+    "description": "Storage implementation description"
+  },
+  
+  "cryptoStoragePath": "Storage path (Android):\n/data/data/com.example.meiso/files/encrypted_key.bin\n\nFile contents:\n• JSON format\n• Fields: salt, nonce, ciphertext\n• All Base64 encoded",
+  "@cryptoStoragePath": {
+    "description": "Storage path details"
+  },
+  
+  "cryptoStorageMemorySecurityTitle": "Memory Security",
+  "@cryptoStorageMemorySecurityTitle": {
+    "description": "Memory security section title"
+  },
+  
+  "cryptoStorageZeroize": "Zeroize",
+  "@cryptoStorageZeroize": {
+    "description": "Memory security feature title"
+  },
+  
+  "cryptoStorageZeroizeDesc": "Safely erases secret keys from memory after use.",
+  "@cryptoStorageZeroizeDesc": {
+    "description": "Zeroize description"
+  },
+  
+  "cryptoStorageStackAllocation": "Stack allocation",
+  "@cryptoStorageStackAllocation": {
+    "description": "Memory security feature title"
+  },
+  
+  "cryptoStorageStackAllocationDesc": "Places secret keys on the stack rather than the heap, minimizing lifetime.",
+  "@cryptoStorageStackAllocationDesc": {
+    "description": "Stack allocation description"
+  },
+  
+  "cryptoStorageMemoryDump": "Memory dump countermeasures",
+  "@cryptoStorageMemoryDump": {
+    "description": "Memory security feature title"
+  },
+  
+  "cryptoStorageMemoryDumpDesc": "Rust code is optimized even in debug builds, making sensitive data less likely to remain.",
+  "@cryptoStorageMemoryDumpDesc": {
+    "description": "Memory dump description"
+  },
+  
+  "cryptoThreatModelIntro": "Meiso uses very strong cryptographic technologies, but perfect security does not exist. Please understand the following threats.",
+  "@cryptoThreatModelIntro": {
+    "description": "Threat model introduction"
+  },
+  
+  "cryptoThreatWhatWeCanProtectTitle": "What We Can Protect",
+  "@cryptoThreatWhatWeCanProtectTitle": {
+    "description": "What we can protect section title"
+  },
+  
+  "cryptoThreatNetworkEavesdropping": "Network eavesdropping",
+  "@cryptoThreatNetworkEavesdropping": {
+    "description": "Threat model protection title"
+  },
+  
+  "cryptoThreatNetworkEavesdroppingDesc": "TLS + E2EE encryption neutralizes eavesdropping on communication paths.",
+  "@cryptoThreatNetworkEavesdroppingDesc": {
+    "description": "Network eavesdropping description"
+  },
+  
+  "cryptoThreatMaliciousRelay": "Malicious relay servers",
+  "@cryptoThreatMaliciousRelay": {
+    "description": "Threat model protection title"
+  },
+  
+  "cryptoThreatMaliciousRelayDesc": "Relays can only see encrypted data.",
+  "@cryptoThreatMaliciousRelayDesc": {
+    "description": "Malicious relay description"
+  },
+  
+  "cryptoThreatBruteForce": "Brute-force attacks",
+  "@cryptoThreatBruteForce": {
+    "description": "Threat model protection title"
+  },
+  
+  "cryptoThreatBruteForceDesc": "Argon2id + AES-256 makes decryption impossible in realistic time.",
+  "@cryptoThreatBruteForceDesc": {
+    "description": "Brute-force description"
+  },
+  
+  "cryptoThreatWhatWeCannotProtectTitle": "What We Cannot Protect",
+  "@cryptoThreatWhatWeCannotProtectTitle": {
+    "description": "What we cannot protect section title"
+  },
+  
+  "cryptoThreatWarningTitle": "⚠️ The following threats require attention",
+  "@cryptoThreatWarningTitle": {
+    "description": "Threat warning title"
+  },
+  
+  "cryptoThreatWarningDesc": "• Physical device theft + password leak\n• Keylogger or screen capture malware\n• Rooted/Jailbroken devices\n• OS or firmware vulnerabilities\n• Social engineering attacks\n• Future threats from quantum computers (RSA/ECC breakdown)",
+  "@cryptoThreatWarningDesc": {
+    "description": "Threat warning description"
+  },
+  
+  "cryptoThreatBestPracticesTitle": "Best Practices",
+  "@cryptoThreatBestPracticesTitle": {
+    "description": "Best practices section title"
+  },
+  
+  "cryptoThreatStrongPassword": "Strong password",
+  "@cryptoThreatStrongPassword": {
+    "description": "Best practice title"
+  },
+  
+  "cryptoThreatStrongPasswordDesc": "Use a random password of 20 characters or more.",
+  "@cryptoThreatStrongPasswordDesc": {
+    "description": "Strong password description"
+  },
+  
+  "cryptoThreatDeviceEncryption": "Device encryption",
+  "@cryptoThreatDeviceEncryption": {
+    "description": "Best practice title"
+  },
+  
+  "cryptoThreatDeviceEncryptionDesc": "Enable full disk encryption on Android/iOS.",
+  "@cryptoThreatDeviceEncryptionDesc": {
+    "description": "Device encryption description"
+  },
+  
+  "cryptoThreatKeepOsUpdated": "Keep OS up to date",
+  "@cryptoThreatKeepOsUpdated": {
+    "description": "Best practice title"
+  },
+  
+  "cryptoThreatKeepOsUpdatedDesc": "Apply security patches regularly.",
+  "@cryptoThreatKeepOsUpdatedDesc": {
+    "description": "Keep OS updated description"
+  },
+  
+  "cryptoThreatRecommendAmber": "Amber mode recommended",
+  "@cryptoThreatRecommendAmber": {
+    "description": "Best practice title"
+  },
+  
+  "cryptoThreatRecommendAmberDesc": "If higher security is required, use Amber mode.",
+  "@cryptoThreatRecommendAmberDesc": {
+    "description": "Recommend Amber description"
+  },
+  
+  "cryptoTableOfContents": "📖 Table of Contents",
+  "@cryptoTableOfContents": {
+    "description": "Table of contents title"
+  },
+  
+  "cryptoTocItem1": "1. Architecture Overview",
+  "@cryptoTocItem1": {
+    "description": "Table of contents item 1"
+  },
+  
+  "cryptoTocItem2": "2. Argon2id - Password Derivation Function",
+  "@cryptoTocItem2": {
+    "description": "Table of contents item 2"
+  },
+  
+  "cryptoTocItem3": "3. AES-256-GCM - Encryption Algorithm",
+  "@cryptoTocItem3": {
+    "description": "Table of contents item 3"
+  },
+  
+  "cryptoTocItem4": "4. NIP-44 - Nostr Encryption Standard",
+  "@cryptoTocItem4": {
+    "description": "Table of contents item 4"
+  },
+  
+  "cryptoTocItem5": "5. Ed25519 - Digital Signatures",
+  "@cryptoTocItem5": {
+    "description": "Table of contents item 5"
+  },
+  
+  "cryptoTocItem6": "6. Amber Integration - Hardware Wallet-like Security",
+  "@cryptoTocItem6": {
+    "description": "Table of contents item 6"
+  },
+  
+  "cryptoTocItem7": "7. Secure Storage - Rust Implementation",
+  "@cryptoTocItem7": {
+    "description": "Table of contents item 7"
+  },
+  
+  "cryptoTocItem8": "8. Threat Model and Limitations",
+  "@cryptoTocItem8": {
+    "description": "Table of contents item 8"
+  },
+  
+  "cryptoFooterSecurityTitle": "🔒 Security Questions and Reports",
+  "@cryptoFooterSecurityTitle": {
+    "description": "Footer security title"
+  },
+  
+  "cryptoFooterSecurityDesc": "If you discover a security issue, please report it via GitHub Issues or Nostr (DM).",
+  "@cryptoFooterSecurityDesc": {
+    "description": "Footer security description"
+  },
+  
+  "cryptoFooterOpenSource": "All code is open source",
+  "@cryptoFooterOpenSource": {
+    "description": "Footer open source text"
+  },
+  
+  "cryptographyDetailsDescription": "Details of cryptographic technologies used in Meiso",
+  "@cryptographyDetailsDescription": {
+    "description": "Cryptography details description in Secret Key Management"
   }
 }
 
