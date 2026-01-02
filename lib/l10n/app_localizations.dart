@@ -277,7 +277,7 @@ abstract class AppLocalizations {
   /// Information about Amber mode
   ///
   /// In en, this message translates to:
-  /// **'✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign todos with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing todos.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow'**
+  /// **'✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing tasks.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow'**
   String get amberModeInfo;
 
   /// Title for auto sync info card
@@ -523,7 +523,7 @@ abstract class AppLocalizations {
   /// Title for recurring delete confirmation dialog
   ///
   /// In en, this message translates to:
-  /// **'Delete recurring to-do'**
+  /// **'Delete recurring task'**
   String get deleteRecurringTodoTitle;
 
   /// Option to delete only this instance of a recurring todo
@@ -1228,16 +1228,16 @@ abstract class AppLocalizations {
   /// **'Syncing lists...'**
   String get syncPhaseCustomLists;
 
-  /// Sync phase: todos
+  /// Sync phase: tasks
   ///
   /// In en, this message translates to:
-  /// **'Syncing todos...'**
+  /// **'Syncing tasks...'**
   String get syncPhaseTodos;
 
-  /// Sync phase: MLS group todos
+  /// Sync phase: MLS group tasks
   ///
   /// In en, this message translates to:
-  /// **'Syncing group todos...'**
+  /// **'Syncing group tasks...'**
   String get syncPhaseMls;
 
   /// Time indicator for recent sync

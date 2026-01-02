@@ -16,7 +16,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get onboardingWelcomeDescription =>
-      'シンプルで美しいToDoアプリ\nNostrで同期して、どこでもタスク管理';
+      'シンプルで美しいTo-Doアプリ\nNostrで同期して、どこでもタスク管理';
 
   @override
   String get onboardingNostrSyncTitle => 'Nostrで同期';
@@ -106,7 +106,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get amberModeInfo =>
-      '✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• Todoの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ 復号化の最適化:\nTodoの同期時に復号化の承認が必要です。\n毎回承認するのを避けるために、Amberアプリで\n「Meisoアプリを常に許可」を設定することを推奨します。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. アプリ一覧から「Meiso」を選択\n3. 「NIP-44 Decrypt」を常に許可に設定';
+      '✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• タスクの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ 復号化の最適化:\nタスクの同期時に復号化の承認が必要です。\n毎回承認するのを避けるために、Amberアプリで\n「Meisoアプリを常に許可」を設定することを推奨します。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. アプリ一覧から「Meiso」を選択\n3. 「NIP-44 Decrypt」を常に許可に設定';
 
   @override
   String get autoSyncInfoTitle => '自動同期について';
@@ -234,7 +234,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get mlsOnePersonTestTodoTitle => 'MLSグループ内テストTODO';
 
   @override
-  String get deleteRecurringTodoTitle => '繰り返しTodoを削除';
+  String get deleteRecurringTodoTitle => '繰り返しタスクを削除';
 
   @override
   String get removeThisInstance => 'このインスタンスのみ削除';
@@ -610,10 +610,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get syncPhaseCustomLists => 'リスト同期中...';
 
   @override
-  String get syncPhaseTodos => 'Todo同期中...';
+  String get syncPhaseTodos => 'タスク同期中...';
 
   @override
-  String get syncPhaseMls => 'グループTodo同期中...';
+  String get syncPhaseMls => 'グループタスク同期中...';
 
   @override
   String get justNow => 'たった今';

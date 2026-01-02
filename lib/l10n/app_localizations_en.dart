@@ -106,7 +106,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get amberModeInfo =>
-      '✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign todos with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing todos.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow';
+      '✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing tasks.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow';
 
   @override
   String get autoSyncInfoTitle => 'About Auto Sync';
@@ -236,7 +236,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mlsOnePersonTestTodoTitle => 'Test TODO in MLS Group';
 
   @override
-  String get deleteRecurringTodoTitle => 'Delete recurring to-do';
+  String get deleteRecurringTodoTitle => 'Delete recurring task';
 
   @override
   String get removeThisInstance => 'Remove this instance';
@@ -619,10 +619,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncPhaseCustomLists => 'Syncing lists...';
 
   @override
-  String get syncPhaseTodos => 'Syncing todos...';
+  String get syncPhaseTodos => 'Syncing tasks...';
 
   @override
-  String get syncPhaseMls => 'Syncing group todos...';
+  String get syncPhaseMls => 'Syncing group tasks...';
 
   @override
   String get justNow => 'Just now';

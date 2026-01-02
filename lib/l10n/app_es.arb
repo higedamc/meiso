@@ -65,56 +65,91 @@
   
   "autoSyncInfo": "• La creación, edición y eliminación de tareas se sincronizan automáticamente con Nostr\n• Los últimos datos se obtienen automáticamente al iniciar la aplicación\n• Siempre se sincroniza en segundo plano cuando el relay está conectado\n• Ya no se necesita el botón de sincronización manual",
 
-  "closeButton": "Close",
-  "copyButton": "Copy",
-  "fetchButton": "Fetch",
+  "closeButton": "Cerrar",
+  
+  "copyButton": "Copiar",
+  
+  "fetchButton": "Obtener",
 
-  "advancedSectionTitle": "Advanced",
-  "advancedSectionSubtitle": "Developer features",
+  "advancedSectionTitle": "Avanzado",
+  
+  "advancedSectionSubtitle": "Funciones de desarrollador",
 
-  "keyPackagePublishTitle": "Publish Key Package",
-  "keyPackagePublishSubtitle": "Required to receive group invites",
+  "keyPackagePublishTitle": "Publicar Key Package",
+  
+  "keyPackagePublishSubtitle": "Requerido para recibir invitaciones de grupo",
 
-  "mlsIntegrationTestTitle": "MLS Integration Test (PoC)",
-  "mlsIntegrationTestSubtitle": "Option B: verify with 1-person group",
+  "mlsIntegrationTestTitle": "Prueba de Integración MLS (PoC)",
+  
+  "mlsIntegrationTestSubtitle": "Opción B: verificar con grupo de 1 persona",
 
-  "keyPackagePublishDialogTitle": "Publish Key Package",
-  "keyPackagePublishDialogBody": "This will publish your Key Package to relays.\n\nOnce published, other users can invite you to groups.\n\nContinue?",
-  "publishButton": "Publish",
-  "publishingKeyPackage": "Publishing Key Package...",
-  "keyPackagePublishCompletedTitle": "Publish completed",
-  "keyPackagePublishCompletedMessage": "Published Key Package to relays!",
-  "keyPackagePublishCompletedDescription": "Other users can now invite you to groups using your npub.",
-  "eventIdLabel": "Event ID",
-  "keyPackagePublishFailedTitle": "Publish failed",
-  "keyPackagePublishFailedBody": "Failed to publish Key Package.\n\nError: {error}",
-  "keyPackagePublishNoEventIdError": "Failed to get event id",
+  "keyPackagePublishDialogTitle": "Publicar Key Package",
+  
+  "keyPackagePublishDialogBody": "Esto publicará tu Key Package en los relays.\n\nUna vez publicado, otros usuarios podrán invitarte a grupos.\n\n¿Continuar?",
+  
+  "publishButton": "Publicar",
+  
+  "publishingKeyPackage": "Publicando Key Package...",
+  
+  "keyPackagePublishCompletedTitle": "Publicación completada",
+  
+  "keyPackagePublishCompletedMessage": "¡Key Package publicado en los relays!",
+  
+  "keyPackagePublishCompletedDescription": "Otros usuarios ahora pueden invitarte a grupos usando tu npub.",
+  
+  "eventIdLabel": "ID de Evento",
+  
+  "keyPackagePublishFailedTitle": "Publicación fallida",
+  
+  "keyPackagePublishFailedBody": "Error al publicar Key Package.\n\nError: {error}",
+  
+  "keyPackagePublishNoEventIdError": "Error al obtener el ID de evento",
 
-  "mlsTestDialogTitle": "MLS Integration Test",
-  "mlsTestDialogSubtitle": "Option B PoC: 2-person group test",
-  "mlsYourKeyPackageLabel": "📋 Your Key Package:",
-  "keyPackageCopied": "Key Package copied",
-  "mlsPeerNpubLabel": "Peer npub",
+  "mlsTestDialogTitle": "Prueba de Integración MLS",
+  
+  "mlsTestDialogSubtitle": "PoC Opción B: prueba de grupo de 2 personas",
+  
+  "mlsYourKeyPackageLabel": "📋 Tu Key Package:",
+  
+  "keyPackageCopied": "Key Package copiado",
+  
+  "mlsPeerNpubLabel": "npub del par",
+  
   "mlsPeerNpubHint": "npub1...",
-  "mlsPressTestButton": "Press a test button",
-  "mlsGenerateKpButton": "Generate KP",
-  "mlsPublishKpButton": "Publish KP",
-  "mlsCreate2PersonGroupButton": "Create 2-person group",
-  "mlsSendTodoButton": "Send TODO",
-  "mlsOnePersonTestButton": "1-person test",
-  "mlsRunning": "Running...",
-  "mlsUserPublicKeyNotAvailable": "User public key not available",
-  "mlsTwoPersonTestGroupName": "2 Person Test Group",
-  "mlsTestListName": "MLS Test List",
-  "mlsTwoPersonTestTodoTitle": "Test TODO for 2 Person Group",
-  "mlsOnePersonTestTodoTitle": "Test TODO in MLS Group",
+  
+  "mlsPressTestButton": "Presiona un botón de prueba",
+  
+  "mlsGenerateKpButton": "Generar KP",
+  
+  "mlsPublishKpButton": "Publicar KP",
+  
+  "mlsCreate2PersonGroupButton": "Crear grupo de 2 personas",
+  
+  "mlsSendTodoButton": "Enviar TODO",
+  
+  "mlsOnePersonTestButton": "Prueba de 1 persona",
+  
+  "mlsRunning": "Ejecutando...",
+  
+  "mlsUserPublicKeyNotAvailable": "Clave pública del usuario no disponible",
+  
+  "mlsTwoPersonTestGroupName": "Grupo de Prueba de 2 Personas",
+  
+  "mlsTestListName": "Lista de Prueba MLS",
+  
+  "mlsTwoPersonTestTodoTitle": "TODO de Prueba para Grupo de 2 Personas",
+  
+  "mlsOnePersonTestTodoTitle": "TODO de Prueba en Grupo MLS",
 
-  "deleteRecurringTodoTitle": "Delete recurring to-do",
-  "removeThisInstance": "Remove this instance",
-  "removeAllInstances": "Remove all instances",
+  "deleteRecurringTodoTitle": "Eliminar tarea recurrente",
+  
+  "removeThisInstance": "Eliminar esta instancia",
+  
+  "removeAllInstances": "Eliminar todas las instancias",
 
   "todoJsonTitle": "Todo JSON",
-  "jsonCopied": "JSON copied",
+  
+  "jsonCopied": "JSON copiado",
   
   "versionInfo": "Versión {version} ({buildNumber})",
   
@@ -174,6 +209,240 @@
   
   "saturdayShort": "Sáb",
   
-  "sundayShort": "Dom"
+  "sundayShort": "Dom",
+  
+  "loginMethodTitle": "Elegir Método de Inicio de Sesión",
+  
+  "loginMethodDescription": "Inicia sesión con tu cuenta Nostr\npara sincronizar tus tareas",
+  
+  "loginWithAmber": "Iniciar con Amber",
+  
+  "or": "o",
+  
+  "generateNewKey": "Generar Nueva Clave",
+  
+  "keyStorageNote": "Las claves se almacenan de forma segura.\nAmber proporciona seguridad mejorada.",
+  
+  "amberRequired": "Amber Requerido",
+  
+  "amberNotInstalled": "La aplicación Amber no está instalada.\n¿Deseas instalarla desde Google Play?",
+  
+  "install": "Instalar",
+  
+  "error": "Error",
+  
+  "loginProcessError": "Ocurrió un error durante el proceso de inicio de sesión\n{error}",
+  
+  "ok": "OK",
+  
+  "noPublicKeyReceived": "Error al obtener la clave pública de Amber",
+  
+  "amberConnectionFailed": "Error al conectar con Amber\n{error}",
+  
+  "setPassword": "Establecer Contraseña",
+  
+  "setPasswordDescription": "Por favor, establece una contraseña para cifrar tu clave secreta.",
+  
+  "password": "Contraseña",
+  
+  "passwordConfirm": "Contraseña (Confirmar)",
+  
+  "passwordRequired": "Por favor, ingresa una contraseña",
+  
+  "passwordMinLength": "La contraseña debe tener al menos 8 caracteres",
+  
+  "passwordMismatch": "Las contraseñas no coinciden",
+  
+  "secretKeyGenerated": "Clave Secreta Generada",
+  
+  "backupSecretKey": "Por favor, respalda tu clave secreta en un lugar seguro.",
+  
+  "secretKeyNsec": "Clave Secreta (nsec):",
+  
+  "publicKeyNpub": "Clave Pública (npub):",
+  
+  "secretKeyWarning": "Si pierdes esta clave secreta, perderás el acceso a tu cuenta. Por favor, respáldala.",
+  
+  "backupCompleted": "Respaldo Completado",
+  
+  "keypairGenerationFailed": "Error al generar el par de claves\n\n{error}",
+  
+  "sunday": "Domingo",
+  
+  "monday": "Lunes",
+  
+  "tuesday": "Martes",
+  
+  "wednesday": "Miércoles",
+  
+  "thursday": "Jueves",
+  
+  "friday": "Viernes",
+  
+  "saturday": "Sábado",
+  
+  "weekStartDay": "Día de Inicio de Semana",
+  
+  "selectWeekStartDay": "Seleccionar Día de Inicio de Semana",
+  
+  "calendarView": "Vista de Calendario",
+  
+  "selectCalendarView": "Seleccionar Vista de Calendario",
+  
+  "weekView": "Vista Semanal",
+  
+  "monthView": "Vista Mensual",
+  
+  "notifications": "Notificaciones",
+  
+  "notificationsSubtitle": "Habilitar notificaciones de recordatorio",
+  
+  "torConnection": "Conectar vía Tor (Orbot)",
+  
+  "torEnabledSubtitle": "Conectando vía proxy Orbot ({proxyUrl})",
+  
+  "torDisabledSubtitle": "No usando Orbot (Conexión directa)",
+  
+  "torEnabledMessage": "Tor habilitado. Se aplicará desde la próxima conexión.\nPor favor, inicia la aplicación Orbot.",
+  
+  "torDisabledMessage": "Tor deshabilitado. Se aplicará desde la próxima conexión.",
+  
+  "proxyAddress": "Dirección y Puerto del Proxy",
+  
+  "proxySettings": "Configuración de Proxy",
+  
+  "proxySettingsDescription": "Configurar dirección y puerto del proxy SOCKS5",
+  
+  "host": "Host",
+  
+  "port": "Puerto",
+  
+  "hostRequired": "Por favor, ingresa el host",
+  
+  "portRequired": "Por favor, ingresa el puerto",
+  
+  "portRangeError": "El número de puerto debe estar entre 1-65535",
+  
+  "proxyUrlUpdated": "URL del proxy actualizada: {url}",
+  
+  "commonSettings": "Configuraciones comunes:\n• Orbot: 127.0.0.1:9050\n• Proxy personalizado: Ingresa host y puerto",
+  
+  "proxyConnectionStatus": "Estado de Conexión del Proxy",
+  
+  "testButton": "Probar",
+  
+  "untested": "Sin probar",
+  
+  "testing": "Probando...",
+  
+  "connectionSuccess": "Conexión Exitosa",
+  
+  "connectionFailed": "Conexión Fallida (Por favor, inicia Orbot)",
+  
+  "appSettingsTitle": "Configuración de la Aplicación",
+  
+  "appSettingsInfo": "Acerca de la Configuración de la Aplicación",
+  
+  "appSettingsInfoText": "• La configuración de la aplicación se almacena localmente\n• Si Nostr está conectado, la configuración se sincroniza automáticamente\n• Puedes compartir la misma configuración en múltiples dispositivos (NIP-78)\n• Los cambios se aplican inmediatamente\n\n🛡️ Acerca de la configuración de Tor:\n• Cuando Tor está habilitado, se conecta a los relays vía proxy Orbot\n• La aplicación Orbot debe estar en ejecución\n• La privacidad y seguridad mejoran, pero la velocidad de conexión disminuye\n• Se requiere reconexión después de cambiar la configuración",
+  
+  "nostrAutoSync": "Sincronización automática con relay Nostr (NIP-78 Kind 30078)",
+  
+  "localStorageOnly": "Solo almacenamiento local (Nostr no conectado)",
+  
+  "languageSelection": "Seleccionar Idioma",
+  
+  "syncingWithCount": "Sincronizando ({count})",
+  
+  "syncing": "Sincronizando",
+  
+  "syncCompleted": "Sincronización Completada",
+  
+  "syncError": "Error de Sincronización",
+  
+  "timeout": "Tiempo de Espera Agotado",
+  
+  "connectionError": "Error de Conexión",
+  
+  "errorRetry": "Error (Reintento {count})",
+  
+  "waiting": "Esperando",
+
+  "syncStep": "Paso {current} / {total}",
+  
+  "syncReconnectingRelays": "Reconectando relays...",
+  
+  "syncPhaseDelta": "Sincronización delta...",
+  
+  "syncPhaseAppSettings": "Sincronizando configuración...",
+  
+  "syncPhaseCustomLists": "Sincronizando listas...",
+  
+  "syncPhaseTodos": "Sincronizando tareas...",
+  
+  "syncPhaseMls": "Sincronizando tareas de grupo...",
+  
+  "justNow": "Justo ahora",
+  
+  "minutesAgo": "hace {minutes} min",
+  
+  "hoursAgo": "hace {hours} hr",
+  
+  "secretKeyManagementTitle": "Gestión de Clave Secreta",
+  
+  "enterPassword": "Ingresar Contraseña",
+  
+  "enterPasswordToDecrypt": "Ingresa la contraseña para descifrar la clave secreta.",
+  
+  "enterPasswordToEncrypt": "Ingresa la contraseña para cifrar la clave secreta.",
+  
+  "secretKeyEncrypted": "Clave secreta cifrada y guardada ({format})",
+  
+  "formatUnknown": "Formato desconocido",
+  
+  "connectedToRelay": "Conectado al relay",
+  
+  "connectedToRelayViaTor": "Conectado al relay (vía Tor)",
+  
+  "invalidSecretKeyFormat": "Formato de clave secreta inválido. Por favor, ingresa formato nsec o hex.",
+  
+  "encrypted": "🔒 Cifrado",
+  
+  "relayManagementTitle": "Gestión de Servidores Relay",
+  
+  "relayUrlError": "La URL del relay debe comenzar con wss:// o ws://",
+  
+  "relayAddedAndSaved": "Relay agregado y guardado inmediatamente en Nostr",
+  
+  "relayAddedButSaveFailed": "Relay agregado pero falló el guardado en Nostr: {error}",
+  
+  "relayRemovedAndSaved": "Relay eliminado y guardado inmediatamente en Nostr",
+  
+  "relayRemovedButSaveFailed": "Relay eliminado pero falló el guardado en Nostr: {error}",
+  
+  "noRelayListOnNostr": "No se encontró lista de relays en Nostr",
+  
+  "relaySyncSuccess": "Se sincronizaron exitosamente {count} relays desde Nostr",
+  
+  "relaySyncError": "Error al sincronizar desde Nostr: {error}",
+  
+  "syncFromNostr": "Sincronizar desde Nostr",
+  
+  "addRelay": "Agregar Relay",
+  
+  "relayUrl": "URL del Relay",
+  
+  "connected": "Conectado",
+  
+  "connecting": "Conectando",
+  
+  "disconnected": "Desconectado",
+  
+  "cryptographyTitle": "Detalles de Criptografía",
+  
+  "logout": "Cerrar Sesión",
+  
+  "logoutConfirm": "¿Estás seguro de que deseas cerrar sesión?",
+  
+  "logoutDescription": "La clave secreta cifrada será eliminada.\nPor favor, guarda tu clave secreta antes de cerrar sesión."
 }
 

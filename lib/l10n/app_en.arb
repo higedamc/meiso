@@ -159,7 +159,7 @@
     "description": "Title for Amber mode info card"
   },
   
-  "amberModeInfo": "✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign todos with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing todos.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow",
+  "amberModeInfo": "✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing tasks.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow",
   "@amberModeInfo": {
     "description": "Information about Amber mode"
   },
@@ -369,7 +369,7 @@
     "description": "Default todo title for 1-person MLS test"
   },
 
-  "deleteRecurringTodoTitle": "Delete recurring to-do",
+  "deleteRecurringTodoTitle": "Delete recurring task",
   "@deleteRecurringTodoTitle": {
     "description": "Title for recurring delete confirmation dialog"
   },
@@ -994,10 +994,10 @@
   "@syncPhaseAppSettings": { "description": "Sync phase: app settings" },
   "syncPhaseCustomLists": "Syncing lists...",
   "@syncPhaseCustomLists": { "description": "Sync phase: custom lists" },
-  "syncPhaseTodos": "Syncing todos...",
-  "@syncPhaseTodos": { "description": "Sync phase: todos" },
-  "syncPhaseMls": "Syncing group todos...",
-  "@syncPhaseMls": { "description": "Sync phase: MLS group todos" },
+  "syncPhaseTodos": "Syncing tasks...",
+  "@syncPhaseTodos": { "description": "Sync phase: tasks" },
+  "syncPhaseMls": "Syncing group tasks...",
+  "@syncPhaseMls": { "description": "Sync phase: MLS group tasks" },
   
   "justNow": "Just now",
   "@justNow": {
