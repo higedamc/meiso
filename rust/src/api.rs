@@ -2077,10 +2077,12 @@ pub struct TodoListMetadata {
 /// Phase 8.5.2: カスタムリスト名のみを取得（軽量版）
 /// 
 /// contentを解析せず、タグ（d, title）のみを返すため高速
+/// Issue #101: event_idを追加して削除済みイベントのフィルタリングを可能にする
 #[derive(Clone)]
 pub struct TodoListName {
     pub list_id: String,
     pub title: Option<String>,
+    pub event_id: String,
 }
 
 pub fn fetch_todo_list_names_only(
@@ -2143,7 +2145,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
             }
         }
         
-        // リスト名のみを抽出
+        // リスト名のみを抽出（Issue #101: event_idも含める）
         let list_names: Vec<TodoListName> = latest_events.into_iter()
             .map(|(d_tag, event)| {
                 let title = event.tags.iter()
@@ -2154,6 +2156,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
                 TodoListName {
                     list_id: d_tag,
                     title,
+                    event_id: event.id.to_hex(),
                 }
             })
             .collect();

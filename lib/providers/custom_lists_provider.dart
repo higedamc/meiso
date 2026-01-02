@@ -359,6 +359,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// 
   /// Kind 30001イベントのd tag（meiso-list-xxx）とtitle tagから
   /// カスタムリスト名のリストを抽出する
+  /// Issue #101: 削除済みイベントIDでフィルタリング
   Future<List<String>> fetchCustomListNamesFromNostr() async {
     try {
       // ✅ 復帰/起動直後の体感改善: 短時間での連続取得を間引く
@@ -379,7 +380,11 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       AppLogger.info('📋 [CustomLists] Fetching custom list names from Nostr...');
 
       // Phase C.3.2.2: Repository経由でリスト名を取得
-      final result = await _repository.fetchCustomListNamesFromNostr(publicKey: userPubkey);
+      // Issue #101: 削除済みイベントIDを渡してフィルタリング
+      final result = await _repository.fetchCustomListNamesFromNostr(
+        publicKey: userPubkey,
+        deletedEventIds: _deletedEventIds,
+      );
 
       return await result.fold(
         (failure) async {
@@ -574,6 +579,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     
     // Issue #80: 削除済みリストをフィルタリング
     final filteredLists = await _filterDeletedLists(updatedLists);
+    
+    // Issue #101: フィルタリングでリストが削除された場合、hasChangesをtrueにする
+    if (filteredLists.length < updatedLists.length) {
+      hasChanges = true;
+      AppLogger.info(' [CustomLists] 🗑️  ${updatedLists.length - filteredLists.length} deleted lists filtered, setting hasChanges=true');
+    }
     
     // 変更があった場合、または stateの更新が必要な場合
     if (hasChanges || needsStateUpdate) {

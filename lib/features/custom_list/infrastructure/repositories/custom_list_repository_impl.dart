@@ -160,6 +160,7 @@ class CustomListRepositoryImpl implements CustomListRepository {
   @override
   Future<Either<Failure, List<String>>> fetchCustomListNamesFromNostr({
     required String publicKey,
+    required Set<String> deletedEventIds,
   }) async {
     try {
       AppLogger.info('📋 [CustomListRepo] Fetching custom list names from Nostr...');
@@ -177,9 +178,19 @@ class CustomListRepositoryImpl implements CustomListRepository {
         return const Right([]);
       }
       
+      // Issue #101: 削除済みイベントをフィルタリング
+      int filteredCount = 0;
+      
       // list_idからリスト名を抽出
       final listNames = <String>[];
       for (final data in listNamesData) {
+        // 削除済みイベントIDをチェック
+        if (deletedEventIds.contains(data.eventId)) {
+          filteredCount++;
+          AppLogger.debug('🗑️ [CustomListRepo] Filtering deleted list: ${data.listId} (eventId: ${data.eventId.substring(0, 16)}...)');
+          continue;
+        }
+        
         String listName;
         
         // titleタグがあればそれを使用
@@ -196,6 +207,10 @@ class CustomListRepositoryImpl implements CustomListRepository {
         if (!listNames.contains(listName)) {
           listNames.add(listName);
         }
+      }
+      
+      if (filteredCount > 0) {
+        AppLogger.info('🗑️ [CustomListRepo] Filtered out $filteredCount deleted lists');
       }
       
       AppLogger.info('✅ [CustomListRepo] Fetched ${listNames.length} custom list names');

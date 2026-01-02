@@ -34,8 +34,10 @@ abstract class CustomListRepository {
   /// カスタムリスト名のリストを抽出する
   /// 
   /// Phase C.3.2.2: `_fetchEncryptedEventsForListNames()`を移植
+  /// Issue #101: 削除済みイベントIDでフィルタリング
   Future<Either<Failure, List<String>>> fetchCustomListNamesFromNostr({
     required String publicKey,
+    required Set<String> deletedEventIds,
   });
   
   /// Nostrから個人カスタムリストを同期（Phase Dで実装予定）
