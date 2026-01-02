@@ -1040,13 +1040,107 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
         AppLogger.debug('✅ [GroupInvitation] Loading dialog closed (error case)');
       }
       
+      // Phase 2.5B: NoMatchingKeyPackageエラーの特別処理
+      final errorMessage = e.toString();
+      final isKeyPackageError = errorMessage.contains('NoMatchingKeyPackage');
+      
       // エラーメッセージ
       if (context.mounted) {
         showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('エラー'),
-            content: Text('招待の受諾に失敗しました\n\n$e'),
+            title: Row(
+              children: [
+                Icon(
+                  isKeyPackageError ? Icons.key_off : Icons.error,
+                  color: isKeyPackageError ? Colors.orange : Colors.red,
+                ),
+                const SizedBox(width: 8),
+                const Text('エラー'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isKeyPackageError) ...[
+                  // Phase 2.5B: Key Packageエラーの詳細説明
+                  const Text(
+                    'Key Packageが変更されたため、グループに参加できません。',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.backup_outlined, size: 16, color: Colors.blue),
+                            SizedBox(width: 4),
+                            Text(
+                              'バックアップがある場合',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Settings > Advanced > MLSグループバックアップ\n'
+                          'からインポートしてください。',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info, size: 16, color: Colors.orange),
+                            SizedBox(width: 4),
+                            Text(
+                              'バックアップがない場合',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'グループ管理者に再度招待をリクエストしてください。',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else
+                  Text('招待の受諾に失敗しました\n\n$e'),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),

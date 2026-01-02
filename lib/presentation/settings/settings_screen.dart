@@ -14,6 +14,7 @@ import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
 import '../../services/amber_service.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
+import 'mls_backup_dialog.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -255,6 +256,15 @@ class SettingsScreen extends ConsumerWidget {
                     title: l10n.mlsIntegrationTestTitle,
                     subtitle: l10n.mlsIntegrationTestSubtitle,
                     onTap: () => _showMlsTestDialog(context, ref),
+                  ),
+                  const Divider(height: 1),
+                  // Phase 2.5A: MLS Backup/Restore
+                  _buildSettingTile(
+                    context,
+                    icon: Icons.backup,
+                    title: 'MLSグループバックアップ',
+                    subtitle: 'Key Packageをエクスポート/インポート',
+                    onTap: () => showMlsBackupDialog(context, ref),
                   ),
                 ],
               ),

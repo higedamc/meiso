@@ -3811,6 +3811,126 @@ pub fn mls_join_group(
     crate::group_tasks_mls::join_mls_group(nostr_id, group_id, welcome_msg)
 }
 
+// ========================================
+// Phase 2.5A: MLS Database Backup/Restore
+// ========================================
+
+/// MLS SQLite DBをBase64エンコード形式でエクスポート
+/// 
+/// Phase 2.5A: Key Package手動バックアップ機能
+/// 
+/// ユーザーがアプリ削除前にバックアップを取得できるようにする。
+/// エクスポートしたBase64文字列をファイルまたはクリップボードに保存することで、
+/// アプリ再インストール後も既存のMLSグループに再参加可能になる。
+/// 
+/// # Arguments
+/// * `db_path` - MLS SQLite DBのファイルパス
+/// 
+/// # Returns
+/// * Base64エンコードされたDB内容
+/// 
+/// # Error
+/// * DBファイルが存在しない場合
+/// * ファイル読み込みに失敗した場合
+pub fn export_mls_database_as_base64(db_path: String) -> Result<String> {
+    use std::path::Path;
+    
+    let path = Path::new(&db_path);
+    
+    if !path.exists() {
+        return Err(anyhow::anyhow!(
+            "MLS database not found at: {}. Please create a group first.",
+            db_path
+        ));
+    }
+    
+    // ファイルを読み込み
+    let db_bytes = std::fs::read(path)
+        .with_context(|| format!("Failed to read MLS database from: {}", db_path))?;
+    
+    if db_bytes.is_empty() {
+        return Err(anyhow::anyhow!(
+            "MLS database is empty (0 bytes). Nothing to export."
+        ));
+    }
+    
+    // Base64エンコード
+    let base64_encoded = base64::encode(&db_bytes);
+    
+    println!("✅ [Phase 2.5A] MLS DB exported: {} bytes → {} base64 chars", 
+        db_bytes.len(), base64_encoded.len());
+    
+    Ok(base64_encoded)
+}
+
+/// Base64エンコードされたMLS SQLite DBをインポート
+/// 
+/// Phase 2.5A: Key Package手動リストア機能
+/// 
+/// バックアップからMLS DBを復元する。
+/// 既存のDBがある場合は`.bak`拡張子でバックアップを作成してから上書きする。
+/// 
+/// # Arguments
+/// * `db_path` - MLS SQLite DBのファイルパス
+/// * `base64_data` - Base64エンコードされたDB内容
+/// * `nostr_id` - ユーザーの公開鍵（DBリロード用）
+/// 
+/// # Returns
+/// * 成功時は空文字列
+/// 
+/// # Error
+/// * Base64デコードに失敗した場合
+/// * ファイル書き込みに失敗した場合
+/// * DBリロードに失敗した場合
+pub fn import_mls_database_from_base64(
+    db_path: String,
+    base64_data: String,
+    nostr_id: String,
+) -> Result<String> {
+    use std::path::Path;
+    
+    // Base64デコード
+    let db_bytes = base64::decode(&base64_data)
+        .context("Invalid base64 data. Please check your backup.")?;
+    
+    if db_bytes.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Decoded database is empty (0 bytes). Invalid backup."
+        ));
+    }
+    
+    println!("📥 [Phase 2.5A] Importing MLS DB: {} bytes", db_bytes.len());
+    
+    let path = Path::new(&db_path);
+    
+    // 既存のDBがある場合はバックアップを作成
+    if path.exists() {
+        let backup_path = path.with_extension("bak");
+        std::fs::copy(path, &backup_path)
+            .context("Failed to create backup of existing database")?;
+        println!("⚠️ [Phase 2.5A] Existing DB backed up to: {}", backup_path.display());
+    }
+    
+    // 親ディレクトリを作成
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .context("Failed to create parent directory")?;
+    }
+    
+    // 新しいDBを書き込み
+    std::fs::write(path, &db_bytes)
+        .with_context(|| format!("Failed to write MLS database to: {}", db_path))?;
+    
+    println!("✅ [Phase 2.5A] MLS DB imported: {} bytes", db_bytes.len());
+    
+    // MLS DBをメモリにリロード
+    // 注意: ここでinit_mls_dbを呼ぶと、既存のグループ状態が失われる可能性があるため、
+    // Flutter側でアプリ再起動を促す方が安全
+    println!("ℹ️ [Phase 2.5A] Please restart the app to load the restored database.");
+    
+    Ok(format!("Imported {} bytes. Please restart the app.", db_bytes.len()))
+}
+
 /// MLS: グループ情報を取得
 /// 
 /// グループ名、メンバーリスト、エポックを取得する。
