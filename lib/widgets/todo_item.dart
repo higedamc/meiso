@@ -114,10 +114,11 @@ class TodoItem extends StatelessWidget {
                 
                 if (!isInitialized) {
                   if (context.mounted) {
+                    final l10n = AppLocalizations.of(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Nostrが初期化されていません。設定画面で接続してください。'),
-                        duration: Duration(seconds: 3),
+                      SnackBar(
+                        content: Text(l10n.nostrNotInitialized),
+                        duration: const Duration(seconds: 3),
                       ),
                     );
                   }
@@ -148,9 +149,10 @@ class TodoItem extends StatelessWidget {
                   }
                 } catch (e) {
                   if (context.mounted) {
+                    final l10n = AppLocalizations.of(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('❌ 送信エラー: $e'),
+                        content: Text(l10n.sendError(e.toString())),
                         duration: const Duration(seconds: 3),
                         backgroundColor: Colors.red,
                       ),

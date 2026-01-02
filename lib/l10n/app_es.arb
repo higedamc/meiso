@@ -493,6 +493,30 @@
   
   "nostrConnectedViaTor": "Nostr Conectado (vía Tor)",
   
-  "nostrDisconnectedStatus": "Nostr Desconectado"
+  "nostrDisconnectedStatus": "Nostr Desconectado",
+  
+  "passwordIncorrectOrDecryptFailed": "La contraseña es incorrecta o falló el descifrado de la clave secreta",
+  
+  "secretKeyDecryptFailed": "Error al descifrar la clave secreta: {error}",
+  
+  "secretKeyGenerationFailed": "Error al generar la clave secreta: {error}",
+  
+  "secretKeySaveFailed": "Error al guardar la clave secreta: {error}",
+  
+  "relayConnectionError": "Error de conexión al relay: {error}",
+  
+  "logoutFailed": "Error al cerrar sesión: {error}",
+  
+  "loggingInAmber": "Iniciando sesión (Amber)",
+  
+  "amberModeConnected": "✅ Conectado con modo Amber\n\n",
+  
+  "secretKeySaveAutoConnect": "• Guardar la clave secreta conectará automáticamente al relay\n",
+  
+  "multipleRelaysRedundancy": "• Conectarse a múltiples relays mejora la redundancia\n",
+  
+  "nostrNotInitialized": "Nostr no está inicializado. Por favor, conéctate desde la pantalla de configuración.",
+  
+  "sendError": "❌ Error de envío: {error}"
 }
 

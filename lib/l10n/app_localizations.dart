@@ -1581,6 +1581,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Nostr Disconnected'**
   String get nostrDisconnectedStatus;
+
+  /// Error when password is wrong or decryption fails
+  ///
+  /// In en, this message translates to:
+  /// **'Password is incorrect or secret key decryption failed'**
+  String get passwordIncorrectOrDecryptFailed;
+
+  /// Error message for decryption failure
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key decryption failed: {error}'**
+  String secretKeyDecryptFailed(String error);
+
+  /// Error message for key generation failure
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key generation failed: {error}'**
+  String secretKeyGenerationFailed(String error);
+
+  /// Error message for key save failure
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key save failed: {error}'**
+  String secretKeySaveFailed(String error);
+
+  /// Error message for relay connection failure
+  ///
+  /// In en, this message translates to:
+  /// **'Relay connection error: {error}'**
+  String relayConnectionError(String error);
+
+  /// Error message for logout failure
+  ///
+  /// In en, this message translates to:
+  /// **'Logout failed: {error}'**
+  String logoutFailed(String error);
+
+  /// Status when logging in via Amber
+  ///
+  /// In en, this message translates to:
+  /// **'Logging in (Amber)'**
+  String get loggingInAmber;
+
+  /// Status prefix for Amber mode
+  ///
+  /// In en, this message translates to:
+  /// **'✅ Connected with Amber mode\n\n'**
+  String get amberModeConnected;
+
+  /// Information about auto-connect
+  ///
+  /// In en, this message translates to:
+  /// **'• Saving secret key will automatically connect to relay\n'**
+  String get secretKeySaveAutoConnect;
+
+  /// Information about relay redundancy
+  ///
+  /// In en, this message translates to:
+  /// **'• Connecting to multiple relays improves redundancy\n'**
+  String get multipleRelaysRedundancy;
+
+  /// Error when Nostr is not initialized
+  ///
+  /// In en, this message translates to:
+  /// **'Nostr is not initialized. Please connect from settings screen.'**
+  String get nostrNotInitialized;
+
+  /// Error message when sending fails
+  ///
+  /// In en, this message translates to:
+  /// **'❌ Send error: {error}'**
+  String sendError(String error);
 }
 
 class _AppLocalizationsDelegate

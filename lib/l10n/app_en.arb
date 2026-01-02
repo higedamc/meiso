@@ -1327,6 +1327,96 @@
   "nostrDisconnectedStatus": "Nostr Disconnected",
   "@nostrDisconnectedStatus": {
     "description": "Status when Nostr is disconnected"
+  },
+  
+  "passwordIncorrectOrDecryptFailed": "Password is incorrect or secret key decryption failed",
+  "@passwordIncorrectOrDecryptFailed": {
+    "description": "Error when password is wrong or decryption fails"
+  },
+  
+  "secretKeyDecryptFailed": "Secret key decryption failed: {error}",
+  "@secretKeyDecryptFailed": {
+    "description": "Error message for decryption failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "secretKeyGenerationFailed": "Secret key generation failed: {error}",
+  "@secretKeyGenerationFailed": {
+    "description": "Error message for key generation failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "secretKeySaveFailed": "Secret key save failed: {error}",
+  "@secretKeySaveFailed": {
+    "description": "Error message for key save failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "relayConnectionError": "Relay connection error: {error}",
+  "@relayConnectionError": {
+    "description": "Error message for relay connection failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "logoutFailed": "Logout failed: {error}",
+  "@logoutFailed": {
+    "description": "Error message for logout failure",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "loggingInAmber": "Logging in (Amber)",
+  "@loggingInAmber": {
+    "description": "Status when logging in via Amber"
+  },
+  
+  "amberModeConnected": "✅ Connected with Amber mode\n\n",
+  "@amberModeConnected": {
+    "description": "Status prefix for Amber mode"
+  },
+  
+  "secretKeySaveAutoConnect": "• Saving secret key will automatically connect to relay\n",
+  "@secretKeySaveAutoConnect": {
+    "description": "Information about auto-connect"
+  },
+  
+  "multipleRelaysRedundancy": "• Connecting to multiple relays improves redundancy\n",
+  "@multipleRelaysRedundancy": {
+    "description": "Information about relay redundancy"
+  },
+  
+  "nostrNotInitialized": "Nostr is not initialized. Please connect from settings screen.",
+  "@nostrNotInitialized": {
+    "description": "Error when Nostr is not initialized"
+  },
+  
+  "sendError": "❌ Send error: {error}",
+  "@sendError": {
+    "description": "Error message when sending fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   }
 }
 

@@ -494,6 +494,30 @@
   
   "nostrConnectedViaTor": "Nostr接続中 (Tor経由)",
   
-  "nostrDisconnectedStatus": "Nostr未接続"
+  "nostrDisconnectedStatus": "Nostr未接続",
+  
+  "passwordIncorrectOrDecryptFailed": "パスワードが間違っているか、秘密鍵の復号に失敗しました",
+  
+  "secretKeyDecryptFailed": "秘密鍵の復号に失敗: {error}",
+  
+  "secretKeyGenerationFailed": "秘密鍵の生成に失敗: {error}",
+  
+  "secretKeySaveFailed": "秘密鍵の保存に失敗: {error}",
+  
+  "relayConnectionError": "リレー接続エラー: {error}",
+  
+  "logoutFailed": "ログアウト失敗: {error}",
+  
+  "loggingInAmber": "ログイン中 (Amber)",
+  
+  "amberModeConnected": "✅ Amberモードで接続中\n\n",
+  
+  "secretKeySaveAutoConnect": "• 秘密鍵を保存すると自動的にリレーに接続します\n",
+  
+  "multipleRelaysRedundancy": "• 複数のリレーに接続することで冗長性が向上します\n",
+  
+  "nostrNotInitialized": "Nostrが初期化されていません。設定画面で接続してください。",
+  
+  "sendError": "❌ 送信エラー: {error}"
 }
 

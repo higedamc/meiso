@@ -805,4 +805,52 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get nostrDisconnectedStatus => 'Nostr未接続';
+
+  @override
+  String get passwordIncorrectOrDecryptFailed => 'パスワードが間違っているか、秘密鍵の復号に失敗しました';
+
+  @override
+  String secretKeyDecryptFailed(String error) {
+    return '秘密鍵の復号に失敗: $error';
+  }
+
+  @override
+  String secretKeyGenerationFailed(String error) {
+    return '秘密鍵の生成に失敗: $error';
+  }
+
+  @override
+  String secretKeySaveFailed(String error) {
+    return '秘密鍵の保存に失敗: $error';
+  }
+
+  @override
+  String relayConnectionError(String error) {
+    return 'リレー接続エラー: $error';
+  }
+
+  @override
+  String logoutFailed(String error) {
+    return 'ログアウト失敗: $error';
+  }
+
+  @override
+  String get loggingInAmber => 'ログイン中 (Amber)';
+
+  @override
+  String get amberModeConnected => '✅ Amberモードで接続中\n\n';
+
+  @override
+  String get secretKeySaveAutoConnect => '• 秘密鍵を保存すると自動的にリレーに接続します\n';
+
+  @override
+  String get multipleRelaysRedundancy => '• 複数のリレーに接続することで冗長性が向上します\n';
+
+  @override
+  String get nostrNotInitialized => 'Nostrが初期化されていません。設定画面で接続してください。';
+
+  @override
+  String sendError(String error) {
+    return '❌ 送信エラー: $error';
+  }
 }

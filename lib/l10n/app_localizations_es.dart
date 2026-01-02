@@ -833,4 +833,56 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get nostrDisconnectedStatus => 'Nostr Desconectado';
+
+  @override
+  String get passwordIncorrectOrDecryptFailed =>
+      'La contraseña es incorrecta o falló el descifrado de la clave secreta';
+
+  @override
+  String secretKeyDecryptFailed(String error) {
+    return 'Error al descifrar la clave secreta: $error';
+  }
+
+  @override
+  String secretKeyGenerationFailed(String error) {
+    return 'Error al generar la clave secreta: $error';
+  }
+
+  @override
+  String secretKeySaveFailed(String error) {
+    return 'Error al guardar la clave secreta: $error';
+  }
+
+  @override
+  String relayConnectionError(String error) {
+    return 'Error de conexión al relay: $error';
+  }
+
+  @override
+  String logoutFailed(String error) {
+    return 'Error al cerrar sesión: $error';
+  }
+
+  @override
+  String get loggingInAmber => 'Iniciando sesión (Amber)';
+
+  @override
+  String get amberModeConnected => '✅ Conectado con modo Amber\n\n';
+
+  @override
+  String get secretKeySaveAutoConnect =>
+      '• Guardar la clave secreta conectará automáticamente al relay\n';
+
+  @override
+  String get multipleRelaysRedundancy =>
+      '• Conectarse a múltiples relays mejora la redundancia\n';
+
+  @override
+  String get nostrNotInitialized =>
+      'Nostr no está inicializado. Por favor, conéctate desde la pantalla de configuración.';
+
+  @override
+  String sendError(String error) {
+    return '❌ Error de envío: $error';
+  }
 }
