@@ -799,6 +799,16 @@
   
   "cryptoFooterOpenSource": "Todo el código es de código abierto",
   
-  "cryptographyDetailsDescription": "Detalles de las tecnologías criptográficas utilizadas en Meiso"
+  "cryptographyDetailsDescription": "Detalles de las tecnologías criptográficas utilizadas en Meiso",
+  
+  "synced": "Sincronizado",
+  
+  "syncedWithEventId": "Sincronizado (Event ID: {eventId}...)",
+  
+  "sendingToRelay": "Enviando al relay...",
+  
+  "sentToRelay": "✅ Enviado al relay",
+  
+  "sendToRelay": "Enviar al relay"
 }
 

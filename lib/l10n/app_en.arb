@@ -2122,6 +2122,36 @@
   "cryptographyDetailsDescription": "Details of cryptographic technologies used in Meiso",
   "@cryptographyDetailsDescription": {
     "description": "Cryptography details description in Secret Key Management"
+  },
+  
+  "synced": "Synced",
+  "@synced": {
+    "description": "Status indicating task is synced"
+  },
+  
+  "syncedWithEventId": "Synced (Event ID: {eventId}...)",
+  "@syncedWithEventId": {
+    "description": "Status message with event ID",
+    "placeholders": {
+      "eventId": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "sendingToRelay": "Sending to relay...",
+  "@sendingToRelay": {
+    "description": "Snackbar message when sending to relay"
+  },
+  
+  "sentToRelay": "✅ Sent to relay",
+  "@sentToRelay": {
+    "description": "Snackbar message when successfully sent to relay"
+  },
+  
+  "sendToRelay": "Send to relay",
+  "@sendToRelay": {
+    "description": "Button label to send to relay"
   }
 }
 

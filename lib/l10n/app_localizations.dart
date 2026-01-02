@@ -2499,6 +2499,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Details of cryptographic technologies used in Meiso'**
   String get cryptographyDetailsDescription;
+
+  /// Status indicating task is synced
+  ///
+  /// In en, this message translates to:
+  /// **'Synced'**
+  String get synced;
+
+  /// Status message with event ID
+  ///
+  /// In en, this message translates to:
+  /// **'Synced (Event ID: {eventId}...)'**
+  String syncedWithEventId(String eventId);
+
+  /// Snackbar message when sending to relay
+  ///
+  /// In en, this message translates to:
+  /// **'Sending to relay...'**
+  String get sendingToRelay;
+
+  /// Snackbar message when successfully sent to relay
+  ///
+  /// In en, this message translates to:
+  /// **'✅ Sent to relay'**
+  String get sentToRelay;
+
+  /// Button label to send to relay
+  ///
+  /// In en, this message translates to:
+  /// **'Send to relay'**
+  String get sendToRelay;
 }
 
 class _AppLocalizationsDelegate

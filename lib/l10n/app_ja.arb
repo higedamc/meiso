@@ -800,6 +800,16 @@
   
   "cryptoFooterOpenSource": "すべてのコードはオープンソースです",
   
-  "cryptographyDetailsDescription": "Meisoで採用している暗号技術の詳細"
+  "cryptographyDetailsDescription": "Meisoで採用している暗号技術の詳細",
+  
+  "synced": "同期済み",
+  
+  "syncedWithEventId": "同期済み (Event ID: {eventId}...)",
+  
+  "sendingToRelay": "リレーに送信中...",
+  
+  "sentToRelay": "✅ リレーに送信しました",
+  
+  "sendToRelay": "リレーに送信する"
 }
 

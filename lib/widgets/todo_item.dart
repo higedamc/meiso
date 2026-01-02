@@ -91,17 +91,18 @@ class TodoItem extends StatelessWidget {
             TextButton.icon(
               onPressed: () {
                 Navigator.pop(context);
+                final l10n = AppLocalizations.of(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(todo.eventId != null 
-                      ? '同期済み (Event ID: ${todo.eventId!.substring(0, 8)}...)'
-                      : '同期済み'),
+                      ? l10n.syncedWithEventId(todo.eventId!.substring(0, 8))
+                      : l10n.synced),
                     duration: const Duration(seconds: 2),
                   ),
                 );
               },
               icon: const Icon(Icons.cloud_done, size: 16),
-              label: const Text('同期済み'),
+              label: Text(AppLocalizations.of(context).synced),
             )
           else
             // 未同期 - 手動送信ボタン（全Todoリストを再送信）
@@ -128,10 +129,11 @@ class TodoItem extends StatelessWidget {
                 // 全Todoリストをリレーに送信（Kind 30001）
                 try {
                   if (context.mounted) {
+                    final l10n = AppLocalizations.of(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('リレーに送信中...'),
-                        duration: Duration(seconds: 1),
+                      SnackBar(
+                        content: Text(l10n.sendingToRelay),
+                        duration: const Duration(seconds: 1),
                       ),
                     );
                   }
@@ -140,10 +142,11 @@ class TodoItem extends StatelessWidget {
                   await ref.read(todosProvider.notifier).manualSyncToNostr();
                   
                   if (context.mounted) {
+                    final l10n = AppLocalizations.of(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('✅ リレーに送信しました'),
-                        duration: Duration(seconds: 2),
+                      SnackBar(
+                        content: Text(l10n.sentToRelay),
+                        duration: const Duration(seconds: 2),
                       ),
                     );
                   }
@@ -161,7 +164,7 @@ class TodoItem extends StatelessWidget {
                 }
               },
               icon: const Icon(Icons.cloud_upload, size: 16),
-              label: const Text('リレーに送信する'),
+              label: Text(AppLocalizations.of(context).sendToRelay),
               style: TextButton.styleFrom(
                 foregroundColor: Colors.orange.shade700,
               ),

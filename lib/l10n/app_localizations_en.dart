@@ -1359,4 +1359,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cryptographyDetailsDescription =>
       'Details of cryptographic technologies used in Meiso';
+
+  @override
+  String get synced => 'Synced';
+
+  @override
+  String syncedWithEventId(String eventId) {
+    return 'Synced (Event ID: $eventId...)';
+  }
+
+  @override
+  String get sendingToRelay => 'Sending to relay...';
+
+  @override
+  String get sentToRelay => '✅ Sent to relay';
+
+  @override
+  String get sendToRelay => 'Send to relay';
 }

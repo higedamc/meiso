@@ -1318,4 +1318,21 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get cryptographyDetailsDescription => 'Meisoで採用している暗号技術の詳細';
+
+  @override
+  String get synced => '同期済み';
+
+  @override
+  String syncedWithEventId(String eventId) {
+    return '同期済み (Event ID: $eventId...)';
+  }
+
+  @override
+  String get sendingToRelay => 'リレーに送信中...';
+
+  @override
+  String get sentToRelay => '✅ リレーに送信しました';
+
+  @override
+  String get sendToRelay => 'リレーに送信する';
 }
