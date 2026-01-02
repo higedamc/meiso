@@ -68,6 +68,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   
   // MLS初期化フラグ（Option B PoC）
   bool _mlsInitialized = false;
+  
+  // Issue #101: 削除済みタスクIDのブラックリスト（リスト再作成時の復活防止）
+  Set<String> _deletedTodoIds = {};
 
   // MLS realtime subscriptions (groupId -> subscription + refCount)
   final Map<String, _MlsGroupRealtimeSubscription> _mlsGroupTodoSubscriptions = {};
@@ -121,6 +124,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   Future<void> _initialize() async {
     try {
+      // Issue #101: 削除済みタスクIDを読み込み
+      final deletedTodoIds = await localStorageService.loadDeletedTodoIds();
+      _deletedTodoIds = deletedTodoIds.toSet();
+      AppLogger.info('💾 [Todos] Loaded ${_deletedTodoIds.length} deleted todo IDs from blacklist');
+      
       // ローカルストレージから読み込み
       final localTodos = await localStorageService.loadTodos();
       
@@ -1272,16 +1280,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 
   /// Phase E.5: リスト削除時に使用
   /// カスタムリストを削除する際、そのリストに属する全てのTODOも削除
+  /// Issue #101: 削除したタスクのevent_idを記録して、リスト再作成時に復活しないようにする
   Future<void> deleteAllTodosInList(String listId) async {
     await state.whenData((todos) async {
       AppLogger.info('🗑️  [Todos] Deleting all todos in list: $listId');
       
       var deletedCount = 0;
       final updatedTodos = Map<DateTime?, List<Todo>>.from(todos);
+      final deletedTodoIds = <String>[]; // Issue #101: 削除したタスクのIDを記録
       
       for (final dateKey in updatedTodos.keys) {
         final dateList = List<Todo>.from(updatedTodos[dateKey] ?? []);
         final originalLength = dateList.length;
+        
+        // Issue #101: 削除前にタスクIDを記録
+        for (final todo in dateList) {
+          if (todo.customListId == listId) {
+            deletedTodoIds.add(todo.id);
+          }
+        }
         
         // 該当リストのTodoを削除
         dateList.removeWhere((t) => t.customListId == listId);
@@ -1293,6 +1310,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
 
       AppLogger.info('✅ [Todos] Deleted $deletedCount todos from list: $listId');
+
+      // Issue #101: 削除したタスクのIDをLocalStorageに保存
+      if (deletedTodoIds.isNotEmpty) {
+        AppLogger.info('💾 [Todos] Recording ${deletedTodoIds.length} deleted todo IDs to prevent resurrection');
+        final existingDeletedIds = await localStorageService.loadDeletedTodoIds();
+        final mergedDeletedIds = {...existingDeletedIds, ...deletedTodoIds}.toList();
+        await localStorageService.saveDeletedTodoIds(mergedDeletedIds);
+        AppLogger.info('✅ [Todos] Saved deleted todo IDs (total: ${mergedDeletedIds.length})');
+      }
 
       state = AsyncValue.data(updatedTodos);
 
@@ -2489,6 +2515,24 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.info(' [Sync] 3/3: Todoを同期中...');
           AppLogger.info(' すべてのリスト復号化完了: 合計${allSyncedTodos.length}件のTodo');
           
+          // Issue #101: 削除済みタスクIDでフィルタリング（リスト再作成時の復活防止）
+          final allSyncedTodosFiltered = allSyncedTodos.where((todo) {
+            if (_deletedTodoIds.contains(todo.id)) {
+              AppLogger.debug('🚫 [Issue#101] Filtered out deleted todo: ${todo.id.substring(0, 8)}... (${todo.title})');
+              return false;
+            }
+            return true;
+          }).toList();
+          
+          if (allSyncedTodosFiltered.length != allSyncedTodos.length) {
+            final filtered = allSyncedTodos.length - allSyncedTodosFiltered.length;
+            AppLogger.info('🛡️ [Issue#101] Filtered $filtered resurrected todo(s) from deleted list (Amber mode)');
+          }
+          
+          // allSyncedTodosをフィルタリング済みのものに置き換え
+          allSyncedTodos.clear();
+          allSyncedTodos.addAll(allSyncedTodosFiltered);
+          
           // allSyncedTodosが空の場合、復号化に失敗した可能性が高い
           // ローカルデータを保持するために、マージをスキップする
           if (allSyncedTodos.isEmpty) {
@@ -2583,8 +2627,23 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // ステップ2: Todoデータを取得
           AppLogger.info(' [Sync] 3/3: Todoを同期中...');
           AppLogger.debug(' ステップ2: Todoデータを取得します');
-          final syncedTodos = await nostrService.syncTodoListFromNostr();
-          AppLogger.debug(' ${syncedTodos.length}件のTodoを取得しました');
+          final syncedTodosRaw = await nostrService.syncTodoListFromNostr();
+          AppLogger.debug(' ${syncedTodosRaw.length}件のTodoを取得しました');
+          
+          // Issue #101: 削除済みタスクIDでフィルタリング（リスト再作成時の復活防止）
+          final syncedTodos = syncedTodosRaw.where((todo) {
+            if (_deletedTodoIds.contains(todo.id)) {
+              AppLogger.debug('🚫 [Issue#101] Filtered out deleted todo: ${todo.id.substring(0, 8)}... (${todo.title})');
+              return false;
+            }
+            return true;
+          }).toList();
+          
+          if (syncedTodos.length != syncedTodosRaw.length) {
+            final filtered = syncedTodosRaw.length - syncedTodos.length;
+            AppLogger.info('🛡️ [Issue#101] Filtered $filtered resurrected todo(s) from deleted list');
+          }
+          
           AppLogger.info(' [Sync] Todo同期完了');
           
           // イベントが見つからない場合（空リスト）はローカルデータを保持
