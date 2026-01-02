@@ -696,12 +696,29 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     
     if (confirmed == true) {
       // Issue #101: 削除処理の順序を修正
+      AppLogger.info('🗑️ [Someday UI] Starting list deletion: "${list.name}" (ID: ${list.id})');
+      
       // 1. まずタスクを削除（失敗してもリストは残るのでやり直せる）
+      AppLogger.info('🗑️ [Someday UI] Step 1: Deleting tasks in list...');
       final todosNotifier = ref.read(todosProvider.notifier);
       await todosNotifier.deleteAllTodosInList(list.id);
+      AppLogger.info('✅ [Someday UI] Step 1: Tasks deleted');
       
       // 2. 次にリストを削除（タスク削除が成功してから）
+      AppLogger.info('🗑️ [Someday UI] Step 2: Deleting list itself...');
       await ref.read(customListsProvider.notifier).deleteList(list.id);
+      AppLogger.info('✅ [Someday UI] Step 2: List deletion request completed');
+      
+      // 3. 現在の状態を確認
+      final currentLists = ref.read(customListsProvider).valueOrNull ?? [];
+      AppLogger.info('📋 [Someday UI] Current lists after deletion: ${currentLists.length} lists');
+      AppLogger.info('📋 [Someday UI] List IDs: ${currentLists.map((l) => l.id).join(", ")}');
+      final stillExists = currentLists.any((l) => l.id == list.id);
+      if (stillExists) {
+        AppLogger.error('❌ [Someday UI] BUG: List "${list.name}" still exists in state after deletion!');
+      } else {
+        AppLogger.info('✅ [Someday UI] List "${list.name}" successfully removed from state');
+      }
     }
   }
 
