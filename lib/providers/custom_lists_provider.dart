@@ -785,12 +785,13 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
               // 新しい招待として追加
               AppLogger.info('📨 [GroupInvitations] New invitation: ${invitation.groupName} from ${invitation.inviterPubkey.substring(0, 16)}...');
               
+              // Phase 1: リレーのcreated_atを使用（冪等性確保）
               final newList = CustomList(
                 id: invitation.groupId,
                 name: invitation.groupName.toUpperCase(),
                 order: _getNextOrder(updatedLists),
-                createdAt: DateTime.now(),
-                updatedAt: DateTime.now(),
+                createdAt: invitation.createdAt,  // ✅ リレーのタイムスタンプ
+                updatedAt: invitation.createdAt,  // ✅ リレーのタイムスタンプ
                 isGroup: true,
                 isPendingInvitation: true,
                 inviterNpub: invitation.inviterPubkey, // hex形式（npub変換は後で必要に応じて）
@@ -802,34 +803,36 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
               updatedLists.add(newList);
               hasChanges = true;
             } else {
-              // 既存のリストを更新（招待情報を追加）
+              // Phase 1: 既存のリストを更新（リレーの最新情報でマージ）
               final existingList = updatedLists[existingIndex];
               
-              // 🔥 Phase 8.7: Bug #1修正 - 承諾済み（acceptedAt != null）は絶対に上書きしない
-              if (existingList.acceptedAt != null) {
-                AppLogger.info('ℹ️ [GroupInvitations] Skipping already accepted invitation: ${invitation.groupName}');
-                continue; // 承諾済みリストは更新しない
-              }
+              AppLogger.debug('🔄 [GroupInvitations] Merging invitation for existing list: ${invitation.groupName}');
+              AppLogger.debug('   Existing acceptedAt: ${existingList.acceptedAt}');
+              AppLogger.debug('   Existing isPendingInvitation: ${existingList.isPendingInvitation}');
+              AppLogger.debug('   Relay createdAt: ${invitation.createdAt}');
               
-              // ✅ 受諾済み（isPendingInvitation=false）に戻すことは絶対にしない
-              // Nostr上の招待イベントが残っていても、ローカルの受諾状態を優先する。
-              if (existingList.isPendingInvitation) {
-                AppLogger.info('📨 [GroupInvitations] Refreshing existing pending invitation: ${invitation.groupName}');
-                updatedLists[existingIndex] = existingList.copyWith(
-                  isGroup: true,
-                  inviterNpub: invitation.inviterPubkey,
-                  inviterName: invitation.inviterName,
-                  welcomeMsg: invitation.welcomeMessage,
-                );
-                hasChanges = true;
-              } else {
-                // 念のため isGroup=true を矯正（過去データ互換）
-                if (!existingList.isGroup) {
-                  updatedLists[existingIndex] = existingList.copyWith(isGroup: true);
-                  hasChanges = true;
-                }
-                AppLogger.debug('ℹ️ [GroupInvitations] Ignore invitation for accepted group: ${invitation.groupName}');
-              }
+              // Phase 1: リレーの情報で更新（acceptedAtは維持）
+              // - createdAt: リレーの時刻で統一（後方互換性のため）
+              // - updatedAt: リレーの最新時刻
+              // - welcomeMsg: 最新のWelcome Message（Key Package更新対応）
+              // - acceptedAt: 維持（承諾状態を保持）
+              // - isPendingInvitation: acceptedAtの有無で判定
+              updatedLists[existingIndex] = existingList.copyWith(
+                name: invitation.groupName.toUpperCase(),  // グループ名が変わっているかも
+                createdAt: invitation.createdAt,  // ✅ リレーの時刻で統一
+                updatedAt: invitation.createdAt,  // ✅ 最新の更新時刻
+                isGroup: true,
+                inviterNpub: invitation.inviterPubkey,
+                inviterName: invitation.inviterName,
+                welcomeMsg: invitation.welcomeMessage,  // ✅ 最新のWelcome Message
+                // ⚠️ acceptedAt は copyWith で渡さないため維持される
+                // ⚠️ isPendingInvitation も copyWith で渡さないため維持される
+              );
+              hasChanges = true;
+              
+              AppLogger.info('✅ [GroupInvitations] Updated list from relay: ${invitation.groupName}');
+              AppLogger.debug('   acceptedAt preserved: ${updatedLists[existingIndex].acceptedAt}');
+              AppLogger.debug('   isPendingInvitation preserved: ${updatedLists[existingIndex].isPendingInvitation}');
             }
           }
 
