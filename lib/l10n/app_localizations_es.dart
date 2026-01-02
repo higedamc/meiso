@@ -909,4 +909,53 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get syncMigrationCompleted => 'Migración de datos completada';
+
+  @override
+  String get aboutRelays => 'Acerca de los Relays';
+
+  @override
+  String get amberMode => 'Modo Amber';
+
+  @override
+  String get cryptographyInUse => 'Criptografía en Uso';
+
+  @override
+  String get cryptographyDetailsUsedInMeiso =>
+      'Detalles de la Criptografía Utilizada en Meiso';
+
+  @override
+  String get cryptographyIntroTitle =>
+      'Meiso adopta los más altos estándares de la criptografía moderna.';
+
+  @override
+  String get cryptographyIntroDescription =>
+      'Este documento explica los detalles de las tecnologías criptográficas utilizadas en Meiso para Bitcoiners y Nostriches.';
+
+  @override
+  String get cryptoArchitectureTitle =>
+      '1. Descripción General de la Arquitectura';
+
+  @override
+  String get cryptoArgon2idTitle =>
+      '2. Argon2id - Función de Derivación de Contraseña';
+
+  @override
+  String get cryptoAes256GcmTitle => '3. AES-256-GCM - Algoritmo de Cifrado';
+
+  @override
+  String get cryptoNip44Title => '4. NIP-44 - Estándar de Cifrado de Nostr';
+
+  @override
+  String get cryptoEd25519Title => '5. Ed25519 - Firma Digital';
+
+  @override
+  String get cryptoAmberIntegrationTitle =>
+      '6. Integración con Amber - Seguridad tipo Monedero de Hardware';
+
+  @override
+  String get cryptoSecureStorageTitle =>
+      '7. Almacenamiento Seguro - Implementación en Rust';
+
+  @override
+  String get cryptoThreatModelTitle => '8. Modelo de Amenazas y Limitaciones';
 }

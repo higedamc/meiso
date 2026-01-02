@@ -1701,6 +1701,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Data migration completed'**
   String get syncMigrationCompleted;
+
+  /// Title for relay information section
+  ///
+  /// In en, this message translates to:
+  /// **'About Relays'**
+  String get aboutRelays;
+
+  /// Title for Amber mode
+  ///
+  /// In en, this message translates to:
+  /// **'Amber Mode'**
+  String get amberMode;
+
+  /// Title for cryptography section
+  ///
+  /// In en, this message translates to:
+  /// **'Cryptography in Use'**
+  String get cryptographyInUse;
+
+  /// Detailed cryptography documentation intro
+  ///
+  /// In en, this message translates to:
+  /// **'Details of Cryptography Used in Meiso'**
+  String get cryptographyDetailsUsedInMeiso;
+
+  /// Introduction title for cryptography details
+  ///
+  /// In en, this message translates to:
+  /// **'Meiso adopts the highest standards of modern cryptography.'**
+  String get cryptographyIntroTitle;
+
+  /// Introduction description for cryptography details
+  ///
+  /// In en, this message translates to:
+  /// **'This document explains the details of the cryptographic technologies used in Meiso for Bitcoiners and Nostriches.'**
+  String get cryptographyIntroDescription;
+
+  /// Section title for architecture
+  ///
+  /// In en, this message translates to:
+  /// **'1. Architecture Overview'**
+  String get cryptoArchitectureTitle;
+
+  /// Section title for Argon2id
+  ///
+  /// In en, this message translates to:
+  /// **'2. Argon2id - Password Derivation Function'**
+  String get cryptoArgon2idTitle;
+
+  /// Section title for AES-256-GCM
+  ///
+  /// In en, this message translates to:
+  /// **'3. AES-256-GCM - Encryption Algorithm'**
+  String get cryptoAes256GcmTitle;
+
+  /// Section title for NIP-44
+  ///
+  /// In en, this message translates to:
+  /// **'4. NIP-44 - Nostr Encryption Standard'**
+  String get cryptoNip44Title;
+
+  /// Section title for Ed25519
+  ///
+  /// In en, this message translates to:
+  /// **'5. Ed25519 - Digital Signature'**
+  String get cryptoEd25519Title;
+
+  /// Section title for Amber integration
+  ///
+  /// In en, this message translates to:
+  /// **'6. Amber Integration - Hardware Wallet-like Security'**
+  String get cryptoAmberIntegrationTitle;
+
+  /// Section title for secure storage
+  ///
+  /// In en, this message translates to:
+  /// **'7. Secure Storage - Rust Implementation'**
+  String get cryptoSecureStorageTitle;
+
+  /// Section title for threat model
+  ///
+  /// In en, this message translates to:
+  /// **'8. Threat Model and Limitations'**
+  String get cryptoThreatModelTitle;
 }
 
 class _AppLocalizationsDelegate

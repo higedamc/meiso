@@ -80,7 +80,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                     context,
                     id: 'architecture',
                     icon: Icons.architecture,
-                    title: '1. アーキテクチャ概要',
+                    title: AppLocalizations.of(context).cryptoArchitectureTitle,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -110,7 +110,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                     context,
                     id: 'argon2id',
                     icon: Icons.key,
-                    title: '2. Argon2id - パスワード派生関数',
+                    title: AppLocalizations.of(context).cryptoArgon2idTitle,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -166,7 +166,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                     context,
                     id: 'aes-gcm',
                     icon: Icons.lock,
-                    title: '3. AES-256-GCM - 暗号化アルゴリズム',
+                    title: AppLocalizations.of(context).cryptoAes256GcmTitle,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -230,7 +230,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                     context,
                     id: 'nip44',
                     icon: Icons.message_outlined,
-                    title: '4. NIP-44 - Nostr暗号化規格',
+                    title: AppLocalizations.of(context).cryptoNip44Title,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -291,7 +291,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                     context,
                     id: 'ed25519',
                     icon: Icons.draw,
-                    title: '5. Ed25519 - デジタル署名',
+                    title: AppLocalizations.of(context).cryptoEd25519Title,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -359,7 +359,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                     context,
                     id: 'amber',
                     icon: Icons.smartphone,
-                    title: '6. Amber統合 - ハードウェアウォレット的セキュリティ',
+                    title: AppLocalizations.of(context).cryptoAmberIntegrationTitle,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -432,7 +432,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                     context,
                     id: 'storage',
                     icon: Icons.storage,
-                    title: '7. セキュアストレージ - Rust実装',
+                    title: AppLocalizations.of(context).cryptoSecureStorageTitle,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -504,7 +504,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                     context,
                     id: 'threat-model',
                     icon: Icons.warning_amber,
-                    title: '8. 脅威モデルと制限事項',
+                    title: AppLocalizations.of(context).cryptoThreatModelTitle,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -588,7 +588,7 @@ class CryptographyDetailScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Meisoは、現代の暗号学における最高水準の技術を採用しています。',
+          AppLocalizations.of(context).cryptographyIntroTitle,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 height: 1.4,
@@ -596,8 +596,7 @@ class CryptographyDetailScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'このドキュメントでは、ビットコイナーやNostrichの皆さんに向けて、'
-          'Meisoで使用している暗号技術の詳細を説明します。',
+          AppLocalizations.of(context).cryptographyIntroDescription,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: Colors.grey.shade700,
                 height: 1.6,

@@ -1457,6 +1457,76 @@
   "syncMigrationCompleted": "Data migration completed",
   "@syncMigrationCompleted": {
     "description": "Message when migration is completed"
+  },
+  
+  "aboutRelays": "About Relays",
+  "@aboutRelays": {
+    "description": "Title for relay information section"
+  },
+  
+  "amberMode": "Amber Mode",
+  "@amberMode": {
+    "description": "Title for Amber mode"
+  },
+  
+  "cryptographyInUse": "Cryptography in Use",
+  "@cryptographyInUse": {
+    "description": "Title for cryptography section"
+  },
+  
+  "cryptographyDetailsUsedInMeiso": "Details of Cryptography Used in Meiso",
+  "@cryptographyDetailsUsedInMeiso": {
+    "description": "Detailed cryptography documentation intro"
+  },
+  
+  "cryptographyIntroTitle": "Meiso adopts the highest standards of modern cryptography.",
+  "@cryptographyIntroTitle": {
+    "description": "Introduction title for cryptography details"
+  },
+  
+  "cryptographyIntroDescription": "This document explains the details of the cryptographic technologies used in Meiso for Bitcoiners and Nostriches.",
+  "@cryptographyIntroDescription": {
+    "description": "Introduction description for cryptography details"
+  },
+  
+  "cryptoArchitectureTitle": "1. Architecture Overview",
+  "@cryptoArchitectureTitle": {
+    "description": "Section title for architecture"
+  },
+  
+  "cryptoArgon2idTitle": "2. Argon2id - Password Derivation Function",
+  "@cryptoArgon2idTitle": {
+    "description": "Section title for Argon2id"
+  },
+  
+  "cryptoAes256GcmTitle": "3. AES-256-GCM - Encryption Algorithm",
+  "@cryptoAes256GcmTitle": {
+    "description": "Section title for AES-256-GCM"
+  },
+  
+  "cryptoNip44Title": "4. NIP-44 - Nostr Encryption Standard",
+  "@cryptoNip44Title": {
+    "description": "Section title for NIP-44"
+  },
+  
+  "cryptoEd25519Title": "5. Ed25519 - Digital Signature",
+  "@cryptoEd25519Title": {
+    "description": "Section title for Ed25519"
+  },
+  
+  "cryptoAmberIntegrationTitle": "6. Amber Integration - Hardware Wallet-like Security",
+  "@cryptoAmberIntegrationTitle": {
+    "description": "Section title for Amber integration"
+  },
+  
+  "cryptoSecureStorageTitle": "7. Secure Storage - Rust Implementation",
+  "@cryptoSecureStorageTitle": {
+    "description": "Section title for secure storage"
+  },
+  
+  "cryptoThreatModelTitle": "8. Threat Model and Limitations",
+  "@cryptoThreatModelTitle": {
+    "description": "Section title for threat model"
   }
 }
 

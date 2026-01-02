@@ -853,13 +853,13 @@ class _SecretKeyManagementScreenState
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(
+                            Row(
                               children: [
-                                Icon(Icons.security, color: AppTheme.primaryPurple),
-                                SizedBox(width: 8),
+                                const Icon(Icons.security, color: AppTheme.primaryPurple),
+                                const SizedBox(width: 8),
                                 Text(
-                                  'Amberモード',
-                                  style: TextStyle(
+                                  l10n.amberMode,
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: AppTheme.darkPurple,
                                   ),
@@ -885,9 +885,9 @@ class _SecretKeyManagementScreenState
                     OutlinedButton.icon(
                       onPressed: _isLoading ? null : _logout,
                       icon: const Icon(Icons.logout, color: Colors.red),
-                      label: const Text(
-                        'ログアウト',
-                        style: TextStyle(color: Colors.red),
+                      label: Text(
+                        l10n.logout,
+                        style: const TextStyle(color: Colors.red),
                       ),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.all(16),
@@ -967,10 +967,10 @@ class _SecretKeyManagementScreenState
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                const Expanded(
+                                Expanded(
                                   child: Text(
-                                    '使用している暗号技術',
-                                    style: TextStyle(
+                                    l10n.cryptographyInUse,
+                                    style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
                                       color: AppTheme.darkPurple,

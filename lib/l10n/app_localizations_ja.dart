@@ -877,4 +877,47 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get syncMigrationCompleted => 'データ移行完了';
+
+  @override
+  String get aboutRelays => 'リレーについて';
+
+  @override
+  String get amberMode => 'Amberモード';
+
+  @override
+  String get cryptographyInUse => '使用している暗号技術';
+
+  @override
+  String get cryptographyDetailsUsedInMeiso => 'Meisoで採用している暗号技術の詳細';
+
+  @override
+  String get cryptographyIntroTitle => 'Meisoは、現代の暗号学における最高水準の技術を採用しています。';
+
+  @override
+  String get cryptographyIntroDescription =>
+      'このドキュメントでは、ビットコイナーやNostrichの皆さんに向けて、Meisoで使用している暗号技術の詳細を説明します。';
+
+  @override
+  String get cryptoArchitectureTitle => '1. アーキテクチャ概要';
+
+  @override
+  String get cryptoArgon2idTitle => '2. Argon2id - パスワード派生関数';
+
+  @override
+  String get cryptoAes256GcmTitle => '3. AES-256-GCM - 暗号化アルゴリズム';
+
+  @override
+  String get cryptoNip44Title => '4. NIP-44 - Nostr暗号化規格';
+
+  @override
+  String get cryptoEd25519Title => '5. Ed25519 - デジタル署名';
+
+  @override
+  String get cryptoAmberIntegrationTitle => '6. Amber統合 - ハードウェアウォレット的セキュリティ';
+
+  @override
+  String get cryptoSecureStorageTitle => '7. セキュアストレージ - Rust実装';
+
+  @override
+  String get cryptoThreatModelTitle => '8. 脅威モデルと制限事項';
 }

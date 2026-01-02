@@ -895,4 +895,52 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncMigrationCompleted => 'Data migration completed';
+
+  @override
+  String get aboutRelays => 'About Relays';
+
+  @override
+  String get amberMode => 'Amber Mode';
+
+  @override
+  String get cryptographyInUse => 'Cryptography in Use';
+
+  @override
+  String get cryptographyDetailsUsedInMeiso =>
+      'Details of Cryptography Used in Meiso';
+
+  @override
+  String get cryptographyIntroTitle =>
+      'Meiso adopts the highest standards of modern cryptography.';
+
+  @override
+  String get cryptographyIntroDescription =>
+      'This document explains the details of the cryptographic technologies used in Meiso for Bitcoiners and Nostriches.';
+
+  @override
+  String get cryptoArchitectureTitle => '1. Architecture Overview';
+
+  @override
+  String get cryptoArgon2idTitle =>
+      '2. Argon2id - Password Derivation Function';
+
+  @override
+  String get cryptoAes256GcmTitle => '3. AES-256-GCM - Encryption Algorithm';
+
+  @override
+  String get cryptoNip44Title => '4. NIP-44 - Nostr Encryption Standard';
+
+  @override
+  String get cryptoEd25519Title => '5. Ed25519 - Digital Signature';
+
+  @override
+  String get cryptoAmberIntegrationTitle =>
+      '6. Amber Integration - Hardware Wallet-like Security';
+
+  @override
+  String get cryptoSecureStorageTitle =>
+      '7. Secure Storage - Rust Implementation';
+
+  @override
+  String get cryptoThreatModelTitle => '8. Threat Model and Limitations';
 }

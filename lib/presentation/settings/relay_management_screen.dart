@@ -409,13 +409,13 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.info, color: AppTheme.primaryPurple),
-                        SizedBox(width: 8),
+                        const Icon(Icons.info, color: AppTheme.primaryPurple),
+                        const SizedBox(width: 8),
                         Text(
-                          'リレーについて',
-                          style: TextStyle(
+                          l10n.aboutRelays,
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppTheme.darkPurple,
                           ),

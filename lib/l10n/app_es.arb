@@ -533,6 +533,34 @@
   
   "syncDeletingOldData": "Eliminando datos antiguos...",
   
-  "syncMigrationCompleted": "Migración de datos completada"
+  "syncMigrationCompleted": "Migración de datos completada",
+  
+  "aboutRelays": "Acerca de los Relays",
+  
+  "amberMode": "Modo Amber",
+  
+  "cryptographyInUse": "Criptografía en Uso",
+  
+  "cryptographyDetailsUsedInMeiso": "Detalles de la Criptografía Utilizada en Meiso",
+  
+  "cryptographyIntroTitle": "Meiso adopta los más altos estándares de la criptografía moderna.",
+  
+  "cryptographyIntroDescription": "Este documento explica los detalles de las tecnologías criptográficas utilizadas en Meiso para Bitcoiners y Nostriches.",
+  
+  "cryptoArchitectureTitle": "1. Descripción General de la Arquitectura",
+  
+  "cryptoArgon2idTitle": "2. Argon2id - Función de Derivación de Contraseña",
+  
+  "cryptoAes256GcmTitle": "3. AES-256-GCM - Algoritmo de Cifrado",
+  
+  "cryptoNip44Title": "4. NIP-44 - Estándar de Cifrado de Nostr",
+  
+  "cryptoEd25519Title": "5. Ed25519 - Firma Digital",
+  
+  "cryptoAmberIntegrationTitle": "6. Integración con Amber - Seguridad tipo Monedero de Hardware",
+  
+  "cryptoSecureStorageTitle": "7. Almacenamiento Seguro - Implementación en Rust",
+  
+  "cryptoThreatModelTitle": "8. Modelo de Amenazas y Limitaciones"
 }
 
