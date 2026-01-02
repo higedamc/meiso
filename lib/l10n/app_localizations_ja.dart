@@ -936,4 +936,349 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get currentlyConnectedViaTor => '• 現在Tor経由で接続しています（Orbotプロキシ使用）';
+
+  @override
+  String get cryptoArchPara1 =>
+      'Meisoは「Zero-Knowledge Architecture」を採用し、あなたの秘密鍵やタスクデータをサーバーに一切送信しません。全ての暗号化処理はあなたのデバイス上で実行されます。';
+
+  @override
+  String get cryptoArchSecurityModel =>
+      'セキュリティモデル:\n• エンドツーエンド暗号化 (E2EE)\n• クライアントサイド暗号化\n• サーバーは暗号化済みデータのみを保管\n• 秘密鍵はあなただけが保有';
+
+  @override
+  String get cryptoArgon2Intro =>
+      'Argon2idは、2015年のPassword Hashing Competition (PHC)で優勝した、最新かつ最強のパスワードハッシュアルゴリズムです。';
+
+  @override
+  String get cryptoArgon2WhyTitle => 'なぜArgon2idなのか？';
+
+  @override
+  String get cryptoArgon2BruteForce => '耐ブルートフォース攻撃';
+
+  @override
+  String get cryptoArgon2BruteForceDesc =>
+      '計算コストとメモリコストの両方を必要とするため、GPUやASICによる並列攻撃に極めて強い耐性を持ちます。';
+
+  @override
+  String get cryptoArgon2SideChannel => 'サイドチャネル攻撃への耐性';
+
+  @override
+  String get cryptoArgon2SideChannelDesc =>
+      'Argon2iのメモリアクセスパターンの予測不可能性と、Argon2dの計算効率を組み合わせた「ハイブリッド型」です。';
+
+  @override
+  String get cryptoArgon2Standard => '業界標準';
+
+  @override
+  String get cryptoArgon2StandardDesc =>
+      'OWASP、NIST、CryptographyEngineering community推奨。bcryptやPBKDF2を上回る次世代標準です。';
+
+  @override
+  String get cryptoArgon2Params =>
+      'Meisoでの実装パラメータ:\n• メモリコスト: 19 MiB (最適化済み)\n• 反復回数: 2回\n• 並列度: 1スレッド\n• 出力長: 32バイト (256ビット)\n• ソルト: ランダム生成 (16バイト)';
+
+  @override
+  String get cryptoArgon2Reference => '📚 参考: Argon2 RFC 9106';
+
+  @override
+  String get cryptoAesIntro =>
+      'AES-256-GCMは、米国政府が機密情報の保護に使用する「認証付き暗号化 (AEAD)」アルゴリズムです。';
+
+  @override
+  String get cryptoAesStrengthTitle => 'AES-256の強度';
+
+  @override
+  String get cryptoAesStrengthDesc =>
+      'AES-256は2^256通りの鍵空間を持ち、現代のスーパーコンピュータでも総当たり攻撃は事実上不可能です。量子コンピュータ時代でも128ビットの有効セキュリティを維持します。';
+
+  @override
+  String get cryptoAesGcmAdvantagesTitle => 'GCMモードの利点';
+
+  @override
+  String get cryptoAesAead => '認証付き暗号化 (AEAD)';
+
+  @override
+  String get cryptoAesAeadDesc => '暗号化と同時にメッセージ認証コード (MAC)を生成。データの改ざん検知が可能です。';
+
+  @override
+  String get cryptoAesPerformance => '高速処理';
+
+  @override
+  String get cryptoAesPerformanceDesc =>
+      '並列処理が可能で、最新のCPUのAES-NI命令によりハードウェアアクセラレーションされます。';
+
+  @override
+  String get cryptoAesPaddingResistance => 'パディング攻撃への耐性';
+
+  @override
+  String get cryptoAesPaddingResistanceDesc =>
+      'ストリーム暗号モードのため、パディングオラクル攻撃のリスクがありません。';
+
+  @override
+  String get cryptoAesParams =>
+      'Meisoでの実装:\n• 暗号化アルゴリズム: AES-256-GCM\n• 鍵長: 256ビット (Argon2idから派生)\n• ノンス: ランダム生成 (96ビット)\n• タグ長: 128ビット (改ざん検知用)\n• 用途: 秘密鍵の暗号化保存';
+
+  @override
+  String get cryptoAesReference => '📚 参考: NIST SP 800-38D (GCM)';
+
+  @override
+  String get cryptoNip44Intro =>
+      'NIP-44は、Nostrプロトコルにおける暗号化メッセージの標準規格です。楕円曲線暗号 (ECC) を使った安全なエンドツーエンド暗号化を提供します。';
+
+  @override
+  String get cryptoNip44MechanismTitle => '暗号化の仕組み';
+
+  @override
+  String get cryptoNip44MechanismDesc =>
+      'NIP-44は、あなたの秘密鍵と受信者の公開鍵から「共有秘密 (shared secret)」を生成し、それを使ってメッセージを暗号化します。';
+
+  @override
+  String get cryptoNip44Process =>
+      '暗号化プロセス:\n1. ECDH (Elliptic Curve Diffie-Hellman)\n   → secp256k1曲線で共有秘密を生成\n\n2. HMAC-SHA256による鍵派生 (HKDF)\n   → 暗号化鍵とメッセージ認証鍵を生成\n\n3. ChaCha20-Poly1305で暗号化\n   → 高速かつ安全なAEAD暗号化\n\n4. Base64エンコードして送信';
+
+  @override
+  String get cryptoNip44UsageTitle => 'Meisoでの利用';
+
+  @override
+  String get cryptoNip44UsageDesc =>
+      'Meisoでは、全てのTodoデータをNIP-44で暗号化してNostrリレーに保存します。これにより、リレーサーバーはあなたのタスク内容を読み取ることができません。';
+
+  @override
+  String get cryptoNip44SecurityTitle => '🔐 重要なセキュリティ特性';
+
+  @override
+  String get cryptoNip44SecurityDesc =>
+      '• リレーサーバーは暗号文しか見えません\n• あなた自身の秘密鍵がないと復号化できません\n• 前方秘匿性 (Forward Secrecy) は提供されません\n• 秘密鍵が漏洩すると過去の全メッセージが復号化されます';
+
+  @override
+  String get cryptoNip44Reference => '📚 参考: NIP-44 仕様';
+
+  @override
+  String get cryptoEd25519Intro =>
+      'Ed25519は、楕円曲線暗号 (ECC) に基づく最新の署名アルゴリズムです。Bitcoin、SSH、TLS 1.3など、最新のセキュリティプロトコルで広く採用されています。';
+
+  @override
+  String get cryptoEd25519AdvantagesTitle => 'Ed25519の優位性';
+
+  @override
+  String get cryptoEd25519Speed => '高速';
+
+  @override
+  String get cryptoEd25519SpeedDesc =>
+      'RSA-2048の10倍以上の速度で署名・検証が可能。モバイルデバイスでも高速動作します。';
+
+  @override
+  String get cryptoEd25519Compact => 'コンパクト';
+
+  @override
+  String get cryptoEd25519CompactDesc =>
+      '公開鍵: 32バイト、秘密鍵: 32バイト、署名: 64バイト。RSAの1/8のサイズで同等以上のセキュリティ。';
+
+  @override
+  String get cryptoEd25519Deterministic => '決定論的';
+
+  @override
+  String get cryptoEd25519DeterministicDesc =>
+      '同じメッセージに対して常に同じ署名を生成。乱数生成器の脆弱性リスクがありません。';
+
+  @override
+  String get cryptoEd25519SafeImpl => '実装が安全';
+
+  @override
+  String get cryptoEd25519SafeImplDesc => 'サイドチャネル攻撃に対する耐性が設計段階から組み込まれています。';
+
+  @override
+  String get cryptoEd25519NostrRoleTitle => 'Nostrでの役割';
+
+  @override
+  String get cryptoEd25519NostrRoleDesc =>
+      'Nostrでは、全てのイベント (メッセージ、Todo、プロフィール更新など)にEd25519署名が付けられます。これにより、イベントの作成者の真正性と、データの完全性が保証されます。';
+
+  @override
+  String get cryptoEd25519SigningProcess =>
+      'Nostr署名プロセス:\n1. イベントをJSON形式でシリアライズ\n2. SHA-256でハッシュ化\n3. Ed25519秘密鍵で署名\n4. 署名をイベントに添付して送信';
+
+  @override
+  String get cryptoEd25519Reference => '📚 参考: RFC 8032 (EdDSA)';
+
+  @override
+  String get cryptoAmberIntro =>
+      'Amberは、Nostr秘密鍵を安全に管理するための専用アプリです。秘密鍵を他のアプリと共有せず、署名リクエストのみを処理します。';
+
+  @override
+  String get cryptoAmberNcryptsecTitle => 'ncryptsec形式';
+
+  @override
+  String get cryptoAmberNcryptsecDesc =>
+      'Amberは、秘密鍵を「ncryptsec」形式で保存します。これは、AES-256-CBCで暗号化された秘密鍵を含むBech32エンコードされた文字列です。';
+
+  @override
+  String get cryptoAmberNcryptsecStructure =>
+      'ncryptsec構造:\nncryptsec1... ← Bech32プレフィックス\n├─ バージョン (1バイト)\n├─ ソルト (16バイト)\n├─ ノンス/IV (16バイト)\n├─ 暗号化された秘密鍵 (32バイト)\n└─ 改ざん検知用タグ';
+
+  @override
+  String get cryptoAmberBenefitsTitle => 'Amberモードのメリット';
+
+  @override
+  String get cryptoAmberIsolation => '秘密鍵の隔離';
+
+  @override
+  String get cryptoAmberIsolationDesc => 'Meisoは秘密鍵を保持せず、署名が必要な時だけAmberに依頼します。';
+
+  @override
+  String get cryptoAmberBiometric => '生体認証';
+
+  @override
+  String get cryptoAmberBiometricDesc => 'Amberで署名時に指紋認証やPINを要求できます。';
+
+  @override
+  String get cryptoAmberAuditable => '監査可能';
+
+  @override
+  String get cryptoAmberAuditableDesc => 'Amberアプリで全ての署名リクエストを確認・承認できます。';
+
+  @override
+  String get cryptoAmberKeyReuse => '鍵の再利用';
+
+  @override
+  String get cryptoAmberKeyReuseDesc => '1つの秘密鍵を複数のNostrアプリで安全に共有できます。';
+
+  @override
+  String get cryptoAmberHardwareWalletTitle => '💡 ハードウェアウォレットとの類似性';
+
+  @override
+  String get cryptoAmberHardwareWalletDesc =>
+      'Amberは、Bitcoinのハードウェアウォレット (Ledger、Trezor) と同じ「秘密鍵を外部に出さない」アーキテクチャを採用しています。';
+
+  @override
+  String get cryptoAmberReference => '🔗 Amber on GitHub';
+
+  @override
+  String get cryptoSecureStorageIntro =>
+      'Meisoの秘密鍵管理は、全てRustで実装されています。Rustは、メモリ安全性が言語レベルで保証された、セキュアなシステムプログラミング言語です。';
+
+  @override
+  String get cryptoStorageWhyRustTitle => 'なぜRust？';
+
+  @override
+  String get cryptoStorageMemorySafety => 'メモリ安全性';
+
+  @override
+  String get cryptoStorageMemorySafetyDesc =>
+      'バッファオーバーフロー、Use-after-free、データ競合などのメモリ関連の脆弱性が原理的に発生しません。';
+
+  @override
+  String get cryptoStorageZeroCost => 'ゼロコスト抽象化';
+
+  @override
+  String get cryptoStorageZeroCostDesc => '高レベルなコードを書きながら、C/C++と同等のパフォーマンスを実現。';
+
+  @override
+  String get cryptoStorageTypeSystem => '強力な型システム';
+
+  @override
+  String get cryptoStorageTypeSystemDesc =>
+      'Option型やResult型により、エラーハンドリングが強制されます。';
+
+  @override
+  String get cryptoStorageImplTitle => 'ストレージの実装';
+
+  @override
+  String get cryptoStorageImplDesc =>
+      'Meisoは、暗号化された秘密鍵をFlutterの「ApplicationSupportDirectory」に保存します。このディレクトリは、OSによって他のアプリからアクセスできないよう保護されています。';
+
+  @override
+  String get cryptoStoragePath =>
+      'ストレージパス (Android):\n/data/data/com.example.meiso/files/encrypted_key.bin\n\nファイル内容:\n• JSON形式\n• フィールド: salt, nonce, ciphertext\n• 全て Base64 エンコード済み';
+
+  @override
+  String get cryptoStorageMemorySecurityTitle => 'メモリセキュリティ';
+
+  @override
+  String get cryptoStorageZeroize => 'Zeroize';
+
+  @override
+  String get cryptoStorageZeroizeDesc => '秘密鍵を使用後、メモリから安全に消去します。';
+
+  @override
+  String get cryptoStorageStackAllocation => 'スタック割り当て';
+
+  @override
+  String get cryptoStorageStackAllocationDesc => '秘密鍵をヒープではなくスタックに配置し、寿命を最小化。';
+
+  @override
+  String get cryptoStorageMemoryDump => 'メモリダンプ対策';
+
+  @override
+  String get cryptoStorageMemoryDumpDesc =>
+      'デバッグビルドでもRustコードは最適化され、機密データが残りにくい。';
+
+  @override
+  String get cryptoThreatModelIntro =>
+      'Meisoは非常に強力な暗号技術を使用していますが、完璧なセキュリティは存在しません。以下の脅威を理解してください。';
+
+  @override
+  String get cryptoThreatWhatWeCanProtectTitle => '保護できること';
+
+  @override
+  String get cryptoThreatNetworkEavesdropping => 'ネットワーク盗聴';
+
+  @override
+  String get cryptoThreatNetworkEavesdroppingDesc =>
+      'TLS + E2EE暗号化により、通信経路での盗聴は無効化されます。';
+
+  @override
+  String get cryptoThreatMaliciousRelay => 'リレーサーバーの悪意';
+
+  @override
+  String get cryptoThreatMaliciousRelayDesc => 'リレーは暗号化されたデータしか見えません。';
+
+  @override
+  String get cryptoThreatBruteForce => 'ブルートフォース攻撃';
+
+  @override
+  String get cryptoThreatBruteForceDesc =>
+      'Argon2id + AES-256により、現実的な時間での解読は不可能。';
+
+  @override
+  String get cryptoThreatWhatWeCannotProtectTitle => '保護できないこと';
+
+  @override
+  String get cryptoThreatWarningTitle => '⚠️ 以下の脅威には注意が必要です';
+
+  @override
+  String get cryptoThreatWarningDesc =>
+      '• デバイスの物理的な盗難 + パスワード漏洩\n• キーロガーやスクリーンキャプチャマルウェア\n• ルート化/Jailbreak済みデバイス\n• OSやファームウェアの脆弱性\n• ソーシャルエンジニアリング攻撃\n• 量子コンピュータによる将来的な脅威 (RSA/ECCの破綻)';
+
+  @override
+  String get cryptoThreatBestPracticesTitle => 'ベストプラクティス';
+
+  @override
+  String get cryptoThreatStrongPassword => '強力なパスワード';
+
+  @override
+  String get cryptoThreatStrongPasswordDesc => '20文字以上のランダムなパスワードを使用してください。';
+
+  @override
+  String get cryptoThreatDeviceEncryption => 'デバイスの暗号化';
+
+  @override
+  String get cryptoThreatDeviceEncryptionDesc =>
+      'Android/iOSのフルディスク暗号化を有効にしてください。';
+
+  @override
+  String get cryptoThreatKeepOsUpdated => 'OSを最新に保つ';
+
+  @override
+  String get cryptoThreatKeepOsUpdatedDesc => 'セキュリティパッチを定期的に適用してください。';
+
+  @override
+  String get cryptoThreatRecommendAmber => 'Amberモードの推奨';
+
+  @override
+  String get cryptoThreatRecommendAmberDesc =>
+      'より高いセキュリティが必要な場合は、Amberモードを使用してください。';
+
+  @override
+  String get cryptoTableOfContents => '📖 目次';
 }

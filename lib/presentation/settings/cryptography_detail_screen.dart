@@ -86,18 +86,12 @@ class CryptographyDetailScreen extends StatelessWidget {
                       children: [
                         _buildParagraph(
                           context,
-                          'Meisoは「Zero-Knowledge Architecture」を採用し、'
-                          'あなたの秘密鍵やタスクデータをサーバーに一切送信しません。'
-                          '全ての暗号化処理はあなたのデバイス上で実行されます。',
+                          AppLocalizations.of(context).cryptoArchPara1,
                         ),
                         const SizedBox(height: 16),
                         _buildCodeBlock(
                           context,
-                          'セキュリティモデル:\n'
-                          '• エンドツーエンド暗号化 (E2EE)\n'
-                          '• クライアントサイド暗号化\n'
-                          '• サーバーは暗号化済みデータのみを保管\n'
-                          '• 秘密鍵はあなただけが保有',
+                          AppLocalizations.of(context).cryptoArchSecurityModel,
                         ),
                       ],
                     ),
@@ -116,43 +110,34 @@ class CryptographyDetailScreen extends StatelessWidget {
                       children: [
                         _buildParagraph(
                           context,
-                          'Argon2idは、2015年のPassword Hashing Competition (PHC)で優勝した、'
-                          '最新かつ最強のパスワードハッシュアルゴリズムです。',
+                          AppLocalizations.of(context).cryptoArgon2Intro,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'なぜArgon2idなのか？'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoArgon2WhyTitle),
                         _buildBulletPoint(
                           context,
-                          '耐ブルートフォース攻撃',
-                          '計算コストとメモリコストの両方を必要とするため、'
-                          'GPUやASICによる並列攻撃に極めて強い耐性を持ちます。',
+                          AppLocalizations.of(context).cryptoArgon2BruteForce,
+                          AppLocalizations.of(context).cryptoArgon2BruteForceDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'サイドチャネル攻撃への耐性',
-                          'Argon2iのメモリアクセスパターンの予測不可能性と、'
-                          'Argon2dの計算効率を組み合わせた「ハイブリッド型」です。',
+                          AppLocalizations.of(context).cryptoArgon2SideChannel,
+                          AppLocalizations.of(context).cryptoArgon2SideChannelDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          '業界標準',
-                          'OWASP、NIST、CryptographyEngineering community推奨。'
-                          'bcryptやPBKDF2を上回る次世代標準です。',
+                          AppLocalizations.of(context).cryptoArgon2Standard,
+                          AppLocalizations.of(context).cryptoArgon2StandardDesc,
                         ),
                         const SizedBox(height: 16),
                         _buildCodeBlock(
                           context,
-                          'Meisoでの実装パラメータ:\n'
-                          '• メモリコスト: 19 MiB (最適化済み)\n'
-                          '• 反復回数: 2回\n'
-                          '• 並列度: 1スレッド\n'
-                          '• 出力長: 32バイト (256ビット)\n'
-                          '• ソルト: ランダム生成 (16バイト)',
+                          AppLocalizations.of(context).cryptoArgon2Params,
                         ),
                         const SizedBox(height: 12),
                         _buildLinkText(
                           context,
-                          '📚 参考: Argon2 RFC 9106',
+                          AppLocalizations.of(context).cryptoArgon2Reference,
                           'https://datatracker.ietf.org/doc/html/rfc9106',
                         ),
                       ],
@@ -172,51 +157,40 @@ class CryptographyDetailScreen extends StatelessWidget {
                       children: [
                         _buildParagraph(
                           context,
-                          'AES-256-GCMは、米国政府が機密情報の保護に使用する'
-                          '「認証付き暗号化 (AEAD)」アルゴリズムです。',
+                          AppLocalizations.of(context).cryptoAesIntro,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'AES-256の強度'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoAesStrengthTitle),
                         _buildParagraph(
                           context,
-                          'AES-256は2^256通りの鍵空間を持ち、現代のスーパーコンピュータでも'
-                          '総当たり攻撃は事実上不可能です。量子コンピュータ時代でも'
-                          '128ビットの有効セキュリティを維持します。',
+                          AppLocalizations.of(context).cryptoAesStrengthDesc,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'GCMモードの利点'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoAesGcmAdvantagesTitle),
                         _buildBulletPoint(
                           context,
-                          '認証付き暗号化 (AEAD)',
-                          '暗号化と同時にメッセージ認証コード (MAC)を生成。'
-                          'データの改ざん検知が可能です。',
+                          AppLocalizations.of(context).cryptoAesAead,
+                          AppLocalizations.of(context).cryptoAesAeadDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          '高速処理',
-                          '並列処理が可能で、最新のCPUのAES-NI命令により'
-                          'ハードウェアアクセラレーションされます。',
+                          AppLocalizations.of(context).cryptoAesPerformance,
+                          AppLocalizations.of(context).cryptoAesPerformanceDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'パディング攻撃への耐性',
-                          'ストリーム暗号モードのため、パディングオラクル攻撃の'
-                          'リスクがありません。',
+                          AppLocalizations.of(context).cryptoAesPaddingResistance,
+                          AppLocalizations.of(context).cryptoAesPaddingResistanceDesc,
                         ),
                         const SizedBox(height: 16),
                         _buildCodeBlock(
                           context,
-                          'Meisoでの実装:\n'
-                          '• 暗号化アルゴリズム: AES-256-GCM\n'
-                          '• 鍵長: 256ビット (Argon2idから派生)\n'
-                          '• ノンス: ランダム生成 (96ビット)\n'
-                          '• タグ長: 128ビット (改ざん検知用)\n'
-                          '• 用途: 秘密鍵の暗号化保存',
+                          AppLocalizations.of(context).cryptoAesParams,
                         ),
                         const SizedBox(height: 12),
                         _buildLinkText(
                           context,
-                          '📚 参考: NIST SP 800-38D (GCM)',
+                          AppLocalizations.of(context).cryptoAesReference,
                           'https://csrc.nist.gov/publications/detail/sp/800-38d/final',
                         ),
                       ],
@@ -236,48 +210,35 @@ class CryptographyDetailScreen extends StatelessWidget {
                       children: [
                         _buildParagraph(
                           context,
-                          'NIP-44は、Nostrプロトコルにおける暗号化メッセージの標準規格です。'
-                          '楕円曲線暗号 (ECC) を使った安全なエンドツーエンド暗号化を提供します。',
+                          AppLocalizations.of(context).cryptoNip44Intro,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, '暗号化の仕組み'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoNip44MechanismTitle),
                         _buildParagraph(
                           context,
-                          'NIP-44は、あなたの秘密鍵と受信者の公開鍵から「共有秘密 (shared secret)」を生成し、'
-                          'それを使ってメッセージを暗号化します。',
+                          AppLocalizations.of(context).cryptoNip44MechanismDesc,
                         ),
                         const SizedBox(height: 16),
                         _buildCodeBlock(
                           context,
-                          '暗号化プロセス:\n'
-                          '1. ECDH (Elliptic Curve Diffie-Hellman)\n'
-                          '   → secp256k1曲線で共有秘密を生成\n\n'
-                          '2. HMAC-SHA256による鍵派生 (HKDF)\n'
-                          '   → 暗号化鍵とメッセージ認証鍵を生成\n\n'
-                          '3. ChaCha20-Poly1305で暗号化\n'
-                          '   → 高速かつ安全なAEAD暗号化\n\n'
-                          '4. Base64エンコードして送信',
+                          AppLocalizations.of(context).cryptoNip44Process,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'Meisoでの利用'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoNip44UsageTitle),
                         _buildParagraph(
                           context,
-                          'Meisoでは、全てのTodoデータをNIP-44で暗号化してNostrリレーに保存します。'
-                          'これにより、リレーサーバーはあなたのタスク内容を読み取ることができません。',
+                          AppLocalizations.of(context).cryptoNip44UsageDesc,
                         ),
                         const SizedBox(height: 16),
                         _buildWarningBox(
                           context,
-                          '🔐 重要なセキュリティ特性',
-                          '• リレーサーバーは暗号文しか見えません\n'
-                          '• あなた自身の秘密鍵がないと復号化できません\n'
-                          '• 前方秘匿性 (Forward Secrecy) は提供されません\n'
-                          '• 秘密鍵が漏洩すると過去の全メッセージが復号化されます',
+                          AppLocalizations.of(context).cryptoNip44SecurityTitle,
+                          AppLocalizations.of(context).cryptoNip44SecurityDesc,
                         ),
                         const SizedBox(height: 12),
                         _buildLinkText(
                           context,
-                          '📚 参考: NIP-44 仕様',
+                          AppLocalizations.of(context).cryptoNip44Reference,
                           'https://github.com/nostr-protocol/nips/blob/master/44.md',
                         ),
                       ],
@@ -297,55 +258,45 @@ class CryptographyDetailScreen extends StatelessWidget {
                       children: [
                         _buildParagraph(
                           context,
-                          'Ed25519は、楕円曲線暗号 (ECC) に基づく最新の署名アルゴリズムです。'
-                          'Bitcoin、SSH、TLS 1.3など、最新のセキュリティプロトコルで広く採用されています。',
+                          AppLocalizations.of(context).cryptoEd25519Intro,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'Ed25519の優位性'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoEd25519AdvantagesTitle),
                         _buildBulletPoint(
                           context,
-                          '高速',
-                          'RSA-2048の10倍以上の速度で署名・検証が可能。'
-                          'モバイルデバイスでも高速動作します。',
+                          AppLocalizations.of(context).cryptoEd25519Speed,
+                          AppLocalizations.of(context).cryptoEd25519SpeedDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'コンパクト',
-                          '公開鍵: 32バイト、秘密鍵: 32バイト、署名: 64バイト。'
-                          'RSAの1/8のサイズで同等以上のセキュリティ。',
+                          AppLocalizations.of(context).cryptoEd25519Compact,
+                          AppLocalizations.of(context).cryptoEd25519CompactDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          '決定論的',
-                          '同じメッセージに対して常に同じ署名を生成。'
-                          '乱数生成器の脆弱性リスクがありません。',
+                          AppLocalizations.of(context).cryptoEd25519Deterministic,
+                          AppLocalizations.of(context).cryptoEd25519DeterministicDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          '実装が安全',
-                          'サイドチャネル攻撃に対する耐性が設計段階から組み込まれています。',
+                          AppLocalizations.of(context).cryptoEd25519SafeImpl,
+                          AppLocalizations.of(context).cryptoEd25519SafeImplDesc,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'Nostrでの役割'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoEd25519NostrRoleTitle),
                         _buildParagraph(
                           context,
-                          'Nostrでは、全てのイベント (メッセージ、Todo、プロフィール更新など)に'
-                          'Ed25519署名が付けられます。これにより、イベントの作成者の真正性と、'
-                          'データの完全性が保証されます。',
+                          AppLocalizations.of(context).cryptoEd25519NostrRoleDesc,
                         ),
                         const SizedBox(height: 16),
                         _buildCodeBlock(
                           context,
-                          'Nostr署名プロセス:\n'
-                          '1. イベントをJSON形式でシリアライズ\n'
-                          '2. SHA-256でハッシュ化\n'
-                          '3. Ed25519秘密鍵で署名\n'
-                          '4. 署名をイベントに添付して送信',
+                          AppLocalizations.of(context).cryptoEd25519SigningProcess,
                         ),
                         const SizedBox(height: 12),
                         _buildLinkText(
                           context,
-                          '📚 参考: RFC 8032 (EdDSA)',
+                          AppLocalizations.of(context).cryptoEd25519Reference,
                           'https://datatracker.ietf.org/doc/html/rfc8032',
                         ),
                       ],
@@ -365,60 +316,51 @@ class CryptographyDetailScreen extends StatelessWidget {
                       children: [
                         _buildParagraph(
                           context,
-                          'Amberは、Nostr秘密鍵を安全に管理するための専用アプリです。'
-                          '秘密鍵を他のアプリと共有せず、署名リクエストのみを処理します。',
+                          AppLocalizations.of(context).cryptoAmberIntro,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'ncryptsec形式'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoAmberNcryptsecTitle),
                         _buildParagraph(
                           context,
-                          'Amberは、秘密鍵を「ncryptsec」形式で保存します。'
-                          'これは、AES-256-CBCで暗号化された秘密鍵を含むBech32エンコードされた文字列です。',
+                          AppLocalizations.of(context).cryptoAmberNcryptsecDesc,
                         ),
                         const SizedBox(height: 16),
                         _buildCodeBlock(
                           context,
-                          'ncryptsec構造:\n'
-                          'ncryptsec1... ← Bech32プレフィックス\n'
-                          '├─ バージョン (1バイト)\n'
-                          '├─ ソルト (16バイト)\n'
-                          '├─ ノンス/IV (16バイト)\n'
-                          '├─ 暗号化された秘密鍵 (32バイト)\n'
-                          '└─ 改ざん検知用タグ',
+                          AppLocalizations.of(context).cryptoAmberNcryptsecStructure,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'Amberモードのメリット'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoAmberBenefitsTitle),
                         _buildBulletPoint(
                           context,
-                          '秘密鍵の隔離',
-                          'Meisoは秘密鍵を保持せず、署名が必要な時だけAmberに依頼します。',
+                          AppLocalizations.of(context).cryptoAmberIsolation,
+                          AppLocalizations.of(context).cryptoAmberIsolationDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          '生体認証',
-                          'Amberで署名時に指紋認証やPINを要求できます。',
+                          AppLocalizations.of(context).cryptoAmberBiometric,
+                          AppLocalizations.of(context).cryptoAmberBiometricDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          '監査可能',
-                          'Amberアプリで全ての署名リクエストを確認・承認できます。',
+                          AppLocalizations.of(context).cryptoAmberAuditable,
+                          AppLocalizations.of(context).cryptoAmberAuditableDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          '鍵の再利用',
-                          '1つの秘密鍵を複数のNostrアプリで安全に共有できます。',
+                          AppLocalizations.of(context).cryptoAmberKeyReuse,
+                          AppLocalizations.of(context).cryptoAmberKeyReuseDesc,
                         ),
                         const SizedBox(height: 16),
                         _buildInfoBox(
                           context,
-                          '💡 ハードウェアウォレットとの類似性',
-                          'Amberは、Bitcoinのハードウェアウォレット (Ledger、Trezor) と'
-                          '同じ「秘密鍵を外部に出さない」アーキテクチャを採用しています。',
+                          AppLocalizations.of(context).cryptoAmberHardwareWalletTitle,
+                          AppLocalizations.of(context).cryptoAmberHardwareWalletDesc,
                         ),
                         const SizedBox(height: 12),
                         _buildLinkText(
                           context,
-                          '🔗 Amber on GitHub',
+                          AppLocalizations.of(context).cryptoAmberReference,
                           'https://github.com/greenart7c3/Amber',
                         ),
                       ],
@@ -438,60 +380,52 @@ class CryptographyDetailScreen extends StatelessWidget {
                       children: [
                         _buildParagraph(
                           context,
-                          'Meisoの秘密鍵管理は、全てRustで実装されています。'
-                          'Rustは、メモリ安全性が言語レベルで保証された、セキュアなシステムプログラミング言語です。',
+                          AppLocalizations.of(context).cryptoSecureStorageIntro,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'なぜRust？'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoStorageWhyRustTitle),
                         _buildBulletPoint(
                           context,
-                          'メモリ安全性',
-                          'バッファオーバーフロー、Use-after-free、データ競合などの'
-                          'メモリ関連の脆弱性が原理的に発生しません。',
+                          AppLocalizations.of(context).cryptoStorageMemorySafety,
+                          AppLocalizations.of(context).cryptoStorageMemorySafetyDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'ゼロコスト抽象化',
-                          '高レベルなコードを書きながら、C/C++と同等のパフォーマンスを実現。',
+                          AppLocalizations.of(context).cryptoStorageZeroCost,
+                          AppLocalizations.of(context).cryptoStorageZeroCostDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          '強力な型システム',
-                          'Option型やResult型により、エラーハンドリングが強制されます。',
+                          AppLocalizations.of(context).cryptoStorageTypeSystem,
+                          AppLocalizations.of(context).cryptoStorageTypeSystemDesc,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'ストレージの実装'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoStorageImplTitle),
                         _buildParagraph(
                           context,
-                          'Meisoは、暗号化された秘密鍵をFlutterの「ApplicationSupportDirectory」に保存します。'
-                          'このディレクトリは、OSによって他のアプリからアクセスできないよう保護されています。',
+                          AppLocalizations.of(context).cryptoStorageImplDesc,
                         ),
                         const SizedBox(height: 16),
                         _buildCodeBlock(
                           context,
-                          'ストレージパス (Android):\n'
-                          '/data/data/com.example.meiso/files/encrypted_key.bin\n\n'
-                          'ファイル内容:\n'
-                          '• JSON形式\n'
-                          '• フィールド: salt, nonce, ciphertext\n'
-                          '• 全て Base64 エンコード済み',
+                          AppLocalizations.of(context).cryptoStoragePath,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'メモリセキュリティ'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoStorageMemorySecurityTitle),
                         _buildBulletPoint(
                           context,
-                          'Zeroize',
-                          '秘密鍵を使用後、メモリから安全に消去します。',
+                          AppLocalizations.of(context).cryptoStorageZeroize,
+                          AppLocalizations.of(context).cryptoStorageZeroizeDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'スタック割り当て',
-                          '秘密鍵をヒープではなくスタックに配置し、寿命を最小化。',
+                          AppLocalizations.of(context).cryptoStorageStackAllocation,
+                          AppLocalizations.of(context).cryptoStorageStackAllocationDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'メモリダンプ対策',
-                          'デバッグビルドでもRustコードは最適化され、機密データが残りにくい。',
+                          AppLocalizations.of(context).cryptoStorageMemoryDump,
+                          AppLocalizations.of(context).cryptoStorageMemoryDumpDesc,
                         ),
                       ],
                     ),
@@ -510,59 +444,53 @@ class CryptographyDetailScreen extends StatelessWidget {
                       children: [
                         _buildParagraph(
                           context,
-                          'Meisoは非常に強力な暗号技術を使用していますが、'
-                          '完璧なセキュリティは存在しません。以下の脅威を理解してください。',
+                          AppLocalizations.of(context).cryptoThreatModelIntro,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, '保護できること'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoThreatWhatWeCanProtectTitle),
                         _buildBulletPoint(
                           context,
-                          'ネットワーク盗聴',
-                          'TLS + E2EE暗号化により、通信経路での盗聴は無効化されます。',
+                          AppLocalizations.of(context).cryptoThreatNetworkEavesdropping,
+                          AppLocalizations.of(context).cryptoThreatNetworkEavesdroppingDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'リレーサーバーの悪意',
-                          'リレーは暗号化されたデータしか見えません。',
+                          AppLocalizations.of(context).cryptoThreatMaliciousRelay,
+                          AppLocalizations.of(context).cryptoThreatMaliciousRelayDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'ブルートフォース攻撃',
-                          'Argon2id + AES-256により、現実的な時間での解読は不可能。',
+                          AppLocalizations.of(context).cryptoThreatBruteForce,
+                          AppLocalizations.of(context).cryptoThreatBruteForceDesc,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, '保護できないこと'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoThreatWhatWeCannotProtectTitle),
                         _buildWarningBox(
                           context,
-                          '⚠️ 以下の脅威には注意が必要です',
-                          '• デバイスの物理的な盗難 + パスワード漏洩\n'
-                          '• キーロガーやスクリーンキャプチャマルウェア\n'
-                          '• ルート化/Jailbreak済みデバイス\n'
-                          '• OSやファームウェアの脆弱性\n'
-                          '• ソーシャルエンジニアリング攻撃\n'
-                          '• 量子コンピュータによる将来的な脅威 (RSA/ECCの破綻)',
+                          AppLocalizations.of(context).cryptoThreatWarningTitle,
+                          AppLocalizations.of(context).cryptoThreatWarningDesc,
                         ),
                         const SizedBox(height: 16),
-                        _buildSubheading(context, 'ベストプラクティス'),
+                        _buildSubheading(context, AppLocalizations.of(context).cryptoThreatBestPracticesTitle),
                         _buildBulletPoint(
                           context,
-                          '強力なパスワード',
-                          '20文字以上のランダムなパスワードを使用してください。',
+                          AppLocalizations.of(context).cryptoThreatStrongPassword,
+                          AppLocalizations.of(context).cryptoThreatStrongPasswordDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'デバイスの暗号化',
-                          'Android/iOSのフルディスク暗号化を有効にしてください。',
+                          AppLocalizations.of(context).cryptoThreatDeviceEncryption,
+                          AppLocalizations.of(context).cryptoThreatDeviceEncryptionDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'OSを最新に保つ',
-                          'セキュリティパッチを定期的に適用してください。',
+                          AppLocalizations.of(context).cryptoThreatKeepOsUpdated,
+                          AppLocalizations.of(context).cryptoThreatKeepOsUpdatedDesc,
                         ),
                         _buildBulletPoint(
                           context,
-                          'Amberモードの推奨',
-                          'より高いセキュリティが必要な場合は、Amberモードを使用してください。',
+                          AppLocalizations.of(context).cryptoThreatRecommendAmber,
+                          AppLocalizations.of(context).cryptoThreatRecommendAmberDesc,
                         ),
                       ],
                     ),
@@ -619,9 +547,9 @@ class CryptographyDetailScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '📖 目次',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).cryptoTableOfContents,
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppTheme.darkPurple,

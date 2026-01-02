@@ -975,4 +975,367 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get currentlyConnectedViaTor =>
       '• Actualmente conectado a través de Tor (usando proxy Orbot)';
+
+  @override
+  String get cryptoArchPara1 =>
+      'Meiso adopta una \"Arquitectura de Conocimiento Cero\" y nunca envía sus claves secretas o datos de tareas a servidores. Todo el procesamiento de cifrado se realiza en su dispositivo.';
+
+  @override
+  String get cryptoArchSecurityModel =>
+      'Modelo de Seguridad:\n• Cifrado de Extremo a Extremo (E2EE)\n• Cifrado del lado del cliente\n• El servidor almacena solo datos cifrados\n• Solo usted posee las claves secretas';
+
+  @override
+  String get cryptoArgon2Intro =>
+      'Argon2id es el algoritmo de hash de contraseñas más reciente y fuerte, ganador de la Competencia de Hash de Contraseñas (PHC) de 2015.';
+
+  @override
+  String get cryptoArgon2WhyTitle => '¿Por qué Argon2id?';
+
+  @override
+  String get cryptoArgon2BruteForce => 'Resistencia a ataques de fuerza bruta';
+
+  @override
+  String get cryptoArgon2BruteForceDesc =>
+      'Requiere tanto costos computacionales como de memoria, lo que lo hace extremadamente resistente a ataques paralelos usando GPUs o ASICs.';
+
+  @override
+  String get cryptoArgon2SideChannel =>
+      'Resistencia a ataques de canal lateral';
+
+  @override
+  String get cryptoArgon2SideChannelDesc =>
+      'Un \"híbrido\" que combina los patrones de acceso a memoria impredecibles de Argon2i con la eficiencia computacional de Argon2d.';
+
+  @override
+  String get cryptoArgon2Standard => 'Estándar de la industria';
+
+  @override
+  String get cryptoArgon2StandardDesc =>
+      'Recomendado por OWASP, NIST y la comunidad de Ingeniería Criptográfica. Estándar de próxima generación que supera a bcrypt y PBKDF2.';
+
+  @override
+  String get cryptoArgon2Params =>
+      'Parámetros de implementación en Meiso:\n• Costo de memoria: 19 MiB (optimizado)\n• Iteraciones: 2 veces\n• Paralelismo: 1 hilo\n• Longitud de salida: 32 bytes (256 bits)\n• Sal: Generación aleatoria (16 bytes)';
+
+  @override
+  String get cryptoArgon2Reference => '📚 Referencia: Argon2 RFC 9106';
+
+  @override
+  String get cryptoAesIntro =>
+      'AES-256-GCM es un algoritmo de \"Cifrado Autenticado con Datos Asociados (AEAD)\" utilizado por el gobierno de EE. UU. para proteger información clasificada.';
+
+  @override
+  String get cryptoAesStrengthTitle => 'Fortaleza de AES-256';
+
+  @override
+  String get cryptoAesStrengthDesc =>
+      'AES-256 tiene un espacio de claves de 2^256, lo que hace que los ataques de fuerza bruta sean prácticamente imposibles incluso con las supercomputadoras modernas. Mantiene una seguridad efectiva de 128 bits incluso en la era de la computación cuántica.';
+
+  @override
+  String get cryptoAesGcmAdvantagesTitle => 'Ventajas del Modo GCM';
+
+  @override
+  String get cryptoAesAead => 'Cifrado Autenticado (AEAD)';
+
+  @override
+  String get cryptoAesAeadDesc =>
+      'Genera un Código de Autenticación de Mensajes (MAC) simultáneamente con el cifrado. Permite la detección de manipulación de datos.';
+
+  @override
+  String get cryptoAesPerformance => 'Procesamiento de alta velocidad';
+
+  @override
+  String get cryptoAesPerformanceDesc =>
+      'Permite el procesamiento paralelo y es acelerado por hardware mediante las instrucciones AES-NI de las CPUs modernas.';
+
+  @override
+  String get cryptoAesPaddingResistance => 'Resistencia a ataques de relleno';
+
+  @override
+  String get cryptoAesPaddingResistanceDesc =>
+      'Como modo de cifrado de flujo, no hay riesgo de ataques de oráculo de relleno.';
+
+  @override
+  String get cryptoAesParams =>
+      'Implementación en Meiso:\n• Algoritmo de cifrado: AES-256-GCM\n• Longitud de clave: 256 bits (derivada de Argon2id)\n• Nonce: Generación aleatoria (96 bits)\n• Longitud de etiqueta: 128 bits (para detección de manipulación)\n• Propósito: Almacenamiento cifrado de claves secretas';
+
+  @override
+  String get cryptoAesReference => '📚 Referencia: NIST SP 800-38D (GCM)';
+
+  @override
+  String get cryptoNip44Intro =>
+      'NIP-44 es la especificación estándar para mensajes cifrados en el protocolo Nostr. Proporciona cifrado seguro de extremo a extremo utilizando Criptografía de Curva Elíptica (ECC).';
+
+  @override
+  String get cryptoNip44MechanismTitle => 'Mecanismo de Cifrado';
+
+  @override
+  String get cryptoNip44MechanismDesc =>
+      'NIP-44 genera un \"secreto compartido\" a partir de su clave secreta y la clave pública del destinatario, y lo utiliza para cifrar mensajes.';
+
+  @override
+  String get cryptoNip44Process =>
+      'Proceso de Cifrado:\n1. ECDH (Elliptic Curve Diffie-Hellman)\n   → Generar secreto compartido con curva secp256k1\n\n2. Derivación de clave con HMAC-SHA256 (HKDF)\n   → Generar clave de cifrado y clave de autenticación de mensajes\n\n3. Cifrar con ChaCha20-Poly1305\n   → Cifrado AEAD rápido y seguro\n\n4. Codificar en Base64 y transmitir';
+
+  @override
+  String get cryptoNip44UsageTitle => 'Uso en Meiso';
+
+  @override
+  String get cryptoNip44UsageDesc =>
+      'En Meiso, todos los datos de tareas se cifran con NIP-44 y se almacenan en relays Nostr. Esto evita que los servidores relay lean el contenido de sus tareas.';
+
+  @override
+  String get cryptoNip44SecurityTitle =>
+      '🔐 Características de Seguridad Importantes';
+
+  @override
+  String get cryptoNip44SecurityDesc =>
+      '• Los servidores relay solo pueden ver texto cifrado\n• No se puede descifrar sin su propia clave secreta\n• No se proporciona Secreto Directo (Forward Secrecy)\n• Si la clave secreta se filtra, todos los mensajes pasados pueden descifrarse';
+
+  @override
+  String get cryptoNip44Reference => '📚 Referencia: Especificación NIP-44';
+
+  @override
+  String get cryptoEd25519Intro =>
+      'Ed25519 es un algoritmo de firma moderno basado en Criptografía de Curva Elíptica (ECC). Se adopta ampliamente en protocolos de seguridad modernos como Bitcoin, SSH y TLS 1.3.';
+
+  @override
+  String get cryptoEd25519AdvantagesTitle => 'Ventajas de Ed25519';
+
+  @override
+  String get cryptoEd25519Speed => 'Rápido';
+
+  @override
+  String get cryptoEd25519SpeedDesc =>
+      'Más de 10 veces más rápido que RSA-2048 para firmar y verificar. Funciona rápido incluso en dispositivos móviles.';
+
+  @override
+  String get cryptoEd25519Compact => 'Compacto';
+
+  @override
+  String get cryptoEd25519CompactDesc =>
+      'Clave pública: 32 bytes, Clave privada: 32 bytes, Firma: 64 bytes. 1/8 del tamaño de RSA con seguridad igual o mejor.';
+
+  @override
+  String get cryptoEd25519Deterministic => 'Determinístico';
+
+  @override
+  String get cryptoEd25519DeterministicDesc =>
+      'Siempre genera la misma firma para el mismo mensaje. Sin riesgo de vulnerabilidades del generador de números aleatorios.';
+
+  @override
+  String get cryptoEd25519SafeImpl => 'Implementación segura';
+
+  @override
+  String get cryptoEd25519SafeImplDesc =>
+      'La resistencia a ataques de canal lateral está incorporada desde la etapa de diseño.';
+
+  @override
+  String get cryptoEd25519NostrRoleTitle => 'Rol en Nostr';
+
+  @override
+  String get cryptoEd25519NostrRoleDesc =>
+      'En Nostr, todos los eventos (mensajes, tareas, actualizaciones de perfil, etc.) están firmados con Ed25519. Esto garantiza la autenticidad del creador del evento y la integridad de los datos.';
+
+  @override
+  String get cryptoEd25519SigningProcess =>
+      'Proceso de firma Nostr:\n1. Serializar evento en formato JSON\n2. Hash con SHA-256\n3. Firmar con clave privada Ed25519\n4. Adjuntar firma al evento y enviar';
+
+  @override
+  String get cryptoEd25519Reference => '📚 Referencia: RFC 8032 (EdDSA)';
+
+  @override
+  String get cryptoAmberIntro =>
+      'Amber es una aplicación dedicada para gestionar de forma segura las claves secretas de Nostr. No comparte claves secretas con otras aplicaciones y solo procesa solicitudes de firma.';
+
+  @override
+  String get cryptoAmberNcryptsecTitle => 'Formato ncryptsec';
+
+  @override
+  String get cryptoAmberNcryptsecDesc =>
+      'Amber almacena claves secretas en formato \"ncryptsec\". Esta es una cadena codificada en Bech32 que contiene una clave secreta cifrada con AES-256-CBC.';
+
+  @override
+  String get cryptoAmberNcryptsecStructure =>
+      'Estructura de ncryptsec:\nncryptsec1... ← Prefijo Bech32\n├─ Versión (1 byte)\n├─ Sal (16 bytes)\n├─ Nonce/IV (16 bytes)\n├─ Clave secreta cifrada (32 bytes)\n└─ Etiqueta de detección de manipulación';
+
+  @override
+  String get cryptoAmberBenefitsTitle => 'Beneficios del Modo Amber';
+
+  @override
+  String get cryptoAmberIsolation => 'Aislamiento de clave secreta';
+
+  @override
+  String get cryptoAmberIsolationDesc =>
+      'Meiso no retiene claves secretas y solo solicita Amber cuando se necesita firmar.';
+
+  @override
+  String get cryptoAmberBiometric => 'Autenticación biométrica';
+
+  @override
+  String get cryptoAmberBiometricDesc =>
+      'Puede requerir autenticación de huellas dactilares o PIN al firmar con Amber.';
+
+  @override
+  String get cryptoAmberAuditable => 'Auditable';
+
+  @override
+  String get cryptoAmberAuditableDesc =>
+      'Puede revisar y aprobar todas las solicitudes de firma en la aplicación Amber.';
+
+  @override
+  String get cryptoAmberKeyReuse => 'Reutilización de claves';
+
+  @override
+  String get cryptoAmberKeyReuseDesc =>
+      'Puede compartir de forma segura una clave secreta entre múltiples aplicaciones Nostr.';
+
+  @override
+  String get cryptoAmberHardwareWalletTitle =>
+      '💡 Similitud con Billeteras de Hardware';
+
+  @override
+  String get cryptoAmberHardwareWalletDesc =>
+      'Amber adopta la misma arquitectura de \"nunca exportar claves secretas\" que las billeteras de hardware de Bitcoin (Ledger, Trezor).';
+
+  @override
+  String get cryptoAmberReference => '🔗 Amber en GitHub';
+
+  @override
+  String get cryptoSecureStorageIntro =>
+      'La gestión de claves secretas de Meiso está completamente implementada en Rust. Rust es un lenguaje de programación de sistemas seguro con seguridad de memoria garantizada a nivel de lenguaje.';
+
+  @override
+  String get cryptoStorageWhyRustTitle => '¿Por qué Rust?';
+
+  @override
+  String get cryptoStorageMemorySafety => 'Seguridad de memoria';
+
+  @override
+  String get cryptoStorageMemorySafetyDesc =>
+      'Las vulnerabilidades relacionadas con la memoria, como desbordamiento de búfer, use-after-free y carreras de datos, son fundamentalmente imposibles.';
+
+  @override
+  String get cryptoStorageZeroCost => 'Abstracciones de costo cero';
+
+  @override
+  String get cryptoStorageZeroCostDesc =>
+      'Logra un rendimiento equivalente a C/C++ mientras escribe código de alto nivel.';
+
+  @override
+  String get cryptoStorageTypeSystem => 'Sistema de tipos fuerte';
+
+  @override
+  String get cryptoStorageTypeSystemDesc =>
+      'Los tipos Option y Result fuerzan el manejo de errores.';
+
+  @override
+  String get cryptoStorageImplTitle => 'Implementación de Almacenamiento';
+
+  @override
+  String get cryptoStorageImplDesc =>
+      'Meiso almacena claves secretas cifradas en el \"ApplicationSupportDirectory\" de Flutter. Este directorio está protegido por el sistema operativo del acceso de otras aplicaciones.';
+
+  @override
+  String get cryptoStoragePath =>
+      'Ruta de almacenamiento (Android):\n/data/data/com.example.meiso/files/encrypted_key.bin\n\nContenido del archivo:\n• Formato JSON\n• Campos: salt, nonce, ciphertext\n• Todo codificado en Base64';
+
+  @override
+  String get cryptoStorageMemorySecurityTitle => 'Seguridad de Memoria';
+
+  @override
+  String get cryptoStorageZeroize => 'Zeroize';
+
+  @override
+  String get cryptoStorageZeroizeDesc =>
+      'Borra de forma segura las claves secretas de la memoria después del uso.';
+
+  @override
+  String get cryptoStorageStackAllocation => 'Asignación de pila';
+
+  @override
+  String get cryptoStorageStackAllocationDesc =>
+      'Coloca las claves secretas en la pila en lugar del heap, minimizando la vida útil.';
+
+  @override
+  String get cryptoStorageMemoryDump => 'Contramedidas de volcado de memoria';
+
+  @override
+  String get cryptoStorageMemoryDumpDesc =>
+      'El código Rust está optimizado incluso en compilaciones de depuración, lo que hace que los datos sensibles tengan menos probabilidades de permanecer.';
+
+  @override
+  String get cryptoThreatModelIntro =>
+      'Meiso utiliza tecnologías criptográficas muy fuertes, pero la seguridad perfecta no existe. Por favor, comprenda las siguientes amenazas.';
+
+  @override
+  String get cryptoThreatWhatWeCanProtectTitle => 'Lo Que Podemos Proteger';
+
+  @override
+  String get cryptoThreatNetworkEavesdropping => 'Espionaje de red';
+
+  @override
+  String get cryptoThreatNetworkEavesdroppingDesc =>
+      'TLS + cifrado E2EE neutraliza el espionaje en rutas de comunicación.';
+
+  @override
+  String get cryptoThreatMaliciousRelay => 'Servidores relay maliciosos';
+
+  @override
+  String get cryptoThreatMaliciousRelayDesc =>
+      'Los relays solo pueden ver datos cifrados.';
+
+  @override
+  String get cryptoThreatBruteForce => 'Ataques de fuerza bruta';
+
+  @override
+  String get cryptoThreatBruteForceDesc =>
+      'Argon2id + AES-256 hace que el descifrado sea imposible en tiempo realista.';
+
+  @override
+  String get cryptoThreatWhatWeCannotProtectTitle =>
+      'Lo Que No Podemos Proteger';
+
+  @override
+  String get cryptoThreatWarningTitle =>
+      '⚠️ Las siguientes amenazas requieren atención';
+
+  @override
+  String get cryptoThreatWarningDesc =>
+      '• Robo físico del dispositivo + fuga de contraseña\n• Malware de registro de teclas o captura de pantalla\n• Dispositivos rooteados/Jailbreak\n• Vulnerabilidades del sistema operativo o firmware\n• Ataques de ingeniería social\n• Amenazas futuras de computadoras cuánticas (colapso de RSA/ECC)';
+
+  @override
+  String get cryptoThreatBestPracticesTitle => 'Mejores Prácticas';
+
+  @override
+  String get cryptoThreatStrongPassword => 'Contraseña fuerte';
+
+  @override
+  String get cryptoThreatStrongPasswordDesc =>
+      'Use una contraseña aleatoria de 20 caracteres o más.';
+
+  @override
+  String get cryptoThreatDeviceEncryption => 'Cifrado del dispositivo';
+
+  @override
+  String get cryptoThreatDeviceEncryptionDesc =>
+      'Habilite el cifrado de disco completo en Android/iOS.';
+
+  @override
+  String get cryptoThreatKeepOsUpdated =>
+      'Mantener el sistema operativo actualizado';
+
+  @override
+  String get cryptoThreatKeepOsUpdatedDesc =>
+      'Aplique parches de seguridad regularmente.';
+
+  @override
+  String get cryptoThreatRecommendAmber => 'Modo Amber recomendado';
+
+  @override
+  String get cryptoThreatRecommendAmberDesc =>
+      'Si se requiere mayor seguridad, use el modo Amber.';
+
+  @override
+  String get cryptoTableOfContents => '📖 Tabla de Contenidos';
 }
