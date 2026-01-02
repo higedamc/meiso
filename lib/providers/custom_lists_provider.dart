@@ -19,6 +19,9 @@ import '../features/mls/application/providers/usecase_providers.dart' as mls_use
 import '../features/mls/application/usecases/create_mls_group_usecase.dart';
 import '../features/mls/application/usecases/send_group_invitation_usecase.dart';
 import '../features/mls/application/usecases/sync_group_invitations_usecase.dart';
+// Issue #102: MLS Repository統合（グループ復元用）
+import '../features/mls/infrastructure/providers/repository_providers.dart' as mls_repo;
+import '../core/common/failure.dart';
 // Rust FFI
 import '../bridge_generated.dart/api.dart' as rust_api;
 
@@ -107,6 +110,15 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           await syncGroupInvitations();
         } catch (e) {
           AppLogger.warning('📥 [GroupInvitations] Initial sync failed: $e');
+        }
+        
+        // Issue #102 (MLS Zombie Lists): 承認済みMLSグループの復元
+        // アプリ再インストール後、MLSローカルステートが消失するため、
+        // Welcome Messageを再処理してグループに再参加する
+        try {
+          await _restoreMlsGroupStates();
+        } catch (e) {
+          AppLogger.warning('🔄 [MLSRestore] MLS group restoration failed: $e');
         }
       });
     } catch (e) {
@@ -1486,6 +1498,130 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           AppLogger.info('♻️  [CustomLists] List restored after unexpected error: ${targetList.name}');
         },
       );
+    }
+  }
+  
+  /// Issue #102 (MLS Zombie Lists): 承認済みMLSグループの復元
+  /// 
+  /// アプリ再インストール後、MLSローカルステート（openmls DB）が消失するため、
+  /// Welcome Messageを再処理してグループに再参加する。
+  /// 
+  /// 実行タイミング: アプリ起動時（_initialize内のFuture.microtaskから）
+  /// 
+  /// 動作:
+  /// 1. 承認済みMLSグループを検出（acceptedAt != null && isGroup == true && welcomeMsg != null）
+  /// 2. 各グループのWelcome Messageを再処理（mlsJoinGroup）
+  /// 3. エラーが発生した場合も、他のグループの復元を続行
+  /// 
+  /// Note: Oracleの要件より、リレーが同じであれば必ず復元できる必要がある。
+  /// Key Packageのハンドリングが失敗している場合は許容されるが、
+  /// 正常なケースでは100%復元できなければならない。
+  Future<void> _restoreMlsGroupStates() async {
+    try {
+      AppLogger.info('🔄 [MLSRestore] Starting MLS group state restoration...');
+      
+      // 1. 現在のリストを取得
+      final lists = state.valueOrNull;
+      if (lists == null || lists.isEmpty) {
+        AppLogger.debug('🔄 [MLSRestore] No lists found, skipping restoration');
+        return;
+      }
+      
+      // 2. 承認済みMLSグループを検出
+      final acceptedMlsGroups = lists.where((list) =>
+        list.isGroup &&
+        list.acceptedAt != null &&
+        list.welcomeMsg != null &&
+        list.welcomeMsg!.isNotEmpty
+      ).toList();
+      
+      if (acceptedMlsGroups.isEmpty) {
+        AppLogger.info('🔄 [MLSRestore] No accepted MLS groups found, skipping restoration');
+        return;
+      }
+      
+      AppLogger.info('🔄 [MLSRestore] Found ${acceptedMlsGroups.length} accepted MLS group(s) to restore');
+      
+      // 3. ユーザー公開鍵を取得
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        AppLogger.warning('🔄 [MLSRestore] User pubkey not available, cannot restore MLS groups');
+        return;
+      }
+      
+      // 4. MLS Repository経由でWelcome Messageを再処理
+      final mlsRepository = _ref.read(mls_repo.mlsGroupRepositoryProvider);
+      
+      var successCount = 0;
+      var skipCount = 0;
+      var errorCount = 0;
+      
+      for (final group in acceptedMlsGroups) {
+        try {
+          AppLogger.info('🔄 [MLSRestore] Restoring MLS group: "${group.name}" (ID: ${group.id})');
+          
+          // Welcome Message再処理（グループに再参加）
+          final result = await mlsRepository.acceptGroupInvitation(
+            publicKey: userPubkey,
+            groupId: group.id,
+            welcomeMessage: group.welcomeMsg!,
+          );
+          
+          await result.fold(
+            (Failure failure) async {
+              // エラーが発生した場合
+              // Note: "already exists"系のエラーは正常（既に復元済み）
+              final errorMsg = failure.message.toLowerCase();
+              if (errorMsg.contains('already') || 
+                  errorMsg.contains('exists') ||
+                  errorMsg.contains('duplicate')) {
+                AppLogger.info('✅ [MLSRestore] Group "${group.name}" already exists (previously restored)');
+                skipCount++;
+              } else {
+                AppLogger.error('❌ [MLSRestore] Failed to restore group "${group.name}": ${failure.message}');
+                errorCount++;
+              }
+            },
+            (_) async {
+              AppLogger.info('✅ [MLSRestore] Successfully restored MLS group: "${group.name}"');
+              successCount++;
+            },
+          );
+          
+        } catch (e, st) {
+          AppLogger.error(
+            '❌ [MLSRestore] Unexpected error restoring group "${group.name}": $e',
+            error: e,
+            stackTrace: st,
+          );
+          errorCount++;
+          // エラーが発生しても、次のグループの復元を続行
+        }
+      }
+      
+      // 5. 復元結果をログ出力
+      AppLogger.info('🎉 [MLSRestore] MLS group restoration completed:');
+      AppLogger.info('   - Total groups: ${acceptedMlsGroups.length}');
+      AppLogger.info('   - Successfully restored: $successCount');
+      AppLogger.info('   - Already existed (skipped): $skipCount');
+      AppLogger.info('   - Errors: $errorCount');
+      
+      if (errorCount > 0) {
+        AppLogger.warning('⚠️  [MLSRestore] Some groups could not be restored. This may indicate:');
+        AppLogger.warning('   1. Key Package handling issues (acceptable)');
+        AppLogger.warning('   2. Relay synchronization issues (acceptable)');
+        AppLogger.warning('   3. Corrupted Welcome Messages (needs investigation)');
+      }
+      
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [MLSRestore] Unexpected error during MLS group restoration: $e',
+        error: e,
+        stackTrace: st,
+      );
+      // 復元失敗してもアプリは継続（ユーザーは手動で再招待可能）
     }
   }
 }
