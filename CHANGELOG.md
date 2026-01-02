@@ -5,6 +5,38 @@ All notable changes to Meiso will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-01-02
+
+### Added
+- **Tor Connection Support (Issue #97)**
+  - Orbot mode: Connect to .onion relays via SOCKS5 proxy
+  - Proxy status indicator showing connection health
+  - Orbot installation guide with Play Store link
+  - Configurable proxy URL (default: `socks5://127.0.0.1:9050`)
+  - Internal (Embedded Tor) mode marked as "under development" for future implementation
+
+### Fixed
+- Updated Rust API to properly handle `TorMode` parameter
+- Enabled `tor` feature in `Cargo.toml` for future embedded Tor support
+
+### Changed
+- Settings UI now shows three Tor connection modes: Disabled, Internal (disabled), Orbot
+- Added `TorMode` enum to `AppSettings` model
+
+### Technical
+- Created `docs/TOR_DUAL_MODE_SUPPORT.md` documenting Tor implementation
+- Updated 16 files with 3,848 insertions
+
+### Tested
+- ✅ Orbot mode successfully connects to .onion relays
+- ✅ TODOs can be created and synced via Tor connection
+- ✅ Proxy connection status updates correctly
+
+### Notes
+- Internal Tor mode requires Guardian Project `tor-android` library integration (~20MB APK size increase)
+- Orbot must be installed and running for Orbot mode to work
+- See Amethyst repository for reference implementation
+
 ## [1.1.0] - 2025-01-01
 
 ### Added
