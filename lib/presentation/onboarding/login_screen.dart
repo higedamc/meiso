@@ -508,8 +508,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// 新しい秘密鍵を生成
   Future<void> _generateNewKey(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context);
-    
     try {
       // パスワード入力ダイアログ
       final passwordController = TextEditingController();

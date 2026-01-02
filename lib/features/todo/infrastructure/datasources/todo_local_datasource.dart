@@ -3,8 +3,6 @@ import '../../../../services/logger_service.dart';
 import '../../domain/entities/todo.dart';
 import '../../domain/value_objects/todo_title.dart';
 import '../../domain/value_objects/todo_date.dart';
-import '../../../../models/link_preview.dart';
-import '../../../../models/recurrence_pattern.dart';
 
 /// Todoローカルデータソースのインターフェース
 abstract class TodoLocalDataSource {
