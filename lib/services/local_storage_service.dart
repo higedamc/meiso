@@ -455,6 +455,7 @@ class LocalStorageService {
     }
     await _settingsBox!.put(_deletedTodoIdsKey, todoIds);
     AppLogger.info('🗑️ [Issue#101] Saved ${todoIds.length} deleted todo IDs to blacklist');
+    AppLogger.debug('📝 [Issue#101] First 3 IDs: ${todoIds.take(3).map((id) => id.substring(0, 16)).join(", ")}${todoIds.length > 3 ? "..." : ""}');
   }
   
   /// 削除済みタスクIDリストを取得
@@ -465,13 +466,17 @@ class LocalStorageService {
     
     final dynamic stored = _settingsBox!.get(_deletedTodoIdsKey);
     if (stored == null) {
+      AppLogger.debug('📂 [Issue#101] No deleted todo IDs found in storage (key not found)');
       return [];
     }
     
     if (stored is List) {
-      return stored.map((e) => e.toString()).toList();
+      final result = stored.map((e) => e.toString()).toList();
+      AppLogger.debug('📂 [Issue#101] Loaded ${result.length} deleted todo IDs from storage');
+      return result;
     }
     
+    AppLogger.warning('⚠️ [Issue#101] Unexpected type for deleted todo IDs: ${stored.runtimeType}');
     return [];
   }
   

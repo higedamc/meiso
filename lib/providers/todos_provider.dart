@@ -127,7 +127,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // Issue #101: 削除済みタスクIDを読み込み
       final deletedTodoIds = await localStorageService.loadDeletedTodoIds();
       _deletedTodoIds = deletedTodoIds.toSet();
-      AppLogger.info('💾 [Todos] Loaded ${_deletedTodoIds.length} deleted todo IDs from blacklist');
+      AppLogger.info('💾 [Issue#101] Loaded ${_deletedTodoIds.length} deleted todo IDs from blacklist');
+      if (_deletedTodoIds.isNotEmpty) {
+        AppLogger.info('📝 [Issue#101] Blacklisted IDs: ${_deletedTodoIds.take(5).map((id) => id.substring(0, 16)).join(", ")}${_deletedTodoIds.length > 5 ? "..." : ""}');
+      }
       
       // ローカルストレージから読み込み
       final localTodos = await localStorageService.loadTodos();
@@ -1289,14 +1292,19 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       final updatedTodos = Map<DateTime?, List<Todo>>.from(todos);
       final deletedTodoIds = <String>[]; // Issue #101: 削除したタスクのIDを記録
       
+      AppLogger.info('📊 [Issue#101] Current state has ${todos.keys.length} date groups');
+      
       for (final dateKey in updatedTodos.keys) {
         final dateList = List<Todo>.from(updatedTodos[dateKey] ?? []);
         final originalLength = dateList.length;
+        
+        AppLogger.debug('📋 [Issue#101] Checking date group: $dateKey (${dateList.length} todos)');
         
         // Issue #101: 削除前にタスクIDを記録
         for (final todo in dateList) {
           if (todo.customListId == listId) {
             deletedTodoIds.add(todo.id);
+            AppLogger.info('🎯 [Issue#101] Recording deleted todo ID: ${todo.id.substring(0, 16)}... (title: "${todo.title}", customListId: ${todo.customListId})');
           }
         }
         
@@ -1313,11 +1321,22 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
       // Issue #101: 削除したタスクのIDをLocalStorageに保存
       if (deletedTodoIds.isNotEmpty) {
-        AppLogger.info('💾 [Todos] Recording ${deletedTodoIds.length} deleted todo IDs to prevent resurrection');
+        AppLogger.info('💾 [Issue#101] Recording ${deletedTodoIds.length} deleted todo IDs to prevent resurrection');
+        AppLogger.info('📝 [Issue#101] Deleted todo IDs: ${deletedTodoIds.map((id) => id.substring(0, 16)).join(", ")}...');
+        
         final existingDeletedIds = await localStorageService.loadDeletedTodoIds();
+        AppLogger.info('📚 [Issue#101] Existing deleted IDs in storage: ${existingDeletedIds.length}');
+        
         final mergedDeletedIds = {...existingDeletedIds, ...deletedTodoIds}.toList();
         await localStorageService.saveDeletedTodoIds(mergedDeletedIds);
-        AppLogger.info('✅ [Todos] Saved deleted todo IDs (total: ${mergedDeletedIds.length})');
+        
+        AppLogger.info('✅ [Issue#101] Saved deleted todo IDs (total: ${mergedDeletedIds.length})');
+        
+        // メモリ上のブラックリストも更新
+        _deletedTodoIds.addAll(deletedTodoIds);
+        AppLogger.info('🧠 [Issue#101] Updated in-memory blacklist (total: ${_deletedTodoIds.length})');
+      } else {
+        AppLogger.warning('⚠️ [Issue#101] No todos found to delete for list: $listId');
       }
 
       state = AsyncValue.data(updatedTodos);
@@ -2516,9 +2535,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.info(' すべてのリスト復号化完了: 合計${allSyncedTodos.length}件のTodo');
           
           // Issue #101: 削除済みタスクIDでフィルタリング（リスト再作成時の復活防止）
+          AppLogger.info('🔍 [Issue#101] (Amber) Checking ${allSyncedTodos.length} synced todos against ${_deletedTodoIds.length} blacklisted IDs');
+          
           final allSyncedTodosFiltered = allSyncedTodos.where((todo) {
-            if (_deletedTodoIds.contains(todo.id)) {
-              AppLogger.debug('🚫 [Issue#101] Filtered out deleted todo: ${todo.id.substring(0, 8)}... (${todo.title})');
+            final isDeleted = _deletedTodoIds.contains(todo.id);
+            if (isDeleted) {
+              AppLogger.info('🚫 [Issue#101] (Amber) Filtered out deleted todo: ${todo.id.substring(0, 16)}... (title: "${todo.title}", customListId: ${todo.customListId})');
               return false;
             }
             return true;
@@ -2526,7 +2548,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           
           if (allSyncedTodosFiltered.length != allSyncedTodos.length) {
             final filtered = allSyncedTodos.length - allSyncedTodosFiltered.length;
-            AppLogger.info('🛡️ [Issue#101] Filtered $filtered resurrected todo(s) from deleted list (Amber mode)');
+            AppLogger.info('🛡️ [Issue#101] (Amber) Filtered $filtered resurrected todo(s) from deleted list');
+          } else {
+            AppLogger.info('✅ [Issue#101] (Amber) No resurrected todos detected (all ${allSyncedTodos.length} todos are valid)');
           }
           
           // allSyncedTodosをフィルタリング済みのものに置き換え
@@ -2631,9 +2655,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.debug(' ${syncedTodosRaw.length}件のTodoを取得しました');
           
           // Issue #101: 削除済みタスクIDでフィルタリング（リスト再作成時の復活防止）
+          AppLogger.info('🔍 [Issue#101] Checking ${syncedTodosRaw.length} synced todos against ${_deletedTodoIds.length} blacklisted IDs');
+          
           final syncedTodos = syncedTodosRaw.where((todo) {
-            if (_deletedTodoIds.contains(todo.id)) {
-              AppLogger.debug('🚫 [Issue#101] Filtered out deleted todo: ${todo.id.substring(0, 8)}... (${todo.title})');
+            final isDeleted = _deletedTodoIds.contains(todo.id);
+            if (isDeleted) {
+              AppLogger.info('🚫 [Issue#101] Filtered out deleted todo: ${todo.id.substring(0, 16)}... (title: "${todo.title}", customListId: ${todo.customListId})');
               return false;
             }
             return true;
@@ -2642,6 +2669,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           if (syncedTodos.length != syncedTodosRaw.length) {
             final filtered = syncedTodosRaw.length - syncedTodos.length;
             AppLogger.info('🛡️ [Issue#101] Filtered $filtered resurrected todo(s) from deleted list');
+          } else {
+            AppLogger.info('✅ [Issue#101] No resurrected todos detected (all ${syncedTodos.length} todos are valid)');
           }
           
           AppLogger.info(' [Sync] Todo同期完了');
