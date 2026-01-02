@@ -1345,7 +1345,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// 動作:
   /// 1. RustからeventIdを動的に取得
   /// 2. DeletePersonalListUseCaseでKind 5削除イベント送信
-  /// 3. エラー時はロールバック
+  /// 3. Issue #101: エラー時もロールバックしない（ローカル削除済み、タスクも削除済み）
   Future<void> _deletePersonalListFromNostr(
     CustomList targetList,
     List<CustomList> originalLists,
@@ -1385,28 +1385,21 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         isAmberMode: isAmberMode,
       ));
       
-      // 3. エラー時はロールバック
+      // 3. Issue #101: Nostr削除の成否に関わらず、削除済みイベントIDを記録
+      //    ロールバックは行わない（ローカル削除は既に成功、タスクも削除済み）
       await result.fold(
         (failure) async {
           AppLogger.error('❌ [CustomLists] Failed to delete from Nostr: ${failure.message}');
+          AppLogger.warning('⚠️  [CustomLists] Nostr deletion failed, but local deletion was successful');
+          AppLogger.info('ℹ️  [CustomLists] List will not be restored (tasks already deleted)');
           
-          // ローカルに復元
-          AppLogger.info('♻️  [CustomLists] Rolling back: restoring list to local storage');
-          final restoreResult = await _repository.saveCustomListToLocal(targetList);
-          
-          await restoreResult.fold(
-            (restoreFailure) {
-              AppLogger.error('❌ [CustomLists] Failed to restore list: ${restoreFailure.message}');
-            },
-            (_) {
-              // UI更新: リストを復元
-              final currentState = state.valueOrNull ?? [];
-              final restoredLists = [...currentState, targetList]
-                ..sort((a, b) => a.order.compareTo(b.order));
-              state = AsyncValue.data(restoredLists);
-              
-              AppLogger.info('✅ [CustomLists] List restored after Nostr deletion failure: ${targetList.name}');
-            },
+          // Issue #101: ロールバックしない代わりに、ブラックリストに追加して復活を防ぐ
+          // Nostr削除は失敗したが、ローカルでは削除済みとして扱う
+          _deletedEventIds.add(eventId);
+          final saveResult = await _repository.saveDeletedEventIds(_deletedEventIds);
+          saveResult.fold(
+            (saveFailure) => AppLogger.warning('⚠️  [CustomLists] Failed to save deleted event ID: ${saveFailure.message}'),
+            (_) => AppLogger.info('💾 [CustomLists] Added to blacklist despite Nostr failure (total: ${_deletedEventIds.length})'),
           );
         },
         (_) async {
@@ -1416,7 +1409,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           _deletedEventIds.add(eventId);
           final saveResult = await _repository.saveDeletedEventIds(_deletedEventIds);
           saveResult.fold(
-            (failure) => AppLogger.warning('⚠️ [CustomLists] Failed to save deleted event ID: ${failure.message}'),
+            (failure) => AppLogger.warning('⚠️  [CustomLists] Failed to save deleted event ID: ${failure.message}'),
             (_) => AppLogger.debug('💾 [CustomLists] Saved deleted event ID (total: ${_deletedEventIds.length})'),
           );
         },
