@@ -19,6 +19,9 @@ import '../features/mls/application/providers/usecase_providers.dart' as mls_use
 import '../features/mls/application/usecases/create_mls_group_usecase.dart';
 import '../features/mls/application/usecases/send_group_invitation_usecase.dart';
 import '../features/mls/application/usecases/sync_group_invitations_usecase.dart';
+// Issue #102: MLS Repository統合（グループ復元用）
+import '../features/mls/infrastructure/providers/repository_providers.dart' as mls_repo;
+import '../core/common/failure.dart';
 // Rust FFI
 import '../bridge_generated.dart/api.dart' as rust_api;
 
@@ -43,6 +46,10 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   
   /// Issue #80: 削除済みイベントIDのセット（kind 5で削除されたリスト）
   Set<String> _deletedEventIds = {};
+  
+  /// Issue #101: 削除済みリストIDの永久ブラックリスト（list_idベース）
+  /// 一度削除されたリストは二度と表示されない
+  Set<String> _deletedListIds = {};
 
   Future<void> _initialize() async {
     try {
@@ -56,6 +63,19 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         (deletedIds) {
           _deletedEventIds = deletedIds;
           AppLogger.info('🗑️ [CustomLists] Loaded ${_deletedEventIds.length} deleted event IDs');
+        },
+      );
+      
+      // Issue #101: 削除済みリストIDブラックリストを読み込み
+      final deletedListIdsResult = await _repository.loadDeletedListIds();
+      deletedListIdsResult.fold(
+        (failure) {
+          AppLogger.warning('🗑️ [CustomLists] [Issue#101] Failed to load deleted list IDs: ${failure.message}');
+          _deletedListIds = {};
+        },
+        (deletedListIds) {
+          _deletedListIds = deletedListIds;
+          AppLogger.info('🗑️ [CustomLists] [Issue#101] Loaded ${_deletedListIds.length} deleted list IDs from blacklist');
         },
       );
       
@@ -90,6 +110,15 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           await syncGroupInvitations();
         } catch (e) {
           AppLogger.warning('📥 [GroupInvitations] Initial sync failed: $e');
+        }
+        
+        // Issue #102 (MLS Zombie Lists): 承認済みMLSグループの復元
+        // アプリ再インストール後、MLSローカルステートが消失するため、
+        // Welcome Messageを再処理してグループに再参加する
+        try {
+          await _restoreMlsGroupStates();
+        } catch (e) {
+          AppLogger.warning('🔄 [MLSRestore] MLS group restoration failed: $e');
         }
       });
     } catch (e) {
@@ -179,6 +208,59 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       return;
     }
     
+    // Issue #101: 削除済みリストの再作成を許可
+    // ブラックリストに含まれている場合は削除して再作成可能にする
+    var removedFromBlacklists = false;
+    
+    if (_deletedListIds.contains(listId)) {
+      AppLogger.info('🔄 [CustomLists] Re-creating previously deleted list: "$normalizedName"');
+      _deletedListIds.remove(listId);
+      final saveResult = await _repository.saveDeletedListIds(_deletedListIds);
+      saveResult.fold(
+        (failure) => AppLogger.warning('⚠️  [CustomLists] Failed to remove from list ID blacklist: ${failure.message}'),
+        (_) {
+          AppLogger.info('✅ [CustomLists] Removed from list ID blacklist (remaining: ${_deletedListIds.length})');
+          removedFromBlacklists = true;
+        },
+      );
+    }
+    
+    // event_idブラックリストからも削除を試みる
+    // （古いevent_idがある場合、それも削除対象から外す）
+    if (_deletedEventIds.isNotEmpty) {
+      // Nostr上の古いevent_idを検索
+      final nostrService = _ref.read(nostrServiceProvider);
+      final publicKey = await nostrService.getPublicKey();
+      
+      if (publicKey != null) {
+        try {
+          final oldEventId = await rust_api.findPersonalListEventId(
+            listId: listId,
+            publicKeyHex: publicKey,
+          );
+          
+          if (oldEventId != null && _deletedEventIds.contains(oldEventId)) {
+            AppLogger.info('🔄 [CustomLists] Removing old event ID from blacklist: ${oldEventId.substring(0, 16)}...');
+            _deletedEventIds.remove(oldEventId);
+            final saveResult = await _repository.saveDeletedEventIds(_deletedEventIds);
+            saveResult.fold(
+              (failure) => AppLogger.warning('⚠️  [CustomLists] Failed to remove from event ID blacklist: ${failure.message}'),
+              (_) {
+                AppLogger.info('✅ [CustomLists] Removed from event ID blacklist (remaining: ${_deletedEventIds.length})');
+                removedFromBlacklists = true;
+              },
+            );
+          }
+        } catch (e) {
+          AppLogger.debug('ℹ️  [CustomLists] Could not find old event ID (this is OK for new list): $e');
+        }
+      }
+    }
+    
+    if (removedFromBlacklists) {
+      AppLogger.info('♻️  [CustomLists] List "$normalizedName" is now ready for re-creation');
+    }
+    
     final newList = CustomList(
       id: listId, // UUID v4の代わりに名前ベースのIDを使用
       name: normalizedName,
@@ -242,16 +324,33 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   Future<void> deleteList(String id) async {
     // 🔥 Phase 8.7: Bug #2修正 - state.whenData() → valueOrNull に変更
     // syncListsFromNostr() と並行実行される場合にレースコンディションが発生するため
-    final lists = state.valueOrNull;
-    if (lists == null) {
-      AppLogger.warning(' [CustomLists] CustomListsProvider state is null, cannot delete list.');
-      return;
+    
+    // Issue #101: state.valueOrNullがnullの場合、Repositoryから読み込む
+    List<CustomList> lists;
+    if (state.valueOrNull != null) {
+      lists = state.valueOrNull!;
+    } else {
+      AppLogger.warning('⚠️  [CustomLists] State is null, loading from repository...');
+      final result = await _repository.loadCustomListsFromLocal();
+      lists = result.fold(
+        (failure) {
+          AppLogger.error('❌ [CustomLists] Failed to load lists from repository: ${failure.message}');
+          return <CustomList>[];
+        },
+        (loadedLists) => loadedLists,
+      );
+      
+      if (lists.isEmpty) {
+        AppLogger.error('❌ [CustomLists] Cannot delete list: no lists available');
+        return;
+      }
     }
     
     // 削除対象リストを取得
     final targetIndex = lists.indexWhere((l) => l.id == id);
     if (targetIndex == -1) {
-      AppLogger.warning(' [CustomLists] List with id $id not found, cannot delete.');
+      AppLogger.warning('⚠️  [CustomLists] List with id $id not found in ${lists.length} lists');
+      AppLogger.debug('   Available list IDs: ${lists.map((l) => l.id).join(", ")}');
       return;
     }
     
@@ -275,6 +374,14 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       (_) async {
         // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
         _updateCustomListOrderInSettings(updatedLists);
+        
+        // Issue #101: 削除済みリストIDを永久ブラックリストに追加
+        _deletedListIds.add(id);
+        final saveBlacklistResult = await _repository.saveDeletedListIds(_deletedListIds);
+        saveBlacklistResult.fold(
+          (failure) => AppLogger.warning('⚠️  [CustomLists] [Issue#101] Failed to save deleted list ID to blacklist: ${failure.message}'),
+          (_) => AppLogger.info('🗑️  [CustomLists] [Issue#101] Added list ID to blacklist: $id (total: ${_deletedListIds.length})'),
+        );
         
         // 2. Personal Listの場合、バックグラウンドでNostr削除（Phase E.6）
         if (!targetList.isGroup) {
@@ -359,6 +466,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// 
   /// Kind 30001イベントのd tag（meiso-list-xxx）とtitle tagから
   /// カスタムリスト名のリストを抽出する
+  /// Issue #101: 削除済みイベントIDでフィルタリング
   Future<List<String>> fetchCustomListNamesFromNostr() async {
     try {
       // ✅ 復帰/起動直後の体感改善: 短時間での連続取得を間引く
@@ -379,7 +487,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       AppLogger.info('📋 [CustomLists] Fetching custom list names from Nostr...');
 
       // Phase C.3.2.2: Repository経由でリスト名を取得
-      final result = await _repository.fetchCustomListNamesFromNostr(publicKey: userPubkey);
+      // Issue #101: 削除済みイベントIDと削除済みリストIDを渡してフィルタリング
+      final result = await _repository.fetchCustomListNamesFromNostr(
+        publicKey: userPubkey,
+        deletedEventIds: _deletedEventIds,
+        deletedListIds: _deletedListIds,
+      );
 
       return await result.fold(
         (failure) async {
@@ -442,14 +555,17 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   }
   
   /// 削除済みイベントIDをチェックして、リストをフィルタリング
+  /// Issue #101: 削除済みリストIDブラックリストも使用
   Future<List<CustomList>> _filterDeletedLists(List<CustomList> lists) async {
-    if (_deletedEventIds.isEmpty) {
+    if (_deletedEventIds.isEmpty && _deletedListIds.isEmpty) {
       return lists;
     }
     
     // 🔥 Phase 8.7: Bug #2修正 - eventIdで削除済みリストを正しくフィルタリング
     // Kind 5削除イベントの e タグには Nostr イベントID が含まれる
     // list.id (名前ベースID) ではなく list.eventId (NostrイベントID) で比較する必要がある
+    
+    // Issue #101: list_idベースのブラックリストも追加（最優先）
     
     // eventIdがない場合、Rustから検索して設定する
     final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
@@ -464,7 +580,11 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       
       var isDeleted = false;
       
-      if (list.eventId != null) {
+      // Issue #101: 最優先 - list_idベースのブラックリストをチェック
+      if (_deletedListIds.contains(list.id)) {
+        isDeleted = true;
+        AppLogger.debug('🗑️ [CustomLists] [Issue#101] Filtering deleted list (in blacklist): "${list.name}" (ID: ${list.id})');
+      } else if (list.eventId != null) {
         // eventIdがある場合は、直接チェック
         isDeleted = _deletedEventIds.contains(list.eventId);
       } else if (publicKey != null) {
@@ -549,6 +669,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       final listId = CustomListHelpers.generateIdFromName(listName);
       AppLogger.debug(' [CustomLists] Processing Nostr list: "$listName" → ID: "$listId"');
       
+      // Issue #101: 削除済みリストIDブラックリストをチェック
+      if (_deletedListIds.contains(listId)) {
+        AppLogger.info('🗑️  [CustomLists] [Issue#101] Skipping deleted list (in blacklist): "$listName" (ID: $listId)');
+        continue;
+      }
+      
       // すでに存在するか確認（IDで）
       final exists = updatedLists.any((list) => list.id == listId);
       
@@ -574,6 +700,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     
     // Issue #80: 削除済みリストをフィルタリング
     final filteredLists = await _filterDeletedLists(updatedLists);
+    
+    // Issue #101: フィルタリングでリストが削除された場合、hasChangesをtrueにする
+    if (filteredLists.length < updatedLists.length) {
+      hasChanges = true;
+      AppLogger.info(' [CustomLists] 🗑️  ${updatedLists.length - filteredLists.length} deleted lists filtered, setting hasChanges=true');
+    }
     
     // 変更があった場合、または stateの更新が必要な場合
     if (hasChanges || needsStateUpdate) {
@@ -653,12 +785,13 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
               // 新しい招待として追加
               AppLogger.info('📨 [GroupInvitations] New invitation: ${invitation.groupName} from ${invitation.inviterPubkey.substring(0, 16)}...');
               
+              // Phase 1: リレーのcreated_atを使用（冪等性確保）
               final newList = CustomList(
                 id: invitation.groupId,
                 name: invitation.groupName.toUpperCase(),
                 order: _getNextOrder(updatedLists),
-                createdAt: DateTime.now(),
-                updatedAt: DateTime.now(),
+                createdAt: invitation.createdAt,  // ✅ リレーのタイムスタンプ
+                updatedAt: invitation.createdAt,  // ✅ リレーのタイムスタンプ
                 isGroup: true,
                 isPendingInvitation: true,
                 inviterNpub: invitation.inviterPubkey, // hex形式（npub変換は後で必要に応じて）
@@ -670,34 +803,36 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
               updatedLists.add(newList);
               hasChanges = true;
             } else {
-              // 既存のリストを更新（招待情報を追加）
+              // Phase 1: 既存のリストを更新（リレーの最新情報でマージ）
               final existingList = updatedLists[existingIndex];
               
-              // 🔥 Phase 8.7: Bug #1修正 - 承諾済み（acceptedAt != null）は絶対に上書きしない
-              if (existingList.acceptedAt != null) {
-                AppLogger.info('ℹ️ [GroupInvitations] Skipping already accepted invitation: ${invitation.groupName}');
-                continue; // 承諾済みリストは更新しない
-              }
+              AppLogger.debug('🔄 [GroupInvitations] Merging invitation for existing list: ${invitation.groupName}');
+              AppLogger.debug('   Existing acceptedAt: ${existingList.acceptedAt}');
+              AppLogger.debug('   Existing isPendingInvitation: ${existingList.isPendingInvitation}');
+              AppLogger.debug('   Relay createdAt: ${invitation.createdAt}');
               
-              // ✅ 受諾済み（isPendingInvitation=false）に戻すことは絶対にしない
-              // Nostr上の招待イベントが残っていても、ローカルの受諾状態を優先する。
-              if (existingList.isPendingInvitation) {
-                AppLogger.info('📨 [GroupInvitations] Refreshing existing pending invitation: ${invitation.groupName}');
-                updatedLists[existingIndex] = existingList.copyWith(
-                  isGroup: true,
-                  inviterNpub: invitation.inviterPubkey,
-                  inviterName: invitation.inviterName,
-                  welcomeMsg: invitation.welcomeMessage,
-                );
-                hasChanges = true;
-              } else {
-                // 念のため isGroup=true を矯正（過去データ互換）
-                if (!existingList.isGroup) {
-                  updatedLists[existingIndex] = existingList.copyWith(isGroup: true);
-                  hasChanges = true;
-                }
-                AppLogger.debug('ℹ️ [GroupInvitations] Ignore invitation for accepted group: ${invitation.groupName}');
-              }
+              // Phase 1: リレーの情報で更新（acceptedAtは維持）
+              // - createdAt: リレーの時刻で統一（後方互換性のため）
+              // - updatedAt: リレーの最新時刻
+              // - welcomeMsg: 最新のWelcome Message（Key Package更新対応）
+              // - acceptedAt: 維持（承諾状態を保持）
+              // - isPendingInvitation: acceptedAtの有無で判定
+              updatedLists[existingIndex] = existingList.copyWith(
+                name: invitation.groupName.toUpperCase(),  // グループ名が変わっているかも
+                createdAt: invitation.createdAt,  // ✅ リレーの時刻で統一
+                updatedAt: invitation.createdAt,  // ✅ 最新の更新時刻
+                isGroup: true,
+                inviterNpub: invitation.inviterPubkey,
+                inviterName: invitation.inviterName,
+                welcomeMsg: invitation.welcomeMessage,  // ✅ 最新のWelcome Message
+                // ⚠️ acceptedAt は copyWith で渡さないため維持される
+                // ⚠️ isPendingInvitation も copyWith で渡さないため維持される
+              );
+              hasChanges = true;
+              
+              AppLogger.info('✅ [GroupInvitations] Updated list from relay: ${invitation.groupName}');
+              AppLogger.debug('   acceptedAt preserved: ${updatedLists[existingIndex].acceptedAt}');
+              AppLogger.debug('   isPendingInvitation preserved: ${updatedLists[existingIndex].isPendingInvitation}');
             }
           }
 
@@ -1278,7 +1413,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// 動作:
   /// 1. RustからeventIdを動的に取得
   /// 2. DeletePersonalListUseCaseでKind 5削除イベント送信
-  /// 3. エラー時はロールバック
+  /// 3. Issue #101: エラー時もロールバックしない（ローカル削除済み、タスクも削除済み）
   Future<void> _deletePersonalListFromNostr(
     CustomList targetList,
     List<CustomList> originalLists,
@@ -1318,28 +1453,21 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         isAmberMode: isAmberMode,
       ));
       
-      // 3. エラー時はロールバック
+      // 3. Issue #101: Nostr削除の成否に関わらず、削除済みイベントIDを記録
+      //    ロールバックは行わない（ローカル削除は既に成功、タスクも削除済み）
       await result.fold(
         (failure) async {
           AppLogger.error('❌ [CustomLists] Failed to delete from Nostr: ${failure.message}');
+          AppLogger.warning('⚠️  [CustomLists] Nostr deletion failed, but local deletion was successful');
+          AppLogger.info('ℹ️  [CustomLists] List will not be restored (tasks already deleted)');
           
-          // ローカルに復元
-          AppLogger.info('♻️  [CustomLists] Rolling back: restoring list to local storage');
-          final restoreResult = await _repository.saveCustomListToLocal(targetList);
-          
-          await restoreResult.fold(
-            (restoreFailure) {
-              AppLogger.error('❌ [CustomLists] Failed to restore list: ${restoreFailure.message}');
-            },
-            (_) {
-              // UI更新: リストを復元
-              final currentState = state.valueOrNull ?? [];
-              final restoredLists = [...currentState, targetList]
-                ..sort((a, b) => a.order.compareTo(b.order));
-              state = AsyncValue.data(restoredLists);
-              
-              AppLogger.info('✅ [CustomLists] List restored after Nostr deletion failure: ${targetList.name}');
-            },
+          // Issue #101: ロールバックしない代わりに、ブラックリストに追加して復活を防ぐ
+          // Nostr削除は失敗したが、ローカルでは削除済みとして扱う
+          _deletedEventIds.add(eventId);
+          final saveResult = await _repository.saveDeletedEventIds(_deletedEventIds);
+          saveResult.fold(
+            (saveFailure) => AppLogger.warning('⚠️  [CustomLists] Failed to save deleted event ID: ${saveFailure.message}'),
+            (_) => AppLogger.info('💾 [CustomLists] Added to blacklist despite Nostr failure (total: ${_deletedEventIds.length})'),
           );
         },
         (_) async {
@@ -1349,7 +1477,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           _deletedEventIds.add(eventId);
           final saveResult = await _repository.saveDeletedEventIds(_deletedEventIds);
           saveResult.fold(
-            (failure) => AppLogger.warning('⚠️ [CustomLists] Failed to save deleted event ID: ${failure.message}'),
+            (failure) => AppLogger.warning('⚠️  [CustomLists] Failed to save deleted event ID: ${failure.message}'),
             (_) => AppLogger.debug('💾 [CustomLists] Saved deleted event ID (total: ${_deletedEventIds.length})'),
           );
         },
@@ -1373,6 +1501,138 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           AppLogger.info('♻️  [CustomLists] List restored after unexpected error: ${targetList.name}');
         },
       );
+    }
+  }
+  
+  /// Issue #102 (MLS Zombie Lists): 承認済みMLSグループの復元
+  /// 
+  /// アプリ再インストール後、MLSローカルステート（openmls DB）が消失するため、
+  /// Welcome Messageを再処理してグループに再参加する。
+  /// 
+  /// 実行タイミング: アプリ起動時（_initialize内のFuture.microtaskから）
+  /// 
+  /// 動作:
+  /// 1. 承認済みMLSグループを検出（acceptedAt != null && isGroup == true && welcomeMsg != null）
+  /// 2. 各グループのWelcome Messageを再処理（mlsJoinGroup）
+  /// 3. エラーが発生した場合も、他のグループの復元を続行
+  /// 
+  /// ⚠️ 既知の問題 (2026-01-02):
+  /// アプリ再インストール時に新しいKey Packageが生成されるため、
+  /// 古いKey Packageで作成されたWelcome Messageは復号化できない。
+  /// このため、現状この自動復元機能は動作しない。
+  /// 
+  /// 対策として、ユーザーは「辞退」ボタンで不要な招待を削除できる。
+  /// 将来的な解決策: Key Packageの永続化、またはグループ管理者による再招待フロー。
+  /// 
+  /// Note: Oracleの要件より、リレーが同じであれば必ず復元できる必要がある。
+  /// Key Packageのハンドリングが失敗している場合は許容されるが、
+  /// 正常なケースでは100%復元できなければならない。
+  Future<void> _restoreMlsGroupStates() async {
+    try {
+      AppLogger.info('🔄 [MLSRestore] Starting MLS group state restoration...');
+      
+      // 1. 現在のリストを取得
+      final lists = state.valueOrNull;
+      if (lists == null || lists.isEmpty) {
+        AppLogger.debug('🔄 [MLSRestore] No lists found, skipping restoration');
+        return;
+      }
+      
+      // 2. 承認済みMLSグループを検出
+      final acceptedMlsGroups = lists.where((list) =>
+        list.isGroup &&
+        list.acceptedAt != null &&
+        list.welcomeMsg != null &&
+        list.welcomeMsg!.isNotEmpty
+      ).toList();
+      
+      if (acceptedMlsGroups.isEmpty) {
+        AppLogger.info('🔄 [MLSRestore] No accepted MLS groups found, skipping restoration');
+        return;
+      }
+      
+      AppLogger.info('🔄 [MLSRestore] Found ${acceptedMlsGroups.length} accepted MLS group(s) to restore');
+      
+      // 3. ユーザー公開鍵を取得
+      final nostrService = _ref.read(nostrServiceProvider);
+      final userPubkey = await nostrService.getPublicKey();
+      
+      if (userPubkey == null) {
+        AppLogger.warning('🔄 [MLSRestore] User pubkey not available, cannot restore MLS groups');
+        return;
+      }
+      
+      // 4. MLS Repository経由でWelcome Messageを再処理
+      final mlsRepository = _ref.read(mls_repo.mlsGroupRepositoryProvider);
+      
+      var successCount = 0;
+      var skipCount = 0;
+      var errorCount = 0;
+      
+      for (final group in acceptedMlsGroups) {
+        try {
+          AppLogger.info('🔄 [MLSRestore] Restoring MLS group: "${group.name}" (ID: ${group.id})');
+          
+          // Welcome Message再処理（グループに再参加）
+          final result = await mlsRepository.acceptGroupInvitation(
+            publicKey: userPubkey,
+            groupId: group.id,
+            welcomeMessage: group.welcomeMsg!,
+          );
+          
+          await result.fold(
+            (Failure failure) async {
+              // エラーが発生した場合
+              // Note: "already exists"系のエラーは正常（既に復元済み）
+              final errorMsg = failure.message.toLowerCase();
+              if (errorMsg.contains('already') || 
+                  errorMsg.contains('exists') ||
+                  errorMsg.contains('duplicate')) {
+                AppLogger.info('✅ [MLSRestore] Group "${group.name}" already exists (previously restored)');
+                skipCount++;
+              } else {
+                AppLogger.error('❌ [MLSRestore] Failed to restore group "${group.name}": ${failure.message}');
+                errorCount++;
+              }
+            },
+            (_) async {
+              AppLogger.info('✅ [MLSRestore] Successfully restored MLS group: "${group.name}"');
+              successCount++;
+            },
+          );
+          
+        } catch (e, st) {
+          AppLogger.error(
+            '❌ [MLSRestore] Unexpected error restoring group "${group.name}": $e',
+            error: e,
+            stackTrace: st,
+          );
+          errorCount++;
+          // エラーが発生しても、次のグループの復元を続行
+        }
+      }
+      
+      // 5. 復元結果をログ出力
+      AppLogger.info('🎉 [MLSRestore] MLS group restoration completed:');
+      AppLogger.info('   - Total groups: ${acceptedMlsGroups.length}');
+      AppLogger.info('   - Successfully restored: $successCount');
+      AppLogger.info('   - Already existed (skipped): $skipCount');
+      AppLogger.info('   - Errors: $errorCount');
+      
+      if (errorCount > 0) {
+        AppLogger.warning('⚠️  [MLSRestore] Some groups could not be restored. This may indicate:');
+        AppLogger.warning('   1. Key Package handling issues (acceptable)');
+        AppLogger.warning('   2. Relay synchronization issues (acceptable)');
+        AppLogger.warning('   3. Corrupted Welcome Messages (needs investigation)');
+      }
+      
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [MLSRestore] Unexpected error during MLS group restoration: $e',
+        error: e,
+        stackTrace: st,
+      );
+      // 復元失敗してもアプリは継続（ユーザーは手動で再招待可能）
     }
   }
 }

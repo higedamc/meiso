@@ -8,6 +8,7 @@ import '../providers/todos_provider.dart';
 import '../providers/app_settings_provider.dart';
 import '../presentation/list_detail/list_detail_screen.dart';
 import '../presentation/planning_detail/planning_detail_screen.dart';
+import '../services/logger_service.dart';
 import 'add_list_screen.dart';
 
 /// 展開可能なカスタムリストモーダル（画面全体）
@@ -427,13 +428,30 @@ class ExpandableCustomListModal extends ConsumerWidget {
     );
     
     if (confirmed == true) {
-      // リストを削除
-      await ref.read(customListsProvider.notifier).deleteList(list.id);
+      // Issue #101: 削除処理の順序を修正
+      AppLogger.info('🗑️ [UI] Starting list deletion: "${list.name}" (ID: ${list.id})');
       
-      // TODO削除も実行（Phase E.5.1で実装予定）
-      // そのリストに属する全てのTODOも削除する
+      // 1. まずタスクを削除（失敗してもリストは残るのでやり直せる）
+      AppLogger.info('🗑️ [UI] Step 1: Deleting tasks in list...');
       final todosNotifier = ref.read(todosProvider.notifier);
       await todosNotifier.deleteAllTodosInList(list.id);
+      AppLogger.info('✅ [UI] Step 1: Tasks deleted');
+      
+      // 2. 次にリストを削除（タスク削除が成功してから）
+      AppLogger.info('🗑️ [UI] Step 2: Deleting list itself...');
+      await ref.read(customListsProvider.notifier).deleteList(list.id);
+      AppLogger.info('✅ [UI] Step 2: List deletion request completed');
+      
+      // 3. 現在の状態を確認
+      final currentLists = ref.read(customListsProvider).valueOrNull ?? [];
+      AppLogger.info('📋 [UI] Current lists after deletion: ${currentLists.length} lists');
+      AppLogger.info('📋 [UI] List IDs: ${currentLists.map((l) => l.id).join(", ")}');
+      final stillExists = currentLists.any((l) => l.id == list.id);
+      if (stillExists) {
+        AppLogger.error('❌ [UI] BUG: List "${list.name}" still exists in state after deletion!');
+      } else {
+        AppLogger.info('✅ [UI] List "${list.name}" successfully removed from state');
+      }
     }
   }
 

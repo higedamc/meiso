@@ -35,8 +35,12 @@ mixin _$GroupInvitation {
   /// 招待者の名前（任意）
   String? get inviterName => throw _privateConstructorUsedError;
 
-  /// 招待を受信した日時
-  DateTime get receivedAt => throw _privateConstructorUsedError;
+  /// 招待イベントの作成日時（Nostr created_at）
+  ///
+  /// Nostrリレーに記録されたイベントの作成時刻。
+  /// ローカル時刻ではなく、リレー上のタイムスタンプを使用することで
+  /// 冪等性を確保し、複数デバイス間での整合性を保つ。
+  DateTime get createdAt => throw _privateConstructorUsedError;
 
   /// ペンディング状態
   ///
@@ -67,7 +71,7 @@ abstract class $GroupInvitationCopyWith<$Res> {
     String welcomeMessage,
     String inviterPubkey,
     String? inviterName,
-    DateTime receivedAt,
+    DateTime createdAt,
     bool isPending,
     DateTime? acceptedAt,
   });
@@ -93,7 +97,7 @@ class _$GroupInvitationCopyWithImpl<$Res, $Val extends GroupInvitation>
     Object? welcomeMessage = null,
     Object? inviterPubkey = null,
     Object? inviterName = freezed,
-    Object? receivedAt = null,
+    Object? createdAt = null,
     Object? isPending = null,
     Object? acceptedAt = freezed,
   }) {
@@ -119,9 +123,9 @@ class _$GroupInvitationCopyWithImpl<$Res, $Val extends GroupInvitation>
                 ? _value.inviterName
                 : inviterName // ignore: cast_nullable_to_non_nullable
                       as String?,
-            receivedAt: null == receivedAt
-                ? _value.receivedAt
-                : receivedAt // ignore: cast_nullable_to_non_nullable
+            createdAt: null == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
             isPending: null == isPending
                 ? _value.isPending
@@ -152,7 +156,7 @@ abstract class _$$GroupInvitationImplCopyWith<$Res>
     String welcomeMessage,
     String inviterPubkey,
     String? inviterName,
-    DateTime receivedAt,
+    DateTime createdAt,
     bool isPending,
     DateTime? acceptedAt,
   });
@@ -177,7 +181,7 @@ class __$$GroupInvitationImplCopyWithImpl<$Res>
     Object? welcomeMessage = null,
     Object? inviterPubkey = null,
     Object? inviterName = freezed,
-    Object? receivedAt = null,
+    Object? createdAt = null,
     Object? isPending = null,
     Object? acceptedAt = freezed,
   }) {
@@ -203,9 +207,9 @@ class __$$GroupInvitationImplCopyWithImpl<$Res>
             ? _value.inviterName
             : inviterName // ignore: cast_nullable_to_non_nullable
                   as String?,
-        receivedAt: null == receivedAt
-            ? _value.receivedAt
-            : receivedAt // ignore: cast_nullable_to_non_nullable
+        createdAt: null == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
         isPending: null == isPending
             ? _value.isPending
@@ -229,7 +233,7 @@ class _$GroupInvitationImpl extends _GroupInvitation {
     required this.welcomeMessage,
     required this.inviterPubkey,
     this.inviterName,
-    required this.receivedAt,
+    required this.createdAt,
     required this.isPending,
     this.acceptedAt,
   }) : super._();
@@ -257,9 +261,13 @@ class _$GroupInvitationImpl extends _GroupInvitation {
   @override
   final String? inviterName;
 
-  /// 招待を受信した日時
+  /// 招待イベントの作成日時（Nostr created_at）
+  ///
+  /// Nostrリレーに記録されたイベントの作成時刻。
+  /// ローカル時刻ではなく、リレー上のタイムスタンプを使用することで
+  /// 冪等性を確保し、複数デバイス間での整合性を保つ。
   @override
-  final DateTime receivedAt;
+  final DateTime createdAt;
 
   /// ペンディング状態
   ///
@@ -274,7 +282,7 @@ class _$GroupInvitationImpl extends _GroupInvitation {
 
   @override
   String toString() {
-    return 'GroupInvitation(groupId: $groupId, groupName: $groupName, welcomeMessage: $welcomeMessage, inviterPubkey: $inviterPubkey, inviterName: $inviterName, receivedAt: $receivedAt, isPending: $isPending, acceptedAt: $acceptedAt)';
+    return 'GroupInvitation(groupId: $groupId, groupName: $groupName, welcomeMessage: $welcomeMessage, inviterPubkey: $inviterPubkey, inviterName: $inviterName, createdAt: $createdAt, isPending: $isPending, acceptedAt: $acceptedAt)';
   }
 
   @override
@@ -291,8 +299,8 @@ class _$GroupInvitationImpl extends _GroupInvitation {
                 other.inviterPubkey == inviterPubkey) &&
             (identical(other.inviterName, inviterName) ||
                 other.inviterName == inviterName) &&
-            (identical(other.receivedAt, receivedAt) ||
-                other.receivedAt == receivedAt) &&
+            (identical(other.createdAt, createdAt) ||
+                other.createdAt == createdAt) &&
             (identical(other.isPending, isPending) ||
                 other.isPending == isPending) &&
             (identical(other.acceptedAt, acceptedAt) ||
@@ -307,7 +315,7 @@ class _$GroupInvitationImpl extends _GroupInvitation {
     welcomeMessage,
     inviterPubkey,
     inviterName,
-    receivedAt,
+    createdAt,
     isPending,
     acceptedAt,
   );
@@ -331,7 +339,7 @@ abstract class _GroupInvitation extends GroupInvitation {
     required final String welcomeMessage,
     required final String inviterPubkey,
     final String? inviterName,
-    required final DateTime receivedAt,
+    required final DateTime createdAt,
     required final bool isPending,
     final DateTime? acceptedAt,
   }) = _$GroupInvitationImpl;
@@ -360,9 +368,13 @@ abstract class _GroupInvitation extends GroupInvitation {
   @override
   String? get inviterName;
 
-  /// 招待を受信した日時
+  /// 招待イベントの作成日時（Nostr created_at）
+  ///
+  /// Nostrリレーに記録されたイベントの作成時刻。
+  /// ローカル時刻ではなく、リレー上のタイムスタンプを使用することで
+  /// 冪等性を確保し、複数デバイス間での整合性を保つ。
   @override
-  DateTime get receivedAt;
+  DateTime get createdAt;
 
   /// ペンディング状態
   ///

@@ -695,12 +695,30 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     );
     
     if (confirmed == true) {
-      // リストを削除
-      await ref.read(customListsProvider.notifier).deleteList(list.id);
+      // Issue #101: 削除処理の順序を修正
+      AppLogger.info('🗑️ [Someday UI] Starting list deletion: "${list.name}" (ID: ${list.id})');
       
-      // そのリストに属する全てのTODOも削除
+      // 1. まずタスクを削除（失敗してもリストは残るのでやり直せる）
+      AppLogger.info('🗑️ [Someday UI] Step 1: Deleting tasks in list...');
       final todosNotifier = ref.read(todosProvider.notifier);
       await todosNotifier.deleteAllTodosInList(list.id);
+      AppLogger.info('✅ [Someday UI] Step 1: Tasks deleted');
+      
+      // 2. 次にリストを削除（タスク削除が成功してから）
+      AppLogger.info('🗑️ [Someday UI] Step 2: Deleting list itself...');
+      await ref.read(customListsProvider.notifier).deleteList(list.id);
+      AppLogger.info('✅ [Someday UI] Step 2: List deletion request completed');
+      
+      // 3. 現在の状態を確認
+      final currentLists = ref.read(customListsProvider).valueOrNull ?? [];
+      AppLogger.info('📋 [Someday UI] Current lists after deletion: ${currentLists.length} lists');
+      AppLogger.info('📋 [Someday UI] List IDs: ${currentLists.map((l) => l.id).join(", ")}');
+      final stillExists = currentLists.any((l) => l.id == list.id);
+      if (stillExists) {
+        AppLogger.error('❌ [Someday UI] BUG: List "${list.name}" still exists in state after deletion!');
+      } else {
+        AppLogger.info('✅ [Someday UI] List "${list.name}" successfully removed from state');
+      }
     }
   }
 
@@ -838,11 +856,42 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () async {
+                // Issue #102: 辞退ボタン - 招待を辞退してリストを削除
+                Navigator.pop(context);
+                
+                // リストを削除
+                try {
+                  await ref.read(customListsProvider.notifier).deleteList(list.id);
+                  
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('「${list.name}」への招待を辞退しました'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                  
+                  AppLogger.info('✅ [GroupInvitation] Declined invitation for: ${list.name}');
+                } catch (e) {
+                  AppLogger.error('❌ [GroupInvitation] Failed to decline invitation: $e');
+                  
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('辞退処理に失敗しました: $e'),
+                        duration: const Duration(seconds: 3),
+                        backgroundColor: Colors.red.shade700,
+                      ),
+                    );
+                  }
+                }
+              },
               child: Text(
-                'キャンセル',
+                '辞退',
                 style: TextStyle(
-                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                  color: Colors.red.shade400,
                 ),
               ),
             ),
@@ -991,13 +1040,107 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
         AppLogger.debug('✅ [GroupInvitation] Loading dialog closed (error case)');
       }
       
+      // Phase 2.5B: NoMatchingKeyPackageエラーの特別処理
+      final errorMessage = e.toString();
+      final isKeyPackageError = errorMessage.contains('NoMatchingKeyPackage');
+      
       // エラーメッセージ
       if (context.mounted) {
         showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('エラー'),
-            content: Text('招待の受諾に失敗しました\n\n$e'),
+            title: Row(
+              children: [
+                Icon(
+                  isKeyPackageError ? Icons.key_off : Icons.error,
+                  color: isKeyPackageError ? Colors.orange : Colors.red,
+                ),
+                const SizedBox(width: 8),
+                const Text('エラー'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isKeyPackageError) ...[
+                  // Phase 2.5B: Key Packageエラーの詳細説明
+                  const Text(
+                    'Key Packageが変更されたため、グループに参加できません。',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.backup_outlined, size: 16, color: Colors.blue),
+                            SizedBox(width: 4),
+                            Text(
+                              'バックアップがある場合',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Settings > Advanced > MLSグループバックアップ\n'
+                          'からインポートしてください。',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info, size: 16, color: Colors.orange),
+                            SizedBox(width: 4),
+                            Text(
+                              'バックアップがない場合',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'グループ管理者に再度招待をリクエストしてください。',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else
+                  Text('招待の受諾に失敗しました\n\n$e'),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),

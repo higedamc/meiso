@@ -28,8 +28,12 @@ class GroupInvitation with _$GroupInvitation {
     /// 招待者の名前（任意）
     String? inviterName,
     
-    /// 招待を受信した日時
-    required DateTime receivedAt,
+    /// 招待イベントの作成日時（Nostr created_at）
+    /// 
+    /// Nostrリレーに記録されたイベントの作成時刻。
+    /// ローカル時刻ではなく、リレー上のタイムスタンプを使用することで
+    /// 冪等性を確保し、複数デバイス間での整合性を保つ。
+    required DateTime createdAt,
     
     /// ペンディング状態
     /// 
@@ -47,7 +51,7 @@ class GroupInvitation with _$GroupInvitation {
   /// 
   /// Welcome Messageは7日間有効（MLS Protocol推奨）
   bool isExpired() {
-    final elapsed = DateTime.now().difference(receivedAt);
+    final elapsed = DateTime.now().difference(createdAt);
     return elapsed.inDays >= 7;
   }
   

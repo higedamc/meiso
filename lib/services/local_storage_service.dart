@@ -17,6 +17,8 @@ class LocalStorageService {
   static const String _languageKey = 'language';
   static const String _lastKeyPackagePublishTimeKey = 'last_key_package_publish_time'; // Phase 8.1
   static const String _deletedEventIdsKey = 'deleted_event_ids'; // Issue #80: kind 5削除イベント
+  static const String _deletedListIdsKey = 'deleted_list_ids'; // Issue #101: 削除済みリストID（永久ブラックリスト）
+  static const String _deletedTodoIdsKey = 'deleted_todo_ids'; // Issue #101: 削除済みタスクID（リスト再作成時の復活防止）
   
   // === Sync state (Joplin-like) ===
   // 背景復帰/再起動時に「全履歴fetch」を避けるため、最終成功同期時刻を永続化する。
@@ -402,6 +404,89 @@ class LocalStorageService {
     }
     await _settingsBox!.delete(_deletedEventIdsKey);
     AppLogger.info('🗑️ Cleared deleted event IDs from storage');
+  }
+  
+  // === Issue #101: 削除済みリストID（永久ブラックリスト） ===
+  
+  /// 削除済みリストIDリストを保存（list_idベース）
+  /// 一度削除されたリストは二度と表示されない
+  Future<void> saveDeletedListIds(List<String> listIds) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_deletedListIdsKey, listIds);
+    AppLogger.info('🗑️ [Issue#101] Saved ${listIds.length} deleted list IDs to blacklist');
+  }
+  
+  /// 削除済みリストIDリストを取得
+  Future<List<String>> loadDeletedListIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    
+    final dynamic stored = _settingsBox!.get(_deletedListIdsKey);
+    if (stored == null) {
+      return [];
+    }
+    
+    if (stored is List) {
+      return stored.map((e) => e.toString()).toList();
+    }
+    
+    return [];
+  }
+  
+  /// 削除済みリストIDリストをクリア
+  Future<void> clearDeletedListIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_deletedListIdsKey);
+    AppLogger.info('🗑️ [Issue#101] Cleared deleted list IDs blacklist from storage');
+  }
+  
+  // === Issue #101: 削除済みタスクID（リスト再作成時の復活防止） ===
+  
+  /// 削除済みタスクIDリストを保存（Todo IDベース）
+  /// リスト削除時に削除されたタスクを記録し、リスト再作成時に復活しないようにする
+  Future<void> saveDeletedTodoIds(List<String> todoIds) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_deletedTodoIdsKey, todoIds);
+    AppLogger.info('🗑️ [Issue#101] Saved ${todoIds.length} deleted todo IDs to blacklist');
+    AppLogger.debug('📝 [Issue#101] First 3 IDs: ${todoIds.take(3).map((id) => id.substring(0, 16)).join(", ")}${todoIds.length > 3 ? "..." : ""}');
+  }
+  
+  /// 削除済みタスクIDリストを取得
+  Future<List<String>> loadDeletedTodoIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    
+    final dynamic stored = _settingsBox!.get(_deletedTodoIdsKey);
+    if (stored == null) {
+      AppLogger.debug('📂 [Issue#101] No deleted todo IDs found in storage (key not found)');
+      return [];
+    }
+    
+    if (stored is List) {
+      final result = stored.map((e) => e.toString()).toList();
+      AppLogger.debug('📂 [Issue#101] Loaded ${result.length} deleted todo IDs from storage');
+      return result;
+    }
+    
+    AppLogger.warning('⚠️ [Issue#101] Unexpected type for deleted todo IDs: ${stored.runtimeType}');
+    return [];
+  }
+  
+  /// 削除済みタスクIDリストをクリア
+  Future<void> clearDeletedTodoIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.delete(_deletedTodoIdsKey);
+    AppLogger.info('🗑️ [Issue#101] Cleared deleted todo IDs blacklist from storage');
   }
   
   // === Sync timestamps ===

@@ -500,8 +500,18 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
   // ========================================
   
   /// JSONデータからGroupInvitationを作成
+  /// 
+  /// Phase 1: created_atベース実装
+  /// リレー上のNostrイベントのcreated_atを使用することで、
+  /// 冪等性を確保し、複数デバイス間での整合性を保つ。
   GroupInvitation _parseGroupInvitation(dynamic invitationData) {
     final map = invitationData as Map<String, dynamic>;
+    
+    // Nostrイベントのcreated_at（UNIX timestamp秒）を取得
+    final createdAtSeconds = map['created_at'] as int;
+    final createdAt = DateTime.fromMillisecondsSinceEpoch(
+      createdAtSeconds * 1000,
+    );
     
     return GroupInvitation(
       groupId: map['group_id'] as String,
@@ -509,7 +519,7 @@ class MlsGroupRepositoryImpl implements MlsGroupRepository {
       inviterPubkey: map['inviter_pubkey'] as String, // Rust側のフィールド名に合わせる
       inviterName: map['inviter_name'] as String?,
       welcomeMessage: map['welcome_msg'] as String, // Rust側のフィールド名に合わせる
-      receivedAt: DateTime.now(), // 現在時刻を使用
+      createdAt: createdAt, // ✅ リレーのタイムスタンプを使用
       isPending: true, // 新規取得した招待はペンディング状態
     );
   }

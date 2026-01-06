@@ -241,7 +241,7 @@ class MlsGroupLocalDataSource {
       inviterPubkey: customList.inviterNpub ?? '',
       inviterName: customList.inviterName,
       welcomeMessage: customList.welcomeMsg ?? '',
-      receivedAt: customList.createdAt,
+      createdAt: customList.createdAt,  // Phase 1: receivedAt → createdAt
       isPending: customList.isPendingInvitation,
     );
   }
@@ -251,8 +251,8 @@ class MlsGroupLocalDataSource {
     return CustomList(
       id: invitation.groupId,
       name: invitation.groupName,
-      createdAt: invitation.receivedAt,
-      updatedAt: invitation.receivedAt,
+      createdAt: invitation.createdAt,  // Phase 1: receivedAt → createdAt
+      updatedAt: invitation.createdAt,  // Phase 1: receivedAt → createdAt
       // 招待はグループリストの一種なので isGroup=true を保持する
       // これがfalseだとUIや後続のローカル参照で「個人リスト」と誤認され、フォークの温床になる
       isGroup: true,
