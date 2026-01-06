@@ -347,6 +347,48 @@ class CustomListRepositoryImpl implements CustomListRepository {
   }
   
   // ============================================================
+  // MLSグループリスト削除管理
+  // ============================================================
+  
+  @override
+  Future<Either<Failure, void>> saveDeletedMlsGroupListIds(Set<String> ids) async {
+    try {
+      AppLogger.debug('💾 [CustomListRepo] Saving ${ids.length} deleted MLS group list IDs...');
+      
+      await _localStorageService.saveDeletedMlsGroupListIds(ids);
+      
+      AppLogger.info('✅ [CustomListRepo] Saved deleted MLS group list IDs');
+      return const Right(null);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to save deleted MLS group list IDs',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('削除MLSグループリストIDの保存に失敗しました: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, Set<String>>> loadDeletedMlsGroupListIds() async {
+    try {
+      AppLogger.debug('📂 [CustomListRepo] Loading deleted MLS group list IDs...');
+      
+      final ids = await _localStorageService.loadDeletedMlsGroupListIds();
+      
+      AppLogger.info('✅ [CustomListRepo] Loaded ${ids.length} deleted MLS group list IDs');
+      return Right(ids);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [CustomListRepo] Failed to load deleted MLS group list IDs',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return Left(CustomListLocalStorageFailure('削除MLSグループリストIDの読み込みに失敗しました: $e'));
+    }
+  }
+  
+  // ============================================================
   // MLS操作（Phase Dで実装予定）
   // ============================================================
   

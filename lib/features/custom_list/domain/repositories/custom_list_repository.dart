@@ -85,6 +85,17 @@ abstract class CustomListRepository {
   Future<Either<Failure, Map<String, int>>> loadDeletedListMetadata();
   
   // ============================================================
+  // MLSグループリスト削除管理（ローカルのみ）
+  // ============================================================
+  
+  /// 削除済みMLSグループリストIDをローカルに保存
+  /// MLSグループリストはローカル削除のみ（Nostrに削除イベントは送信しない）
+  Future<Either<Failure, void>> saveDeletedMlsGroupListIds(Set<String> ids);
+  
+  /// 削除済みMLSグループリストIDをローカルから読み込み
+  Future<Either<Failure, Set<String>>> loadDeletedMlsGroupListIds();
+  
+  // ============================================================
   // Personal List削除・更新（Phase E）
   // ============================================================
   

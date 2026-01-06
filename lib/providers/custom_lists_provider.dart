@@ -52,6 +52,10 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// Issue #101: 削除済みリストメタデータ（list_idベース + LWW対応）
   /// Map<listId, deletion_created_at>
   Map<String, int> _deletedListMetadata = {};
+  
+  /// MLS: ローカル削除済みMLSグループリストID（ローカルのみ、Nostrには送信しない）
+  /// Set<listId>
+  Set<String> _deletedMlsGroupListIds = {};
 
   Future<void> _initialize() async {
     try {
@@ -81,6 +85,19 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         },
       );
       
+      // MLS: ローカル削除済みMLSグループリストIDを読み込み
+      final deletedMlsGroupListsResult = await _repository.loadDeletedMlsGroupListIds();
+      deletedMlsGroupListsResult.fold(
+        (Failure failure) {
+          AppLogger.warning('🗑️ [MLS] Failed to load deleted MLS group list IDs: ${failure.message}');
+          _deletedMlsGroupListIds = {};
+        },
+        (Set<String> ids) {
+          _deletedMlsGroupListIds = ids;
+          AppLogger.info('🗑️ [MLS] Loaded ${_deletedMlsGroupListIds.length} deleted MLS group list IDs');
+        },
+      );
+      
       // Phase C.3.1: Repository経由でローカルストレージから読み込み
       final listsResult = await _repository.loadCustomListsFromLocal();
       
@@ -99,8 +116,17 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             // AppSettingsから保存された順番を適用
             await _applySavedListOrder(localLists);
             
-            AppLogger.info(' [CustomLists] Loaded ${localLists.length} lists from local storage');
-            state = AsyncValue.data(localLists);
+            // MLS: 削除済みMLSグループリストをフィルタリング
+            final filteredLists = await _filterDeletedLists(localLists);
+            
+            if (filteredLists.length < localLists.length) {
+              AppLogger.info('🗑️ [MLS] Filtered ${localLists.length - filteredLists.length} deleted MLS groups on init');
+              // フィルタリング後のリストを保存
+              await _repository.saveCustomListsToLocal(filteredLists);
+            }
+            
+            AppLogger.info(' [CustomLists] Loaded ${filteredLists.length} lists from local storage');
+            state = AsyncValue.data(filteredLists);
           }
         },
       );
@@ -393,23 +419,32 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         // AppSettingsのcustomListOrderも更新（削除されたリストIDを除外）
         _updateCustomListOrderInSettings(updatedLists);
         
-        // Issue #101: 削除済みリストメタデータに追加（LWW対応）
-        final deletionTime = DateTime.now().millisecondsSinceEpoch ~/ 1000; // Unix timestamp
-        _deletedListMetadata[id] = deletionTime;
-        final saveMetadataResult = await _repository.saveDeletedListMetadata(_deletedListMetadata);
-        saveMetadataResult.fold(
-          (failure) => AppLogger.warning('⚠️  [CustomLists] [Issue#101] Failed to save deleted list metadata: ${failure.message}'),
-          (_) => AppLogger.info('🗑️  [CustomLists] [Issue#101] Added list to deletion metadata: $id (time: $deletionTime, total: ${_deletedListMetadata.length})'),
-        );
-        
-        // 2. Personal Listの場合、バックグラウンドでNostr削除（Phase E.6）
+        // 2. 削除処理をリストタイプで分岐
         if (!targetList.isGroup) {
+          // 2-1. Personal List: Nostrに削除イベント送信 + LWWメタデータ記録
           AppLogger.info('📤 [CustomLists] Deleting personal list from Nostr: ${targetList.name}');
+          
+          // Issue #101: 削除済みリストメタデータに追加（LWW対応）
+          final deletionTime = DateTime.now().millisecondsSinceEpoch ~/ 1000; // Unix timestamp
+          _deletedListMetadata[id] = deletionTime;
+          final saveMetadataResult = await _repository.saveDeletedListMetadata(_deletedListMetadata);
+          saveMetadataResult.fold(
+            (failure) => AppLogger.warning('⚠️  [CustomLists] [Issue#101] Failed to save deleted list metadata: ${failure.message}'),
+            (_) => AppLogger.info('🗑️  [CustomLists] [Issue#101] Added list to deletion metadata: $id (time: $deletionTime, total: ${_deletedListMetadata.length})'),
+          );
           
           // Phase E.6: Nostrから動的にeventIdを取得してKind 5削除イベント送信
           _deletePersonalListFromNostr(targetList, lists);
-        } else if (targetList.isGroup) {
-          AppLogger.debug('ℹ️  [CustomLists] Group list deleted locally: ${targetList.name}');
+        } else {
+          // 2-2. MLS Group List: ローカル削除のみ（Nostrには送信しない）
+          AppLogger.info('🗑️  [MLS] Locally deleting MLS group list: ${targetList.name}');
+          
+          _deletedMlsGroupListIds.add(id);
+          final saveMlsResult = await _repository.saveDeletedMlsGroupListIds(_deletedMlsGroupListIds);
+          saveMlsResult.fold(
+            (Failure failure) => AppLogger.warning('⚠️  [MLS] Failed to save deleted MLS group list ID: ${failure.message}'),
+            (void _) => AppLogger.info('🗑️  [MLS] Added to deleted MLS group list IDs: $id (total: ${_deletedMlsGroupListIds.length})'),
+          );
         }
       },
     );
@@ -586,20 +621,42 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   /// 削除済みメタデータをチェックして、リストをフィルタリング（LWW対応）
   /// Issue #101: LWW比較で削除/復元を判定
   Future<List<CustomList>> _filterDeletedLists(List<CustomList> lists) async {
-    if (_deletedEventMetadata.isEmpty && _deletedListMetadata.isEmpty) {
-      return lists;
-    }
-    
-    AppLogger.debug('🗑️ [CustomLists] Filtering lists with LWW comparison...');
+    AppLogger.debug('🗑️ [CustomLists] Filtering lists (LWW + MLS key check)...');
     
     // eventIdがない場合、Rustから検索して設定する
     final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
     
     final filtered = <CustomList>[];
     for (final list in lists) {
-      // グループリストは削除対象外
+      // MLSグループリストの特別処理
       if (list.isGroup) {
-        filtered.add(list);
+        // 1. ローカル削除フラグをチェック
+        if (_deletedMlsGroupListIds.contains(list.id)) {
+          AppLogger.debug('🚫 [MLS] Filtered out locally deleted MLS group: "${list.name}"');
+          continue;
+        }
+        
+        // 2. MLS鍵の有効性をチェック
+        if (publicKey != null) {
+          try {
+            await rust_api.mlsGetGroupInfo(
+              nostrId: publicKey,
+              groupId: list.id,
+            );
+            // 成功 = 鍵が有効
+            AppLogger.debug('✅ [MLS] Valid key for group: "${list.name}"');
+            filtered.add(list);
+          } catch (e) {
+            // 失敗 = 鍵が無効（再インストール後など）
+            AppLogger.warning('🔑 [MLS] Invalid key for group: "${list.name}" (auto-removing)');
+            // 自動的に削除フラグに追加
+            _deletedMlsGroupListIds.add(list.id);
+            await _repository.saveDeletedMlsGroupListIds(_deletedMlsGroupListIds);
+          }
+        } else {
+          // publicKeyがない場合は保持
+          filtered.add(list);
+        }
         continue;
       }
       
@@ -744,6 +801,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         continue;
       }
       
+      // 3. MLSグループリストのローカル削除フラグをチェック
+      if (_deletedMlsGroupListIds.contains(listId)) {
+        AppLogger.info('🚫 [MLS] Skipping locally deleted MLS group list: "$listName" (ID: $listId)');
+        continue;
+      }
+      
       // すでに存在するか確認（IDで）
       final existsIndex = updatedLists.indexWhere((list) => list.id == listId);
       
@@ -856,6 +919,26 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           var hasChanges = false;
           
           for (final invitation in invitations) {
+            // MLS: ローカル削除フラグをチェック
+            if (_deletedMlsGroupListIds.contains(invitation.groupId)) {
+              AppLogger.info('🚫 [MLS] Skipping deleted MLS group invitation: ${invitation.groupName}');
+              continue;
+            }
+            
+            // MLS: 鍵の有効性をチェック（再インストール後の無効なグループを自動削除）
+            try {
+              await rust_api.mlsGetGroupInfo(
+                nostrId: userPubkey,
+                groupId: invitation.groupId,
+              );
+              AppLogger.debug('✅ [MLS] Valid key for group: ${invitation.groupName}');
+            } catch (e) {
+              AppLogger.warning('🔑 [MLS] Invalid key for group: ${invitation.groupName}, auto-removing');
+              _deletedMlsGroupListIds.add(invitation.groupId);
+              await _repository.saveDeletedMlsGroupListIds(_deletedMlsGroupListIds);
+              continue;
+            }
+            
             // 既にこのグループのリストが存在するか確認
             final existingIndex = updatedLists.indexWhere((list) => list.id == invitation.groupId);
             
@@ -883,6 +966,15 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             } else {
               // Phase 1: 既存のリストを更新（リレーの最新情報でマージ）
               final existingList = updatedLists[existingIndex];
+              
+              // MLS: 削除済みリストはマージをスキップ（ユーザーが削除した後の再同期）
+              if (_deletedMlsGroupListIds.contains(invitation.groupId)) {
+                AppLogger.info('🚫 [MLS] Skipping merge for deleted MLS group: ${invitation.groupName}');
+                // 既存のリストも削除
+                updatedLists.removeAt(existingIndex);
+                hasChanges = true;
+                continue;
+              }
               
               AppLogger.debug('🔄 [GroupInvitations] Merging invitation for existing list: ${invitation.groupName}');
               AppLogger.debug('   Existing acceptedAt: ${existingList.acceptedAt}');
