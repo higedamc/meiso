@@ -1300,6 +1300,30 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   /// 
   /// Phase E.5: リスト削除時に使用
   /// カスタムリストを削除する際、そのリストに属する全てのTODOも削除
+  /// Issue #101: リスト再作成時に、そのリストに関連する削除済みタスクIDをクリア
+  /// ゾンビタスク問題の修正
+  Future<void> clearDeletedTodoIdsForList(String listId) async {
+    AppLogger.info('🔄 [Issue#101] Clearing deleted todo IDs for re-created list: $listId');
+    
+    final prefix = '$listId:';
+    final beforeCount = _deletedTodoIds.length;
+    
+    // {listId}:{todoId} 形式のIDを全て削除
+    _deletedTodoIds.removeWhere((id) => id.startsWith(prefix));
+    
+    final removedCount = beforeCount - _deletedTodoIds.length;
+    
+    if (removedCount > 0) {
+      AppLogger.info('✅ [Issue#101] Removed $removedCount deleted todo IDs for list: $listId');
+      
+      // ローカルストレージにも反映
+      await localStorageService.saveDeletedTodoIds(_deletedTodoIds.toList());
+      AppLogger.info('💾 [Issue#101] Updated storage (remaining: ${_deletedTodoIds.length})');
+    } else {
+      AppLogger.info('ℹ️  [Issue#101] No deleted todo IDs found for list: $listId');
+    }
+  }
+  
   /// Issue #101: 削除したタスクのevent_idを記録して、リスト再作成時に復活しないようにする
   Future<void> deleteAllTodosInList(String listId) async {
     await state.whenData((todos) async {
@@ -1317,11 +1341,12 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         
         AppLogger.debug('📋 [Issue#101] Checking date group: $dateKey (${dateList.length} todos)');
         
-        // Issue #101: 削除前にタスクIDを記録
+        // Issue #101: 削除前にタスクIDを記録（{listId}:{todoId}形式）
         for (final todo in dateList) {
           if (todo.customListId == listId) {
-            deletedTodoIds.add(todo.id);
-            AppLogger.info('🎯 [Issue#101] Recording deleted todo ID: ${todo.id.substring(0, 16)}... (title: "${todo.title}", customListId: ${todo.customListId})');
+            final compositeId = '$listId:${todo.id}';
+            deletedTodoIds.add(compositeId);
+            AppLogger.info('🎯 [Issue#101] Recording deleted todo ID: $compositeId (title: "${todo.title}")');
           }
         }
         
@@ -2315,18 +2340,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           return false;
         }),
         
-        // 2. 暗号化Todoリストイベント取得（カスタムリスト名抽出のため）
-        // Phase C.3.2.2: CustomListsProviderのRepository経由メソッドを使用
-        _ref.read(customListsProvider.notifier).fetchCustomListNamesFromNostr().then((listNames) {
-          AppLogger.info('✅ [Sync] カスタムリスト名抽出完了: ${listNames.length}件');
-          return listNames;
+        // 2. 暗号化Todoリストイベント取得（カスタムリストメタデータ抽出のため）
+        // Phase C.3.2.2: CustomListsProviderのRepository経由メソッドを使用（LWW対応）
+        _ref.read(customListsProvider.notifier).fetchCustomListMetadataFromNostr().then((listMetadata) {
+          AppLogger.info('✅ [Sync] カスタムリストメタデータ抽出完了: ${listMetadata.length}件');
+          return listMetadata;
         }).catchError((Object e) {
-          AppLogger.warning('⚠️ [Sync] カスタムリスト名抽出エラー: $e');
-          return <String>[];
+          AppLogger.warning('⚠️ [Sync] カスタムリストメタデータ抽出エラー: $e');
+          return <(String, String, String, int)>[];
         }),
       ]); // エラーがあっても全て完了するまで待つ
       
-      final customListNames = phase1Results[1] as List<String>;
+      final customListMetadata = phase1Results[1] as List<(String, String, String, int)>;
       
       AppLogger.info('✅ [Sync] Phase 1完了（${const Duration()})');
       
@@ -2337,10 +2362,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         currentPhase: '__l10n__:syncPhaseCustomLists',
       );
       
-      // Phase 2: カスタムリスト同期（Phase 1の結果を使用）
-      AppLogger.info('📋 [Sync] Phase 2: カスタムリスト同期開始');
+      // Phase 2: カスタムリスト同期（Phase 1の結果を使用、LWW対応）
+      AppLogger.info('📋 [Sync] Phase 2: カスタムリスト同期開始 (LWW)');
       try {
-        await _ref.read(customListsProvider.notifier).syncListsFromNostr(customListNames);
+        await _ref.read(customListsProvider.notifier).syncListsFromNostr(customListMetadata);
         AppLogger.info('✅ [Sync] カスタムリスト同期完了');
       } catch (e) {
         AppLogger.warning('⚠️ [Sync] カスタムリスト同期エラー: $e');
@@ -2570,9 +2595,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.info('🔍 [Issue#101] (Amber) Checking ${allSyncedTodos.length} synced todos against ${_deletedTodoIds.length} blacklisted IDs');
           
           final allSyncedTodosFiltered = allSyncedTodos.where((todo) {
-            final isDeleted = _deletedTodoIds.contains(todo.id);
+            // {listId}:{todoId} 形式でチェック
+            final compositeId = todo.customListId != null 
+                ? '${todo.customListId}:${todo.id}'
+                : todo.id; // 通常のタスク（非カスタムリスト）は従来通り
+            
+            final isDeleted = _deletedTodoIds.contains(compositeId);
             if (isDeleted) {
-              AppLogger.info('🚫 [Issue#101] (Amber) Filtered out deleted todo: ${todo.id.substring(0, 16)}... (title: "${todo.title}", customListId: ${todo.customListId})');
+              AppLogger.info('🚫 [Issue#101] (Amber) Filtered out deleted todo: $compositeId (title: "${todo.title}")');
               return false;
             }
             return true;
@@ -2621,64 +2651,17 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // 通常モード: Rust側で復号化済みのTodoリストを取得（Kind 30001）
           AppLogger.info(' 通常モードで同期します（Kind 30001）');
           
-          // ステップ1: メタデータを取得してカスタムリストを同期
-          AppLogger.debug(' ステップ1: カスタムリストのメタデータを取得します');
-          final metadata = await nostrService.fetchAllTodoListMetadata();
+          // ステップ1: CustomListsProviderのメソッドを使用（LWW対応）
+          AppLogger.debug(' ステップ1: カスタムリストのメタデータを取得します (LWW)');
+          final customListMetadata = await _ref.read(customListsProvider.notifier).fetchCustomListMetadataFromNostr();
           
-          // カスタムリスト名を抽出（デフォルトリストは除外）
-          final nostrListNames = <String>[];
-          AppLogger.info(' [Sync] 📋 Extracting custom list names from ${metadata.length} metadata entries...');
+          AppLogger.info(' [Sync] 📊 Fetched ${customListMetadata.length} custom list metadata');
           
-          for (var i = 0; i < metadata.length; i++) {
-            final meta = metadata[i];
-            AppLogger.debug(' [Sync]   Metadata $i: listId="${meta.listId}", title="${meta.title}"');
-            
-            if (meta.listId != null) {
-              final listId = meta.listId!;
-              
-              // デフォルトリストは除外
-              if (listId == 'meiso-todos') {
-                AppLogger.debug(' [Sync]     → Skipping default list (meiso-todos)');
-                continue;
-              }
-              
-              // リスト名を取得（titleタグがあればそれを使用、なければlist_idから生成）
-              String listName;
-              if (meta.title != null && meta.title!.isNotEmpty) {
-                listName = meta.title!;
-                AppLogger.debug(' [Sync]     → Using title tag: "$listName"');
-              } else {
-                // titleタグがない場合、list_idから名前を抽出
-                // 例: "meiso-list-mylist" → "mylist"
-                if (listId.startsWith('meiso-list-')) {
-                  listName = listId.substring('meiso-list-'.length);
-                  AppLogger.warning(' [Sync]     ⚠️ No title tag, extracted from list_id: "$listName"');
-                } else {
-                  // list_idが予期しない形式の場合、そのまま使用
-                  listName = listId;
-                  AppLogger.warning(' [Sync]     ⚠️ No title tag, using list_id as name: "$listName"');
-                }
-              }
-              
-              // 重複チェック
-              if (!nostrListNames.contains(listName)) {
-                nostrListNames.add(listName);
-                AppLogger.info(' [Sync]     ✅ Found custom list: "$listName" (d tag: $listId)');
-              } else {
-                AppLogger.debug(' [Sync]     → Duplicate list name, skipping: "$listName"');
-              }
-            } else {
-              AppLogger.warning(' [Sync]     ❌ Metadata $i has null listId (title=${meta.title})');
-            }
-          }
-          
-          AppLogger.info(' [Sync] 📊 Extracted ${nostrListNames.length} custom list names: ${nostrListNames.join(", ")}');
-          
-          // カスタムリストを同期（名前ベース）
-          // nostrListNamesが空の場合でも呼び出し、デフォルトリストを作成
-          AppLogger.info(' [Sync] 2/3: カスタムリストを同期中...');
-          await _ref.read(customListsProvider.notifier).syncListsFromNostr(nostrListNames);
-          AppLogger.info(' [Sync] カスタムリスト同期完了');
+          // カスタムリストを同期（LWW対応）
+          // metadataが空の場合でも呼び出し、デフォルトリストを作成
+          AppLogger.info(' [Sync] 2/3: カスタムリストを同期中 (LWW)...');
+          await _ref.read(customListsProvider.notifier).syncListsFromNostr(customListMetadata);
+          AppLogger.info(' [Sync] カスタムリスト同期完了 (LWW)');
           
           // ステップ2: Todoデータを取得
           AppLogger.info(' [Sync] 3/3: Todoを同期中...');
@@ -2690,9 +2673,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           AppLogger.info('🔍 [Issue#101] Checking ${syncedTodosRaw.length} synced todos against ${_deletedTodoIds.length} blacklisted IDs');
           
           final syncedTodos = syncedTodosRaw.where((todo) {
-            final isDeleted = _deletedTodoIds.contains(todo.id);
+            // {listId}:{todoId} 形式でチェック
+            final compositeId = todo.customListId != null 
+                ? '${todo.customListId}:${todo.id}'
+                : todo.id; // 通常のタスク（非カスタムリスト）は従来通り
+            
+            final isDeleted = _deletedTodoIds.contains(compositeId);
             if (isDeleted) {
-              AppLogger.info('🚫 [Issue#101] Filtered out deleted todo: ${todo.id.substring(0, 16)}... (title: "${todo.title}", customListId: ${todo.customListId})');
+              AppLogger.info('🚫 [Issue#101] Filtered out deleted todo: $compositeId (title: "${todo.title}")');
               return false;
             }
             return true;

@@ -2078,11 +2078,13 @@ pub struct TodoListMetadata {
 /// 
 /// contentを解析せず、タグ（d, title）のみを返すため高速
 /// Issue #101: event_idを追加して削除済みイベントのフィルタリングを可能にする
+/// Zombie List Fix: created_atを追加してLWW比較を可能にする
 #[derive(Clone)]
 pub struct TodoListName {
     pub list_id: String,
     pub title: Option<String>,
     pub event_id: String,
+    pub created_at: u64,
 }
 
 pub fn fetch_todo_list_names_only(
@@ -2145,7 +2147,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
             }
         }
         
-        // リスト名のみを抽出（Issue #101: event_idも含める）
+        // リスト名のみを抽出（Issue #101: event_id, created_atも含める）
         let list_names: Vec<TodoListName> = latest_events.into_iter()
             .map(|(d_tag, event)| {
                 let title = event.tags.iter()
@@ -2157,6 +2159,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
                     list_id: d_tag,
                     title,
                     event_id: event.id.to_hex(),
+                    created_at: event.created_at.as_u64(),
                 }
             })
             .collect();
@@ -2878,17 +2881,21 @@ pub fn delete_events_with_client_id(
     })
 }
 
-/// 削除イベント（Kind 5）を取得し、削除対象のイベントIDリストを返す
+/// 削除イベント（Kind 5）を取得し、削除対象のイベントIDとタイムスタンプのリストを返す
+/// 
+/// 戻り値: Vec<(event_id, deletion_created_at)>
+/// - event_id: 削除対象のイベントID（eタグ）
+/// - deletion_created_at: 削除イベント自体のcreated_at（LWW比較用）
 pub fn fetch_deletion_events_for_pubkey(
     public_key_hex: String,
-) -> Result<Vec<String>> {
+) -> Result<Vec<(String, u64)>> {
     fetch_deletion_events_for_pubkey_with_client_id(public_key_hex, None)
 }
 
 pub fn fetch_deletion_events_for_pubkey_with_client_id(
     public_key_hex: String,
     client_id: Option<String>,
-) -> Result<Vec<String>> {
+) -> Result<Vec<(String, u64)>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         
@@ -2914,23 +2921,26 @@ pub fn fetch_deletion_events_for_pubkey_with_client_id(
             return Ok(Vec::new());
         }
         
-        // 削除対象のイベントIDを抽出（eタグから）
-        let mut deleted_event_ids = Vec::new();
+        // 削除対象のイベントIDとタイムスタンプを抽出（eタグから）
+        let mut deleted_events = Vec::new();
         
         for event in events {
+            let deletion_created_at = event.created_at.as_u64();
+            
             // eタグを探す
             for tag in event.tags.iter() {
                 if let Some(TagStandard::Event { event_id, .. }) = tag.as_standardized() {
                     let event_id_hex = event_id.to_hex();
-                    deleted_event_ids.push(event_id_hex.clone());
-                    println!("  🗑️ Deleted event ID: {}", &event_id_hex[..16]);
+                    deleted_events.push((event_id_hex.clone(), deletion_created_at));
+                    println!("  🗑️ Deleted event ID: {} (deleted_at: {})", 
+                        &event_id_hex[..16], deletion_created_at);
                 }
             }
         }
         
-        println!("✅ Total {} event IDs marked as deleted", deleted_event_ids.len());
+        println!("✅ Total {} event IDs marked as deleted", deleted_events.len());
         
-        Ok(deleted_event_ids)
+        Ok(deleted_events)
     })
 }
 

@@ -28,17 +28,16 @@ abstract class CustomListRepository {
   // Nostr同期操作（Phase C.3.2.2で実装）
   // ============================================================
   
-  /// Nostrからカスタムリスト名を取得
+  /// Nostrからカスタムリスト名を取得（LWW対応）
   /// 
-  /// Kind 30001イベントのd tag（meiso-list-xxx）とtitle tagから
-  /// カスタムリスト名のリストを抽出する
+  /// Kind 30001イベントのd tag（meiso-list-xxx）とtitle tag、created_atを抽出
   /// 
   /// Phase C.3.2.2: `_fetchEncryptedEventsForListNames()`を移植
-  /// Issue #101: 削除済みイベントIDと削除済みリストIDでフィルタリング
-  Future<Either<Failure, List<String>>> fetchCustomListNamesFromNostr({
+  /// Issue #101: LWW比較用にeventIdとcreated_atを含む構造体を返す
+  /// 
+  /// 戻り値: (listId, listName, eventId, created_at) のリスト
+  Future<Either<Failure, List<(String, String, String, int)>>> fetchCustomListMetadataFromNostr({
     required String publicKey,
-    required Set<String> deletedEventIds,
-    required Set<String> deletedListIds,
   });
   
   /// Nostrから個人カスタムリストを同期（Phase Dで実装予定）
@@ -57,32 +56,44 @@ abstract class CustomListRepository {
   });
   
   // ============================================================
-  // 削除イベント同期（Phase C.3.2.1で実装）
+  // 削除イベント同期（Phase C.3.2.1で実装、LWW対応）
   // ============================================================
   
-  /// Kind 5削除イベントを同期
+  /// Kind 5削除イベントを同期（LWW対応）
   /// 
-  /// Nostrから削除イベント（Kind 5）を取得し、削除済みイベントIDのセットを返す
-  Future<Either<Failure, Set<String>>> syncDeletionEvents({
+  /// Nostrから削除イベント（Kind 5）を取得し、削除済みイベントメタデータを返す
+  /// Map<eventId, deletion_created_at> 形式でタイムスタンプ付きで返す
+  Future<Either<Failure, Map<String, int>>> syncDeletionEvents({
     required String publicKey,
   });
   
-  /// 削除済みイベントIDをローカルに保存
-  Future<Either<Failure, void>> saveDeletedEventIds(Set<String> eventIds);
+  /// 削除済みイベントメタデータをローカルに保存
+  Future<Either<Failure, void>> saveDeletedEventMetadata(Map<String, int> metadata);
   
-  /// 削除済みイベントIDをローカルから読み込み
-  Future<Either<Failure, Set<String>>> loadDeletedEventIds();
+  /// 削除済みイベントメタデータをローカルから読み込み
+  Future<Either<Failure, Map<String, int>>> loadDeletedEventMetadata();
   
   // ============================================================
-  // 削除済みリストID（永久ブラックリスト）（Issue #101）
+  // 削除済みリストID管理（Issue #101、LWW対応）
   // ============================================================
   
-  /// 削除済みリストIDをローカルに保存（list_idベース）
-  /// 一度削除されたリストは二度と表示されない
-  Future<Either<Failure, void>> saveDeletedListIds(Set<String> listIds);
+  /// 削除済みリストメタデータをローカルに保存
+  /// Map<listId, deletion_created_at> 形式でタイムスタンプ付きで保存
+  Future<Either<Failure, void>> saveDeletedListMetadata(Map<String, int> metadata);
   
-  /// 削除済みリストIDをローカルから読み込み
-  Future<Either<Failure, Set<String>>> loadDeletedListIds();
+  /// 削除済みリストメタデータをローカルから読み込み
+  Future<Either<Failure, Map<String, int>>> loadDeletedListMetadata();
+  
+  // ============================================================
+  // MLSグループリスト削除管理（ローカルのみ）
+  // ============================================================
+  
+  /// 削除済みMLSグループリストIDをローカルに保存
+  /// MLSグループリストはローカル削除のみ（Nostrに削除イベントは送信しない）
+  Future<Either<Failure, void>> saveDeletedMlsGroupListIds(Set<String> ids);
+  
+  /// 削除済みMLSグループリストIDをローカルから読み込み
+  Future<Either<Failure, Set<String>>> loadDeletedMlsGroupListIds();
   
   // ============================================================
   // Personal List削除・更新（Phase E）

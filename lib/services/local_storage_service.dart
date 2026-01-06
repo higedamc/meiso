@@ -19,6 +19,7 @@ class LocalStorageService {
   static const String _deletedEventIdsKey = 'deleted_event_ids'; // Issue #80: kind 5削除イベント
   static const String _deletedListIdsKey = 'deleted_list_ids'; // Issue #101: 削除済みリストID（永久ブラックリスト）
   static const String _deletedTodoIdsKey = 'deleted_todo_ids'; // Issue #101: 削除済みタスクID（リスト再作成時の復活防止）
+  static const String _deletedMlsGroupListIdsKey = 'deleted_mls_group_list_ids'; // MLS: ローカル削除済みMLSグループリストID
   
   // === Sync state (Joplin-like) ===
   // 背景復帰/再起動時に「全履歴fetch」を避けるため、最終成功同期時刻を永続化する。
@@ -368,81 +369,131 @@ class LocalStorageService {
     await _settingsBox!.delete(_lastKeyPackagePublishTimeKey);
   }
   
-  // === Issue #80: kind 5削除イベント管理 ===
+  // === Issue #80: kind 5削除イベント管理（LWW対応） ===
   
-  /// 削除済みイベントIDリストを保存
-  Future<void> saveDeletedEventIds(List<String> eventIds) async {
+  /// 削除済みイベントメタデータを保存（eventId -> deletion_created_at）
+  Future<void> saveDeletedEventMetadata(Map<String, int> metadata) async {
     if (_settingsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
-    await _settingsBox!.put(_deletedEventIdsKey, eventIds);
-    AppLogger.info('🗑️ Saved ${eventIds.length} deleted event IDs to storage');
+    await _settingsBox!.put(_deletedEventIdsKey, metadata);
+    AppLogger.info('🗑️ Saved ${metadata.length} deleted event metadata to storage');
   }
   
-  /// 削除済みイベントIDリストを取得
-  Future<List<String>> loadDeletedEventIds() async {
+  /// 削除済みイベントメタデータを取得
+  Future<Map<String, int>> loadDeletedEventMetadata() async {
     if (_settingsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
     
     final dynamic stored = _settingsBox!.get(_deletedEventIdsKey);
     if (stored == null) {
-      return [];
+      return {};
     }
     
+    // 後方互換性: 古いList<String>形式をMapに変換
     if (stored is List) {
-      return stored.map((e) => e.toString()).toList();
+      AppLogger.warning('🔄 Converting old deleted event IDs format to metadata format');
+      final Map<String, int> converted = {};
+      for (final eventId in stored) {
+        converted[eventId.toString()] = 0; // タイムスタンプ不明なので0（常に古いとみなす）
+      }
+      // 新しい形式で保存
+      await saveDeletedEventMetadata(converted);
+      return converted;
     }
     
-    return [];
+    if (stored is Map) {
+      return Map<String, int>.from(stored.map((k, v) => MapEntry(k.toString(), v as int)));
+    }
+    
+    return {};
   }
   
-  /// 削除済みイベントIDリストをクリア
+  /// 削除済みイベントメタデータをクリア
   Future<void> clearDeletedEventIds() async {
     if (_settingsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.delete(_deletedEventIdsKey);
-    AppLogger.info('🗑️ Cleared deleted event IDs from storage');
+    AppLogger.info('🗑️ Cleared deleted event metadata from storage');
   }
   
-  // === Issue #101: 削除済みリストID（永久ブラックリスト） ===
+  // === Issue #101: 削除済みリストID管理（LWW対応） ===
   
-  /// 削除済みリストIDリストを保存（list_idベース）
-  /// 一度削除されたリストは二度と表示されない
-  Future<void> saveDeletedListIds(List<String> listIds) async {
+  /// 削除済みリストメタデータを保存（listId -> deletion_created_at）
+  Future<void> saveDeletedListMetadata(Map<String, int> metadata) async {
     if (_settingsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
-    await _settingsBox!.put(_deletedListIdsKey, listIds);
-    AppLogger.info('🗑️ [Issue#101] Saved ${listIds.length} deleted list IDs to blacklist');
+    await _settingsBox!.put(_deletedListIdsKey, metadata);
+    AppLogger.info('🗑️ [Issue#101] Saved ${metadata.length} deleted list metadata');
   }
   
-  /// 削除済みリストIDリストを取得
-  Future<List<String>> loadDeletedListIds() async {
+  /// 削除済みリストメタデータを取得
+  Future<Map<String, int>> loadDeletedListMetadata() async {
     if (_settingsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
     
     final dynamic stored = _settingsBox!.get(_deletedListIdsKey);
     if (stored == null) {
-      return [];
+      return {};
+    }
+    
+    // 後方互換性: 古いList<String>形式をMapに変換
+    if (stored is List) {
+      AppLogger.warning('🔄 [Issue#101] Converting old deleted list IDs format to metadata format');
+      final Map<String, int> converted = {};
+      for (final listId in stored) {
+        converted[listId.toString()] = 0; // タイムスタンプ不明なので0（常に古いとみなす）
+      }
+      // 新しい形式で保存
+      await saveDeletedListMetadata(converted);
+      return converted;
+    }
+    
+    if (stored is Map) {
+      return Map<String, int>.from(stored.map((k, v) => MapEntry(k.toString(), v as int)));
+    }
+    
+    return {};
+  }
+  
+  /// 削除済みMLSグループリストIDを保存
+  Future<void> saveDeletedMlsGroupListIds(Set<String> ids) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_deletedMlsGroupListIdsKey, ids.toList());
+    AppLogger.info('🗑️ [MLS] Saved ${ids.length} deleted MLS group list IDs');
+  }
+  
+  /// 削除済みMLSグループリストIDを取得
+  Future<Set<String>> loadDeletedMlsGroupListIds() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    
+    final dynamic stored = _settingsBox!.get(_deletedMlsGroupListIdsKey);
+    if (stored == null) {
+      return {};
     }
     
     if (stored is List) {
-      return stored.map((e) => e.toString()).toList();
+      return stored.map((e) => e.toString()).toSet();
     }
     
-    return [];
+    return {};
   }
   
-  /// 削除済みリストIDリストをクリア
+  /// 削除済みリストメタデータをクリア
   Future<void> clearDeletedListIds() async {
     if (_settingsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.delete(_deletedListIdsKey);
-    AppLogger.info('🗑️ [Issue#101] Cleared deleted list IDs blacklist from storage');
+    AppLogger.info('🗑️ [Issue#101] Cleared deleted list metadata from storage');
   }
   
   // === Issue #101: 削除済みタスクID（リスト再作成時の復活防止） ===
