@@ -50,16 +50,21 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
         return const Left(ValidationFailure('タイトルが空です'));
       }
 
-      AppLogger.info('🔧 CreateTodoUseCase: Creating todo with title "${params.title}"');
+      AppLogger.info('🔧 [CreateTodoUseCase] START: title="${params.title}", date=${params.date}');
 
       // 繰り返しパターンを自動検出（TeuxDeux風）
+      AppLogger.info('🔧 [CreateTodoUseCase] Calling RecurrenceParser.parse()...');
       final parseResult = RecurrenceParser.parse(params.title, params.date);
       final cleanTitle = parseResult.cleanTitle;
       final autoRecurrence = parseResult.pattern;
 
+      AppLogger.info('🔧 [CreateTodoUseCase] Parser result: pattern=$autoRecurrence, cleanTitle="$cleanTitle"');
+
       if (autoRecurrence != null) {
         AppLogger.info('🔄 自動検出: ${autoRecurrence.description}');
         AppLogger.debug('📝 クリーンタイトル: "$cleanTitle"');
+      } else {
+        AppLogger.info('🔄 No recurrence pattern detected');
       }
 
       // URLを検出してメタデータを取得（準備）

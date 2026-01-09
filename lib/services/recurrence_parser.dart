@@ -15,21 +15,30 @@ class RecurrenceParser {
   /// - pattern: 検出された繰り返しパターン（検出されない場合はnull）
   /// - cleanTitle: 繰り返しキーワードを削除したタイトル
   static RecurrenceParseResult parse(String title, DateTime? date) {
+    print('[RecurrenceParser] START: title="$title"');
     final trimmedTitle = title.trim().toLowerCase();
+    print('[RecurrenceParser] trimmedTitle="$trimmedTitle"');
     
     // "every" キーワードがない場合は早期リターン
     if (!trimmedTitle.contains('every')) {
+      print('[RecurrenceParser] No "every" keyword found, returning null');
       return RecurrenceParseResult(
         pattern: null,
         cleanTitle: title.trim(),
       );
     }
     
+    print('[RecurrenceParser] "every" keyword found, trying patterns...');
+    
     // 各パターンを順番に試す
     
     // 1. "every N days" / "every day" / "everyday"
+    print('[RecurrenceParser] Trying daily pattern...');
     final dailyResult = _parseDailyPattern(trimmedTitle, title);
-    if (dailyResult != null) return dailyResult;
+    if (dailyResult != null) {
+      print('[RecurrenceParser] Daily pattern matched: ${dailyResult.pattern}');
+      return dailyResult;
+    }
     
     // 2. "every N weeks" / "every week"
     final weeklyResult = _parseWeeklyPattern(trimmedTitle, title, date);

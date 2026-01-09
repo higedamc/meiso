@@ -33,10 +33,9 @@ final deleteTodoUseCaseProvider = Provider<DeleteTodoUseCase>((ref) {
 
 /// GenerateRecurringInstancesUseCaseのProvider
 /// 
-/// Phase C.2.3: リカーリングタスクの将来インスタンス生成
+/// Phase C.2.3: リカーリングタスクの将来インスタンス生成（14日ローリングウィンドウ）
 final generateRecurringInstancesUseCaseProvider = Provider<GenerateRecurringInstancesUseCase>((ref) {
-  final repository = ref.watch(todoRepositoryProvider);
-  return GenerateRecurringInstancesUseCase(repository);
+  return GenerateRecurringInstancesUseCase();
 });
 
 /// RemoveChildInstancesUseCaseのProvider

@@ -376,13 +376,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   Future<void> addTodo(String title, DateTime? date, {String? customListId}) async {
     if (title.trim().isEmpty) return;
 
-    AppLogger.debug(' addTodo called: "$title" for date: $date, customListId: $customListId');
+    AppLogger.info('📥 [ADD_TODO] START: title="$title", date=$date, customListId=$customListId');
     AppLogger.debug('📍 Stack trace location: addTodo');
     if (customListId != null) {
       AppLogger.debug(' IMPORTANT: This todo is being added to custom list: $customListId');
     }
 
     await state.whenData((todos) async {
+      AppLogger.info('📥 [ADD_TODO] Calling CreateTodoUseCase...');
       // Phase B: CreateTodoUseCaseを使ってTodoを生成
       final createTodoUseCase = _ref.read(createTodoUseCaseProvider);
       final result = await createTodoUseCase(CreateTodoParams(
@@ -391,6 +392,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         customListId: customListId,
         currentTodos: todos,
       ));
+
+      AppLogger.info('📥 [ADD_TODO] CreateTodoUseCase completed');
 
       result.fold(
         (failure) {
@@ -402,6 +405,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           // URL検出（UseCaseで既に処理済み）
           final detectedUrl = newTodo.linkPreview?.url;
           final autoRecurrence = newTodo.recurrence;
+          
+          AppLogger.info('📥 [ADD_TODO] newTodo created: id=${newTodo.id.substring(0, 8)}, title="${newTodo.title}", recurrence=${autoRecurrence?.type}');
 
           final list = List<Todo>.from(todos[date] ?? []);
           list.add(newTodo);
@@ -423,10 +428,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             AppLogger.info(' UI updated immediately (optimistic)');
           }
 
-          // 以下、全てバックグラウンドで実行（UIをブロックしない）
-          // Future.microtaskで真のバックグラウンド実行
-          Future.microtask(() {
-            _performBackgroundTasks(
+          // リカーリングタスクの場合は完全に完了してからUI更新
+          // （将来のインスタンスをUIに反映させるため）
+          if (autoRecurrence != null && date != null) {
+            final updatedTodosAfterBackground = await _performBackgroundTasks(
               newTodo: newTodo,
               updatedTodos: updatedTodos,
               autoRecurrence: autoRecurrence,
@@ -434,14 +439,31 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               detectedUrl: detectedUrl,
               customListId: customListId,
             );
-          });
+            // バックグラウンドタスク完了後、更新されたtodosでUI更新
+            _setTodosStateAsync(updatedTodosAfterBackground);
+            AppLogger.info('📥 [ADD_TODO] UI updated with recurring instances');
+          } else {
+            // 通常のタスクはバックグラウンドで実行（UIをブロックしない）
+            Future.microtask(() {
+              _performBackgroundTasks(
+                newTodo: newTodo,
+                updatedTodos: updatedTodos,
+                autoRecurrence: autoRecurrence,
+                date: date,
+                detectedUrl: detectedUrl,
+                customListId: customListId,
+              );
+            });
+          }
         },
       );
     }).value;
   }
 
   /// バックグラウンドで全ての非同期タスクを実行（UIをブロックしない）
-  Future<void> _performBackgroundTasks({
+  /// 
+  /// 戻り値: 更新された todos マップ
+  Future<Map<DateTime?, List<Todo>>> _performBackgroundTasks({
     required Todo newTodo,
     required Map<DateTime?, List<Todo>> updatedTodos,
     required RecurrencePattern? autoRecurrence,
@@ -450,8 +472,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     required String? customListId,
   }) async {
     try {
-      // Phase C.2.3: リカーリングタスクの場合、将来のインスタンスを事前生成（90日分）
+      AppLogger.info('🔄 [BACKGROUND] autoRecurrence=$autoRecurrence, date=$date');
+      
+      // Phase C.2.3: リカーリングタスクの場合、将来のインスタンスを事前生成（14日分）
       if (autoRecurrence != null && date != null) {
+        AppLogger.info('🔄 [BACKGROUND] Generating recurring instances...');
         final generateUseCase = _ref.read(generateRecurringInstancesUseCaseProvider);
         final generateResult = await generateUseCase(GenerateRecurringInstancesParams(
           parentTodo: newTodo,
@@ -467,7 +492,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             updatedTodos = updatedTodosWithRecurring;
             // 🐛 Fix: state に反映させないと _saveAllTodosToLocal() が古い state を保存してしまう
             state = AsyncValue.data(updatedTodos);
-            AppLogger.info('[Todos] ✅ Recurring instances generated (90 days)');
+            AppLogger.info('[Todos] ✅ Recurring instances generated (14 days)');
           },
         );
         
@@ -511,7 +536,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           _syncToNostr(() async {
             await _syncGroupToNostr(customListId);
           });
-          return; // 通常のTodo同期はスキップ
+          return updatedTodos; // 通常のTodo同期はスキップ
         }
       }
       
@@ -522,6 +547,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     } catch (e, stackTrace) {
       AppLogger.error('❌ Background task failed: $e', error: e, stackTrace: stackTrace);
     }
+    
+    // 更新された todos を返す
+    return updatedTodos;
   }
 
   /// バックグラウンドでリンクプレビューを取得
@@ -991,17 +1019,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             state = AsyncValue.error(failure, StackTrace.current);
           },
           (updatedTodos) async {
-            // スマートな再生成: 残りインスタンスが21日分以下の場合のみ次の90日分を生成
+            // スマートな再生成: 残りインスタンスが7日分以下の場合のみ次の14日分を生成（ローリングウィンドウ）
+            AppLogger.debug('[Todos] 🔍 Toggle check: wasCompleted=$wasCompleted, recurrence=${todo.recurrence}, date=${todo.date}');
             if (!wasCompleted && todo.recurrence != null && todo.date != null) {
               final remainingInstances = _countRemainingRecurringInstances(todo, updatedTodos);
               
-              // 残り21日分以下になったら次の90日分を追加生成
-              if (remainingInstances <= 21) {
-                AppLogger.info('[Todos] 🔄 残りインスタンス: $remainingInstances件 → 次の90日分を生成します');
-                await _createNextRecurringTask(todo, updatedTodos);
+              AppLogger.info('[Todos] 📊 残りインスタンス: $remainingInstances件 (閾値: 7日分)');
+              
+              // 残り7日分以下になったら次の14日分を追加生成
+              if (remainingInstances <= 7) {
+                AppLogger.info('[Todos] 🔄 残りインスタンス: $remainingInstances件 → 次の14日分を生成します');
+                final updatedTodosAfterRecurring = await _createNextRecurringTask(todo, updatedTodos);
+                if (updatedTodosAfterRecurring != null) {
+                  updatedTodos = updatedTodosAfterRecurring;
+                }
               } else {
                 AppLogger.debug('[Todos] ⏭️ 残りインスタンス: $remainingInstances件 → 再生成スキップ');
               }
+            } else {
+              AppLogger.debug('[Todos] ⏭️ 再生成条件を満たしていません');
             }
 
             // 【楽観的UI更新】即座にUI更新
@@ -1041,19 +1077,22 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }).value;
   }
 
-  /// Phase C.2.3: リカーリングタスクの次回インスタンスを生成（90日分）
+  /// Phase C.2.3: リカーリングタスクの次回インスタンスを生成（14日分）
   /// 
-  /// タスク完了時に将来のインスタンスを再生成します（残り21日分以下の場合）。
-  Future<void> _createNextRecurringTask(
+  /// タスク完了時に将来のインスタンスを再生成します（残り7日分以下の場合）。
+  /// ローリングウィンドウ方式で常に「今日 + 13日先まで」をカバーします。
+  /// 
+  /// 戻り値: 更新された todos マップ（生成失敗時は null）
+  Future<Map<DateTime?, List<Todo>>?> _createNextRecurringTask(
     Todo originalTodo,
     Map<DateTime?, List<Todo>> todos,
   ) async {
     if (originalTodo.recurrence == null || originalTodo.date == null) {
-      return;
+      return null;
     }
 
     AppLogger.debug('[Todos] リカーリングタスク完了: ${originalTodo.title}');
-    AppLogger.debug('[Todos] 将来のインスタンスを再生成します（90日分）');
+    AppLogger.debug('[Todos] 将来のインスタンスを再生成します（14日分）');
 
     // 親タスクのIDを特定（このタスクが子インスタンスの場合は親IDを使用）
     final parentId = originalTodo.parentRecurringId ?? originalTodo.id;
@@ -1083,24 +1122,31 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       currentTodos: todos,
     ));
     
+    Map<DateTime?, List<Todo>>? result;
+    
     generateResult.fold(
       (failure) {
         AppLogger.error('❌ Failed to generate next recurring instances: ${failure.message}');
+        result = null;
       },
       (updatedTodos) {
-        // 状態を更新（この時点でUIに反映）
-        state = AsyncValue.data(updatedTodos);
         AppLogger.info('[Todos] ✅ Next recurring instances generated');
+        result = updatedTodos;
       },
     );
     
-    // ローカルに保存
-    await _saveAllTodosToLocal();
+    if (result != null) {
+      // ローカルに保存
+      state = AsyncValue.data(result!);
+      await _saveAllTodosToLocal();
 
-    // Nostrにも同期
-    await _syncToNostr(() async {
-      await _syncAllTodosToNostr();
-    });
+      // Nostrにも同期（バックグラウンド）
+      _syncToNostr(() async {
+        await _syncAllTodosToNostr();
+      });
+    }
+    
+    return result;
   }
 
   // Phase C.2.3: _generateFutureInstances() と _removeChildInstances() は
@@ -1108,9 +1154,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   // - GenerateRecurringInstancesUseCase
   // - RemoveChildInstancesUseCase
 
-  /// リカーリングタスクの残りインスタンス数を数える（90日以内）
+  /// リカーリングタスクの残りインスタンス数を数える（14日以内）
   /// 
-  /// スマートな再生成のために使用。残りが21日分以下になったら追加生成する。
+  /// スマートな再生成のために使用。残りが7日分以下になったら追加生成する。
+  /// ローリングウィンドウ方式で効率的に管理します。
   int _countRemainingRecurringInstances(
     Todo todo,
     Map<DateTime?, List<Todo>> todos,
@@ -1123,7 +1170,7 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final parentId = todo.parentRecurringId ?? todo.id;
     
     final now = DateTime.now();
-    final ninetyDaysLater = now.add(const Duration(days: 90));
+    final fourteenDaysLater = now.add(const Duration(days: 14));
     
     var count = 0;
     
@@ -1135,13 +1182,13 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // 条件:
         // 1. 同じ親タスクIDを持つ、または同じタスク自身
         // 2. 未完了
-        // 3. 日付が今日以降、90日以内
+        // 3. 日付が今日以降、14日以内
         if ((task.parentRecurringId == parentId || task.id == parentId) &&
             !task.completed &&
             task.date != null) {
           final taskDate = DateTime(task.date!.year, task.date!.month, task.date!.day);
-          // 今日以降 かつ 90日以内
-          if (!taskDate.isBefore(today) && !taskDate.isAfter(ninetyDaysLater)) {
+          // 今日以降 かつ 14日以内
+          if (!taskDate.isBefore(today) && !taskDate.isAfter(fourteenDaysLater)) {
             count++;
           }
         }
