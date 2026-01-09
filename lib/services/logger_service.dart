@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 final Talker talker = TalkerFlutter.init(
   settings: TalkerSettings(
     useConsoleLogs: kDebugMode,
+    maxHistoryItems: 50000, // 大量のログを保存できるように増やす（デフォルト: 1000）
   ),
   logger: TalkerLogger(
     settings: TalkerLoggerSettings(
