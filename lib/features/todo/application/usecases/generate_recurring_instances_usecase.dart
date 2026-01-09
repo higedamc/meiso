@@ -5,16 +5,15 @@ import '../../../../core/common/failure.dart';
 import '../../../../services/logger_service.dart';
 import '../../../../models/todo.dart'; // Models層のTodoを使用
 import '../../../../models/recurrence_pattern.dart'; // RecurrencePattern拡張のため
-import '../../domain/repositories/todo_repository.dart';
 
 /// リカーリングタスクの将来インスタンスを生成するUseCase
 /// 
-/// 親タスクの繰り返しパターンに基づいて、90日以内の将来のインスタンスを自動生成します。
+/// 親タスクの繰り返しパターンに基づいて、14日以内の将来のインスタンスを自動生成します。
+/// ローリングウィンドウ方式で、常に「今日 + 13日先まで」をカバーします。
 class GenerateRecurringInstancesUseCase
     implements UseCase<Map<DateTime?, List<Todo>>, GenerateRecurringInstancesParams> {
 
-  GenerateRecurringInstancesUseCase(this._repository);
-  final TodoRepository _repository;
+  GenerateRecurringInstancesUseCase();
   final _uuid = const Uuid();
 
   @override
@@ -39,32 +38,73 @@ class GenerateRecurringInstancesUseCase
       final originalTaskExists = originalDateTasks.any((t) => t.id == originalTodo.id);
       AppLogger.debug('[GenerateRecurringInstances] 元のタスクが存在: $originalTaskExists (${originalDateTasks.length}件のタスク)');
 
-      var currentDate = originalTodo.date;
       var generatedCount = 0;
-      const maxInstances = 150; // 最大150個まで生成（無限ループ防止）
+      const maxInstances = 30; // 最大30個まで生成（無限ループ防止、14日分で十分）
       final now = DateTime.now();
-      final ninetyDaysLater = now.add(const Duration(days: 90));
+      final today = DateTime(now.year, now.month, now.day);
+      
+      // 既存のインスタンスの最大日付を見つける（今日以降のみ）
+      DateTime? maxExistingDate;
+      for (final dateGroup in todos.values) {
+        for (final task in dateGroup) {
+          if ((task.parentRecurringId == originalTodo.id || task.id == originalTodo.id) &&
+              task.date != null) {
+            final taskDate = DateTime(task.date!.year, task.date!.month, task.date!.day);
+            // 今日以降のインスタンスのみを対象
+            if (!taskDate.isBefore(today)) {
+              if (maxExistingDate == null || taskDate.isAfter(maxExistingDate)) {
+                maxExistingDate = taskDate;
+              }
+            }
+          }
+        }
+      }
+      
+      // 開始日を決定：既存の最大日付、または今日、または元のタスクの日付
+      DateTime currentDate = maxExistingDate != null 
+          ? maxExistingDate
+          : (originalTodo.date!.isBefore(today) 
+              ? today.subtract(Duration(days: originalTodo.recurrence!.interval))
+              : originalTodo.date!);
+      
+      // 終了日：開始日から14日後
+      final fourteenDaysLater = currentDate.add(const Duration(days: 14));
+      
+      AppLogger.debug('[GenerateRecurringInstances] 既存の最大日付（今日以降）: $maxExistingDate');
+      AppLogger.debug('[GenerateRecurringInstances] 生成開始日: $currentDate');
+      AppLogger.debug('[GenerateRecurringInstances] 生成終了日: $fourteenDaysLater');
 
-      // 90日以内の将来のインスタンスを生成
+      // 14日以内の将来のインスタンスを生成（ローリングウィンドウ方式）
       while (generatedCount < maxInstances) {
-        final nextDate = originalTodo.recurrence!.calculateNextDate(currentDate!);
+        final nextDate = originalTodo.recurrence!.calculateNextDate(currentDate);
 
         if (nextDate == null) {
           AppLogger.info('[GenerateRecurringInstances] 繰り返し終了');
           break; // 繰り返し終了
         }
 
-        // 90日以内の日付のみ生成
-        if (nextDate.isAfter(ninetyDaysLater)) {
-          AppLogger.debug('[GenerateRecurringInstances] 90日以内の範囲を超えたため終了');
+        AppLogger.debug('[GenerateRecurringInstances] 次の日付候補: $nextDate');
+
+        // 14日以内の日付のみ生成
+        if (nextDate.isAfter(fourteenDaysLater)) {
+          AppLogger.debug('[GenerateRecurringInstances] 14日以内の範囲を超えたため終了 ($nextDate > $fourteenDaysLater)');
           break;
         }
+        
+        // 今日より前の日付はスキップ
+        if (nextDate.isBefore(today)) {
+          AppLogger.debug('[GenerateRecurringInstances] 過去の日付をスキップ: $nextDate');
+          currentDate = nextDate;
+          continue;
+        }
 
-        // 既に同じタイトルのタスクが存在するかチェック
+        // 既に同じ親タスクのインスタンスが存在するかチェック
         final existingTasks = todos[nextDate] ?? [];
         final alreadyExists = existingTasks.any((t) =>
             t.parentRecurringId == originalTodo.id ||
-            (t.title == originalTodo.title && t.recurrence != null && t.id != originalTodo.id));
+            (t.id == originalTodo.id && t.date == nextDate));  // 親タスク自身が同じ日付にいる場合
+        
+        AppLogger.debug('[GenerateRecurringInstances] $nextDate: 既存=${alreadyExists} (既存タスク${existingTasks.length}件)');
 
         if (!alreadyExists) {
           // 新しいインスタンスを生成
