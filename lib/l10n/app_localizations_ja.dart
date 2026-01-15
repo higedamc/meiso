@@ -243,6 +243,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get removeAllInstances => 'すべてのインスタンスを削除';
 
   @override
+  String get updateRecurringTodoTitle => '繰り返しタスクを更新';
+
+  @override
+  String get updateThisInstance => 'このインスタンスのみ更新';
+
+  @override
+  String get updateAllInstances => 'すべてのインスタンスを更新';
+
+  @override
   String get todoJsonTitle => 'Todo JSON';
 
   @override

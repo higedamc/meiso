@@ -538,6 +538,24 @@ abstract class AppLocalizations {
   /// **'Remove all instances'**
   String get removeAllInstances;
 
+  /// Title for recurring update confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Update recurring task'**
+  String get updateRecurringTodoTitle;
+
+  /// Option to update only this instance of a recurring todo
+  ///
+  /// In en, this message translates to:
+  /// **'Update this instance only'**
+  String get updateThisInstance;
+
+  /// Option to update all instances of a recurring todo
+  ///
+  /// In en, this message translates to:
+  /// **'Update all instances'**
+  String get updateAllInstances;
+
   /// Title for the Todo JSON dialog
   ///
   /// In en, this message translates to:

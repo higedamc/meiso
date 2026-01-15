@@ -250,6 +250,15 @@ class AppLocalizationsEs extends AppLocalizations {
   String get removeAllInstances => 'Eliminar todas las instancias';
 
   @override
+  String get updateRecurringTodoTitle => 'Actualizar tarea recurrente';
+
+  @override
+  String get updateThisInstance => 'Actualizar solo esta instancia';
+
+  @override
+  String get updateAllInstances => 'Actualizar todas las instancias';
+
+  @override
   String get todoJsonTitle => 'Todo JSON';
 
   @override

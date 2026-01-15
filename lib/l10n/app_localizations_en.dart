@@ -245,6 +245,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removeAllInstances => 'Remove all instances';
 
   @override
+  String get updateRecurringTodoTitle => 'Update recurring task';
+
+  @override
+  String get updateThisInstance => 'Update this instance only';
+
+  @override
+  String get updateAllInstances => 'Update all instances';
+
+  @override
   String get todoJsonTitle => 'Todo JSON';
 
   @override
