@@ -147,6 +147,12 @@
   
   "removeAllInstances": "Eliminar todas las instancias",
 
+  "updateRecurringTodoTitle": "Actualizar tarea recurrente",
+
+  "updateThisInstance": "Actualizar solo esta instancia",
+
+  "updateAllInstances": "Actualizar todas las instancias",
+
   "todoJsonTitle": "Todo JSON",
   
   "jsonCopied": "JSON copiado",

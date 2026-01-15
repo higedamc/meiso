@@ -384,6 +384,21 @@
     "description": "Option to delete all instances of a recurring todo"
   },
 
+  "updateRecurringTodoTitle": "Update recurring task",
+  "@updateRecurringTodoTitle": {
+    "description": "Title for recurring update confirmation dialog"
+  },
+
+  "updateThisInstance": "Update this instance only",
+  "@updateThisInstance": {
+    "description": "Option to update only this instance of a recurring todo"
+  },
+
+  "updateAllInstances": "Update all instances",
+  "@updateAllInstances": {
+    "description": "Option to update all instances of a recurring todo"
+  },
+
   "todoJsonTitle": "Todo JSON",
   "@todoJsonTitle": {
     "description": "Title for the Todo JSON dialog"

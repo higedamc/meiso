@@ -147,6 +147,12 @@
 
   "removeAllInstances": "すべてのインスタンスを削除",
 
+  "updateRecurringTodoTitle": "繰り返しタスクを更新",
+
+  "updateThisInstance": "このインスタンスのみ更新",
+
+  "updateAllInstances": "すべてのインスタンスを更新",
+
   "todoJsonTitle": "Todo JSON",
 
   "jsonCopied": "JSONをコピーしました",
