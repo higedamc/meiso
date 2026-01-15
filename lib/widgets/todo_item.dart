@@ -9,7 +9,6 @@ import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../providers/todos_provider.dart';
 import '../providers/nostr_provider.dart';
-import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
 import 'circular_checkbox.dart';
@@ -286,7 +285,7 @@ class TodoItem extends StatelessWidget {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            _extractDomain(linkPreview.url),
+                            linkPreview.url,
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.grey,
                             ),
@@ -306,15 +305,6 @@ class TodoItem extends StatelessWidget {
     );
   }
 
-  /// URLからドメイン名を抽出
-  String _extractDomain(String url) {
-    try {
-      final uri = Uri.parse(url);
-      return uri.host;
-    } catch (e) {
-      return url;
-    }
-  }
 
   /// URLをブラウザで開く
   Future<void> _openUrl(String url) async {

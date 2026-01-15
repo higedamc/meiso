@@ -769,7 +769,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              _extractDomain(linkPreview.url),
+                              linkPreview.url,
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: Colors.grey,
                               ),
@@ -812,15 +812,6 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     );
   }
 
-  /// URLからドメイン名を抽出
-  String _extractDomain(String url) {
-    try {
-      final uri = Uri.parse(url);
-      return uri.host;
-    } catch (e) {
-      return url;
-    }
-  }
 
   /// URLをブラウザで開く
   Future<void> _openUrl(String url) async {

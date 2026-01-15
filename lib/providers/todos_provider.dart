@@ -963,8 +963,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         
         // URLが検出された場合、即座にタイトルから削除
         var finalTitle = newTitle.trim();
-        var initialLinkPreview = list[index].linkPreview;
-        
+        LinkPreview? initialLinkPreview;
+
         if (detectedUrl != null) {
           // URLからドメイン名を抽出
           var domainName = detectedUrl;
@@ -974,21 +974,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           } catch (e) {
             // パースエラー時はそのままURLを使用
           }
-          
+
           finalTitle = LinkPreviewService.removeUrlFromText(newTitle.trim(), detectedUrl);
           // 空になった場合（URLのみの入力）はドメイン名を使用
           if (finalTitle.trim().isEmpty) {
             finalTitle = domainName;
           }
-          
+
           // 一時的なリンクプレビューを作成（取得中を示す）
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName, // ドメイン名を表示
             description: '読み込み中...', // 取得中を日本語で表示
           );
-          
+
           AppLogger.debug(' Title after URL removal (update): "$finalTitle" (domain: $domainName)');
+        } else {
+          // URLが検出されなかった場合は linkPreview を削除
+          initialLinkPreview = null;
+          AppLogger.debug(' No URL detected - removing linkPreview');
         }
         
         final updatedTodo = list[index].copyWith(
@@ -1117,8 +1121,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         
         // URLが検出された場合、即座にタイトルから削除
         var finalTitle = newTitle.trim();
-        var initialLinkPreview = list[index].linkPreview;
-        
+        LinkPreview? initialLinkPreview;
+
         if (detectedUrl != null) {
           // URLからドメイン名を抽出
           var domainName = detectedUrl;
@@ -1128,21 +1132,25 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
           } catch (e) {
             // パースエラー時はそのままURLを使用
           }
-          
+
           finalTitle = LinkPreviewService.removeUrlFromText(newTitle.trim(), detectedUrl);
           // 空になった場合（URLのみの入力）はドメイン名を使用
           if (finalTitle.trim().isEmpty) {
             finalTitle = domainName;
           }
-          
+
           // 一時的なリンクプレビューを作成（取得中を示す）
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName,
             description: '読み込み中...',
           );
-          
+
           AppLogger.debug(' Title after URL removal (single update): "$finalTitle" (domain: $domainName)');
+        } else {
+          // URLが検出されなかった場合は linkPreview を削除
+          initialLinkPreview = null;
+          AppLogger.debug(' No URL detected - removing linkPreview');
         }
         
         // 単一インスタンスのみ更新（親から独立させる）
