@@ -14,11 +14,17 @@ import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
 import 'circular_checkbox.dart';
 
-/// リカーリングタスク削除オプション
-enum RecurringDeleteOption {
-  thisInstance,   // このインスタンスのみ削除
-  allInstances,   // すべてのインスタンスを削除
+/// リカーリングタスクアクションオプション（削除・更新共通）
+enum RecurringActionOption {
+  thisInstance,   // このインスタンスのみ
+  allInstances,   // すべてのインスタンス
   cancel,         // キャンセル
+}
+
+/// リカーリングタスクアクション種別
+enum RecurringActionType {
+  delete,  // 削除
+  update,  // 更新
 }
 
 /// 個別のTodoアイテムウィジェット
@@ -324,16 +330,41 @@ class TodoItem extends StatelessWidget {
     }
   }
 
-  /// リカーリングタスク削除確認ダイアログ
-  Future<RecurringDeleteOption?> _showRecurringDeleteDialog(BuildContext context) async {
-    return showDialog<RecurringDeleteOption>(
+  /// リカーリングタスクアクション確認ダイアログ（削除・更新共通）
+  static Future<RecurringActionOption?> showRecurringActionDialog(
+    BuildContext context,
+    RecurringActionType actionType,
+  ) async {
+    return showDialog<RecurringActionOption>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         final l10n = AppLocalizations.of(context);
+        
+        // アクション種別に応じてテキストと色を変更
+        final String title;
+        final String thisInstanceText;
+        final String allInstancesText;
+        final Color actionColor;
+        
+        switch (actionType) {
+          case RecurringActionType.delete:
+            title = l10n.deleteRecurringTodoTitle;
+            thisInstanceText = l10n.removeThisInstance;
+            allInstancesText = l10n.removeAllInstances;
+            actionColor = Colors.red.shade600;
+            break;
+          case RecurringActionType.update:
+            title = l10n.updateRecurringTodoTitle;
+            thisInstanceText = l10n.updateThisInstance;
+            allInstancesText = l10n.updateAllInstances;
+            actionColor = Colors.blue.shade600;
+            break;
+        }
+        
         return AlertDialog(
           title: Text(
-            l10n.deleteRecurringTodoTitle,
+            title,
             style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w600,
@@ -347,34 +378,34 @@ class TodoItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 8),
-              // このインスタンスを削除
+              // このインスタンスのみ
               InkWell(
-                onTap: () => Navigator.of(context).pop(RecurringDeleteOption.thisInstance),
+                onTap: () => Navigator.of(context).pop(RecurringActionOption.thisInstance),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                   child: Text(
-                    l10n.removeThisInstance,
+                    thisInstanceText,
                     style: TextStyle(
                       fontSize: 17,
-                      color: Colors.red.shade600,
+                      color: actionColor,
                     ),
                     textAlign: TextAlign.center,
                   ),
                 ),
               ),
               Divider(height: 1, color: Colors.grey.shade300),
-              // すべてのインスタンスを削除
+              // すべてのインスタンス
               InkWell(
-                onTap: () => Navigator.of(context).pop(RecurringDeleteOption.allInstances),
+                onTap: () => Navigator.of(context).pop(RecurringActionOption.allInstances),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                   child: Text(
-                    l10n.removeAllInstances,
+                    allInstancesText,
                     style: TextStyle(
                       fontSize: 17,
-                      color: Colors.red.shade600,
+                      color: actionColor,
                       fontWeight: FontWeight.w600,
                     ),
                     textAlign: TextAlign.center,
@@ -391,7 +422,7 @@ class TodoItem extends StatelessWidget {
                 ),
               ),
               child: TextButton(
-                onPressed: () => Navigator.of(context).pop(RecurringDeleteOption.cancel),
+                onPressed: () => Navigator.of(context).pop(RecurringActionOption.cancel),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.blue,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -472,8 +503,11 @@ class TodoItem extends StatelessWidget {
               // 左スワイプ → 削除
               // リカーリングタスクの場合は確認ダイアログを表示
               if (todo.isRecurring) {
-                final result = await _showRecurringDeleteDialog(context);
-                if (result == RecurringDeleteOption.thisInstance) {
+                final result = await TodoItem.showRecurringActionDialog(
+                  context,
+                  RecurringActionType.delete,
+                );
+                if (result == RecurringActionOption.thisInstance) {
                   // このインスタンスのみ削除
                   await ref.read(todosProvider.notifier).deleteRecurringInstance(
                     todo.id,
@@ -488,7 +522,7 @@ class TodoItem extends StatelessWidget {
                   );
                   
                   return false; // Dismissibleをキャンセル（手動で削除済み）
-                } else if (result == RecurringDeleteOption.allInstances) {
+                } else if (result == RecurringActionOption.allInstances) {
                   // すべてのインスタンスを削除
                   await ref.read(todosProvider.notifier).deleteAllRecurringInstances(
                     todo.id,
@@ -508,52 +542,49 @@ class TodoItem extends StatelessWidget {
                   return false;
                 }
               } else {
-                // 通常のタスクはそのまま削除
-                return true;
+                // Issue #11: 通常のタスク - ソフト削除（UIのみ削除、永続化・同期しない）
+                final deletedTodo = todo;
+                
+                // Issue #11: refとcontextをキャプチャ（SnackBarコールバックで使うため）
+                final notifier = ref.read(todosProvider.notifier);
+                final messenger = ScaffoldMessenger.of(context);
+                
+                AppLogger.info('🎯 [UNDO] About to call softDeleteTodo for: ${deletedTodo.title}');
+                
+                // UIから削除（楽観的UI更新）
+                notifier.softDeleteTodo(deletedTodo);
+                
+                AppLogger.info('🎯 [UNDO] About to call scheduleDeleteConfirmation');
+                
+                // Issue #11: 3秒後に削除を確定するタイマーを設定
+                notifier.scheduleDeleteConfirmation(const Duration(seconds: 3));
+                
+                AppLogger.info('🎯 [UNDO] scheduleDeleteConfirmation called successfully');
+                
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('「${todo.title}」を削除しました'),
+                    duration: const Duration(seconds: 3),
+                    action: SnackBarAction(
+                      label: '元に戻す',
+                      textColor: Colors.blue.shade300,
+                      onPressed: () {
+                        AppLogger.info('🔵 [UNDO] Undo button pressed!');
+                        // Issue #11: UNDO（UIのみ復元、永続化・同期しない）
+                        notifier.undoDeleteTodo();
+                        // SnackBarを即座に閉じる
+                        messenger.hideCurrentSnackBar();
+                      },
+                    ),
+                  ),
+                );
+                
+                return false; // Dismissibleによる自動削除を防ぐ（手動で削除済み）
               }
             }
           },
           onDismissed: (direction) async {
-            if (direction == DismissDirection.endToStart) {
-              // 左スワイプの場合のみ削除
-              // 削除前にTodoを保持（元に戻す用）
-              final deletedTodo = todo;
-              
-              // グループリストかどうかを確認
-              var isGroupList = false;
-              if (todo.customListId != null) {
-                final customListsAsync = ref.read(customListsProvider);
-                final customLists = customListsAsync.whenOrNull(data: (lists) => lists) ?? [];
-                final customList = customLists.where((l) => l.id == todo.customListId).firstOrNull;
-                isGroupList = customList?.isGroup ?? false;
-              }
-              
-              if (isGroupList) {
-                // グループタスクの削除
-                ref.read(todosProvider.notifier).deleteTodoFromGroup(
-                  groupId: todo.customListId!,
-                  todoId: todo.id,
-                );
-              } else {
-                // 通常のタスクの削除
-                ref.read(todosProvider.notifier).deleteTodo(todo.id, todo.date);
-              }
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('「${todo.title}」を削除しました'),
-                  duration: const Duration(seconds: 3),
-                  action: SnackBarAction(
-                    label: '元に戻す',
-                    textColor: Colors.blue.shade300,
-                    onPressed: () {
-                      // 削除をキャンセルしてTodoを復元
-                      ref.read(todosProvider.notifier).addTodoWithData(deletedTodo);
-                    },
-                  ),
-                ),
-              );
-            }
+            // Issue #11: confirmDismissで手動処理するため、ここは使わない
           },
           child: DecoratedBox(
             decoration: BoxDecoration(

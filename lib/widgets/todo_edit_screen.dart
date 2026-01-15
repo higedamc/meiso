@@ -10,6 +10,7 @@ import '../providers/todos_provider.dart';
 import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
+import 'todo_item.dart';
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -508,14 +509,59 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
         );
         AppLogger.info(' [Group] Todo update completed and synced');
       } else {
-        AppLogger.debug(' Updating todo: "$text" (id: ${widget.todo!.id})');
-        await ref.read(todosProvider.notifier).updateTodoWithRecurrence(
-          widget.todo!.id,
-          widget.todo!.date,
-          text,
-          _recurrence,
-        );
-        AppLogger.info(' Todo update completed and synced');
+        // リカーリングタスクの場合、タイトルが変更されたか確認
+        final isTitleChanged = widget.todo!.title != text;
+        final isRecurring = widget.todo!.isRecurring;
+        
+        if (isRecurring && isTitleChanged) {
+          // リカーリングタスクのタイトルが変更された場合、ダイアログを表示
+          AppLogger.debug(' Recurring todo title changed, showing dialog');
+          
+          final result = await TodoItem.showRecurringActionDialog(
+            context,
+            RecurringActionType.update,
+          );
+          
+          if (!mounted) return;
+          
+          if (result == RecurringActionOption.thisInstance) {
+            // このインスタンスのみ更新
+            AppLogger.debug(' Updating single instance: "$text" (id: ${widget.todo!.id})');
+            await ref.read(todosProvider.notifier).updateSingleInstanceTitle(
+              widget.todo!.id,
+              widget.todo!.date,
+              text,
+            );
+            AppLogger.info(' Single instance update completed');
+          } else if (result == RecurringActionOption.allInstances) {
+            // すべてのインスタンスを更新
+            AppLogger.debug(' Updating all instances: "$text" (id: ${widget.todo!.id})');
+            await ref.read(todosProvider.notifier).updateTodoWithRecurrence(
+              widget.todo!.id,
+              widget.todo!.date,
+              text,
+              _recurrence,
+            );
+            AppLogger.info(' All instances update completed');
+          } else {
+            // キャンセル
+            AppLogger.debug(' Update cancelled');
+            if (mounted) {
+              Navigator.pop(context);
+            }
+            return;
+          }
+        } else {
+          // 通常の更新（リカーリングでない、またはタイトル変更なし）
+          AppLogger.debug(' Updating todo: "$text" (id: ${widget.todo!.id})');
+          await ref.read(todosProvider.notifier).updateTodoWithRecurrence(
+            widget.todo!.id,
+            widget.todo!.date,
+            text,
+            _recurrence,
+          );
+          AppLogger.info(' Todo update completed and synced');
+        }
       }
     } else {
       // 追加モード: 新しいTodoを作成

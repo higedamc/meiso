@@ -80,6 +80,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
   Timer? _mlsRealtimeSaveDebounce;
 
+  // Issue #11: UNDO機能（最後に削除した1件のみ復元可能）
+  Todo? _lastDeletedTodo;
+  Timer? _deletionTimer;
+
   /// Nostrの初期化状態に応じて、バッチ同期タイマーを開始/停止する。
   ///
   /// - ログイン前（Nostr未初期化）ではタイマーを起動しない（ログスパム防止）
@@ -193,11 +197,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     AppLogger.info(' [Todos] 優先同期を開始${isInitialSync ? "（初回同期）" : ""}');
 
     try {
-      // タイムアウト付きで同期実行（60秒）
+      // タイムアウト付きで同期実行（15秒）
       await Future<void>.delayed(Duration.zero).timeout(
-        const Duration(seconds: 60),
+        const Duration(seconds: 15),
         onTimeout: () async {
-          AppLogger.warning(' [Todos] 優先同期タイムアウト（60秒）');
+          AppLogger.warning(' [Todos] 優先同期タイムアウト（15秒）');
           _ref.read(syncStatusProvider.notifier).syncError(
             '同期がタイムアウトしました',
             shouldRetry: false,
@@ -263,14 +267,15 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         '同期エラー: ${e}',
         shouldRetry: false,
       );
+    } finally {
+      // 同期完了後、進捗をリセット（isInitialSyncフラグもクリア）
+      _ref.read(syncStatusProvider.notifier).resetProgress();
+      AppLogger.debug(' [Todos] 優先同期の進捗をリセットしました');
     }
   }
   
   /// バックグラウンド同期（UIブロックしない）
   Future<void> _backgroundSync() async {
-    // 画面表示後に実行
-    await Future<void>.delayed(const Duration(seconds: 1));
-    
     // Nostr初期化チェック（即座に）
     if (!_ref.read(nostrInitializedProvider)) {
       AppLogger.debug(' [Todos] Nostr未初期化のため、バックグラウンド同期をスキップ');
@@ -282,9 +287,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     try {
       AppLogger.info(' Starting background Nostr sync...');
       
-      // タイムアウト付きで実行（60秒）
+      // タイムアウト付きで実行（15秒）
       await Future<void>.delayed(Duration.zero).timeout(
-        const Duration(seconds: 60),
+        const Duration(seconds: 15),
         onTimeout: () async {
           AppLogger.debug(' Background sync timeout - continuing with local data');
           _ref.read(syncStatusProvider.notifier).syncError(
@@ -540,10 +545,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         }
       }
       
-      // 🔥 Phase Performance.1: バッチ同期タイマーに追加（即座の同期を避ける）
-      // 通常のTodo同期は5秒後のバッチ同期で実行される
-      AppLogger.info('📦 Adding to batch sync queue (will sync in 5 seconds)');
-      _startBatchSyncTimer();
+      // 🔥 即座に同期（バックグラウンド）
+      AppLogger.info('📦 Syncing to Nostr immediately (background)');
+      _syncToNostrBackground();
     } catch (e, stackTrace) {
       AppLogger.error('❌ Background task failed: $e', error: e, stackTrace: stackTrace);
     }
@@ -646,6 +650,158 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     }
   }
 
+  // ============================================
+  // Issue #11: UNDO機能（最後に削除した1件のみ復元可能）
+  // ============================================
+
+  /// タスクをソフト削除（UIのみ削除、永続化・同期しない）
+  /// 
+  /// SnackBarのタイムアウト後に`_confirmDelete()`が呼ばれるまで、
+  /// 削除は確定しない。
+  void softDeleteTodo(Todo todo) {
+    // 前のタイマーがあればキャンセル（新しい削除で上書き）
+    _deletionTimer?.cancel();
+    
+    // 最後に削除したタスクとして保持
+    _lastDeletedTodo = todo;
+    
+    // UIから削除
+    state.whenData((todos) {
+      final list = List<Todo>.from(todos[todo.date] ?? []);
+      list.removeWhere((t) => t.id == todo.id);
+      
+      state = AsyncValue.data({
+        ...todos,
+        todo.date: list,
+      });
+    });
+    
+    AppLogger.info('🗑️ [UNDO] Soft deleted: ${todo.title} (id: ${todo.id.substring(0, 8)})');
+  }
+
+  /// 削除をUNDO（UIのみ復元、永続化・同期しない）
+  void undoDeleteTodo() {
+    AppLogger.info('📞 [UNDO] undoDeleteTodo called, _lastDeletedTodo: ${_lastDeletedTodo != null ? _lastDeletedTodo!.title : "null"}');
+    
+    if (_lastDeletedTodo == null) {
+      AppLogger.warning('⚠️ [UNDO] No task to restore');
+      return;
+    }
+    
+    final todo = _lastDeletedTodo!;
+    
+    // タイマーをキャンセル
+    AppLogger.info('⏹️ [UNDO] Canceling timer...');
+    _deletionTimer?.cancel();
+    _deletionTimer = null;
+    
+    // UIに復元
+    state.whenData((todos) {
+      final list = List<Todo>.from(todos[todo.date] ?? []);
+      
+      // 重複チェック
+      if (!list.any((t) => t.id == todo.id)) {
+        list.add(todo);
+        
+        state = AsyncValue.data({
+          ...todos,
+          todo.date: list,
+        });
+        AppLogger.info('✅ [UNDO] State updated with restored todo');
+      } else {
+        AppLogger.warning('⚠️ [UNDO] Todo already exists in state');
+      }
+    });
+    
+    AppLogger.info('↩️ [UNDO] Restored: ${todo.title} (id: ${todo.id.substring(0, 8)})');
+    
+    // クリア
+    _lastDeletedTodo = null;
+  }
+
+  /// 削除を確定（永続化・同期を実行）
+  /// 
+  /// SnackBarのタイムアウト後に呼ばれる
+  /// 
+  /// 注意: state は既に softDeleteTodo() で更新済みなので、
+  /// ここでは state を触らず、ローカルストレージと Nostr のみを更新する
+  Future<void> _confirmDelete(Todo todo) async {
+    AppLogger.info('✅ [UNDO] Confirming delete: ${todo.title} (id: ${todo.id.substring(0, 8)})');
+    
+    try {
+      // グループタスクかどうかを判定
+      bool isGroupTask = false;
+      if (todo.customListId != null) {
+        final customListsAsync = _ref.read(customListsProvider);
+        final customLists = customListsAsync.whenOrNull(data: (lists) => lists) ?? [];
+        final customList = customLists.where((l) => l.id == todo.customListId).firstOrNull;
+        isGroupTask = customList?.isGroup ?? false;
+      }
+      
+      // Issue #11: state は触らず、ローカルストレージから直接削除
+      final repository = _ref.read(todoRepositoryProvider);
+      final deleteResult = await repository.deleteTodoFromLocal(todo.id);
+      
+      deleteResult.fold(
+        (failure) {
+          AppLogger.error('❌ [UNDO] Failed to delete from local storage: ${failure.message}');
+          // state は壊さない（既に softDeleteTodo で更新済み）
+        },
+        (_) {
+          AppLogger.info('✅ [UNDO] Deleted from local storage successfully');
+        },
+      );
+      
+      // Issue #11: Nostr に同期
+      if (isGroupTask) {
+        // グループタスクの場合は MLS イベントを送信
+        AppLogger.info('📤 [UNDO] Sending MLS delete event for group task...');
+        await _sendMlsGroupTodoAction(
+          groupId: todo.customListId!,
+          action: 'delete',
+          todo: todo,
+          todoIdOverride: todo.id,
+        );
+      } else {
+        // 通常のタスクの場合は全体を同期
+        AppLogger.info('📤 [UNDO] Syncing all todos to Nostr (background)...');
+        _syncToNostrBackground();
+      }
+      
+      AppLogger.info('🎉 [UNDO] Delete confirmed successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error('❌ [UNDO] _confirmDelete failed: $e', error: e, stackTrace: stackTrace);
+      // state は壊さない（既に softDeleteTodo で更新済み）
+    }
+    
+    // クリア
+    _lastDeletedTodo = null;
+    _deletionTimer = null;
+  }
+
+  /// SnackBarのタイムアウト後に削除を確定するタイマーを設定
+  void scheduleDeleteConfirmation(Duration delay) {
+    AppLogger.info('📞 [UNDO] scheduleDeleteConfirmation called, _lastDeletedTodo: ${_lastDeletedTodo != null ? _lastDeletedTodo!.title : "null"}');
+    
+    if (_lastDeletedTodo == null) {
+      AppLogger.warning('⚠️ [UNDO] Cannot schedule: _lastDeletedTodo is null');
+      return;
+    }
+    
+    final todo = _lastDeletedTodo!;
+    
+    _deletionTimer = Timer(delay, () async {
+      AppLogger.info('⏰ [UNDO] Timer fired! Calling _confirmDelete...');
+      await _confirmDelete(todo);
+    });
+    
+    AppLogger.info('⏱️ [UNDO] Scheduled delete confirmation in ${delay.inSeconds}s for: ${todo.title}');
+  }
+
+  // ============================================
+  // End of UNDO機能
+  // ============================================
+
   /// Nostrから取得したTodoを追加（既存データを保持）
   Future<void> addTodoWithData(Todo todo) async {
     state.whenData((todos) {
@@ -745,9 +901,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // Widgetを更新
         await _updateWidget();
 
-        // 【楽観的UI更新】バッチ同期タイマーに追加（即座の同期を避ける）
+        // 【楽観的UI更新】即座に同期（バックグラウンド）
         _updateUnsyncedCount();
-        _startBatchSyncTimer();
+        _syncToNostrBackground();
       }
     }).value;
   }
@@ -776,9 +932,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         // Widgetを更新
         await _updateWidget();
 
-        // 【楽観的UI更新】バッチ同期タイマーに追加（即座の同期を避ける）
+        // 【楽観的UI更新】即座に同期（バックグラウンド）
         _updateUnsyncedCount();
-        _startBatchSyncTimer();
+        _syncToNostrBackground();
       }
     }).value;
   }
@@ -929,8 +1085,134 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
 
         // 【楽観的UI更新】バッチ同期タイマーに追加（即座の同期を避ける）
         _updateUnsyncedCount();
-        _startBatchSyncTimer();
+        _syncToNostrBackground();
         AppLogger.info('🚀 [UPDATE] updateTodoWithRecurrence completed successfully');
+      } else {
+        AppLogger.error('❌ [UPDATE] Todo not found in list: id=${id.substring(0, 8)}');
+      }
+    }).value;
+  }
+
+  /// 単一インスタンスのタイトルのみを更新（リカーリング情報は変更せず、親から独立）
+  Future<void> updateSingleInstanceTitle(
+    String id,
+    DateTime? date,
+    String newTitle,
+  ) async {
+    if (newTitle.trim().isEmpty) return;
+
+    AppLogger.info('🔄 [UPDATE] updateSingleInstanceTitle called: id=${id.substring(0, 8)}, newTitle="$newTitle"');
+
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == id);
+
+      if (index != -1) {
+        final oldTitle = list[index].title;
+        AppLogger.info('🔄 [UPDATE] Found todo: oldTitle="$oldTitle", newTitle="$newTitle"');
+        
+        // URLを検出してメタデータを取得（バックグラウンド）
+        final detectedUrl = LinkPreviewService.extractUrl(newTitle.trim());
+        AppLogger.debug(' URL detected in update: $detectedUrl');
+        
+        // URLが検出された場合、即座にタイトルから削除
+        var finalTitle = newTitle.trim();
+        var initialLinkPreview = list[index].linkPreview;
+        
+        if (detectedUrl != null) {
+          // URLからドメイン名を抽出
+          var domainName = detectedUrl;
+          try {
+            final uri = Uri.parse(detectedUrl);
+            domainName = uri.host;
+          } catch (e) {
+            // パースエラー時はそのままURLを使用
+          }
+          
+          finalTitle = LinkPreviewService.removeUrlFromText(newTitle.trim(), detectedUrl);
+          // 空になった場合（URLのみの入力）はドメイン名を使用
+          if (finalTitle.trim().isEmpty) {
+            finalTitle = domainName;
+          }
+          
+          // 一時的なリンクプレビューを作成（取得中を示す）
+          initialLinkPreview = LinkPreview(
+            url: detectedUrl,
+            title: domainName,
+            description: '読み込み中...',
+          );
+          
+          AppLogger.debug(' Title after URL removal (single update): "$finalTitle" (domain: $domainName)');
+        }
+        
+        // 単一インスタンスのみ更新（親から独立させる）
+        final updatedTodo = list[index].copyWith(
+          title: finalTitle,
+          linkPreview: initialLinkPreview,
+          // リカーリング情報は保持するが、親との紐づけは解除しない
+          // （ユーザーが単一インスタンスのみ更新を選択した場合は、
+          // このインスタンスだけ別のタイトルを持つことができる）
+          updatedAt: DateTime.now(),
+          needsSync: true,
+        );
+        
+        AppLogger.info('🔄 [UPDATE] Updating single instance: title="${updatedTodo.title}", needsSync=${updatedTodo.needsSync}');
+        
+        list[index] = updatedTodo;
+        
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+        
+        AppLogger.info('✅ [UPDATE] State updated with new title: "${updatedTodo.title}"');
+
+        // ローカルストレージに保存
+        await _saveAllTodosToLocal();
+        
+        // Widgetを更新
+        await _updateWidget();
+
+        // バックグラウンドでメタデータを取得
+        if (detectedUrl != null) {
+          Future<void>.microtask(() async {
+            try {
+              final linkPreview = await LinkPreviewService.fetchLinkPreview(detectedUrl);
+              
+              // メタデータ取得後、タスクを再度更新
+              await state.whenData((currentTodos) async {
+                final currentList = List<Todo>.from(currentTodos[date] ?? []);
+                final currentIndex = currentList.indexWhere((t) => t.id == id);
+                
+                if (currentIndex != -1) {
+                  currentList[currentIndex] = currentList[currentIndex].copyWith(
+                    linkPreview: linkPreview,
+                    updatedAt: DateTime.now(),
+                    needsSync: true,
+                  );
+                  
+                  state = AsyncValue.data({
+                    ...currentTodos,
+                    date: currentList,
+                  });
+                  
+                  await _saveAllTodosToLocal();
+                  await _updateWidget();
+                  
+                  AppLogger.info(' Link preview fetched and updated');
+                }
+              }).value;
+            } catch (e) {
+              AppLogger.error('Failed to fetch link preview: $e');
+            }
+          });
+        }
+
+        // 即座に同期（バックグラウンド）
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
+        
+        AppLogger.info('🚀 [UPDATE] updateSingleInstanceTitle completed successfully');
       } else {
         AppLogger.error('❌ [UPDATE] Todo not found in list: id=${id.substring(0, 8)}');
       }
@@ -1069,8 +1351,8 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
               }
             }
             
-            // 【楽観的UI更新】バッチ同期タイマーに追加（即座の同期を避ける）
-            _startBatchSyncTimer();
+        // 【楽観的UI更新】即座に同期（バックグラウンド）
+        _syncToNostrBackground();
           },
         );
       }
@@ -1478,9 +1760,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // Widgetを更新
       await _updateWidget();
 
-      // 【楽観的UI更新】バッチ同期タイマーに追加（即座の同期を避ける）
+      // 【楽観的UI更新】即座に同期（バックグラウンド）
       _updateUnsyncedCount();
-      _startBatchSyncTimer();
+      _syncToNostrBackground();
     }).value;
   }
 
@@ -1516,9 +1798,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       // Widgetを更新
       await _updateWidget();
 
-      // 【楽観的UI更新】バッチ同期タイマーに追加（即座の同期を避ける）
+      // 【楽観的UI更新】即座に同期（バックグラウンド）
       _updateUnsyncedCount();
-      _startBatchSyncTimer();
+      _syncToNostrBackground();
     }).value;
   }
 
@@ -1674,20 +1956,18 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     AppLogger.info(' Cleared needsSync flags for non-group todos');
   }
 
-  /// 自動バッチ同期タイマーを開始（5秒ごと）
+  /// 自動バッチ同期タイマーを開始（3秒後に一度だけ実行）
   void _startBatchSyncTimer({bool force = false}) {
     // ログイン前（Nostr未初期化）ではタイマーを起動しない
     if (!force && !_ref.read(nostrInitializedProvider)) {
       return;
     }
 
-    AppLogger.debug(' Starting batch sync timer (every 5 seconds)');
-    
     // 既存のタイマーをキャンセル
     _batchSyncTimer?.cancel();
     
-    // 5秒ごとに実行
-    _batchSyncTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+    // 3秒後に一度だけ実行（periodicではなくone-shot）
+    _batchSyncTimer = Timer(const Duration(seconds: 3), () {
       _executeBatchSync();
     });
   }
@@ -1705,34 +1985,22 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     if (unsyncedTodos.isNotEmpty) {
       AppLogger.info(' Batch sync: ${unsyncedTodos.length} unsynced todos found');
       
+      // カスタムリスト情報を一度だけ取得（キャッシュ）
+      final customListsAsync = _ref.read(customListsProvider);
+      final customLists = await customListsAsync.whenData((lists) => lists).value ?? [];
+      final groupIds = customLists.where((l) => l.isGroup).map((l) => l.id).toSet();
+      
       // グループTodoと個人Todoを分けて処理
       final groupTodos = <String, List<Todo>>{}; // groupId -> todos
       final personalTodos = <Todo>[];
       
       for (final todo in unsyncedTodos) {
-        if (todo.customListId != null) {
-          // カスタムリストに属するTodo → グループかどうか確認
-          final customListsAsync = _ref.read(customListsProvider);
-          final isGroup = await customListsAsync.whenData((customLists) async {
-            final list = customLists.firstWhere(
-              (l) => l.id == todo.customListId, 
-              orElse: () => CustomList(
-                id: '', 
-                name: '', 
-                createdAt: DateTime.now(), 
-                updatedAt: DateTime.now(),
-              ),
-            );
-            return list.isGroup;
-          }).value ?? false;
-          
-          if (isGroup) {
-            groupTodos[todo.customListId!] ??= [];
-            groupTodos[todo.customListId!]!.add(todo);
-          } else {
-            personalTodos.add(todo);
-          }
+        if (todo.customListId != null && groupIds.contains(todo.customListId)) {
+          // グループTodo
+          groupTodos[todo.customListId!] ??= [];
+          groupTodos[todo.customListId!]!.add(todo);
         } else {
+          // 個人Todo
           personalTodos.add(todo);
         }
       }
@@ -1754,12 +2022,14 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       }
     }
     
-    // 🔥 Phase 8.3 Fix: MLSグループTodoの定期受信（全グループ）
-    // ⚠️ 重要: 送信すべきTodoがなくても、受信処理は常に実行する
-    await _syncAllMlsGroupTodos();
+    // 🔥 MLSグループ同期は別タイマーで管理（バッチ同期からは削除）
+    // バッチ同期は軽量に保つため、個人Todoの送信のみを行う
   }
   
   /// 全MLSグループからTodoを受信（Phase 8.3）
+  /// 注: バッチ同期の高速化のため、現在はバッチ同期から切り離されています。
+  /// 必要に応じて別のタイマーで管理するか、手動同期で使用してください。
+  // ignore: unused_element
   Future<void> _syncAllMlsGroupTodos() async {
     try {
       final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
@@ -2128,11 +2398,11 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       
       try {
         AppLogger.debug(' Executing syncFunction() (Amber mode)...');
-        // タイムアウト付きで同期実行（30秒）
+        // タイムアウト付きで同期実行（3秒）
         await syncFunction().timeout(
-          const Duration(seconds: 30),
+          const Duration(seconds: 3),
           onTimeout: () {
-            throw Exception('同期がタイムアウトしました（30秒）');
+            throw Exception('同期がタイムアウトしました（3秒）');
           },
         );
         AppLogger.debug(' Calling syncSuccess()');
@@ -2157,9 +2427,9 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     AppLogger.debug(' Calling startSync()');
     _ref.read(syncStatusProvider.notifier).startSync();
 
-    const maxRetries = 3;
-    const retryDelay = Duration(seconds: 2);
-    const timeout = Duration(seconds: 15);
+    const maxRetries = 2;
+    const retryDelay = Duration(milliseconds: 500);
+    const timeout = Duration(seconds: 3);
 
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -2780,10 +3050,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
         await localStorageService.setLastTodoListSyncTime(DateTime.now());
         AppLogger.info(' Nostr同期成功');
       }).timeout(
-        const Duration(seconds: 30),
+        const Duration(seconds: 15),
         onTimeout: () {
-          AppLogger.debug(' syncFromNostr タイムアウト（30秒）');
-          throw Exception('データ同期がタイムアウトしました（30秒）');
+          AppLogger.debug(' syncFromNostr タイムアウト（15秒）');
+          throw Exception('データ同期がタイムアウトしました（15秒）');
         },
       );
       
@@ -2952,6 +3222,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
       Future<void>.delayed(const Duration(seconds: 3), () {
         _ref.read(syncStatusProvider.notifier).clearError();
       });
+    } finally {
+      // 同期完了後、進捗をリセット
+      _ref.read(syncStatusProvider.notifier).resetProgress();
+      AppLogger.debug(' [Todos] Delta同期の進捗をリセットしました');
     }
   }
 

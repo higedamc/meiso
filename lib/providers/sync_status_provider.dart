@@ -89,26 +89,18 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
 
   /// 同期開始
   void startSync({int itemCount = 1}) {
-    final oldPendingItems = state.pendingItems;
     final newPendingItems = state.pendingItems + itemCount;
-    
-    print('🔍 [SyncStatus] startSync() called: pendingItems: $oldPendingItems → $newPendingItems');
     
     state = state.copyWith(
       state: SyncState.syncing,
       pendingItems: newPendingItems,
     );
-    
-    print('🔍 [SyncStatus] startSync() completed: current pendingItems: ${state.pendingItems}');
   }
 
   /// 同期成功
   void syncSuccess({int itemCount = 1}) {
-    final oldPendingItems = state.pendingItems;
     final newPendingItems = (state.pendingItems - itemCount).clamp(0, 9999);
     final newState = newPendingItems > 0 ? SyncState.syncing : SyncState.success;
-    
-    print('🔍 [SyncStatus] syncSuccess() called: pendingItems: $oldPendingItems → $newPendingItems, state → $newState');
     
     state = state.copyWith(
       state: newState,
@@ -117,8 +109,6 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
       retryCount: 0,
       errorMessage: null,
     );
-    
-    print('🔍 [SyncStatus] syncSuccess() completed: current pendingItems: ${state.pendingItems}, current state: ${state.state}');
   }
 
   /// 同期エラー
@@ -127,6 +117,7 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
       state: SyncState.error,
       errorMessage: error,
       retryCount: shouldRetry ? state.retryCount + 1 : state.retryCount,
+      pendingItems: 0, // エラー時はカウントをリセット
     );
   }
 
