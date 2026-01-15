@@ -702,19 +702,13 @@ class AppSettingsDetailScreen extends ConsumerWidget {
 
                   const Divider(height: 1),
 
-                  // 週の開始曜日（ステージング版では無効化）
+                  // 週の開始曜日
                   ListTile(
-                    enabled: false,
-                    leading: Icon(Icons.calendar_today, color: Colors.grey.shade400),
-                    title: Text(
-                      l10n.weekStartDay,
-                      style: TextStyle(color: Colors.grey.shade400),
-                    ),
-                    subtitle: Text(
-                      '${_getWeekDayName(context, settings.weekStartDay)} ${l10n.inDevelopment}',
-                      style: TextStyle(color: Colors.grey.shade400),
-                    ),
-                    trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                    leading: const Icon(Icons.calendar_today),
+                    title: Text(l10n.weekStartDay),
+                    subtitle: Text(_getWeekDayName(context, settings.weekStartDay)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => _showWeekStartDayDialog(context, ref, settings.weekStartDay),
                   ),
 
                   const Divider(height: 1),
