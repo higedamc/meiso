@@ -654,7 +654,7 @@ impl MeisoNostrClient {
     async fn send_event_with_result(&self, event: Event) -> Result<EventSendResult> {
         let event_id = event.id.to_hex();
         
-        match tokio::time::timeout(Duration::from_secs(10), self.client.send_event(event)).await {
+        match tokio::time::timeout(Duration::from_secs(3), self.client.send_event(event)).await {
             Ok(Ok(send_output)) => {
                 // 成功: nostr-sdkのSendEventOutputから情報を取得
                 let successful = send_output.success.len();
@@ -689,14 +689,14 @@ impl MeisoNostrClient {
             }
             Err(_) => {
                 // タイムアウト
-                eprintln!("⏱️ Event send timeout (10s)");
+                eprintln!("⏱️ Event send timeout (3s)");
                 Ok(EventSendResult {
                     event_id,
                     success: false,
                     successful_relays: 0,
                     failed_relays: 0,
                     timed_out: true,
-                    error_message: Some("Timeout after 10 seconds".to_string()),
+                    error_message: Some("Timeout after 3 seconds".to_string()),
                 })
             }
         }
