@@ -5,6 +5,60 @@ All notable changes to Meiso will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.1.7] - 2025-01-16
+
+### Fixed
+- **OGP Link Preview (Issue #114)**: Fixed link preview functionality
+  - Resolved timeout and connection issues
+  - Improved error handling for malformed URLs
+  - Enhanced preview card rendering
+- **Undo Delete Button (Issue #11)**: Fixed issue where "元に戻す" (Undo) button after deleting a task did not properly restore the task
+  - Implemented soft delete with delayed confirmation (3 seconds)
+  - Delete is only persisted/synced after SnackBar timeout
+  - Undo button cancels the deletion before persistence
+  - Supports both regular tasks and MLS group tasks
+  - Only the last deleted task can be undone (single-item undo buffer)
+- **Week Start Day Setting (Issue #38)**: Implemented week start day setting for calendar display
+  - Week start day setting now properly reflects in home screen calendar
+  - Supports Sunday, Monday, and Saturday as week start options
+  - Setting is accessible and functional in app settings
+  - Calendar widget automatically adjusts week display based on user preference
+
+### Changed
+- **Sync Status Indicator**: Simplified and improved sync status display
+  - Reduced code complexity (289 lines removed)
+  - Enhanced visual feedback for sync operations
+- **Localization**: Comprehensive updates to translations
+  - Added 162 new English strings
+  - Updated Japanese and Spanish translations
+  - Improved recurring task terminology across all languages
+- **Timeout Durations**: Adjusted network timeout values for better reliability
+
+### Improved
+- **Todo Provider**: Major refactoring for better performance and maintainability
+  - 416 lines of improvements
+  - Enhanced state management
+  - Better error handling
+
+## [1.1.6] - 2025-01-10
+
+### Fixed
+- **List Rename Bug**: Fixed issue where custom list names could not be renamed
+  - Resolved text editing controller disposal causing setState error
+  - Added proper state management for rename operations
+- **Initial Sync Dialog Bug**: Fixed sync dialog incorrectly appearing on every app launch
+  - Now only shows on true first launch (when no private key exists)
+  - Added proper initialization state tracking
+- **Recurring Tasks Performance**: Improved rolling window optimization
+  - Enhanced performance for generating recurring task instances
+  - Fixed edge cases in recurring pattern calculations
+  - Optimized task generation for daily, weekly, and monthly patterns
+
+### Changed
+- Updated recurring task documentation with performance improvements
+
 ## [1.1.2] - 2025-01-02
 
 ### Fixed
