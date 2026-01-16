@@ -59,7 +59,7 @@
   
   "amberModeTitle": "Modo Amber",
   
-  "amberModeInfo": "✅ Conectado con modo Amber\n\n🔒 Características de seguridad:\n• Firmar tareas con Amber al crear/editar\n• Proteger contenido con cifrado NIP-44\n• Clave secreta almacenada cifrada con ncryptsec en Amber\n\n⚡ Optimización de descifrado:\nSe requiere aprobación al sincronizar tareas.\nPara evitar aprobar cada vez, recomendamos\nconfigurar \"Permitir siempre la aplicación Meiso\" en Amber.\n\n📝 Cómo configurar:\n1. Abrir la aplicación Amber\n2. Seleccionar \"Meiso\" de la lista de aplicaciones\n3. Configurar \"NIP-44 Decrypt\" para permitir siempre",
+  "amberModeInfo": "✅ Conectado con modo Amber\n\n🔒 Características de seguridad:\n• Firmar tareas con Amber al crear/editar\n• Proteger contenido con cifrado NIP-44\n• Clave secreta almacenada cifrada con ncryptsec en Amber\n\n⚡ Configuración Recomendada para Evitar Problemas de UX:\nOtorgue a Meiso \"permisos de basic actions o superiores\" en Amber\npara evitar diálogos de aprobación y garantizar un uso fluido.\n\n📝 Cómo configurar:\n1. Abrir la aplicación Amber\n2. Ir a Configuración → Aplicaciones Conectadas → Seleccionar \"Meiso\"\n3. Configurar Basic actions (NIP-44 Decrypt/Encrypt, Sign Event) a \"Permitir siempre\"",
   
   "autoSyncInfoTitle": "Acerca de la Sincronización Automática",
   
@@ -147,6 +147,12 @@
   
   "removeAllInstances": "Eliminar todas las instancias",
 
+  "updateRecurringTodoTitle": "Actualizar tarea recurrente",
+
+  "updateThisInstance": "Actualizar solo esta instancia",
+
+  "updateAllInstances": "Actualizar todas las instancias",
+
   "todoJsonTitle": "Todo JSON",
   
   "jsonCopied": "JSON copiado",
@@ -174,6 +180,10 @@
   "undoButton": "Deshacer",
   
   "taskDeleted": "Tarea eliminada",
+  
+  "taskDeletedWithTitle": "\"{title}\" eliminada",
+  
+  "allInstancesDeleted": "Todas las instancias de \"{title}\" eliminadas",
   
   "languageSettings": "Idioma",
   
@@ -222,6 +232,8 @@
   "generateNewKey": "Generar Nueva Clave",
   
   "keyStorageNote": "Las claves se almacenan de forma segura.\nAmber proporciona seguridad mejorada.",
+  
+  "amberPermissionsNote": "💡 Para evitar problemas de UX:\nAl iniciar sesión con Amber, recomendamos otorgar \"permisos de basic actions o superiores\".\nPuede configurarlo en Configuración → Aplicaciones Conectadas → Meiso.",
   
   "amberRequired": "Amber Requerido",
   
@@ -809,6 +821,48 @@
   
   "sentToRelay": "✅ Enviado al relay",
   
-  "sendToRelay": "Enviar al relay"
+  "sendToRelay": "Enviar al relay",
+  
+  "todoAddFeatureInDevelopment": "La función de agregar tareas está en desarrollo",
+  
+  "mlsGroupBackupTitle": "Respaldo de Grupo MLS",
+  
+  "mlsGroupBackupSubtitle": "Exportar/Importar Key Package",
+  
+  "mlsBackupDescription": "Exportar/importar Key Package para volver a unirse\na grupos existentes después de reinstalar la app.",
+  
+  "exportButton": "Exportar",
+  
+  "importButton": "Importar",
+  
+  "mlsBackupImportInstruction": "Por favor importa desde\nConfiguración > Avanzado > Respaldo de Grupo MLS.",
+  
+  "exportingBackup": "📤 Exportando...",
+  
+  "backupCopiedToClipboard": "✅ Respaldo copiado al portapapeles\n\nPor favor guárdalo en un lugar seguro.",
+  
+  "clipboardCopied": "📋 Copiado al portapapeles",
+  
+  "exportFailed": "❌ Exportación falló\n\n{error}",
+  
+  "noBackupDataInClipboard": "❌ No hay datos de respaldo en el portapapeles",
+  
+  "confirmImportBackup": "¿Importar respaldo?\n\n⚠️ Por favor reinicia la app después de importar.",
+  
+  "importingBackup": "📥 Importando...",
+  
+  "backupImportedRestart": "✅ Respaldo importado\n\n🔄 Por favor reinicia la app.",
+  
+  "importCompletedRestart": "✅ Importación completada. Por favor reinicia la app",
+  
+  "importFailed": "❌ Importación falló\n\n{error}",
+  
+  "ifYouHaveBackup": "Si tienes un respaldo",
+  
+  "ifYouDontHaveBackup": "Si no tienes un respaldo",
+  
+  "requestReinviteFromAdmin": "Por favor solicita una nueva invitación al administrador del grupo.",
+  
+  "inviteAcceptanceFailed": "Falló la aceptación de la invitación\n\n{error}"
 }
 

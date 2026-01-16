@@ -159,7 +159,7 @@
     "description": "Title for Amber mode info card"
   },
   
-  "amberModeInfo": "✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing tasks.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow",
+  "amberModeInfo": "✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Recommended Settings to Avoid UX Issues:\nGrant Meiso \"basic actions or higher permissions\" in Amber\nto avoid approval dialogs and ensure smooth usage.\n\n📝 How to set up:\n1. Open Amber app\n2. Go to Settings → Connected Apps → Select \"Meiso\"\n3. Set Basic actions (NIP-44 Decrypt/Encrypt, Sign Event) to \"Always allow\"",
   "@amberModeInfo": {
     "description": "Information about Amber mode"
   },
@@ -384,6 +384,21 @@
     "description": "Option to delete all instances of a recurring todo"
   },
 
+  "updateRecurringTodoTitle": "Update recurring task",
+  "@updateRecurringTodoTitle": {
+    "description": "Title for recurring update confirmation dialog"
+  },
+
+  "updateThisInstance": "Update this instance only",
+  "@updateThisInstance": {
+    "description": "Option to update only this instance of a recurring todo"
+  },
+
+  "updateAllInstances": "Update all instances",
+  "@updateAllInstances": {
+    "description": "Option to update all instances of a recurring todo"
+  },
+
   "todoJsonTitle": "Todo JSON",
   "@todoJsonTitle": {
     "description": "Title for the Todo JSON dialog"
@@ -460,6 +475,26 @@
   "taskDeleted": "Task deleted",
   "@taskDeleted": {
     "description": "Message when task is deleted"
+  },
+  
+  "taskDeletedWithTitle": "\"{title}\" deleted",
+  "@taskDeletedWithTitle": {
+    "description": "Message when task is deleted with title",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "allInstancesDeleted": "All instances of \"{title}\" deleted",
+  "@allInstancesDeleted": {
+    "description": "Message when all instances of recurring task are deleted",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
   },
   
   "languageSettings": "Language",
@@ -580,6 +615,11 @@
   "keyStorageNote": "Keys are stored securely.\nAmber provides enhanced security.",
   "@keyStorageNote": {
     "description": "Note about key storage"
+  },
+  
+  "amberPermissionsNote": "💡 To avoid UX issues:\nWhen logging in with Amber, we recommend granting \"basic actions or higher permissions\".\nYou can configure this in Settings → Connected Apps → Meiso.",
+  "@amberPermissionsNote": {
+    "description": "Note about Amber permissions for better UX"
   },
   
   "amberRequired": "Amber Required",
@@ -2152,6 +2192,126 @@
   "sendToRelay": "Send to relay",
   "@sendToRelay": {
     "description": "Button label to send to relay"
+  },
+  
+  "todoAddFeatureInDevelopment": "Todo add feature is under development",
+  "@todoAddFeatureInDevelopment": {
+    "description": "Message when todo add feature is not yet available"
+  },
+  
+  "mlsGroupBackupTitle": "MLS Group Backup",
+  "@mlsGroupBackupTitle": {
+    "description": "Title for MLS group backup feature"
+  },
+  
+  "mlsGroupBackupSubtitle": "Export/Import Key Package",
+  "@mlsGroupBackupSubtitle": {
+    "description": "Subtitle for MLS group backup feature"
+  },
+  
+  "mlsBackupDescription": "Export/import Key Package to rejoin existing groups\nafter app reinstallation.",
+  "@mlsBackupDescription": {
+    "description": "Description for MLS backup feature"
+  },
+  
+  "exportButton": "Export",
+  "@exportButton": {
+    "description": "Button to export data"
+  },
+  
+  "importButton": "Import",
+  "@importButton": {
+    "description": "Button to import data"
+  },
+  
+  "mlsBackupImportInstruction": "Please import from\nSettings > Advanced > MLS Group Backup.",
+  "@mlsBackupImportInstruction": {
+    "description": "Instruction for importing MLS backup"
+  },
+  
+  "exportingBackup": "📤 Exporting...",
+  "@exportingBackup": {
+    "description": "Status message while exporting backup"
+  },
+  
+  "backupCopiedToClipboard": "✅ Backup copied to clipboard\n\nPlease save it in a secure location.",
+  "@backupCopiedToClipboard": {
+    "description": "Success message after copying backup to clipboard"
+  },
+  
+  "clipboardCopied": "📋 Copied to clipboard",
+  "@clipboardCopied": {
+    "description": "Short message for clipboard copy"
+  },
+  
+  "exportFailed": "❌ Export failed\n\n{error}",
+  "@exportFailed": {
+    "description": "Error message when export fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "noBackupDataInClipboard": "❌ No backup data in clipboard",
+  "@noBackupDataInClipboard": {
+    "description": "Error message when clipboard has no backup data"
+  },
+  
+  "confirmImportBackup": "Import backup?\n\n⚠️ Please restart the app after import.",
+  "@confirmImportBackup": {
+    "description": "Confirmation dialog for importing backup"
+  },
+  
+  "importingBackup": "📥 Importing...",
+  "@importingBackup": {
+    "description": "Status message while importing backup"
+  },
+  
+  "backupImportedRestart": "✅ Backup imported\n\n🔄 Please restart the app.",
+  "@backupImportedRestart": {
+    "description": "Success message after importing backup"
+  },
+  
+  "importCompletedRestart": "✅ Import completed. Please restart the app",
+  "@importCompletedRestart": {
+    "description": "Short success message for import with restart instruction"
+  },
+  
+  "importFailed": "❌ Import failed\n\n{error}",
+  "@importFailed": {
+    "description": "Error message when import fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  
+  "ifYouHaveBackup": "If you have a backup",
+  "@ifYouHaveBackup": {
+    "description": "Label for backup restoration option"
+  },
+  
+  "ifYouDontHaveBackup": "If you don't have a backup",
+  "@ifYouDontHaveBackup": {
+    "description": "Label for alternative option when no backup"
+  },
+  
+  "requestReinviteFromAdmin": "Please request a re-invitation from the group admin.",
+  "@requestReinviteFromAdmin": {
+    "description": "Instruction for requesting group re-invitation"
+  },
+  
+  "inviteAcceptanceFailed": "Invite acceptance failed\n\n{error}",
+  "@inviteAcceptanceFailed": {
+    "description": "Error message when invite acceptance fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   }
 }
 

@@ -56,9 +56,18 @@ class LinkPreviewService {
       }
 
       // HTTPリクエスト（タイムアウト10秒）
-      final response = await http
-          .get(uri)
-          .timeout(const Duration(seconds: 10));
+      // User-Agentを設定して、多くのサイトでOGP取得を成功させる
+      final response = await http.get(
+        uri,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9,ja;q=0.8',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+        },
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         AppLogger.warning(' HTTP error: ${response.statusCode}');

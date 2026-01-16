@@ -262,8 +262,8 @@ class SettingsScreen extends ConsumerWidget {
                   _buildSettingTile(
                     context,
                     icon: Icons.backup,
-                    title: 'MLSグループバックアップ',
-                    subtitle: 'Key Packageをエクスポート/インポート',
+                    title: l10n.mlsGroupBackupTitle,
+                    subtitle: l10n.mlsGroupBackupSubtitle,
                     onTap: () => showMlsBackupDialog(context, ref),
                   ),
                 ],

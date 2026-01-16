@@ -277,7 +277,7 @@ abstract class AppLocalizations {
   /// Information about Amber mode
   ///
   /// In en, this message translates to:
-  /// **'✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing tasks.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow'**
+  /// **'✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Recommended Settings to Avoid UX Issues:\nGrant Meiso \"basic actions or higher permissions\" in Amber\nto avoid approval dialogs and ensure smooth usage.\n\n📝 How to set up:\n1. Open Amber app\n2. Go to Settings → Connected Apps → Select \"Meiso\"\n3. Set Basic actions (NIP-44 Decrypt/Encrypt, Sign Event) to \"Always allow\"'**
   String get amberModeInfo;
 
   /// Title for auto sync info card
@@ -538,6 +538,24 @@ abstract class AppLocalizations {
   /// **'Remove all instances'**
   String get removeAllInstances;
 
+  /// Title for recurring update confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Update recurring task'**
+  String get updateRecurringTodoTitle;
+
+  /// Option to update only this instance of a recurring todo
+  ///
+  /// In en, this message translates to:
+  /// **'Update this instance only'**
+  String get updateThisInstance;
+
+  /// Option to update all instances of a recurring todo
+  ///
+  /// In en, this message translates to:
+  /// **'Update all instances'**
+  String get updateAllInstances;
+
   /// Title for the Todo JSON dialog
   ///
   /// In en, this message translates to:
@@ -621,6 +639,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Task deleted'**
   String get taskDeleted;
+
+  /// Message when task is deleted with title
+  ///
+  /// In en, this message translates to:
+  /// **'\"{title}\" deleted'**
+  String taskDeletedWithTitle(String title);
+
+  /// Message when all instances of recurring task are deleted
+  ///
+  /// In en, this message translates to:
+  /// **'All instances of \"{title}\" deleted'**
+  String allInstancesDeleted(String title);
 
   /// Language settings menu item
   ///
@@ -765,6 +795,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keys are stored securely.\nAmber provides enhanced security.'**
   String get keyStorageNote;
+
+  /// Note about Amber permissions for better UX
+  ///
+  /// In en, this message translates to:
+  /// **'💡 To avoid UX issues:\nWhen logging in with Amber, we recommend granting \"basic actions or higher permissions\".\nYou can configure this in Settings → Connected Apps → Meiso.'**
+  String get amberPermissionsNote;
 
   /// Dialog title when Amber is not installed
   ///
@@ -2529,6 +2565,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Send to relay'**
   String get sendToRelay;
+
+  /// Message when todo add feature is not yet available
+  ///
+  /// In en, this message translates to:
+  /// **'Todo add feature is under development'**
+  String get todoAddFeatureInDevelopment;
+
+  /// Title for MLS group backup feature
+  ///
+  /// In en, this message translates to:
+  /// **'MLS Group Backup'**
+  String get mlsGroupBackupTitle;
+
+  /// Subtitle for MLS group backup feature
+  ///
+  /// In en, this message translates to:
+  /// **'Export/Import Key Package'**
+  String get mlsGroupBackupSubtitle;
+
+  /// Description for MLS backup feature
+  ///
+  /// In en, this message translates to:
+  /// **'Export/import Key Package to rejoin existing groups\nafter app reinstallation.'**
+  String get mlsBackupDescription;
+
+  /// Button to export data
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get exportButton;
+
+  /// Button to import data
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get importButton;
+
+  /// Instruction for importing MLS backup
+  ///
+  /// In en, this message translates to:
+  /// **'Please import from\nSettings > Advanced > MLS Group Backup.'**
+  String get mlsBackupImportInstruction;
+
+  /// Status message while exporting backup
+  ///
+  /// In en, this message translates to:
+  /// **'📤 Exporting...'**
+  String get exportingBackup;
+
+  /// Success message after copying backup to clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'✅ Backup copied to clipboard\n\nPlease save it in a secure location.'**
+  String get backupCopiedToClipboard;
+
+  /// Short message for clipboard copy
+  ///
+  /// In en, this message translates to:
+  /// **'📋 Copied to clipboard'**
+  String get clipboardCopied;
+
+  /// Error message when export fails
+  ///
+  /// In en, this message translates to:
+  /// **'❌ Export failed\n\n{error}'**
+  String exportFailed(String error);
+
+  /// Error message when clipboard has no backup data
+  ///
+  /// In en, this message translates to:
+  /// **'❌ No backup data in clipboard'**
+  String get noBackupDataInClipboard;
+
+  /// Confirmation dialog for importing backup
+  ///
+  /// In en, this message translates to:
+  /// **'Import backup?\n\n⚠️ Please restart the app after import.'**
+  String get confirmImportBackup;
+
+  /// Status message while importing backup
+  ///
+  /// In en, this message translates to:
+  /// **'📥 Importing...'**
+  String get importingBackup;
+
+  /// Success message after importing backup
+  ///
+  /// In en, this message translates to:
+  /// **'✅ Backup imported\n\n🔄 Please restart the app.'**
+  String get backupImportedRestart;
+
+  /// Short success message for import with restart instruction
+  ///
+  /// In en, this message translates to:
+  /// **'✅ Import completed. Please restart the app'**
+  String get importCompletedRestart;
+
+  /// Error message when import fails
+  ///
+  /// In en, this message translates to:
+  /// **'❌ Import failed\n\n{error}'**
+  String importFailed(String error);
+
+  /// Label for backup restoration option
+  ///
+  /// In en, this message translates to:
+  /// **'If you have a backup'**
+  String get ifYouHaveBackup;
+
+  /// Label for alternative option when no backup
+  ///
+  /// In en, this message translates to:
+  /// **'If you don\'t have a backup'**
+  String get ifYouDontHaveBackup;
+
+  /// Instruction for requesting group re-invitation
+  ///
+  /// In en, this message translates to:
+  /// **'Please request a re-invitation from the group admin.'**
+  String get requestReinviteFromAdmin;
+
+  /// Error message when invite acceptance fails
+  ///
+  /// In en, this message translates to:
+  /// **'Invite acceptance failed\n\n{error}'**
+  String inviteAcceptanceFailed(String error);
 }
 
 class _AppLocalizationsDelegate

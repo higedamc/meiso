@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/app_settings_provider.dart';
 import '../../providers/calendar_provider.dart';
 import '../../providers/date_provider.dart';
 import '../../widgets/bottom_navigation.dart';
@@ -192,6 +193,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final dates = ref.watch(dateListProvider);
         final isCalendarVisible = ref.watch(calendarVisibleProvider);
         final isCustomListModalVisible = ref.watch(customListModalVisibleProvider);
+        final appSettingsAsync = ref.watch(appSettingsProvider);
+        final weekStartDay = appSettingsAsync.maybeWhen(
+          data: (settings) => settings.weekStartDay,
+          orElse: () => 1, // デフォルトは月曜日
+        );
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -242,6 +248,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 if (!_showingSomeday && !isCustomListModalVisible)
                   ExpandableCalendar(
                     isVisible: isCalendarVisible,
+                    weekStartDay: weekStartDay,
                     onDaySelected: (selectedDay) => 
                         _onCalendarDaySelected(dates, selectedDay),
                   ),

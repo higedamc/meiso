@@ -106,7 +106,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get amberModeInfo =>
-      '✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• タスクの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ 復号化の最適化:\nタスクの同期時に復号化の承認が必要です。\n毎回承認するのを避けるために、Amberアプリで\n「Meisoアプリを常に許可」を設定することを推奨します。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. アプリ一覧から「Meiso」を選択\n3. 「NIP-44 Decrypt」を常に許可に設定';
+      '✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• タスクの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ UXを損なわないための推奨設定:\nAmberアプリでMeisoに「basic actions 以上の権限」を持たせることで、\n毎回の承認ダイアログを回避し、スムーズに利用できます。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. 設定 → 接続済みアプリ → 「Meiso」を選択\n3. Basic actions (NIP-44 Decrypt/Encrypt, Sign Event) を「常に許可」に設定';
 
   @override
   String get autoSyncInfoTitle => '自動同期について';
@@ -243,6 +243,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get removeAllInstances => 'すべてのインスタンスを削除';
 
   @override
+  String get updateRecurringTodoTitle => '繰り返しタスクを更新';
+
+  @override
+  String get updateThisInstance => 'このインスタンスのみ更新';
+
+  @override
+  String get updateAllInstances => 'すべてのインスタンスを更新';
+
+  @override
   String get todoJsonTitle => 'Todo JSON';
 
   @override
@@ -285,6 +294,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get taskDeleted => 'タスクを削除しました';
+
+  @override
+  String taskDeletedWithTitle(String title) {
+    return '「$title」を削除しました';
+  }
+
+  @override
+  String allInstancesDeleted(String title) {
+    return '「$title」のすべてのインスタンスを削除しました';
+  }
 
   @override
   String get languageSettings => '言語';
@@ -357,6 +376,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get keyStorageNote => '秘密鍵は安全に保管されます。\nAmberを使用すると、より安全に管理できます。';
+
+  @override
+  String get amberPermissionsNote =>
+      '💡 UXを損なわないために:\nAmberでログインする際は、「basic actions 以上の権限」を設定することを推奨します。\n設定 → 接続済みアプリ → Meiso で設定可能です。';
 
   @override
   String get amberRequired => 'Amberが必要です';
@@ -1335,4 +1358,77 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get sendToRelay => 'リレーに送信する';
+
+  @override
+  String get todoAddFeatureInDevelopment => 'Todo追加機能は開発中です';
+
+  @override
+  String get mlsGroupBackupTitle => 'MLSグループバックアップ';
+
+  @override
+  String get mlsGroupBackupSubtitle => 'Key Packageをエクスポート/インポート';
+
+  @override
+  String get mlsBackupDescription =>
+      'Key Packageをエクスポート/インポートして、\nアプリ再インストール後も既存のグループに再参加できます。';
+
+  @override
+  String get exportButton => 'エクスポート';
+
+  @override
+  String get importButton => 'インポート';
+
+  @override
+  String get mlsBackupImportInstruction =>
+      'Settings > Advanced > MLSグループバックアップ\nからインポートしてください。';
+
+  @override
+  String get exportingBackup => '📤 エクスポート中...';
+
+  @override
+  String get backupCopiedToClipboard =>
+      '✅ バックアップをクリップボードにコピーしました\n\n安全な場所に保存してください。';
+
+  @override
+  String get clipboardCopied => '📋 クリップボードにコピーしました';
+
+  @override
+  String exportFailed(String error) {
+    return '❌ エクスポートに失敗しました\n\n$error';
+  }
+
+  @override
+  String get noBackupDataInClipboard => '❌ クリップボードにバックアップデータがありません';
+
+  @override
+  String get confirmImportBackup =>
+      'バックアップをインポートしますか？\n\n⚠️ インポート後、アプリを再起動してください。';
+
+  @override
+  String get importingBackup => '📥 インポート中...';
+
+  @override
+  String get backupImportedRestart => '✅ バックアップをインポートしました\n\n🔄 アプリを再起動してください。';
+
+  @override
+  String get importCompletedRestart => '✅ インポート完了。アプリを再起動してください';
+
+  @override
+  String importFailed(String error) {
+    return '❌ インポートに失敗しました\n\n$error';
+  }
+
+  @override
+  String get ifYouHaveBackup => 'バックアップがある場合';
+
+  @override
+  String get ifYouDontHaveBackup => 'バックアップがない場合';
+
+  @override
+  String get requestReinviteFromAdmin => 'グループ管理者に再度招待をリクエストしてください。';
+
+  @override
+  String inviteAcceptanceFailed(String error) {
+    return '招待の受諾に失敗しました\n\n$error';
+  }
 }

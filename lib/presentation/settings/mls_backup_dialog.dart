@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../providers/nostr_provider.dart';
 import '../../services/logger_service.dart';
@@ -31,9 +32,11 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
   bool _isProcessing = false;
 
   Future<void> _exportBackup() async {
+    final l10n = AppLocalizations.of(context);
+    
     setState(() {
       _isProcessing = true;
-      _statusMessage = '📤 エクスポート中...';
+      _statusMessage = l10n.exportingBackup;
     });
 
     try {
@@ -65,17 +68,15 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
       await Clipboard.setData(ClipboardData(text: base64Data));
 
       setState(() {
-        _statusMessage = '✅ バックアップをクリップボードにコピーしました\n\n'
-            '文字数: ${base64Data.length}\n\n'
-            '⚠️ このバックアップを安全な場所に保存してください。\n'
-            'アプリ再インストール時に必要になります。';
+        _statusMessage = '${l10n.backupCopiedToClipboard}\n\n'
+            '文字数: ${base64Data.length}';
         _isProcessing = false;
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('📋 クリップボードにコピーしました'),
+          SnackBar(
+            content: Text(l10n.clipboardCopied),
             backgroundColor: Colors.green,
           ),
         );
@@ -84,20 +85,22 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
       AppLogger.error('[Phase 2.5A] Export failed', error: e, stackTrace: st);
 
       setState(() {
-        _statusMessage = '❌ エクスポートに失敗しました\n\n$e';
+        _statusMessage = l10n.exportFailed(e.toString());
         _isProcessing = false;
       });
     }
   }
 
   Future<void> _importBackup() async {
+    final l10n = AppLocalizations.of(context);
+    
     // クリップボードから読み込み
     final clipboardData = await Clipboard.getData('text/plain');
     final base64Data = clipboardData?.text;
 
     if (base64Data == null || base64Data.isEmpty) {
       setState(() {
-        _statusMessage = '❌ クリップボードにバックアップデータがありません';
+        _statusMessage = l10n.noBackupDataInClipboard;
       });
       return;
     }
@@ -107,22 +110,18 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('⚠️ 確認'),
-        content: const Text(
-          '既存のMLSグループデータが上書きされます。\n\n'
-          'バックアップをインポートしますか？\n\n'
-          '⚠️ インポート後、アプリを再起動してください。',
-        ),
+        content: Text(l10n.confirmImportBackup),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
+            child: Text(l10n.cancelButton),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(
               foregroundColor: Colors.orange,
             ),
-            child: const Text('インポート'),
+            child: Text(l10n.importButton),
           ),
         ],
       ),
@@ -132,7 +131,7 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
 
     setState(() {
       _isProcessing = true;
-      _statusMessage = '📥 インポート中...';
+      _statusMessage = l10n.importingBackup;
     });
 
     try {
@@ -164,18 +163,16 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
       AppLogger.info('[Phase 2.5A] Import successful: $result');
 
       setState(() {
-        _statusMessage = '✅ バックアップをインポートしました\n\n'
-            '$result\n\n'
-            '🔄 アプリを再起動してください。';
+        _statusMessage = '${l10n.backupImportedRestart}\n\n$result';
         _isProcessing = false;
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ インポート完了。アプリを再起動してください'),
+          SnackBar(
+            content: Text(l10n.importCompletedRestart),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 5),
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -183,7 +180,7 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
       AppLogger.error('[Phase 2.5A] Import failed', error: e, stackTrace: st);
 
       setState(() {
-        _statusMessage = '❌ インポートに失敗しました\n\n$e';
+        _statusMessage = l10n.importFailed(e.toString());
         _isProcessing = false;
       });
     }
@@ -191,12 +188,14 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
-          Icon(Icons.backup, color: AppTheme.primaryPurple),
-          SizedBox(width: 8),
-          Text('MLSグループバックアップ'),
+          const Icon(Icons.backup, color: AppTheme.primaryPurple),
+          const SizedBox(width: 8),
+          Text(l10n.mlsGroupBackupTitle),
         ],
       ),
       content: SizedBox(
@@ -205,11 +204,9 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Key Packageをエクスポート/インポートして、\n'
-              'アプリ再インストール後も既存のMLSグループに\n'
-              '再参加できるようにします。',
-              style: TextStyle(fontSize: 13),
+            Text(
+              l10n.mlsBackupDescription,
+              style: const TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 16),
             if (_statusMessage.isNotEmpty) ...[
@@ -236,13 +233,13 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
       actions: [
         TextButton(
           onPressed: _isProcessing ? null : () => Navigator.of(context).pop(),
-          child: const Text('閉じる'),
+          child: Text(l10n.closeButton),
         ),
         const SizedBox(width: 8),
         ElevatedButton.icon(
           onPressed: _isProcessing ? null : _exportBackup,
           icon: const Icon(Icons.download, size: 18),
-          label: const Text('エクスポート'),
+          label: Text(l10n.exportButton),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.primaryPurple,
             foregroundColor: Colors.white,
@@ -251,7 +248,7 @@ class _MlsBackupDialogState extends State<_MlsBackupDialog> {
         ElevatedButton.icon(
           onPressed: _isProcessing ? null : _importBackup,
           icon: const Icon(Icons.upload, size: 18),
-          label: const Text('インポート'),
+          label: Text(l10n.importButton),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orange,
             foregroundColor: Colors.white,

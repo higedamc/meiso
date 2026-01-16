@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
@@ -1048,25 +1049,28 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
       if (context.mounted) {
         showDialog<void>(
           context: context,
-          builder: (context) => AlertDialog(
-            title: Row(
-              children: [
-                Icon(
-                  isKeyPackageError ? Icons.key_off : Icons.error,
-                  color: isKeyPackageError ? Colors.orange : Colors.red,
-                ),
-                const SizedBox(width: 8),
-                const Text('エラー'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isKeyPackageError) ...[
-                  // Phase 2.5B: Key Packageエラーの詳細説明
-                  const Text(
-                    'Key Packageが変更されたため、グループに参加できません。',
+          builder: (context) {
+            final l10n = AppLocalizations.of(context);
+            
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    isKeyPackageError ? Icons.key_off : Icons.error,
+                    color: isKeyPackageError ? Colors.orange : Colors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('エラー'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isKeyPackageError) ...[
+                    // Phase 2.5B: Key Packageエラーの詳細説明
+                    const Text(
+                      'Key Packageが変更されたため、グループに参加できません。',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1079,16 +1083,16 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                       color: Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.backup_outlined, size: 16, color: Colors.blue),
-                            SizedBox(width: 4),
+                            const Icon(Icons.backup_outlined, size: 16, color: Colors.blue),
+                            const SizedBox(width: 4),
                             Text(
-                              'バックアップがある場合',
-                              style: TextStyle(
+                              l10n.ifYouHaveBackup,
+                              style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.blue,
@@ -1096,11 +1100,10 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                             ),
                           ],
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          'Settings > Advanced > MLSグループバックアップ\n'
-                          'からインポートしてください。',
-                          style: TextStyle(fontSize: 12),
+                          l10n.mlsBackupImportInstruction,
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ],
                     ),
@@ -1112,16 +1115,16 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                       color: Colors.orange.shade50,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.info, size: 16, color: Colors.orange),
-                            SizedBox(width: 4),
+                            const Icon(Icons.info, size: 16, color: Colors.orange),
+                            const SizedBox(width: 4),
                             Text(
-                              'バックアップがない場合',
-                              style: TextStyle(
+                              l10n.ifYouDontHaveBackup,
+                              style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.orange,
@@ -1129,16 +1132,16 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                             ),
                           ],
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          'グループ管理者に再度招待をリクエストしてください。',
-                          style: TextStyle(fontSize: 12),
+                          l10n.requestReinviteFromAdmin,
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ],
                     ),
                   ),
                 ] else
-                  Text('招待の受諾に失敗しました\n\n$e'),
+                  Text(l10n.inviteAcceptanceFailed(e.toString())),
               ],
             ),
             actions: [
@@ -1147,7 +1150,8 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 child: const Text('OK'),
               ),
             ],
-          ),
+          );
+          },
         );
       }
     }

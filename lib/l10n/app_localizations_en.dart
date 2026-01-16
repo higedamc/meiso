@@ -106,7 +106,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get amberModeInfo =>
-      '✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Decryption optimization:\nApproval is required when syncing tasks.\nTo avoid approving every time, we recommend\nsetting \"Always allow Meiso app\" in Amber.\n\n📝 How to set up:\n1. Open Amber app\n2. Select \"Meiso\" from app list\n3. Set \"NIP-44 Decrypt\" to always allow';
+      '✅ Connected with Amber mode\n\n🔒 Security features:\n• Sign tasks with Amber when creating/editing\n• Protect content with NIP-44 encryption\n• Secret key stored encrypted with ncryptsec in Amber\n\n⚡ Recommended Settings to Avoid UX Issues:\nGrant Meiso \"basic actions or higher permissions\" in Amber\nto avoid approval dialogs and ensure smooth usage.\n\n📝 How to set up:\n1. Open Amber app\n2. Go to Settings → Connected Apps → Select \"Meiso\"\n3. Set Basic actions (NIP-44 Decrypt/Encrypt, Sign Event) to \"Always allow\"';
 
   @override
   String get autoSyncInfoTitle => 'About Auto Sync';
@@ -245,6 +245,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removeAllInstances => 'Remove all instances';
 
   @override
+  String get updateRecurringTodoTitle => 'Update recurring task';
+
+  @override
+  String get updateThisInstance => 'Update this instance only';
+
+  @override
+  String get updateAllInstances => 'Update all instances';
+
+  @override
   String get todoJsonTitle => 'Todo JSON';
 
   @override
@@ -287,6 +296,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get taskDeleted => 'Task deleted';
+
+  @override
+  String taskDeletedWithTitle(String title) {
+    return '\"$title\" deleted';
+  }
+
+  @override
+  String allInstancesDeleted(String title) {
+    return 'All instances of \"$title\" deleted';
+  }
 
   @override
   String get languageSettings => 'Language';
@@ -361,6 +380,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get keyStorageNote =>
       'Keys are stored securely.\nAmber provides enhanced security.';
+
+  @override
+  String get amberPermissionsNote =>
+      '💡 To avoid UX issues:\nWhen logging in with Amber, we recommend granting \"basic actions or higher permissions\".\nYou can configure this in Settings → Connected Apps → Meiso.';
 
   @override
   String get amberRequired => 'Amber Required';
@@ -1376,4 +1399,81 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sendToRelay => 'Send to relay';
+
+  @override
+  String get todoAddFeatureInDevelopment =>
+      'Todo add feature is under development';
+
+  @override
+  String get mlsGroupBackupTitle => 'MLS Group Backup';
+
+  @override
+  String get mlsGroupBackupSubtitle => 'Export/Import Key Package';
+
+  @override
+  String get mlsBackupDescription =>
+      'Export/import Key Package to rejoin existing groups\nafter app reinstallation.';
+
+  @override
+  String get exportButton => 'Export';
+
+  @override
+  String get importButton => 'Import';
+
+  @override
+  String get mlsBackupImportInstruction =>
+      'Please import from\nSettings > Advanced > MLS Group Backup.';
+
+  @override
+  String get exportingBackup => '📤 Exporting...';
+
+  @override
+  String get backupCopiedToClipboard =>
+      '✅ Backup copied to clipboard\n\nPlease save it in a secure location.';
+
+  @override
+  String get clipboardCopied => '📋 Copied to clipboard';
+
+  @override
+  String exportFailed(String error) {
+    return '❌ Export failed\n\n$error';
+  }
+
+  @override
+  String get noBackupDataInClipboard => '❌ No backup data in clipboard';
+
+  @override
+  String get confirmImportBackup =>
+      'Import backup?\n\n⚠️ Please restart the app after import.';
+
+  @override
+  String get importingBackup => '📥 Importing...';
+
+  @override
+  String get backupImportedRestart =>
+      '✅ Backup imported\n\n🔄 Please restart the app.';
+
+  @override
+  String get importCompletedRestart =>
+      '✅ Import completed. Please restart the app';
+
+  @override
+  String importFailed(String error) {
+    return '❌ Import failed\n\n$error';
+  }
+
+  @override
+  String get ifYouHaveBackup => 'If you have a backup';
+
+  @override
+  String get ifYouDontHaveBackup => 'If you don\'t have a backup';
+
+  @override
+  String get requestReinviteFromAdmin =>
+      'Please request a re-invitation from the group admin.';
+
+  @override
+  String inviteAcceptanceFailed(String error) {
+    return 'Invite acceptance failed\n\n$error';
+  }
 }

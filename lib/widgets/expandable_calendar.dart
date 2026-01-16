@@ -7,11 +7,13 @@ class ExpandableCalendar extends StatefulWidget {
   const ExpandableCalendar({
     required this.isVisible,
     required this.onDaySelected,
+    this.weekStartDay = 1, // デフォルトは月曜日
     super.key,
   });
 
   final bool isVisible;
-  final Function(DateTime) onDaySelected;
+  final void Function(DateTime) onDaySelected;
+  final int weekStartDay; // 0=日曜, 1=月曜, ..., 6=土曜
 
   @override
   State<ExpandableCalendar> createState() => _ExpandableCalendarState();
@@ -20,6 +22,28 @@ class ExpandableCalendar extends StatefulWidget {
 class _ExpandableCalendarState extends State<ExpandableCalendar> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+
+  /// weekStartDay (0-6) を StartingDayOfWeek に変換
+  StartingDayOfWeek _getStartingDayOfWeek() {
+    switch (widget.weekStartDay % 7) {
+      case 0:
+        return StartingDayOfWeek.sunday;
+      case 1:
+        return StartingDayOfWeek.monday;
+      case 2:
+        return StartingDayOfWeek.tuesday;
+      case 3:
+        return StartingDayOfWeek.wednesday;
+      case 4:
+        return StartingDayOfWeek.thursday;
+      case 5:
+        return StartingDayOfWeek.friday;
+      case 6:
+        return StartingDayOfWeek.saturday;
+      default:
+        return StartingDayOfWeek.monday; // デフォルト
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,10 +65,11 @@ class _ExpandableCalendarState extends State<ExpandableCalendar> {
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: TableCalendar(
+          child: TableCalendar<void>(
             firstDay: DateTime.utc(2020, 1),
             lastDay: DateTime.utc(2030, 12, 31),
             focusedDay: _focusedDay,
+            startingDayOfWeek: _getStartingDayOfWeek(),
             selectedDayPredicate: (day) {
               return _selectedDay != null 
                   ? isSameDay(_selectedDay, day)
