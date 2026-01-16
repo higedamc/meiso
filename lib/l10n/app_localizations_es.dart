@@ -106,7 +106,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get amberModeInfo =>
-      '✅ Conectado con modo Amber\n\n🔒 Características de seguridad:\n• Firmar tareas con Amber al crear/editar\n• Proteger contenido con cifrado NIP-44\n• Clave secreta almacenada cifrada con ncryptsec en Amber\n\n⚡ Optimización de descifrado:\nSe requiere aprobación al sincronizar tareas.\nPara evitar aprobar cada vez, recomendamos\nconfigurar \"Permitir siempre la aplicación Meiso\" en Amber.\n\n📝 Cómo configurar:\n1. Abrir la aplicación Amber\n2. Seleccionar \"Meiso\" de la lista de aplicaciones\n3. Configurar \"NIP-44 Decrypt\" para permitir siempre';
+      '✅ Conectado con modo Amber\n\n🔒 Características de seguridad:\n• Firmar tareas con Amber al crear/editar\n• Proteger contenido con cifrado NIP-44\n• Clave secreta almacenada cifrada con ncryptsec en Amber\n\n⚡ Configuración Recomendada para Evitar Problemas de UX:\nOtorgue a Meiso \"permisos de basic actions o superiores\" en Amber\npara evitar diálogos de aprobación y garantizar un uso fluido.\n\n📝 Cómo configurar:\n1. Abrir la aplicación Amber\n2. Ir a Configuración → Aplicaciones Conectadas → Seleccionar \"Meiso\"\n3. Configurar Basic actions (NIP-44 Decrypt/Encrypt, Sign Event) a \"Permitir siempre\"';
 
   @override
   String get autoSyncInfoTitle => 'Acerca de la Sincronización Automática';
@@ -303,6 +303,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get taskDeleted => 'Tarea eliminada';
 
   @override
+  String taskDeletedWithTitle(String title) {
+    return '\"$title\" eliminada';
+  }
+
+  @override
+  String allInstancesDeleted(String title) {
+    return 'Todas las instancias de \"$title\" eliminadas';
+  }
+
+  @override
   String get languageSettings => 'Idioma';
 
   @override
@@ -375,6 +385,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get keyStorageNote =>
       'Las claves se almacenan de forma segura.\nAmber proporciona seguridad mejorada.';
+
+  @override
+  String get amberPermissionsNote =>
+      '💡 Para evitar problemas de UX:\nAl iniciar sesión con Amber, recomendamos otorgar \"permisos de basic actions o superiores\".\nPuede configurarlo en Configuración → Aplicaciones Conectadas → Meiso.';
 
   @override
   String get amberRequired => 'Amber Requerido';
@@ -1405,4 +1419,82 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get sendToRelay => 'Enviar al relay';
+
+  @override
+  String get todoAddFeatureInDevelopment =>
+      'La función de agregar tareas está en desarrollo';
+
+  @override
+  String get mlsGroupBackupTitle => 'Respaldo de Grupo MLS';
+
+  @override
+  String get mlsGroupBackupSubtitle => 'Exportar/Importar Key Package';
+
+  @override
+  String get mlsBackupDescription =>
+      'Exportar/importar Key Package para volver a unirse\na grupos existentes después de reinstalar la app.';
+
+  @override
+  String get exportButton => 'Exportar';
+
+  @override
+  String get importButton => 'Importar';
+
+  @override
+  String get mlsBackupImportInstruction =>
+      'Por favor importa desde\nConfiguración > Avanzado > Respaldo de Grupo MLS.';
+
+  @override
+  String get exportingBackup => '📤 Exportando...';
+
+  @override
+  String get backupCopiedToClipboard =>
+      '✅ Respaldo copiado al portapapeles\n\nPor favor guárdalo en un lugar seguro.';
+
+  @override
+  String get clipboardCopied => '📋 Copiado al portapapeles';
+
+  @override
+  String exportFailed(String error) {
+    return '❌ Exportación falló\n\n$error';
+  }
+
+  @override
+  String get noBackupDataInClipboard =>
+      '❌ No hay datos de respaldo en el portapapeles';
+
+  @override
+  String get confirmImportBackup =>
+      '¿Importar respaldo?\n\n⚠️ Por favor reinicia la app después de importar.';
+
+  @override
+  String get importingBackup => '📥 Importando...';
+
+  @override
+  String get backupImportedRestart =>
+      '✅ Respaldo importado\n\n🔄 Por favor reinicia la app.';
+
+  @override
+  String get importCompletedRestart =>
+      '✅ Importación completada. Por favor reinicia la app';
+
+  @override
+  String importFailed(String error) {
+    return '❌ Importación falló\n\n$error';
+  }
+
+  @override
+  String get ifYouHaveBackup => 'Si tienes un respaldo';
+
+  @override
+  String get ifYouDontHaveBackup => 'Si no tienes un respaldo';
+
+  @override
+  String get requestReinviteFromAdmin =>
+      'Por favor solicita una nueva invitación al administrador del grupo.';
+
+  @override
+  String inviteAcceptanceFailed(String error) {
+    return 'Falló la aceptación de la invitación\n\n$error';
+  }
 }

@@ -59,7 +59,7 @@
   
   "amberModeTitle": "Amberモード",
   
-  "amberModeInfo": "✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• タスクの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ 復号化の最適化:\nタスクの同期時に復号化の承認が必要です。\n毎回承認するのを避けるために、Amberアプリで\n「Meisoアプリを常に許可」を設定することを推奨します。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. アプリ一覧から「Meiso」を選択\n3. 「NIP-44 Decrypt」を常に許可に設定",
+  "amberModeInfo": "✅ Amberモードで接続中\n\n🔒 セキュリティ機能:\n• タスクの作成・編集時にAmberで署名\n• NIP-44暗号化でコンテンツを保護\n• 秘密鍵はAmber内でncryptsec準拠で暗号化保存\n\n⚡ UXを損なわないための推奨設定:\nAmberアプリでMeisoに「basic actions 以上の権限」を持たせることで、\n毎回の承認ダイアログを回避し、スムーズに利用できます。\n\n📝 設定方法:\n1. Amberアプリを開く\n2. 設定 → 接続済みアプリ → 「Meiso」を選択\n3. Basic actions (NIP-44 Decrypt/Encrypt, Sign Event) を「常に許可」に設定",
   
   "autoSyncInfoTitle": "自動同期について",
   
@@ -181,6 +181,10 @@
   
   "taskDeleted": "タスクを削除しました",
   
+  "taskDeletedWithTitle": "「{title}」を削除しました",
+  
+  "allInstancesDeleted": "「{title}」のすべてのインスタンスを削除しました",
+  
   "languageSettings": "言語",
   
   "languageSystem": "システムのデフォルト",
@@ -228,6 +232,8 @@
   "generateNewKey": "新しい秘密鍵を生成",
   
   "keyStorageNote": "秘密鍵は安全に保管されます。\nAmberを使用すると、より安全に管理できます。",
+  
+  "amberPermissionsNote": "💡 UXを損なわないために:\nAmberでログインする際は、「basic actions 以上の権限」を設定することを推奨します。\n設定 → 接続済みアプリ → Meiso で設定可能です。",
   
   "amberRequired": "Amberが必要です",
   
@@ -816,6 +822,48 @@
   
   "sentToRelay": "✅ リレーに送信しました",
   
-  "sendToRelay": "リレーに送信する"
+  "sendToRelay": "リレーに送信する",
+  
+  "todoAddFeatureInDevelopment": "Todo追加機能は開発中です",
+  
+  "mlsGroupBackupTitle": "MLSグループバックアップ",
+  
+  "mlsGroupBackupSubtitle": "Key Packageをエクスポート/インポート",
+  
+  "mlsBackupDescription": "Key Packageをエクスポート/インポートして、\nアプリ再インストール後も既存のグループに再参加できます。",
+  
+  "exportButton": "エクスポート",
+  
+  "importButton": "インポート",
+  
+  "mlsBackupImportInstruction": "Settings > Advanced > MLSグループバックアップ\nからインポートしてください。",
+  
+  "exportingBackup": "📤 エクスポート中...",
+  
+  "backupCopiedToClipboard": "✅ バックアップをクリップボードにコピーしました\n\n安全な場所に保存してください。",
+  
+  "clipboardCopied": "📋 クリップボードにコピーしました",
+  
+  "exportFailed": "❌ エクスポートに失敗しました\n\n{error}",
+  
+  "noBackupDataInClipboard": "❌ クリップボードにバックアップデータがありません",
+  
+  "confirmImportBackup": "バックアップをインポートしますか？\n\n⚠️ インポート後、アプリを再起動してください。",
+  
+  "importingBackup": "📥 インポート中...",
+  
+  "backupImportedRestart": "✅ バックアップをインポートしました\n\n🔄 アプリを再起動してください。",
+  
+  "importCompletedRestart": "✅ インポート完了。アプリを再起動してください",
+  
+  "importFailed": "❌ インポートに失敗しました\n\n{error}",
+  
+  "ifYouHaveBackup": "バックアップがある場合",
+  
+  "ifYouDontHaveBackup": "バックアップがない場合",
+  
+  "requestReinviteFromAdmin": "グループ管理者に再度招待をリクエストしてください。",
+  
+  "inviteAcceptanceFailed": "招待の受諾に失敗しました\n\n{error}"
 }
 

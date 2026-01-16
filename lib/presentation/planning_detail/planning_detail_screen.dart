@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
@@ -19,6 +20,7 @@ class PlanningDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final statusBarHeight = MediaQuery.of(context).padding.top;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
@@ -166,7 +168,7 @@ class PlanningDetailScreen extends StatelessWidget {
                 onAddTap: () {
                   // TODO追加ダイアログを表示（日付はカテゴリーの範囲内から選択）
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Todo追加機能は開発中です')),
+                    SnackBar(content: Text(l10n.todoAddFeatureInDevelopment)),
                   );
                 },
                 onSomedayTap: () => Navigator.of(context).pop(),

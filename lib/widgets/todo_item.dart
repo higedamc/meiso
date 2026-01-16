@@ -464,6 +464,8 @@ class TodoItem extends StatelessWidget {
             ),
           ),
           confirmDismiss: (direction) async {
+            final l10n = AppLocalizations.of(context);
+            
             if (direction == DismissDirection.startToEnd) {
               // 右スワイプ → 明日に移動
               final now = DateTime.now();
@@ -506,7 +508,7 @@ class TodoItem extends StatelessWidget {
                   
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('「${todo.title}」を削除しました'),
+                      content: Text(l10n.taskDeletedWithTitle(todo.title)),
                       duration: const Duration(seconds: 2),
                     ),
                   );
@@ -521,7 +523,7 @@ class TodoItem extends StatelessWidget {
                   
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('「${todo.title}」のすべてのインスタンスを削除しました'),
+                      content: Text(l10n.allInstancesDeleted(todo.title)),
                       duration: const Duration(seconds: 2),
                     ),
                   );
@@ -553,10 +555,10 @@ class TodoItem extends StatelessWidget {
                 
                 messenger.showSnackBar(
                   SnackBar(
-                    content: Text('「${todo.title}」を削除しました'),
+                    content: Text(l10n.taskDeletedWithTitle(deletedTodo.title)),
                     duration: const Duration(seconds: 3),
                     action: SnackBarAction(
-                      label: '元に戻す',
+                      label: l10n.undoButton,
                       textColor: Colors.blue.shade300,
                       onPressed: () {
                         AppLogger.info('🔵 [UNDO] Undo button pressed!');
