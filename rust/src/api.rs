@@ -2171,7 +2171,162 @@ pub fn fetch_todo_list_names_only_with_client_id(
 pub fn fetch_all_encrypted_todo_lists_for_pubkey(
     public_key_hex: String,
 ) -> Result<Vec<EncryptedTodoListEvent>> {
-    fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(public_key_hex, None)
+    // Phase 2: subscribe版を使用（EOSE活用で早期終了）
+    fetch_all_encrypted_todo_lists_subscribe_with_client_id(public_key_hex, None)
+}
+
+/// Phase 2: Subscribe版 - EOSE活用による早期終了
+/// 
+/// jokyoプロジェクトで実証された最適化手法:
+/// - subscribe()でストリーミング受信
+/// - EOSE（End of Stored Events）で即座に終了
+/// - タイムアウト: 2.5秒（jokyoの最適値）
+/// 
+/// 期待効果: 10秒 → 2-3秒（70-80%短縮）
+pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
+    public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<EncryptedTodoListEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+        
+        // Kind 30001イベントのフィルター
+        let filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(public_key);
+        
+        println!("📡 [Phase 2] Starting subscription for TODO lists (Kind 30001)");
+        
+        // Phase 2: subscribe()でストリーミング受信開始
+        let output = client.client.subscribe(vec![filter], None).await?;
+        let sub_id = output.id();
+        let mut notifications = client.client.notifications();
+        
+        // jokyoの最適値: 2.5秒タイムアウト
+        let timeout = tokio::time::Duration::from_millis(2500);
+        let deadline = tokio::time::Instant::now() + timeout;
+        
+        let mut events = Vec::new();
+        let mut eose_count = 0;
+        
+        loop {
+            // タイムアウトチェック
+            if tokio::time::Instant::now() >= deadline {
+                println!("⏱️ [Phase 2] Timeout reached (2.5s)");
+                break;
+            }
+            
+            // 通知受信（500msタイムアウト）
+            match tokio::time::timeout(
+                tokio::time::Duration::from_millis(500),
+                notifications.recv()
+            ).await {
+                Ok(Ok(notification)) => {
+                    match notification {
+                        RelayPoolNotification::Event { event, .. } => {
+                            if event.kind == Kind::Custom(30001) {
+                                println!("📥 [Phase 2] Received event: d={:?}, created_at={}", 
+                                    event.tags.iter()
+                                        .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                                        .and_then(|tag| tag.content()),
+                                    event.created_at.as_u64());
+                                events.push(*event);
+                            }
+                        }
+                        RelayPoolNotification::Message { message, .. } => {
+                            if matches!(message, RelayMessage::EndOfStoredEvents(_)) {
+                                eose_count += 1;
+                                println!("✅ [Phase 2] EOSE received from relay (count: {})", eose_count);
+                                
+                                // Phase 2最適化: 最初のEOSEで即座に終了
+                                // Replaceable Eventなので、1つのリレーからのEOSEで十分
+                                if eose_count >= 1 {
+                                    println!("⚡ [Phase 2] Early exit: {} events collected", events.len());
+                                    break;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(Err(_)) => {
+                    println!("🔌 [Phase 2] Notification channel closed");
+                    break;
+                }
+                Err(_) => {
+                    // 500ms間何も来ない場合、イベントがあれば終了
+                    if !events.is_empty() {
+                        println!("⚡ [Phase 2] No more events, exiting with {} events", events.len());
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // クリーンアップ
+        client.client.unsubscribe(sub_id.clone()).await;
+        
+        if events.is_empty() {
+            println!("⚠️ [Phase 2] No encrypted TODO list events found");
+            return Ok(Vec::new());
+        }
+        
+        println!("📥 [Phase 2] Found {} encrypted TODO list events (before deduplication)", events.len());
+        
+        // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events {
+            // d タグを取得
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
+                    // 既存のイベントと比較して、新しい方を保持
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            latest_events.insert(d_value.clone(), event);
+                        }
+                    } else {
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                }
+            }
+        }
+        
+        println!("📋 [Phase 2] After deduplication: {} unique TODO lists", latest_events.len());
+        
+        // 最新のイベントのみを返す
+        let list_events: Vec<EncryptedTodoListEvent> = latest_events.into_iter()
+            .map(|(d_tag, event)| {
+                // title タグを取得
+                let title = event.tags.iter()
+                    .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
+                    .and_then(|tag| tag.content())
+                    .map(|s| s.to_string());
+                    
+                EncryptedTodoListEvent {
+                    event_id: event.id.to_hex(),
+                    encrypted_content: event.content.clone(),
+                    created_at: event.created_at.as_u64() as i64,
+                    list_id: Some(d_tag),
+                    title,
+                }
+            })
+            .collect();
+        
+        println!("✅ [Phase 2] Fetched {} TODO list events for decryption", list_events.len());
+        Ok(list_events)
+    })
 }
 
 /// すべてのTodoリスト（Kind 30001）を差分取得（Amber復号化用）
@@ -2185,9 +2340,152 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since(
     since: i64,
     timeout_secs: u64,
 ) -> Result<Vec<EncryptedTodoListEvent>> {
-    fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(public_key_hex, since, timeout_secs, None)
+    // Phase 2: subscribe版を使用（差分取得版）
+    fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(public_key_hex, since, timeout_secs, None)
 }
 
+/// Phase 2: Subscribe版（差分取得） - EOSE活用による早期終了
+/// 
+/// バックグラウンド復帰時の体感改善用
+/// タイムアウト短縮: 3秒 → 1.5秒（50%短縮）
+pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
+    public_key_hex: String,
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<EncryptedTodoListEvent>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+
+        // 公開鍵をパース
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+
+        let mut filter = Filter::new()
+            .kind(Kind::Custom(30001))
+            .author(public_key);
+
+        // since が有効な場合のみ差分取得
+        if since > 0 {
+            let since_u64 = since.max(0) as u64;
+            filter = filter.since(Timestamp::from(since_u64));
+        }
+
+        println!("📡 [Phase 2] Starting subscription for TODO lists (since: {})", since);
+        
+        // Phase 2: subscribe()でストリーミング受信開始
+        let output = client.client.subscribe(vec![filter], None).await?;
+        let sub_id = output.id();
+        let mut notifications = client.client.notifications();
+        
+        // タイムアウトをさらに短縮（差分取得は高速化が重要）
+        let timeout_ms = if timeout_secs >= 3 { 1500 } else { timeout_secs * 1000 };
+        let timeout = tokio::time::Duration::from_millis(timeout_ms);
+        let deadline = tokio::time::Instant::now() + timeout;
+        
+        let mut events = Vec::new();
+        let mut eose_count = 0;
+        
+        loop {
+            // タイムアウトチェック
+            if tokio::time::Instant::now() >= deadline {
+                println!("⏱️ [Phase 2] Timeout reached ({}ms)", timeout_ms);
+                break;
+            }
+            
+            // 通知受信（300msタイムアウト）
+            match tokio::time::timeout(
+                tokio::time::Duration::from_millis(300),
+                notifications.recv()
+            ).await {
+                Ok(Ok(notification)) => {
+                    match notification {
+                        RelayPoolNotification::Event { event, .. } => {
+                            if event.kind == Kind::Custom(30001) {
+                                events.push(*event);
+                            }
+                        }
+                        RelayPoolNotification::Message { message, .. } => {
+                            if matches!(message, RelayMessage::EndOfStoredEvents(_)) {
+                                eose_count += 1;
+                                println!("✅ [Phase 2] EOSE received (count: {})", eose_count);
+                                
+                                // 最初のEOSEで即座に終了
+                                if eose_count >= 1 {
+                                    println!("⚡ [Phase 2] Early exit: {} events", events.len());
+                                    break;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(Err(_)) => break,
+                Err(_) => {
+                    // 300ms間何も来ない場合、終了
+                    if eose_count > 0 || !events.is_empty() {
+                        println!("⚡ [Phase 2] No more events, exiting");
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // クリーンアップ
+        client.client.unsubscribe(sub_id.clone()).await;
+        
+        if events.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        println!("📥 [Phase 2] Found {} events (before deduplication)", events.len());
+        
+        // 重複除去処理
+        use std::collections::HashMap;
+        let mut latest_events: HashMap<String, Event> = HashMap::new();
+        
+        for event in events {
+            let d_tag = event.tags.iter()
+                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .and_then(|tag| tag.content())
+                .map(|s| s.to_string());
+            
+            if let Some(ref d_value) = d_tag {
+                if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
+                    if let Some(existing_event) = latest_events.get(d_value) {
+                        if event.created_at > existing_event.created_at {
+                            latest_events.insert(d_value.clone(), event);
+                        }
+                    } else {
+                        latest_events.insert(d_value.clone(), event);
+                    }
+                }
+            }
+        }
+        
+        let list_events: Vec<EncryptedTodoListEvent> = latest_events.into_iter()
+            .map(|(d_tag, event)| {
+                let title = event.tags.iter()
+                    .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
+                    .and_then(|tag| tag.content())
+                    .map(|s| s.to_string());
+                    
+                EncryptedTodoListEvent {
+                    event_id: event.id.to_hex(),
+                    encrypted_content: event.content.clone(),
+                    created_at: event.created_at.as_u64() as i64,
+                    list_id: Some(d_tag),
+                    title,
+                }
+            })
+            .collect();
+        
+        println!("✅ [Phase 2] Fetched {} TODO list events", list_events.len());
+        Ok(list_events)
+    })
+}
+
+// 旧実装を保持（fetch_events版）
 pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
     public_key_hex: String,
     since: i64,
