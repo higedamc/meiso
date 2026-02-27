@@ -1,17 +1,37 @@
+# ═══════════════════════════════════════════════════════════════════
+# SOURCE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════
+
+# Source code repository URL
+repository: https://github.com/higedamc/meiso
+
+# APKs will be fetched from GitHub releases automatically
+# (no need to specify release_source for standard GitHub releases)
+
+# ═══════════════════════════════════════════════════════════════════
+# APP METADATA
+# ═══════════════════════════════════════════════════════════════════
+
+# App name
 name: Meiso
+
+# Short one-line description
 summary: A simple Nostr-based task management app
+
+# Full description (supports markdown)
 description: |
   Meiso is a minimalist task management app built on the Nostr protocol. 
   Inspired by TeuxDeux's clean design, it provides a simple three-column layout 
   (Today/Tomorrow/Someday) with end-to-end NIP-44 encryption.
   
-  Features:
+  ## Features
   - Three-column task layout (Today/Tomorrow/Someday)
   - Recurring tasks (daily, weekly, monthly, yearly)
   - Personal custom lists for organization
   - Multi-device synchronization via Nostr relays
   - NIP-44 end-to-end encryption for privacy
   - Amber signer integration for secure key management
+  - Tor connection support via Orbot proxy
   - Dark mode support
   - Multi-language support (English, Japanese, Spanish)
   - Pull-to-refresh sync
@@ -20,21 +40,54 @@ description: |
   All your tasks are encrypted and synced across devices using Nostr relays, 
   ensuring both privacy and accessibility without any central server.
 
-repository: https://github.com/higedamc/meiso
+# Category tags (array format)
+tags:
+  - nostr
+  - todo
+  - task-management
+  - productivity
+  - privacy
+  - encrypted
+  - amber
+  - decentralized
+  - sync
+
+# SPDX license identifier
 license: MIT
-changelog: CHANGELOG.md
 
-assets:
-  - build/app/outputs/flutter-apk/app-release.apk
+# App homepage (optional)
+website: https://github.com/higedamc/meiso
 
+# ═══════════════════════════════════════════════════════════════════
+# MEDIA
+# ═══════════════════════════════════════════════════════════════════
+
+# App icon (extracted from APK if not specified)
+icon: assets/icon.png
+
+# Screenshots (local paths or URLs)
 images:
   - screenshots/01_home_screen.png
   - screenshots/02_add_task.png
   - screenshots/03_someday_lists.png
   - screenshots/04_list_options.png
 
-tags: nostr todo task-management productivity privacy encrypted amber decentralized sync
+# ═══════════════════════════════════════════════════════════════════
+# RELEASE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════
 
-author: Kohei Otani
-author_npub: npub16lrdq99ng2q4hg5ufre5f8j0qpealp8544vq4ctn2wqyrf4tk6uqn8mfeq
+# Release notes file (extracts section matching version if Keep a Changelog format)
+release_notes: CHANGELOG.md
 
+# ═══════════════════════════════════════════════════════════════════
+# NOSTR-SPECIFIC
+# ═══════════════════════════════════════════════════════════════════
+
+# Nostr NIPs supported by this app
+supported_nips:
+  - "01"   # Basic protocol
+  - "04"   # Encrypted Direct Messages (legacy)
+  - "07"   # Window.nostr capability
+  - "44"   # Encrypted Payloads (Versioned)
+  - "46"   # Nostr Connect (Remote signer protocol)
+  - "55"   # Android Signer Application
