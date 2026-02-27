@@ -67,14 +67,26 @@ class GenerateRecurringInstancesUseCase
               ? today.subtract(Duration(days: originalTodo.recurrence!.interval))
               : originalTodo.date!);
       
-      // 終了日：開始日から14日後
-      final fourteenDaysLater = currentDate.add(const Duration(days: 14));
+      // 終了日：繰り返しタイプに応じたウィンドウ（月次・年次は次回が14日を超えるため別枠）
+      final recurrenceType = originalTodo.recurrence!.type;
+      final int windowDays;
+      switch (recurrenceType) {
+        case RecurrenceType.monthly:
+          windowDays = 90; // 毎月 → 約3インスタンスを生成
+          break;
+        case RecurrenceType.yearly:
+          windowDays = 400; // 毎年 → 少なくとも1インスタンスを生成
+          break;
+        default:
+          windowDays = 14; // 毎日・毎週は従来どおり14日
+      }
+      final windowEnd = currentDate.add(Duration(days: windowDays));
       
       AppLogger.debug('[GenerateRecurringInstances] 既存の最大日付（今日以降）: $maxExistingDate');
       AppLogger.debug('[GenerateRecurringInstances] 生成開始日: $currentDate');
-      AppLogger.debug('[GenerateRecurringInstances] 生成終了日: $fourteenDaysLater');
+      AppLogger.debug('[GenerateRecurringInstances] 生成終了日: $windowEnd (${recurrenceType.name}, ${windowDays}日)');
 
-      // 14日以内の将来のインスタンスを生成（ローリングウィンドウ方式）
+      // ウィンドウ内の将来インスタンスを生成（ローリングウィンドウ方式）
       while (generatedCount < maxInstances) {
         final nextDate = originalTodo.recurrence!.calculateNextDate(currentDate);
 
@@ -85,9 +97,9 @@ class GenerateRecurringInstancesUseCase
 
         AppLogger.debug('[GenerateRecurringInstances] 次の日付候補: $nextDate');
 
-        // 14日以内の日付のみ生成
-        if (nextDate.isAfter(fourteenDaysLater)) {
-          AppLogger.debug('[GenerateRecurringInstances] 14日以内の範囲を超えたため終了 ($nextDate > $fourteenDaysLater)');
+        // ウィンドウ内の日付のみ生成
+        if (nextDate.isAfter(windowEnd)) {
+          AppLogger.debug('[GenerateRecurringInstances] ウィンドウ範囲を超えたため終了 ($nextDate > $windowEnd)');
           break;
         }
         

@@ -1309,16 +1309,16 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
             state = AsyncValue.error(failure, StackTrace.current);
           },
           (updatedTodos) async {
-            // スマートな再生成: 残りインスタンスが7日分以下の場合のみ次の14日分を生成（ローリングウィンドウ）
+            // スマートな再生成: 残りインスタンスが閾値以下の場合のみ追加生成（タイプ別ウィンドウ）
             AppLogger.debug('[Todos] 🔍 Toggle check: wasCompleted=$wasCompleted, recurrence=${todo.recurrence}, date=${todo.date}');
             if (!wasCompleted && todo.recurrence != null && todo.date != null) {
               final remainingInstances = _countRemainingRecurringInstances(todo, updatedTodos);
+              final threshold = _recurringRegenerateThreshold(todo);
               
-              AppLogger.info('[Todos] 📊 残りインスタンス: $remainingInstances件 (閾値: 7日分)');
+              AppLogger.info('[Todos] 📊 残りインスタンス: $remainingInstances件 (閾値: $threshold)');
               
-              // 残り7日分以下になったら次の14日分を追加生成
-              if (remainingInstances <= 7) {
-                AppLogger.info('[Todos] 🔄 残りインスタンス: $remainingInstances件 → 次の14日分を生成します');
+              if (remainingInstances <= threshold) {
+                AppLogger.info('[Todos] 🔄 残りインスタンス: $remainingInstances件 → 次のウィンドウ分を生成します');
                 final updatedTodosAfterRecurring = await _createNextRecurringTask(todo, updatedTodos);
                 if (updatedTodosAfterRecurring != null) {
                   updatedTodos = updatedTodosAfterRecurring;
@@ -1444,10 +1444,10 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
   // - GenerateRecurringInstancesUseCase
   // - RemoveChildInstancesUseCase
 
-  /// リカーリングタスクの残りインスタンス数を数える（14日以内）
+  /// リカーリングタスクの残りインスタンス数を数える（タイプ別ウィンドウ）
   /// 
-  /// スマートな再生成のために使用。残りが7日分以下になったら追加生成する。
-  /// ローリングウィンドウ方式で効率的に管理します。
+  /// スマートな再生成のために使用。残りが閾値以下になったら追加生成する。
+  /// 毎日・毎週: 14日以内の件数、閾値7。毎月: 90日以内の件数、閾値2。毎年: 400日以内の件数、閾値1。
   int _countRemainingRecurringInstances(
     Todo todo,
     Map<DateTime?, List<Todo>> todos,
@@ -1460,33 +1460,52 @@ class TodosNotifier extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>
     final parentId = todo.parentRecurringId ?? todo.id;
     
     final now = DateTime.now();
-    final fourteenDaysLater = now.add(const Duration(days: 14));
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // 繰り返しタイプに応じたウィンドウ（GenerateRecurringInstancesUseCaseと一致）
+    final int windowDays;
+    switch (todo.recurrence!.type) {
+      case RecurrenceType.monthly:
+        windowDays = 90;
+        break;
+      case RecurrenceType.yearly:
+        windowDays = 400;
+        break;
+      default:
+        windowDays = 14;
+    }
+    final windowEnd = today.add(Duration(days: windowDays));
     
     var count = 0;
     
-    // 全ての日付から未完了の子インスタンスを数える
-    final today = DateTime(now.year, now.month, now.day);
-    
     for (final dateGroup in todos.values) {
       for (final task in dateGroup) {
-        // 条件:
-        // 1. 同じ親タスクIDを持つ、または同じタスク自身
-        // 2. 未完了
-        // 3. 日付が今日以降、14日以内
         if ((task.parentRecurringId == parentId || task.id == parentId) &&
             !task.completed &&
             task.date != null) {
           final taskDate = DateTime(task.date!.year, task.date!.month, task.date!.day);
-          // 今日以降 かつ 14日以内
-          if (!taskDate.isBefore(today) && !taskDate.isAfter(fourteenDaysLater)) {
+          if (!taskDate.isBefore(today) && !taskDate.isAfter(windowEnd)) {
             count++;
           }
         }
       }
     }
     
-    AppLogger.debug('[Todos] リカーリングタスク残りインスタンス数: $count (parentId: $parentId)');
+    AppLogger.debug('[Todos] リカーリングタスク残りインスタンス数: $count (parentId: $parentId, ${windowDays}日以内)');
     return count;
+  }
+
+  /// 繰り返しタイプごとの「再生成する残り閾値」（この数以下で再生成）
+  int _recurringRegenerateThreshold(Todo todo) {
+    if (todo.recurrence == null) return 0;
+    switch (todo.recurrence!.type) {
+      case RecurrenceType.monthly:
+        return 2;
+      case RecurrenceType.yearly:
+        return 1;
+      default:
+        return 7; // 毎日・毎週
+    }
   }
 
   /// Todoを削除（楽観的UI更新）
