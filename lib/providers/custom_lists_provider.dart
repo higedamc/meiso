@@ -104,27 +104,30 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       listsResult.fold(
         (failure) {
           AppLogger.warning(' [CustomLists] Failed to load lists: ${failure.message}');
-          state = const AsyncValue.data([]);
+          if (state is! AsyncData<List<CustomList>>) {
+            state = const AsyncValue.data([]);
+          }
         },
         (localLists) async {
+          // 既にNostr同期でstateが更新されていれば上書きしない（同期が先に完了した場合）
+          final current = state.valueOrNull;
+          if (current != null && current.isNotEmpty) {
+            AppLogger.debug(' [CustomLists] Skipping init state (already have ${current.length} lists from sync)');
+            return;
+          }
           if (localLists.isEmpty) {
-            // ローカルにリストがない場合は、まず空の状態にする
-            // Nostrからの同期を待ってから、必要に応じてデフォルトリストを作成
             AppLogger.info(' [CustomLists] No local lists found. Waiting for Nostr sync...');
-            state = const AsyncValue.data([]);
+            if (state is! AsyncData<List<CustomList>>) {
+              state = const AsyncValue.data([]);
+            }
           } else {
             // AppSettingsから保存された順番を適用
             await _applySavedListOrder(localLists);
-            
-            // MLS: 削除済みMLSグループリストをフィルタリング
             final filteredLists = await _filterDeletedLists(localLists);
-            
             if (filteredLists.length < localLists.length) {
               AppLogger.info('🗑️ [MLS] Filtered ${localLists.length - filteredLists.length} deleted MLS groups on init');
-              // フィルタリング後のリストを保存
               await _repository.saveCustomListsToLocal(filteredLists);
             }
-            
             AppLogger.info(' [CustomLists] Loaded ${filteredLists.length} lists from local storage');
             state = AsyncValue.data(filteredLists);
           }

@@ -90,8 +90,9 @@ class TodoItem extends StatelessWidget {
           ),
         ),
         actions: [
-          // Kind 30001実装: needsSyncフラグで同期状態を判定
-          if (!todo.needsSync)
+          // 個人Todoは eventId が存在するときのみ「同期済み」とみなす。
+          // （needsSync=false だけでは表示不整合が起こり得るため）
+          if (!todo.needsSync && todo.eventId != null)
             // 同期済み
             TextButton.icon(
               onPressed: () {
@@ -99,9 +100,7 @@ class TodoItem extends StatelessWidget {
                 final l10n = AppLocalizations.of(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(todo.eventId != null 
-                      ? l10n.syncedWithEventId(todo.eventId!.substring(0, 8))
-                      : l10n.synced),
+                    content: Text(l10n.syncedWithEventId(todo.eventId!.substring(0, 8))),
                     duration: const Duration(seconds: 2),
                   ),
                 );
