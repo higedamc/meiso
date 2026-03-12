@@ -12,11 +12,43 @@
 
 ### Citrine 等のローカルリレーを追加した場合
 
-- 設定画面で `wss://localhost:7777` や `wss://192.168.x.x:7777` などをリレーとして追加すれば、**他のリレーと同様に**読み書きの対象になる。
+- 設定画面で `ws://localhost:4869` または `ws://127.0.0.1:4869`（Citrine想定）を追加すると、local relay として扱われる。
 - オフライン時:
   - **ローカルリレーだけ**を設定していて、かつ Citrine が動いていれば、そのリレー経由で読み書き可能。
   - グローバルリレーも並列で入っている場合は、ローカルだけ落ちていても他リレーで動く（逆に、グローバルが落ちていてローカルのみの場合はローカルだけ使われる）。
 - 「ローカルリレーを優先してキャッシュする」という**特別な処理は現状ない**。あくまで「そのリレーがリストに含まれているかどうか」だけ。
+
+---
+
+## 現在の実装方針（2026-03）
+
+1. 追加直後のUI描画はローカル更新を最優先（同期待ちで描画を遅らせない）
+2. Amber署名済みイベントはローカルリレー優先送信（local 判定は `ws://localhost:4869` / `ws://127.0.0.1:4869` のみ）
+3. ローカル送信成功後は `eventId` を即時反映し、グローバルリレーはバックグラウンドキューで追従
+4. グローバル追従失敗はUIで明示し、再試行可能な状態を保持
+
+---
+
+## 追加フィールドの後方互換（Todo）
+
+- 追加された `localOpId` / `localRelaySyncedAt` / `globalRelaySyncedAt` は nullable。
+- `globalSyncPending` / `globalSyncFailed` は `false` がデフォルト。
+- 既存ローカルデータにこれらのキーが無くても、復元時に default/null が適用される。
+- これらは UI・ローカル状態管理向けメタデータであり、Nostr payload の必須互換フィールドではない。
+
+---
+
+## グローバル同期（backfill）の前提・流れ・スパン
+
+1. `sendSignedEventLocalFirst` で local relay 送信を先行する。
+2. local relay 送信が成功し、かつ global relay が存在する場合のみ queue に積む。
+3. queue はアプリ起動/復帰/同期タイミングで `processGlobalBackfillQueue` が処理する。
+4. 各キューアイテムは最大 5 回まで再試行し、成功で `globalSyncPending=false` + `globalRelaySyncedAt` を更新する。
+5. 5 回失敗時は `globalSyncFailed=true` として残し、UI から再試行導線を提供する。
+
+補足:
+- 現状の backfill は時間指定の遅延再試行（`next_retry_at`）は持たず、処理トリガー時に即再試行する。
+- local relay 未設定時は通常送信フォールバックとなり、global backfill queue は使わない。
 
 ---
 
