@@ -8,7 +8,6 @@ import '../../../../models/recurrence_pattern.dart';
 import '../../../../services/recurrence_parser.dart';
 import '../../../../services/link_preview_service.dart';
 import '../../../../services/logger_service.dart';
-import '../../domain/repositories/todo_repository.dart';
 
 /// CreateTodoUseCaseのパラメータ
 class CreateTodoParams { // 現在のTodoリスト（order計算用）
@@ -35,11 +34,10 @@ class CreateTodoParams { // 現在のTodoリスト（order計算用）
 /// - URLの検出とリンクプレビュー準備
 /// - Todoオブジェクトの生成
 /// - orderの計算
-/// - ローカルストレージへの永続化（Repository経由）
+/// - 作成に必要な最小情報の生成（永続化は呼び出し側で非同期実行）
 class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
-  
-  CreateTodoUseCase(this._repository);
-  final TodoRepository _repository;
+
+  CreateTodoUseCase();
   final _uuid = const Uuid();
 
   @override
@@ -114,6 +112,7 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
         order: nextOrder,
         createdAt: now,
         updatedAt: now,
+        localOpId: 'op-${now.microsecondsSinceEpoch}',
         customListId: params.customListId,
         recurrence: autoRecurrence, // 自動検出された繰り返しパターンを設定
         linkPreview: initialLinkPreview, // 一時的なリンクプレビューを設定
@@ -127,27 +126,10 @@ class CreateTodoUseCase implements UseCase<Todo, CreateTodoParams> {
       AppLogger.info('   - customListId: ${newTodo.customListId}');
       AppLogger.info('   - order: ${newTodo.order}');
 
-      // Phase C.1: Repository経由でローカルに保存
-      AppLogger.info('💾 [UseCase] Saving todo to local storage via Repository...');
-      AppLogger.debug('[UseCase] Repository instance: $_repository');
-      AppLogger.debug('[UseCase] About to call _repository.saveTodoToLocal()');
-      
-      final saveResult = await _repository.saveTodoToLocal(newTodo);
-      
-      AppLogger.debug('[UseCase] saveTodoToLocal() returned, checking result...');
-      
-      // 保存失敗時はエラーを返す
-      if (saveResult.isLeft()) {
-        return saveResult.fold(
-          (failure) {
-            AppLogger.error('❌ [UseCase] Failed to save todo to local: ${failure.message}');
-            return Left(failure);
-          },
-          (_) => Right(newTodo), // これは到達しない
-        );
-      }
-      
-      AppLogger.info('✅ [UseCase] Todo saved to local storage successfully');
+      // NOTE:
+      // 体感速度最優先のため、永続化は呼び出し元で非同期に行う。
+      // ここではUI描画に必要な最小データのみ返す。
+      AppLogger.info('⚡ [UseCase] Created todo payload (persist is delegated to caller)');
       return Right(newTodo);
     } catch (e, stackTrace) {
       AppLogger.error('❌ CreateTodoUseCase failed: $e', error: e, stackTrace: stackTrace);

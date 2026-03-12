@@ -15,6 +15,15 @@ _$TodoImpl _$$TodoImplFromJson(Map<String, dynamic> json) => _$TodoImpl(
   createdAt: DateTime.parse(json['createdAt'] as String),
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   eventId: json['eventId'] as String?,
+  localOpId: json['localOpId'] as String?,
+  localRelaySyncedAt: json['localRelaySyncedAt'] == null
+      ? null
+      : DateTime.parse(json['localRelaySyncedAt'] as String),
+  globalRelaySyncedAt: json['globalRelaySyncedAt'] == null
+      ? null
+      : DateTime.parse(json['globalRelaySyncedAt'] as String),
+  globalSyncPending: json['globalSyncPending'] as bool? ?? false,
+  globalSyncFailed: json['globalSyncFailed'] as bool? ?? false,
   linkPreview: json['linkPreview'] == null
       ? null
       : LinkPreview.fromJson(json['linkPreview'] as Map<String, dynamic>),
@@ -36,6 +45,11 @@ Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
       'eventId': instance.eventId,
+      'localOpId': instance.localOpId,
+      'localRelaySyncedAt': instance.localRelaySyncedAt?.toIso8601String(),
+      'globalRelaySyncedAt': instance.globalRelaySyncedAt?.toIso8601String(),
+      'globalSyncPending': instance.globalSyncPending,
+      'globalSyncFailed': instance.globalSyncFailed,
       'linkPreview': instance.linkPreview?.toJson(),
       'recurrence': instance.recurrence?.toJson(),
       'parentRecurringId': instance.parentRecurringId,

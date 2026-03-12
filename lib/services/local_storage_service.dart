@@ -27,6 +27,8 @@ class LocalStorageService {
   static const String _lastAppSettingsSyncTimeKey = 'last_app_settings_sync_time';
   static const String _lastCustomListsSyncTimeKey = 'last_custom_lists_sync_time';
   static const String _lastMlsGroupTodosSyncTimesKey = 'last_mls_group_todos_sync_times';
+  static const String _relayRolesKey = 'relay_roles';
+  static const String _globalBackfillQueueKey = 'global_backfill_queue';
   
   Box<Map<dynamic, dynamic>>? _todosBox;
   Box<dynamic>? _settingsBox;
@@ -666,6 +668,43 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.delete(_lastMlsGroupTodosSyncTimesKey);
+  }
+
+  // === Relay roles + global backfill queue ===
+
+  Future<void> saveRelayRoles(Map<String, String> roles) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_relayRolesKey, roles);
+  }
+
+  Map<String, String> loadRelayRoles() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final raw = _settingsBox!.get(_relayRolesKey);
+    if (raw is! Map) return {};
+    return raw.map((key, value) => MapEntry(key.toString(), value.toString()));
+  }
+
+  Future<void> saveGlobalBackfillQueue(List<Map<String, dynamic>> queueItems) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_globalBackfillQueueKey, queueItems);
+  }
+
+  List<Map<String, dynamic>> loadGlobalBackfillQueue() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final raw = _settingsBox!.get(_globalBackfillQueueKey);
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map<dynamic, dynamic>>()
+        .map((item) => item.map((k, v) => MapEntry(k.toString(), v)))
+        .toList();
   }
 }
 
