@@ -18,10 +18,9 @@ import 'services/local_storage_service.dart';
 import 'services/logger_service.dart';
 import 'models/app_settings.dart';
 import 'providers/app_settings_provider.dart';
+import 'providers/bootstrap_sync_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
-import 'providers/todos_provider.dart';
-import 'providers/custom_lists_provider.dart';
 import 'providers/locale_provider.dart';
 import 'widgets/sync_loading_overlay.dart'; // Phase 8.5.1
 // Phase D.5: MLS UseCase統合
@@ -76,6 +75,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
     // AppLifecycleProviderを初期化（アプリのライフサイクル監視を開始）
     // これによりフォアグラウンド復帰時の自動再接続・同期が有効になります
     ref.read(appLifecycleProvider);
+    ref.read(bootstrapSyncProvider.notifier);
     
     // アプリ起動時にNostr接続を復元
     _restoreNostrConnection();
@@ -207,26 +207,10 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           AppLogger.debug('復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
           AppLogger.debug('復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
           
-          // Nostrからデータを同期（復帰/再起動時の体感改善のため、ここではブロックしない）
-          AppLogger.info('[復元] Nostr同期をバックグラウンドで開始...', tag: 'SYNC');
+          // 起動時ブートストラップ（初回はブロック、既存データありは非ブロック）
           Future.microtask(() async {
-            try {
-              await ref.read(todosProvider.notifier).syncFromNostr(trigger: TodoSyncTrigger.appStart);
-              AppLogger.info('[復元] Nostr同期完了', tag: 'SYNC');
-            } catch (e) {
-              AppLogger.warning('[復元] Nostr同期エラー（ローカルデータで継続）', error: e, tag: 'SYNC');
-            }
+            await ref.read(bootstrapSyncProvider.notifier).runBootstrapIfNeeded();
           });
-          
-          // Phase 8.1.3: グループ招待の自動同期（Issue #116修正）
-          try {
-            AppLogger.info('[復元] グループ招待を同期中...', tag: 'MLS');
-            await ref.read(customListsProvider.notifier).syncGroupInvitations();
-            AppLogger.info('[復元] グループ招待同期完了', tag: 'MLS');
-          } catch (e) {
-            AppLogger.warning('[復元] グループ招待同期エラー', error: e, tag: 'MLS');
-            // エラーは無視（必須ではない）
-          }
           
           // Phase 8.1 + Phase D.5: Key Package自動公開（UseCase統合）
           try {
