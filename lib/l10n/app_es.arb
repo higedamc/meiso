@@ -183,6 +183,8 @@
   
   "taskDeletedWithTitle": "\"{title}\" eliminada",
   
+  "todoMovedToNextDay": "\"{title}\" movida al día siguiente",
+  
   "allInstancesDeleted": "Todas las instancias de \"{title}\" eliminadas",
   
   "languageSettings": "Idioma",
@@ -392,6 +394,28 @@
   "syncPhaseTodos": "Sincronizando tareas...",
   
   "syncPhaseMls": "Sincronizando tareas de grupo...",
+  
+  "bootstrapPhaseContinueWithLocalCache": "Continuando con caché local",
+  
+  "bootstrapPhaseFetchingAccountRelays": "Obteniendo relays vinculados a la cuenta...",
+  
+  "bootstrapPhaseFetchingLocalTodos": "Obteniendo tareas desde relay local...",
+  
+  "bootstrapPhaseFetchingLocalGroupTodos": "Obteniendo tareas de grupo desde relay local...",
+  
+  "bootstrapPhaseFetchingAllRelaysTodos": "Obteniendo tareas desde todos los relays...",
+  
+  "bootstrapPhaseFetchingAllRelaysGroupTodos": "Obteniendo tareas de grupo desde todos los relays...",
+  
+  "bootstrapPhaseFetchingGroupInvitations": "Obteniendo invitaciones de grupo...",
+  
+  "bootstrapPhaseCompleted": "Sincronización completada",
+  
+  "bootstrapPhaseFailed": "Sincronización fallida",
+  
+  "bootstrapContinueWithLocalCacheButton": "Continuar con caché local",
+  
+  "retryButton": "Reintentar",
   
   "justNow": "Justo ahora",
   

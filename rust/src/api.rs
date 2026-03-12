@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use chrono::{DateTime as ChronoDateTime, NaiveDate, NaiveDateTime};
 use nostr_sdk::prelude::*;
 use nostr_sdk::nips::nip44; // NIP-44暗号化を明示的にインポート
 use serde::{Deserialize, Serialize};
@@ -74,6 +75,63 @@ pub struct TodoData {
     /// カスタムリストID（SOMEDAYページのリストに属する場合）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_list_id: Option<String>,
+}
+
+fn normalize_todo_date_string(raw: &str) -> Option<String> {
+    if let Ok(parsed) = ChronoDateTime::parse_from_rfc3339(raw) {
+        return Some(parsed.date_naive().format("%Y-%m-%dT00:00:00").to_string());
+    }
+
+    if let Ok(parsed) = NaiveDateTime::parse_from_str(raw, "%Y-%m-%dT%H:%M:%S%.f") {
+        return Some(parsed.date().format("%Y-%m-%dT00:00:00").to_string());
+    }
+
+    if let Ok(parsed) = NaiveDate::parse_from_str(raw, "%Y-%m-%d") {
+        return Some(parsed.format("%Y-%m-%dT00:00:00").to_string());
+    }
+
+    None
+}
+
+fn list_key_from_d_tag(d_tag: &str) -> Option<String> {
+    if d_tag == "meiso-todos" {
+        return None;
+    }
+
+    if let Some(stripped) = d_tag.strip_prefix("meiso-list-") {
+        return Some(stripped.to_string());
+    }
+
+    Some(d_tag.to_string())
+}
+
+fn normalize_custom_list_id(raw: Option<String>, list_key: Option<&str>) -> Option<String> {
+    if let Some(key) = list_key {
+        return Some(key.to_string());
+    }
+
+    match raw {
+        Some(id) => {
+            if let Some(stripped) = id.strip_prefix("meiso-list-") {
+                Some(stripped.to_string())
+            } else {
+                Some(id)
+            }
+        }
+        None => None,
+    }
+}
+
+fn normalize_synced_todos(mut todos: Vec<TodoData>, list_key: Option<&str>) -> Vec<TodoData> {
+    for todo in &mut todos {
+        if let Some(raw_date) = todo.date.clone() {
+            if let Some(normalized) = normalize_todo_date_string(&raw_date) {
+                todo.date = Some(normalized);
+            }
+        }
+        todo.custom_list_id = normalize_custom_list_id(todo.custom_list_id.clone(), list_key);
+    }
+    todos
 }
 
 /// アプリ設定データ構造（NIP-78 Application-specific data - Kind 30078）
@@ -883,6 +941,8 @@ impl MeisoNostrClient {
                 Ok(decrypted) => {
                     match serde_json::from_str::<Vec<TodoData>>(&decrypted) {
                         Ok(todos) => {
+                            let list_key = list_key_from_d_tag(&d_tag);
+                            let todos = normalize_synced_todos(todos, list_key.as_deref());
                             println!("✅ Decrypted {} todos from list {:?}", todos.len(), d_tag);
                             all_todos.extend(todos);
                         }
@@ -967,7 +1027,7 @@ impl MeisoNostrClient {
         }
 
         let mut all_todos = Vec::new();
-        for (_d_tag, event) in latest_events {
+        for (d_tag, event) in latest_events {
             match nip44::decrypt(
                 keys.secret_key(),
                 &keys.public_key(),
@@ -975,6 +1035,8 @@ impl MeisoNostrClient {
             ) {
                 Ok(decrypted) => {
                     if let Ok(todos) = serde_json::from_str::<Vec<TodoData>>(&decrypted) {
+                        let list_key = list_key_from_d_tag(&d_tag);
+                        let todos = normalize_synced_todos(todos, list_key.as_deref());
                         all_todos.extend(todos);
                     }
                 }

@@ -183,6 +183,8 @@
   
   "taskDeletedWithTitle": "「{title}」を削除しました",
   
+  "todoMovedToNextDay": "「{title}」を翌日に移動しました",
+  
   "allInstancesDeleted": "「{title}」のすべてのインスタンスを削除しました",
   
   "languageSettings": "言語",
@@ -393,6 +395,17 @@
   "syncPhaseCustomLists": "リスト同期中...",
   "syncPhaseTodos": "タスク同期中...",
   "syncPhaseMls": "グループタスク同期中...",
+  "bootstrapPhaseContinueWithLocalCache": "ローカルキャッシュで継続します",
+  "bootstrapPhaseFetchingAccountRelays": "アカウントに紐づくリレーを取得しています...",
+  "bootstrapPhaseFetchingLocalTodos": "ローカルリレーから通常タスクを取得しています...",
+  "bootstrapPhaseFetchingLocalGroupTodos": "ローカルリレーからグループタスクを取得しています...",
+  "bootstrapPhaseFetchingAllRelaysTodos": "全リレーから通常タスクを取得しています...",
+  "bootstrapPhaseFetchingAllRelaysGroupTodos": "全リレーからグループタスクを取得しています...",
+  "bootstrapPhaseFetchingGroupInvitations": "グループ招待を取得しています...",
+  "bootstrapPhaseCompleted": "同期が完了しました",
+  "bootstrapPhaseFailed": "同期に失敗しました",
+  "bootstrapContinueWithLocalCacheButton": "ローカルキャッシュで続行",
+  "retryButton": "再試行",
   
   "justNow": "たった今",
   

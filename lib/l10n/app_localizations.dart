@@ -646,6 +646,12 @@ abstract class AppLocalizations {
   /// **'\"{title}\" deleted'**
   String taskDeletedWithTitle(String title);
 
+  /// Message when task is moved to the next day
+  ///
+  /// In en, this message translates to:
+  /// **'\"{title}\" moved to next day'**
+  String todoMovedToNextDay(String title);
+
   /// Message when all instances of recurring task are deleted
   ///
   /// In en, this message translates to:
@@ -1275,6 +1281,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Syncing group tasks...'**
   String get syncPhaseMls;
+
+  /// Bootstrap phase text when user continues with local cache
+  ///
+  /// In en, this message translates to:
+  /// **'Continuing with local cache'**
+  String get bootstrapPhaseContinueWithLocalCache;
+
+  /// Bootstrap phase text while fetching account relays
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching relays linked to account...'**
+  String get bootstrapPhaseFetchingAccountRelays;
+
+  /// Bootstrap phase text while fetching tasks from local relays
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching tasks from local relay...'**
+  String get bootstrapPhaseFetchingLocalTodos;
+
+  /// Bootstrap phase text while fetching group tasks from local relays
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching group tasks from local relay...'**
+  String get bootstrapPhaseFetchingLocalGroupTodos;
+
+  /// Bootstrap phase text while fetching tasks from all relays
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching tasks from all relays...'**
+  String get bootstrapPhaseFetchingAllRelaysTodos;
+
+  /// Bootstrap phase text while fetching group tasks from all relays
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching group tasks from all relays...'**
+  String get bootstrapPhaseFetchingAllRelaysGroupTodos;
+
+  /// Bootstrap phase text while fetching group invitations
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching group invitations...'**
+  String get bootstrapPhaseFetchingGroupInvitations;
+
+  /// Bootstrap phase text when sync has completed
+  ///
+  /// In en, this message translates to:
+  /// **'Sync completed'**
+  String get bootstrapPhaseCompleted;
+
+  /// Bootstrap phase text when sync has failed
+  ///
+  /// In en, this message translates to:
+  /// **'Sync failed'**
+  String get bootstrapPhaseFailed;
+
+  /// Button label to continue using local cache
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with local cache'**
+  String get bootstrapContinueWithLocalCacheButton;
+
+  /// Generic retry button label
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retryButton;
 
   /// Time indicator for recent sync
   ///
