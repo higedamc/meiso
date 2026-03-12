@@ -55,6 +55,12 @@ class TodoItem extends StatelessWidget {
       'createdAt': todo.createdAt.toIso8601String(),
       'updatedAt': todo.updatedAt.toIso8601String(),
       'eventId': todo.eventId,
+      'localOpId': todo.localOpId,
+      'localRelaySyncedAt': todo.localRelaySyncedAt?.toIso8601String(),
+      'globalRelaySyncedAt': todo.globalRelaySyncedAt?.toIso8601String(),
+      'globalSyncPending': todo.globalSyncPending,
+      'globalSyncFailed': todo.globalSyncFailed,
+      'needsSync': todo.needsSync,
     };
 
     final jsonString = const JsonEncoder.withIndent('  ').convert(jsonData);
@@ -92,21 +98,27 @@ class TodoItem extends StatelessWidget {
         actions: [
           // 個人Todoは eventId が存在するときのみ「同期済み」とみなす。
           // （needsSync=false だけでは表示不整合が起こり得るため）
-          if (!todo.needsSync && todo.eventId != null)
+          if (!todo.needsSync && todo.eventId != null && !todo.globalSyncFailed)
             // 同期済み
             TextButton.icon(
               onPressed: () {
                 Navigator.pop(context);
                 final l10n = AppLocalizations.of(context);
+                final suffix = todo.globalSyncPending ? ' (global pending)' : '';
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(l10n.syncedWithEventId(todo.eventId!.substring(0, 8))),
+                    content: Text('${l10n.syncedWithEventId(todo.eventId!.substring(0, 8))}$suffix'),
                     duration: const Duration(seconds: 2),
                   ),
                 );
               },
-              icon: const Icon(Icons.cloud_done, size: 16),
-              label: Text(AppLocalizations.of(context).synced),
+              icon: Icon(
+                todo.globalSyncPending ? Icons.cloud_queue : Icons.cloud_done,
+                size: 16,
+              ),
+              label: Text(
+                todo.globalSyncPending ? 'Local synced / Global pending' : AppLocalizations.of(context).synced,
+              ),
             )
           else
             // 未同期 - 手動送信ボタン（全Todoリストを再送信）
@@ -484,7 +496,7 @@ class TodoItem extends StatelessWidget {
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('「${todo.title}」を翌日に移動しました'),
+                  content: Text(l10n.todoMovedToNextDay(todo.title)),
                   duration: const Duration(seconds: 2),
                 ),
               );

@@ -1016,10 +1016,22 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
               .where((l) => l.isGroup || l.isPendingInvitation)
               .map((l) => l.name.trim().toUpperCase())
               .toSet();
+          final activeCustomListIds = <String>{};
+          final todosByDate = _ref.read(todosProvider).valueOrNull;
+          if (todosByDate != null) {
+            for (final dateGroup in todosByDate.values) {
+              for (final todo in dateGroup) {
+                if (todo.customListId != null && todo.customListId!.isNotEmpty) {
+                  activeCustomListIds.add(todo.customListId!);
+                }
+              }
+            }
+          }
           final before = updatedLists.length;
           updatedLists.removeWhere((l) {
             if (l.isGroup || l.isPendingInvitation) return false;
             if (l.eventId != null) return false;
+            if (activeCustomListIds.contains(l.id)) return false;
             final normalizedName = l.name.trim().toUpperCase();
             if (!normalizedGroupNames.contains(normalizedName)) return false;
             final shadowId = CustomListHelpers.generateIdFromName(normalizedName);

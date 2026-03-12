@@ -166,9 +166,6 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
             'リレー再接続エラー: ${e}',
             shouldRetry: false,
           );
-          Future.delayed(const Duration(seconds: 3), () {
-            _ref.read(syncStatusProvider.notifier).clearError();
-          });
         }
       }
       
@@ -179,6 +176,7 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       // TodosProviderの同期メソッドを呼び出し
       final todosNotifier = _ref.read(todosProvider.notifier);
       await todosNotifier.syncFromNostr(trigger: TodoSyncTrigger.appResume);
+      await nostrService.processGlobalBackfillQueue();
       
       // Phase 8.1.2: グループ招待の同期
       try {
@@ -201,11 +199,6 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
         'フォアグラウンド復帰時の同期エラー: ${e}',
         shouldRetry: false,
       );
-      
-      // 3秒後にエラーをクリア
-      Future.delayed(const Duration(seconds: 3), () {
-        _ref.read(syncStatusProvider.notifier).clearError();
-      });
     } finally {
       _isReconnecting = false;
     }
