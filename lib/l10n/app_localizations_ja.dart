@@ -301,6 +301,11 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String todoMovedToNextDay(String title) {
+    return '「$title」を翌日に移動しました';
+  }
+
+  @override
   String allInstancesDeleted(String title) {
     return '「$title」のすべてのインスタンスを削除しました';
   }
@@ -637,6 +642,41 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get syncPhaseMls => 'グループタスク同期中...';
+
+  @override
+  String get bootstrapPhaseContinueWithLocalCache => 'ローカルキャッシュで継続します';
+
+  @override
+  String get bootstrapPhaseFetchingAccountRelays => 'アカウントに紐づくリレーを取得しています...';
+
+  @override
+  String get bootstrapPhaseFetchingLocalTodos => 'ローカルリレーから通常タスクを取得しています...';
+
+  @override
+  String get bootstrapPhaseFetchingLocalGroupTodos =>
+      'ローカルリレーからグループタスクを取得しています...';
+
+  @override
+  String get bootstrapPhaseFetchingAllRelaysTodos => '全リレーから通常タスクを取得しています...';
+
+  @override
+  String get bootstrapPhaseFetchingAllRelaysGroupTodos =>
+      '全リレーからグループタスクを取得しています...';
+
+  @override
+  String get bootstrapPhaseFetchingGroupInvitations => 'グループ招待を取得しています...';
+
+  @override
+  String get bootstrapPhaseCompleted => '同期が完了しました';
+
+  @override
+  String get bootstrapPhaseFailed => '同期に失敗しました';
+
+  @override
+  String get bootstrapContinueWithLocalCacheButton => 'ローカルキャッシュで続行';
+
+  @override
+  String get retryButton => '再試行';
 
   @override
   String get justNow => 'たった今';

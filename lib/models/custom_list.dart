@@ -83,6 +83,17 @@ extension CustomListHelpers on CustomList {
     
     return id;
   }
+
+  /// Nostrのd tagやJSONのcustom_list_idをローカルリストIDに正規化する。
+  /// "meiso-list-xxx" → "xxx"、そのままの場合はそのまま返す。nullはnull。
+  /// カスタムリスト一覧は名前ベースIDで保存しているため、同期受信時に必ず正規化すること。
+  static String? normalizeListIdFromNostr(String? listId) {
+    if (listId == null || listId.isEmpty) return listId;
+    if (listId.startsWith('meiso-list-')) {
+      return listId.substring('meiso-list-'.length);
+    }
+    return listId;
+  }
 }
 
 /// 時間ベースのカテゴリー（固定）

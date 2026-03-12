@@ -37,6 +37,21 @@ class Todo with _$Todo {
     
     /// Nostrイベントの event ID (同期後に設定)
     String? eventId,
+
+    /// ローカル操作識別子（作成直後に即時付与、デバッグ/追跡用）
+    String? localOpId,
+
+    /// ローカルリレー同期完了時刻（Citrine等への送信成功）
+    DateTime? localRelaySyncedAt,
+
+    /// グローバルリレー同期完了時刻（バックグラウンド反映）
+    DateTime? globalRelaySyncedAt,
+
+    /// グローバルリレーへのバックフィル待機中
+    @Default(false) bool globalSyncPending,
+
+    /// グローバルリレーへのバックフィル失敗中（再試行待ち）
+    @Default(false) bool globalSyncFailed,
     
     /// URLリンクプレビュー（テキストにURLが含まれる場合）
     LinkPreview? linkPreview,

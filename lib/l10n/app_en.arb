@@ -486,6 +486,15 @@
       }
     }
   },
+  "todoMovedToNextDay": "\"{title}\" moved to next day",
+  "@todoMovedToNextDay": {
+    "description": "Message when task is moved to the next day",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   
   "allInstancesDeleted": "All instances of \"{title}\" deleted",
   "@allInstancesDeleted": {
@@ -1038,6 +1047,50 @@
   "@syncPhaseTodos": { "description": "Sync phase: tasks" },
   "syncPhaseMls": "Syncing group tasks...",
   "@syncPhaseMls": { "description": "Sync phase: MLS group tasks" },
+  "bootstrapPhaseContinueWithLocalCache": "Continuing with local cache",
+  "@bootstrapPhaseContinueWithLocalCache": {
+    "description": "Bootstrap phase text when user continues with local cache"
+  },
+  "bootstrapPhaseFetchingAccountRelays": "Fetching relays linked to account...",
+  "@bootstrapPhaseFetchingAccountRelays": {
+    "description": "Bootstrap phase text while fetching account relays"
+  },
+  "bootstrapPhaseFetchingLocalTodos": "Fetching tasks from local relay...",
+  "@bootstrapPhaseFetchingLocalTodos": {
+    "description": "Bootstrap phase text while fetching tasks from local relays"
+  },
+  "bootstrapPhaseFetchingLocalGroupTodos": "Fetching group tasks from local relay...",
+  "@bootstrapPhaseFetchingLocalGroupTodos": {
+    "description": "Bootstrap phase text while fetching group tasks from local relays"
+  },
+  "bootstrapPhaseFetchingAllRelaysTodos": "Fetching tasks from all relays...",
+  "@bootstrapPhaseFetchingAllRelaysTodos": {
+    "description": "Bootstrap phase text while fetching tasks from all relays"
+  },
+  "bootstrapPhaseFetchingAllRelaysGroupTodos": "Fetching group tasks from all relays...",
+  "@bootstrapPhaseFetchingAllRelaysGroupTodos": {
+    "description": "Bootstrap phase text while fetching group tasks from all relays"
+  },
+  "bootstrapPhaseFetchingGroupInvitations": "Fetching group invitations...",
+  "@bootstrapPhaseFetchingGroupInvitations": {
+    "description": "Bootstrap phase text while fetching group invitations"
+  },
+  "bootstrapPhaseCompleted": "Sync completed",
+  "@bootstrapPhaseCompleted": {
+    "description": "Bootstrap phase text when sync has completed"
+  },
+  "bootstrapPhaseFailed": "Sync failed",
+  "@bootstrapPhaseFailed": {
+    "description": "Bootstrap phase text when sync has failed"
+  },
+  "bootstrapContinueWithLocalCacheButton": "Continue with local cache",
+  "@bootstrapContinueWithLocalCacheButton": {
+    "description": "Button label to continue using local cache"
+  },
+  "retryButton": "Retry",
+  "@retryButton": {
+    "description": "Generic retry button label"
+  },
   
   "justNow": "Just now",
   "@justNow": {

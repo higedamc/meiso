@@ -308,6 +308,11 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String todoMovedToNextDay(String title) {
+    return '\"$title\" movida al día siguiente';
+  }
+
+  @override
   String allInstancesDeleted(String title) {
     return 'Todas las instancias de \"$title\" eliminadas';
   }
@@ -656,6 +661,47 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get syncPhaseMls => 'Sincronizando tareas de grupo...';
+
+  @override
+  String get bootstrapPhaseContinueWithLocalCache =>
+      'Continuando con caché local';
+
+  @override
+  String get bootstrapPhaseFetchingAccountRelays =>
+      'Obteniendo relays vinculados a la cuenta...';
+
+  @override
+  String get bootstrapPhaseFetchingLocalTodos =>
+      'Obteniendo tareas desde relay local...';
+
+  @override
+  String get bootstrapPhaseFetchingLocalGroupTodos =>
+      'Obteniendo tareas de grupo desde relay local...';
+
+  @override
+  String get bootstrapPhaseFetchingAllRelaysTodos =>
+      'Obteniendo tareas desde todos los relays...';
+
+  @override
+  String get bootstrapPhaseFetchingAllRelaysGroupTodos =>
+      'Obteniendo tareas de grupo desde todos los relays...';
+
+  @override
+  String get bootstrapPhaseFetchingGroupInvitations =>
+      'Obteniendo invitaciones de grupo...';
+
+  @override
+  String get bootstrapPhaseCompleted => 'Sincronización completada';
+
+  @override
+  String get bootstrapPhaseFailed => 'Sincronización fallida';
+
+  @override
+  String get bootstrapContinueWithLocalCacheButton =>
+      'Continuar con caché local';
+
+  @override
+  String get retryButton => 'Reintentar';
 
   @override
   String get justNow => 'Justo ahora';

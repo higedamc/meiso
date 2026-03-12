@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:ui';
-import '../providers/sync_status_provider.dart';
+import '../providers/bootstrap_sync_provider.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 
 /// Phase 8.5.1: 同期中のローディングオーバーレイ
@@ -11,17 +11,40 @@ import 'package:meiso/l10n/app_localizations.dart';
 class SyncLoadingOverlay extends ConsumerWidget {
   const SyncLoadingOverlay({super.key});
 
+  String _resolvePhaseText(
+    AppLocalizations l10n,
+    BootstrapSyncPhase phase,
+  ) {
+    switch (phase) {
+      case BootstrapSyncPhase.none:
+        return '';
+      case BootstrapSyncPhase.continueWithLocalCache:
+        return l10n.bootstrapPhaseContinueWithLocalCache;
+      case BootstrapSyncPhase.fetchingAccountRelays:
+        return l10n.bootstrapPhaseFetchingAccountRelays;
+      case BootstrapSyncPhase.fetchingLocalTodos:
+        return l10n.bootstrapPhaseFetchingLocalTodos;
+      case BootstrapSyncPhase.fetchingLocalGroupTodos:
+        return l10n.bootstrapPhaseFetchingLocalGroupTodos;
+      case BootstrapSyncPhase.fetchingAllRelaysTodos:
+        return l10n.bootstrapPhaseFetchingAllRelaysTodos;
+      case BootstrapSyncPhase.fetchingAllRelaysGroupTodos:
+        return l10n.bootstrapPhaseFetchingAllRelaysGroupTodos;
+      case BootstrapSyncPhase.fetchingGroupInvitations:
+        return l10n.bootstrapPhaseFetchingGroupInvitations;
+      case BootstrapSyncPhase.syncCompleted:
+        return l10n.bootstrapPhaseCompleted;
+      case BootstrapSyncPhase.syncFailed:
+        return l10n.bootstrapPhaseFailed;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final syncStatus = ref.watch(syncStatusProvider);
+    final bootstrapState = ref.watch(bootstrapSyncProvider);
+    final l10n = AppLocalizations.of(context);
     
-    // 初回同期時のみ表示（ローカルストレージが空の状態からの初回起動時）
-    if (!syncStatus.isInitialSync) {
-      return const SizedBox.shrink();
-    }
-    
-    // 同期中でない場合は表示しない
-    if (syncStatus.state != SyncState.syncing) {
+    if (!bootstrapState.isBlocking) {
       return const SizedBox.shrink();
     }
     
@@ -30,6 +53,12 @@ class SyncLoadingOverlay extends ConsumerWidget {
     
     return Stack(
       children: [
+        const Positioned.fill(
+          child: ModalBarrier(
+            dismissible: false,
+            color: Colors.transparent,
+          ),
+        ),
         // 背景ブラー + 半透明
         Positioned.fill(
           child: BackdropFilter(
@@ -64,7 +93,9 @@ class SyncLoadingOverlay extends ConsumerWidget {
               children: [
                 // タイトル
                 Text(
-                  AppLocalizations.of(context).syncing,
+                  bootstrapState.errorMessage == null
+                      ? l10n.syncing
+                      : l10n.syncError,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -72,68 +103,62 @@ class SyncLoadingOverlay extends ConsumerWidget {
                 
                 const SizedBox(height: 24),
                 
-                // 進捗パーセンテージ（大きく表示）
-                Text(
-                  '${syncStatus.percentage}%',
-                  style: theme.textTheme.displayMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // 進捗バー
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: syncStatus.percentage / 100.0,
-                    minHeight: 8,
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // 現在のフェーズ
-                if (syncStatus.currentPhase != null) ...[
+                if (bootstrapState.errorMessage == null) ...[
+                  const CircularProgressIndicator(),
                   Text(
-                    _resolveL10n(context, syncStatus.currentPhase!),
+                    _resolvePhaseText(l10n, bootstrapState.phase).isNotEmpty
+                        ? _resolvePhaseText(l10n, bootstrapState.phase)
+                        : l10n.syncLoadingData,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                ],
-                
-                // メッセージがある場合は表示
-                if (syncStatus.message != null && 
-                    syncStatus.message!.isNotEmpty &&
-                    syncStatus.message != syncStatus.currentPhase) ...[
-                  const SizedBox(height: 8),
+                ] else ...[
                   Text(
-                    _resolveL10n(context, syncStatus.message!),
+                    bootstrapState.errorMessage!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  if (bootstrapState.canFallbackToLocal)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        OutlinedButton(
+                          onPressed: () {
+                            ref.read(bootstrapSyncProvider.notifier).continueWithLocalCache();
+                          },
+                          child: Text(l10n.bootstrapContinueWithLocalCacheButton),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            ref.read(bootstrapSyncProvider.notifier).retryBootstrap();
+                          },
+                          child: Text(l10n.retryButton),
+                        ),
+                      ],
+                    ),
+                  if (!bootstrapState.canFallbackToLocal)
+                    ElevatedButton(
+                      onPressed: () {
+                        ref.read(bootstrapSyncProvider.notifier).retryBootstrap();
+                      },
+                      child: Text(l10n.retryButton),
+                    ),
+                ],
+                if (_resolvePhaseText(l10n, bootstrapState.phase).isNotEmpty &&
+                    bootstrapState.errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _resolvePhaseText(l10n, bootstrapState.phase),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                     ),
                     textAlign: TextAlign.center,
-                  ),
-                ],
-                
-                // ステップ表示（例: "2 / 3"）
-                if (syncStatus.totalSteps > 0) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    AppLocalizations.of(context).syncStep(
-                      syncStatus.completedSteps,
-                      syncStatus.totalSteps,
-                    ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
-                    ),
                   ),
                 ],
               ],
@@ -144,46 +169,5 @@ class SyncLoadingOverlay extends ConsumerWidget {
     );
   }
 
-  String _resolveL10n(BuildContext context, String value) {
-    const prefix = '__l10n__:';
-    if (!value.startsWith(prefix)) return value;
-
-    final key = value.substring(prefix.length);
-    final l10n = AppLocalizations.of(context);
-    switch (key) {
-      case 'syncReconnectingRelays':
-        return l10n.syncReconnectingRelays;
-      case 'syncPhaseDelta':
-        return l10n.syncPhaseDelta;
-      case 'syncPhaseAppSettings':
-        return l10n.syncPhaseAppSettings;
-      case 'syncPhaseCustomLists':
-        return l10n.syncPhaseCustomLists;
-      case 'syncPhaseTodos':
-        return l10n.syncPhaseTodos;
-      case 'syncPhaseMls':
-        return l10n.syncPhaseMls;
-      case 'syncCompleted':
-        return l10n.syncCompleted;
-      case 'syncLoadingData':
-        return l10n.syncLoadingData;
-      case 'syncMigratingData':
-        return l10n.syncMigratingData;
-      case 'syncSyncingData':
-        return l10n.syncSyncingData;
-      case 'syncPreparingMigration':
-        return l10n.syncPreparingMigration;
-      case 'syncFetchingOldData':
-        return l10n.syncFetchingOldData;
-      case 'syncConvertingToNewFormat':
-        return l10n.syncConvertingToNewFormat;
-      case 'syncDeletingOldData':
-        return l10n.syncDeletingOldData;
-      case 'syncMigrationCompleted':
-        return l10n.syncMigrationCompleted;
-      default:
-        return l10n.syncing;
-    }
-  }
 }
 

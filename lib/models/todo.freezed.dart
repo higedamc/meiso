@@ -45,6 +45,21 @@ mixin _$Todo {
   /// Nostrイベントの event ID (同期後に設定)
   String? get eventId => throw _privateConstructorUsedError;
 
+  /// ローカル操作識別子（作成直後に即時付与、デバッグ/追跡用）
+  String? get localOpId => throw _privateConstructorUsedError;
+
+  /// ローカルリレー同期完了時刻（Citrine等への送信成功）
+  DateTime? get localRelaySyncedAt => throw _privateConstructorUsedError;
+
+  /// グローバルリレー同期完了時刻（バックグラウンド反映）
+  DateTime? get globalRelaySyncedAt => throw _privateConstructorUsedError;
+
+  /// グローバルリレーへのバックフィル待機中
+  bool get globalSyncPending => throw _privateConstructorUsedError;
+
+  /// グローバルリレーへのバックフィル失敗中（再試行待ち）
+  bool get globalSyncFailed => throw _privateConstructorUsedError;
+
   /// URLリンクプレビュー（テキストにURLが含まれる場合）
   LinkPreview? get linkPreview => throw _privateConstructorUsedError;
 
@@ -83,6 +98,11 @@ abstract class $TodoCopyWith<$Res> {
     DateTime createdAt,
     DateTime updatedAt,
     String? eventId,
+    String? localOpId,
+    DateTime? localRelaySyncedAt,
+    DateTime? globalRelaySyncedAt,
+    bool globalSyncPending,
+    bool globalSyncFailed,
     LinkPreview? linkPreview,
     RecurrencePattern? recurrence,
     String? parentRecurringId,
@@ -117,6 +137,11 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
     Object? createdAt = null,
     Object? updatedAt = null,
     Object? eventId = freezed,
+    Object? localOpId = freezed,
+    Object? localRelaySyncedAt = freezed,
+    Object? globalRelaySyncedAt = freezed,
+    Object? globalSyncPending = null,
+    Object? globalSyncFailed = null,
     Object? linkPreview = freezed,
     Object? recurrence = freezed,
     Object? parentRecurringId = freezed,
@@ -157,6 +182,26 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
                 ? _value.eventId
                 : eventId // ignore: cast_nullable_to_non_nullable
                       as String?,
+            localOpId: freezed == localOpId
+                ? _value.localOpId
+                : localOpId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            localRelaySyncedAt: freezed == localRelaySyncedAt
+                ? _value.localRelaySyncedAt
+                : localRelaySyncedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
+            globalRelaySyncedAt: freezed == globalRelaySyncedAt
+                ? _value.globalRelaySyncedAt
+                : globalRelaySyncedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
+            globalSyncPending: null == globalSyncPending
+                ? _value.globalSyncPending
+                : globalSyncPending // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            globalSyncFailed: null == globalSyncFailed
+                ? _value.globalSyncFailed
+                : globalSyncFailed // ignore: cast_nullable_to_non_nullable
+                      as bool,
             linkPreview: freezed == linkPreview
                 ? _value.linkPreview
                 : linkPreview // ignore: cast_nullable_to_non_nullable
@@ -228,6 +273,11 @@ abstract class _$$TodoImplCopyWith<$Res> implements $TodoCopyWith<$Res> {
     DateTime createdAt,
     DateTime updatedAt,
     String? eventId,
+    String? localOpId,
+    DateTime? localRelaySyncedAt,
+    DateTime? globalRelaySyncedAt,
+    bool globalSyncPending,
+    bool globalSyncFailed,
     LinkPreview? linkPreview,
     RecurrencePattern? recurrence,
     String? parentRecurringId,
@@ -261,6 +311,11 @@ class __$$TodoImplCopyWithImpl<$Res>
     Object? createdAt = null,
     Object? updatedAt = null,
     Object? eventId = freezed,
+    Object? localOpId = freezed,
+    Object? localRelaySyncedAt = freezed,
+    Object? globalRelaySyncedAt = freezed,
+    Object? globalSyncPending = null,
+    Object? globalSyncFailed = null,
     Object? linkPreview = freezed,
     Object? recurrence = freezed,
     Object? parentRecurringId = freezed,
@@ -301,6 +356,26 @@ class __$$TodoImplCopyWithImpl<$Res>
             ? _value.eventId
             : eventId // ignore: cast_nullable_to_non_nullable
                   as String?,
+        localOpId: freezed == localOpId
+            ? _value.localOpId
+            : localOpId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        localRelaySyncedAt: freezed == localRelaySyncedAt
+            ? _value.localRelaySyncedAt
+            : localRelaySyncedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
+        globalRelaySyncedAt: freezed == globalRelaySyncedAt
+            ? _value.globalRelaySyncedAt
+            : globalRelaySyncedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
+        globalSyncPending: null == globalSyncPending
+            ? _value.globalSyncPending
+            : globalSyncPending // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        globalSyncFailed: null == globalSyncFailed
+            ? _value.globalSyncFailed
+            : globalSyncFailed // ignore: cast_nullable_to_non_nullable
+                  as bool,
         linkPreview: freezed == linkPreview
             ? _value.linkPreview
             : linkPreview // ignore: cast_nullable_to_non_nullable
@@ -338,6 +413,11 @@ class _$TodoImpl implements _Todo {
     required this.createdAt,
     required this.updatedAt,
     this.eventId,
+    this.localOpId,
+    this.localRelaySyncedAt,
+    this.globalRelaySyncedAt,
+    this.globalSyncPending = false,
+    this.globalSyncFailed = false,
     this.linkPreview,
     this.recurrence,
     this.parentRecurringId,
@@ -382,6 +462,28 @@ class _$TodoImpl implements _Todo {
   @override
   final String? eventId;
 
+  /// ローカル操作識別子（作成直後に即時付与、デバッグ/追跡用）
+  @override
+  final String? localOpId;
+
+  /// ローカルリレー同期完了時刻（Citrine等への送信成功）
+  @override
+  final DateTime? localRelaySyncedAt;
+
+  /// グローバルリレー同期完了時刻（バックグラウンド反映）
+  @override
+  final DateTime? globalRelaySyncedAt;
+
+  /// グローバルリレーへのバックフィル待機中
+  @override
+  @JsonKey()
+  final bool globalSyncPending;
+
+  /// グローバルリレーへのバックフィル失敗中（再試行待ち）
+  @override
+  @JsonKey()
+  final bool globalSyncFailed;
+
   /// URLリンクプレビュー（テキストにURLが含まれる場合）
   @override
   final LinkPreview? linkPreview;
@@ -405,7 +507,7 @@ class _$TodoImpl implements _Todo {
 
   @override
   String toString() {
-    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync)';
+    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, localOpId: $localOpId, localRelaySyncedAt: $localRelaySyncedAt, globalRelaySyncedAt: $globalRelaySyncedAt, globalSyncPending: $globalSyncPending, globalSyncFailed: $globalSyncFailed, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync)';
   }
 
   @override
@@ -424,6 +526,16 @@ class _$TodoImpl implements _Todo {
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt) &&
             (identical(other.eventId, eventId) || other.eventId == eventId) &&
+            (identical(other.localOpId, localOpId) ||
+                other.localOpId == localOpId) &&
+            (identical(other.localRelaySyncedAt, localRelaySyncedAt) ||
+                other.localRelaySyncedAt == localRelaySyncedAt) &&
+            (identical(other.globalRelaySyncedAt, globalRelaySyncedAt) ||
+                other.globalRelaySyncedAt == globalRelaySyncedAt) &&
+            (identical(other.globalSyncPending, globalSyncPending) ||
+                other.globalSyncPending == globalSyncPending) &&
+            (identical(other.globalSyncFailed, globalSyncFailed) ||
+                other.globalSyncFailed == globalSyncFailed) &&
             (identical(other.linkPreview, linkPreview) ||
                 other.linkPreview == linkPreview) &&
             (identical(other.recurrence, recurrence) ||
@@ -448,6 +560,11 @@ class _$TodoImpl implements _Todo {
     createdAt,
     updatedAt,
     eventId,
+    localOpId,
+    localRelaySyncedAt,
+    globalRelaySyncedAt,
+    globalSyncPending,
+    globalSyncFailed,
     linkPreview,
     recurrence,
     parentRecurringId,
@@ -479,6 +596,11 @@ abstract class _Todo implements Todo {
     required final DateTime createdAt,
     required final DateTime updatedAt,
     final String? eventId,
+    final String? localOpId,
+    final DateTime? localRelaySyncedAt,
+    final DateTime? globalRelaySyncedAt,
+    final bool globalSyncPending,
+    final bool globalSyncFailed,
     final LinkPreview? linkPreview,
     final RecurrencePattern? recurrence,
     final String? parentRecurringId,
@@ -519,6 +641,26 @@ abstract class _Todo implements Todo {
   /// Nostrイベントの event ID (同期後に設定)
   @override
   String? get eventId;
+
+  /// ローカル操作識別子（作成直後に即時付与、デバッグ/追跡用）
+  @override
+  String? get localOpId;
+
+  /// ローカルリレー同期完了時刻（Citrine等への送信成功）
+  @override
+  DateTime? get localRelaySyncedAt;
+
+  /// グローバルリレー同期完了時刻（バックグラウンド反映）
+  @override
+  DateTime? get globalRelaySyncedAt;
+
+  /// グローバルリレーへのバックフィル待機中
+  @override
+  bool get globalSyncPending;
+
+  /// グローバルリレーへのバックフィル失敗中（再試行待ち）
+  @override
+  bool get globalSyncFailed;
 
   /// URLリンクプレビュー（テキストにURLが含まれる場合）
   @override

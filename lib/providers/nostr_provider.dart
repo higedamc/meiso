@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/services.dart' show PlatformException;
@@ -7,7 +8,9 @@ import '../bridge_generated.dart/api.dart' as rust_api;
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
+import '../models/custom_list.dart';
 import '../models/app_settings.dart';
+import '../models/relay_config.dart';
 import '../services/local_storage_service.dart';
 import '../services/logger_service.dart';
 import '../services/nostr_cache_service.dart';
@@ -23,6 +26,9 @@ const List<String> defaultRelays = [
   'wss://relay.nostr.band',
   'wss://nostr.wine',
 ];
+
+/// Canonical Citrine local relay endpoint.
+const String citrineRelayEndpoint = 'ws://localhost:4869';
 
 /// Nostrクライアントの初期化状態を管理するProvider
 final nostrInitializedProvider = StateProvider<bool>((ref) => false);
@@ -93,6 +99,18 @@ final Provider<NostrSubscriptionService> nostrSubscriptionServiceProvider = Prov
 /// NostrServiceを提供するProvider
 final Provider<NostrService> nostrServiceProvider = Provider(NostrService.new);
 
+class LocalFirstSendResult {
+  const LocalFirstSendResult({
+    required this.localSendResult,
+    required this.globalBackfillQueued,
+    required this.usedLocalRelay,
+  });
+
+  final rust_api.EventSendResult localSendResult;
+  final bool globalBackfillQueued;
+  final bool usedLocalRelay;
+}
+
 class NostrService {
   NostrService(this._ref);
 
@@ -103,6 +121,12 @@ class NostrService {
   
   /// Subscriptionサービスへの参照
   NostrSubscriptionService? _subscriptionService;
+
+  Future<void> Function(String eventId, bool success, String? errorMessage)?
+      _globalBackfillResultHandler;
+  bool _processingBackfillQueue = false;
+  static const String _localRelayClientId = 'local_first_client';
+  static const String _globalRelayClientId = 'global_backfill_client';
 
   /// 暗号化鍵ファイルのパスを取得
   Future<String> _getKeyStoragePath() async {
@@ -249,6 +273,7 @@ class NostrService {
     
     // キャッシュとSubscriptionサービスを初期化
     await _initializeCacheAndSubscription(publicKey);
+    unawaited(processGlobalBackfillQueue());
 
     final modeStr = effectiveTorMode == TorMode.disabled 
         ? '' 
@@ -324,6 +349,7 @@ class NostrService {
     
     // キャッシュとSubscriptionサービスを初期化
     await _initializeCacheAndSubscription(publicKey);
+    unawaited(processGlobalBackfillQueue());
     
     // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
@@ -368,7 +394,9 @@ class NostrService {
             ? jsonEncode(todo.recurrence!.toJson())
             : null,
         parentRecurringId: todo.parentRecurringId,
-        customListId: todo.customListId,
+        customListId: CustomListHelpers.normalizeListIdFromNostr(
+          todo.customListId,
+        ),
       );
       
       // カスタムリストIDが設定されている場合のみログ
@@ -439,7 +467,9 @@ class NostrService {
         linkPreview: linkPreview,
         recurrence: recurrence,
         parentRecurringId: todoData.parentRecurringId,
-        customListId: todoData.customListId,
+        customListId: CustomListHelpers.normalizeListIdFromNostr(
+          todoData.customListId,
+        ),
       );
     }).toList();
   }
@@ -496,7 +526,9 @@ class NostrService {
         linkPreview: linkPreview,
         recurrence: recurrence,
         parentRecurringId: todoData.parentRecurringId,
-        customListId: todoData.customListId,
+        customListId: CustomListHelpers.normalizeListIdFromNostr(
+          todoData.customListId,
+        ),
       );
     }).toList();
   }
@@ -509,6 +541,234 @@ class NostrService {
   /// Amberモード: 署名済みイベントをリレーに送信
   Future<rust_api.EventSendResult> sendSignedEvent(String signedEventJson) async {
     return rust_api.sendSignedEvent(eventJson: signedEventJson);
+  }
+
+  void setGlobalBackfillResultHandler(
+    Future<void> Function(String eventId, bool success, String? errorMessage)? handler,
+  ) {
+    _globalBackfillResultHandler = handler;
+  }
+
+  Future<LocalFirstSendResult> sendSignedEventLocalFirst(String signedEventJson) async {
+    final relaySplit = await _resolveRelaySplit();
+    final localRelays = relaySplit.$1;
+    final globalRelays = relaySplit.$2;
+
+    // Local relay not configured: fall back to default broadcast behavior
+    if (localRelays.isEmpty) {
+      final fallback = await sendSignedEvent(signedEventJson);
+      return LocalFirstSendResult(
+        localSendResult: fallback,
+        globalBackfillQueued: false,
+        usedLocalRelay: false,
+      );
+    }
+
+    await _ensureClientForRelays(
+      clientId: _localRelayClientId,
+      relays: localRelays,
+    );
+
+    final localSend = await rust_api.sendSignedEventWithClientId(
+      eventJson: signedEventJson,
+      clientId: _localRelayClientId,
+    );
+
+    var queued = false;
+    if (localSend.success && globalRelays.isNotEmpty) {
+      await _enqueueGlobalBackfill(
+        signedEventJson: signedEventJson,
+        eventId: localSend.eventId,
+        globalRelays: globalRelays,
+      );
+      queued = true;
+      unawaited(processGlobalBackfillQueue());
+    }
+
+    return LocalFirstSendResult(
+      localSendResult: localSend,
+      globalBackfillQueued: queued,
+      usedLocalRelay: true,
+    );
+  }
+
+  Future<void> processGlobalBackfillQueue() async {
+    if (_processingBackfillQueue) return;
+    _processingBackfillQueue = true;
+
+    try {
+      final queue = localStorageService.loadGlobalBackfillQueue();
+      if (queue.isEmpty) return;
+
+      final remaining = <Map<String, dynamic>>[];
+      for (final item in queue) {
+        final retries = (item['retries'] as int?) ?? 0;
+        final eventJson = item['event_json'] as String?;
+        final eventId = item['event_id'] as String?;
+        final relays = (item['global_relays'] as List?)
+                ?.map((r) => r.toString())
+                .toList() ??
+            <String>[];
+
+        if (eventJson == null || eventId == null || relays.isEmpty) {
+          continue;
+        }
+
+        try {
+          await _ensureClientForRelays(
+            clientId: _globalRelayClientId,
+            relays: relays,
+          );
+          final result = await rust_api.sendSignedEventWithClientId(
+            eventJson: eventJson,
+            clientId: _globalRelayClientId,
+          );
+
+          if (result.success) {
+            if (_globalBackfillResultHandler != null) {
+              await _globalBackfillResultHandler!(eventId, true, null);
+            }
+            continue;
+          }
+
+          final nextRetries = retries + 1;
+          if (nextRetries >= 5) {
+            if (_globalBackfillResultHandler != null) {
+              await _globalBackfillResultHandler!(
+                eventId,
+                false,
+                result.errorMessage,
+              );
+            }
+          } else {
+            remaining.add({
+              ...item,
+              'retries': nextRetries,
+              'last_error': result.errorMessage,
+            });
+          }
+        } catch (e) {
+          final nextRetries = retries + 1;
+          if (nextRetries >= 5) {
+            if (_globalBackfillResultHandler != null) {
+              await _globalBackfillResultHandler!(eventId, false, e.toString());
+            }
+          } else {
+            remaining.add({
+              ...item,
+              'retries': nextRetries,
+              'last_error': e.toString(),
+            });
+          }
+        }
+      }
+
+      await localStorageService.saveGlobalBackfillQueue(remaining);
+    } finally {
+      _processingBackfillQueue = false;
+    }
+  }
+
+  Future<void> _enqueueGlobalBackfill({
+    required String signedEventJson,
+    required String eventId,
+    required List<String> globalRelays,
+  }) async {
+    final queue = localStorageService.loadGlobalBackfillQueue();
+    queue.add({
+      'event_json': signedEventJson,
+      'event_id': eventId,
+      'global_relays': globalRelays,
+      'retries': 0,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    await localStorageService.saveGlobalBackfillQueue(queue);
+  }
+
+  Future<(List<String>, List<String>)> resolveRelaySplit() async {
+    return _resolveRelaySplit();
+  }
+
+  Future<void> updateActiveRelays(
+    List<String> relays, {
+    String? clientId,
+  }) async {
+    final uniqueRelays = relays.toSet().toList();
+    if (uniqueRelays.isEmpty) return;
+
+    if (clientId != null) {
+      await _ensureClientForRelays(
+        clientId: clientId,
+        relays: uniqueRelays,
+      );
+      return;
+    }
+
+    final isAmberMode = _ref.read(isAmberModeProvider);
+    if (isAmberMode) {
+      final pubkey = _ref.read(publicKeyProvider);
+      if (pubkey == null) {
+        throw Exception('Public key is not initialized');
+      }
+      await rust_api.initNostrClientWithPubkey(
+        publicKeyHex: pubkey,
+        relays: uniqueRelays,
+      );
+      return;
+    }
+
+    await rust_api.updateRelayList(relays: uniqueRelays);
+  }
+
+  Future<(List<String>, List<String>)> _resolveRelaySplit() async {
+    final settings = await localStorageService.loadAppSettings();
+    final relays = settings?.relays.isNotEmpty == true ? settings!.relays : defaultRelays;
+    final roleMap = localStorageService.loadRelayRoles();
+
+    final local = <String>[];
+    final global = <String>[];
+    for (final relay in relays) {
+      final explicitRole = roleMap[relay];
+      if (explicitRole == RelayRole.local.name) {
+        local.add(relay);
+      } else if (explicitRole == RelayRole.global.name) {
+        global.add(relay);
+      } else if (isLikelyLocalRelayUrl(relay)) {
+        local.add(relay);
+      } else {
+        global.add(relay);
+      }
+    }
+
+    return (local, global);
+  }
+
+  Future<void> _ensureClientForRelays({
+    required String clientId,
+    required List<String> relays,
+  }) async {
+    final uniqueRelays = relays.toSet().toList();
+    if (uniqueRelays.isEmpty) return;
+
+    final isAmberMode = _ref.read(isAmberModeProvider);
+    if (isAmberMode) {
+      final pubkey = _ref.read(publicKeyProvider);
+      if (pubkey == null) {
+        throw Exception('Public key is not initialized');
+      }
+      await rust_api.initNostrClientWithPubkeyAndId(
+        clientId: clientId,
+        publicKeyHex: pubkey,
+        relays: uniqueRelays,
+      );
+      return;
+    }
+
+    // Secret-key mode currently keeps using default client for signing flow.
+    await rust_api.updateRelayListWithClientId(
+      clientId: clientId,
+      relays: uniqueRelays,
+    );
   }
 
   /// Amberモード: 暗号化済みcontentで未署名Todoイベントを作成

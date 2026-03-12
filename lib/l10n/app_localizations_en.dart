@@ -303,6 +303,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String todoMovedToNextDay(String title) {
+    return '\"$title\" moved to next day';
+  }
+
+  @override
   String allInstancesDeleted(String title) {
     return 'All instances of \"$title\" deleted';
   }
@@ -646,6 +651,47 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncPhaseMls => 'Syncing group tasks...';
+
+  @override
+  String get bootstrapPhaseContinueWithLocalCache =>
+      'Continuing with local cache';
+
+  @override
+  String get bootstrapPhaseFetchingAccountRelays =>
+      'Fetching relays linked to account...';
+
+  @override
+  String get bootstrapPhaseFetchingLocalTodos =>
+      'Fetching tasks from local relay...';
+
+  @override
+  String get bootstrapPhaseFetchingLocalGroupTodos =>
+      'Fetching group tasks from local relay...';
+
+  @override
+  String get bootstrapPhaseFetchingAllRelaysTodos =>
+      'Fetching tasks from all relays...';
+
+  @override
+  String get bootstrapPhaseFetchingAllRelaysGroupTodos =>
+      'Fetching group tasks from all relays...';
+
+  @override
+  String get bootstrapPhaseFetchingGroupInvitations =>
+      'Fetching group invitations...';
+
+  @override
+  String get bootstrapPhaseCompleted => 'Sync completed';
+
+  @override
+  String get bootstrapPhaseFailed => 'Sync failed';
+
+  @override
+  String get bootstrapContinueWithLocalCacheButton =>
+      'Continue with local cache';
+
+  @override
+  String get retryButton => 'Retry';
 
   @override
   String get justNow => 'Just now';

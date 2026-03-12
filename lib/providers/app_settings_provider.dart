@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_settings.dart';
+import '../models/relay_config.dart';
 import '../services/local_storage_service.dart';
 import '../services/amber_service.dart';
 import '../services/logger_service.dart';
@@ -159,6 +160,19 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
       
       // ローカルストレージに保存
       await localStorageService.saveAppSettings(updatedSettings);
+
+      // 役割未設定のリレーにはデフォルト役割を付与（localhost系はlocal）
+      final existingRoles = localStorageService.loadRelayRoles();
+      final mergedRoles = <String, String>{...existingRoles};
+      for (final relay in relays) {
+        mergedRoles.putIfAbsent(
+          relay,
+          () => isLikelyLocalRelayUrl(relay)
+              ? RelayRole.local.name
+              : RelayRole.global.name,
+        );
+      }
+      await localStorageService.saveRelayRoles(mergedRoles);
       
       // 注意: Kind 10002への保存はsaveRelaysToNostr()で明示的に行う
     });

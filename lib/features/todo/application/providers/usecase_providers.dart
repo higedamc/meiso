@@ -11,8 +11,7 @@ import '../usecases/update_todo_usecase.dart';
 /// 
 /// Phase C.1: Repository層を注入
 final createTodoUseCaseProvider = Provider<CreateTodoUseCase>((ref) {
-  final repository = ref.watch(todoRepositoryProvider);
-  return CreateTodoUseCase(repository);
+  return CreateTodoUseCase();
 });
 
 /// UpdateTodoUseCaseのProvider

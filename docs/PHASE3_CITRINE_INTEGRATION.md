@@ -17,7 +17,7 @@
 
 ### 基本情報
 - **パッケージ名**: `com.greenart7c3.citrine`
-- **ローカルリレーURL**: `ws://localhost:4869`
+- **ローカルリレーURL（canonical）**: `ws://localhost:4869`
 - **通信方式**: WebSocket（標準Nostrプロトコル）
 - **対応NIP**: NIP-01, NIP-02, NIP-04, NIP-44, NIP-50 等
 
@@ -26,6 +26,10 @@
 2. **自動同期**: 設定したリモートリレーと定期的に同期
 3. **選択的同期**: Kind・著者・タグによるフィルタリング
 4. **通知**: 新規イベント受信時の通知
+
+### 実装メモ（現行コード）
+- relay role が未設定のURLは、`localhost/127.0.0.1/プライベートIP` を local として扱う
+- Amber送信は local relay を先に送信し、global relay への送信はバックグラウンドキューで処理する
 
 ---
 
