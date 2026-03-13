@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-03-13
+
+### Added
+- **Bootstrap Sync Flow**: Added a blocking startup sync flow for first launch with retry and continue-with-local-cache actions.
+- **Relay Sync Metadata**: Added local/global relay sync metadata fields to Todo for local-first send tracking.
+
+### Changed
+- **Local-first Sending**: Amber signed events now send to local relay first, then enqueue global relay backfill in background.
+- **Startup Behavior**: App restore now uses bootstrap sync orchestration instead of ad-hoc startup sync calls.
+
+### Fixed
+- **Custom List Consistency**: Normalized `customListId` values from Nostr payloads and d-tags to avoid list mismatch.
+- **Date Grouping Stability**: Normalized incoming dates to local day keys before grouping to prevent day-split inconsistencies.
+
 ## [1.1.8] - 2026-02-11
 
 ### Improved
