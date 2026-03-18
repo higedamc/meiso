@@ -65,7 +65,7 @@ rust/target/.rustc_info.json
 # Temporary backup files
 .tmp_backup/
 pubspec.lock
-rust/src/frb_generated.rs
+# rust/src/frb_generated.rs  # tracked for CI builds
 
 # Local utility scripts
 migrate_docs_to_anytype.py
