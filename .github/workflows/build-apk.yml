@@ -16,8 +16,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Initialize cargokit submodule
+        run: git submodule update --init --recursive cargokit
 
       - uses: actions/setup-java@v4
         with:
