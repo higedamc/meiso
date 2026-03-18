@@ -27,6 +27,7 @@ _$CustomListImpl _$$CustomListImplFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['acceptedAt'] as String),
       eventId: json['eventId'] as String?,
+      protocolVersion: json['protocolVersion'] as String? ?? 'none',
     );
 
 Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
@@ -44,4 +45,5 @@ Map<String, dynamic> _$$CustomListImplToJson(_$CustomListImpl instance) =>
       'welcomeMsg': instance.welcomeMsg,
       'acceptedAt': instance.acceptedAt?.toIso8601String(),
       'eventId': instance.eventId,
+      'protocolVersion': instance.protocolVersion,
     };

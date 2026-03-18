@@ -62,6 +62,12 @@ mixin _$CustomList {
   /// Personal Listのリモート削除・更新に必要
   String? get eventId => throw _privateConstructorUsedError;
 
+  /// 共有リスト同期プロトコルバージョン
+  /// - none: 個人リスト
+  /// - mls-v1: MLSベース共有
+  /// - gw17-v1: NIP-17 fan-out共有
+  String get protocolVersion => throw _privateConstructorUsedError;
+
   /// Serializes this CustomList to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -93,6 +99,7 @@ abstract class $CustomListCopyWith<$Res> {
     String? welcomeMsg,
     DateTime? acceptedAt,
     String? eventId,
+    String protocolVersion,
   });
 }
 
@@ -124,6 +131,7 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
     Object? welcomeMsg = freezed,
     Object? acceptedAt = freezed,
     Object? eventId = freezed,
+    Object? protocolVersion = null,
   }) {
     return _then(
       _value.copyWith(
@@ -179,6 +187,10 @@ class _$CustomListCopyWithImpl<$Res, $Val extends CustomList>
                 ? _value.eventId
                 : eventId // ignore: cast_nullable_to_non_nullable
                       as String?,
+            protocolVersion: null == protocolVersion
+                ? _value.protocolVersion
+                : protocolVersion // ignore: cast_nullable_to_non_nullable
+                      as String,
           )
           as $Val,
     );
@@ -208,6 +220,7 @@ abstract class _$$CustomListImplCopyWith<$Res>
     String? welcomeMsg,
     DateTime? acceptedAt,
     String? eventId,
+    String protocolVersion,
   });
 }
 
@@ -238,6 +251,7 @@ class __$$CustomListImplCopyWithImpl<$Res>
     Object? welcomeMsg = freezed,
     Object? acceptedAt = freezed,
     Object? eventId = freezed,
+    Object? protocolVersion = null,
   }) {
     return _then(
       _$CustomListImpl(
@@ -293,6 +307,10 @@ class __$$CustomListImplCopyWithImpl<$Res>
             ? _value.eventId
             : eventId // ignore: cast_nullable_to_non_nullable
                   as String?,
+        protocolVersion: null == protocolVersion
+            ? _value.protocolVersion
+            : protocolVersion // ignore: cast_nullable_to_non_nullable
+                  as String,
       ),
     );
   }
@@ -315,6 +333,7 @@ class _$CustomListImpl implements _CustomList {
     this.welcomeMsg,
     this.acceptedAt,
     this.eventId,
+    this.protocolVersion = 'none',
   });
 
   factory _$CustomListImpl.fromJson(Map<String, dynamic> json) =>
@@ -378,9 +397,17 @@ class _$CustomListImpl implements _CustomList {
   @override
   final String? eventId;
 
+  /// 共有リスト同期プロトコルバージョン
+  /// - none: 個人リスト
+  /// - mls-v1: MLSベース共有
+  /// - gw17-v1: NIP-17 fan-out共有
+  @override
+  @JsonKey()
+  final String protocolVersion;
+
   @override
   String toString() {
-    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg, acceptedAt: $acceptedAt, eventId: $eventId)';
+    return 'CustomList(id: $id, name: $name, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, isGroup: $isGroup, groupMembers: $groupMembers, isPendingInvitation: $isPendingInvitation, inviterNpub: $inviterNpub, inviterName: $inviterName, welcomeMsg: $welcomeMsg, acceptedAt: $acceptedAt, eventId: $eventId, protocolVersion: $protocolVersion)';
   }
 
   @override
@@ -410,7 +437,9 @@ class _$CustomListImpl implements _CustomList {
                 other.welcomeMsg == welcomeMsg) &&
             (identical(other.acceptedAt, acceptedAt) ||
                 other.acceptedAt == acceptedAt) &&
-            (identical(other.eventId, eventId) || other.eventId == eventId));
+            (identical(other.eventId, eventId) || other.eventId == eventId) &&
+            (identical(other.protocolVersion, protocolVersion) ||
+                other.protocolVersion == protocolVersion));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -430,6 +459,7 @@ class _$CustomListImpl implements _CustomList {
     welcomeMsg,
     acceptedAt,
     eventId,
+    protocolVersion,
   );
 
   /// Create a copy of CustomList
@@ -461,6 +491,7 @@ abstract class _CustomList implements CustomList {
     final String? welcomeMsg,
     final DateTime? acceptedAt,
     final String? eventId,
+    final String protocolVersion,
   }) = _$CustomListImpl;
 
   factory _CustomList.fromJson(Map<String, dynamic> json) =
@@ -519,6 +550,13 @@ abstract class _CustomList implements CustomList {
   /// Personal Listのリモート削除・更新に必要
   @override
   String? get eventId;
+
+  /// 共有リスト同期プロトコルバージョン
+  /// - none: 個人リスト
+  /// - mls-v1: MLSベース共有
+  /// - gw17-v1: NIP-17 fan-out共有
+  @override
+  String get protocolVersion;
 
   /// Create a copy of CustomList
   /// with the given fields replaced by the non-null parameter values.

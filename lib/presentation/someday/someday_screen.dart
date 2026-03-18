@@ -85,7 +85,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     super.dispose();
   }
 
-  Future<void> _reconcileRealtimeGroupSubscriptions(List<CustomList> lists) async {
+  Future<void> _reconcileRealtimeGroupSubscriptions(
+    List<CustomList> lists,
+  ) async {
     if (!mounted) return;
     final generation = ++_reconcileGeneration;
 
@@ -108,11 +110,15 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     for (final gid in toStart) {
       try {
         if (!mounted || generation != _reconcileGeneration) return;
-        AppLogger.info('📡 [SomedayScreen] Starting realtime group subscription: $gid');
+        AppLogger.info(
+          '📡 [SomedayScreen] Starting realtime group subscription: $gid',
+        );
         await todoNotifier.startRealtimeGroupTodos(gid);
       } catch (e) {
         // 購読失敗してもSomedayは表示し続ける（pull-to-refresh運用可能）
-        AppLogger.warning('⚠️ [SomedayScreen] Failed to start realtime group subscription: $gid ($e)');
+        AppLogger.warning(
+          '⚠️ [SomedayScreen] Failed to start realtime group subscription: $gid ($e)',
+        );
       }
     }
 
@@ -128,7 +134,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
   /// Pull-to-refreshで同期を実行
   Future<void> _onRefresh() async {
     AppLogger.info(' [SomedayScreen] 🔄 Pull-to-refresh triggered');
-    
+
     // Nostr未初期化の場合はスキップ
     if (!mounted) return;
     if (!ref.read(nostrInitializedProvider)) {
@@ -139,13 +145,13 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     try {
       final todoNotifier = ref.read(todosProvider.notifier);
       final customListsNotifier = ref.read(customListsProvider.notifier);
-      
+
       // Nostrから全Todoリストとカスタムリストを同期
       await todoNotifier.syncFromNostr();
-      
+
       // Phase 6.4: グループ招待を同期
       await customListsNotifier.syncGroupInvitations();
-      
+
       AppLogger.info(' [SomedayScreen] ✅ Pull-to-refresh sync completed');
     } catch (e) {
       AppLogger.warning(' [SomedayScreen] ⚠️ 同期エラー: $e');
@@ -156,10 +162,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
   @override
   Widget build(BuildContext context) {
     AppLogger.debug(' [SomedayScreen] 🎨 build() called');
-    
+
     final customListsAsync = ref.watch(customListsProvider);
-    AppLogger.debug(' [SomedayScreen] customListsAsync type: ${customListsAsync.runtimeType}');
-    
+    AppLogger.debug(
+      ' [SomedayScreen] customListsAsync type: ${customListsAsync.runtimeType}',
+    );
+
     final todosAsync = ref.watch(todosProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
@@ -195,7 +203,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             onTodayTap: () {
               // BUG FIX: カレンダー展開状態をリセット
               ref.read(calendarVisibleProvider.notifier).state = false;
-              
+
               if (widget.onClose != null) {
                 widget.onClose!();
               }
@@ -218,11 +226,15 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     Map<DateTime?, List<Todo>> todos,
     bool isDark,
   ) {
-    AppLogger.info(' [SomedayScreen] 📋 _buildListContent called with ${customLists.length} custom lists');
+    AppLogger.info(
+      ' [SomedayScreen] 📋 _buildListContent called with ${customLists.length} custom lists',
+    );
     for (final list in customLists) {
-      AppLogger.debug(' [SomedayScreen]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})');
+      AppLogger.debug(
+        ' [SomedayScreen]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})',
+      );
     }
-    
+
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -234,18 +246,20 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             child: SyncStatusIndicator(),
           ),
         ),
-        
+
         // MY LISTSセクション
         _buildSectionHeader('MY LISTS', isDark),
         const SizedBox(height: 16),
-        
+
         // カスタムリスト（並び替え可能）
         ReorderableListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: customLists.length,
           onReorder: (oldIndex, newIndex) {
-            ref.read(customListsProvider.notifier).reorderLists(oldIndex, newIndex);
+            ref
+                .read(customListsProvider.notifier)
+                .reorderLists(oldIndex, newIndex);
           },
           itemBuilder: (context, index) {
             final list = customLists[index];
@@ -263,7 +277,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   _showAcceptInvitationDialog(context, ref, list);
                   return;
                 }
-                
+
                 // リスト詳細画面に遷移
                 Navigator.push(
                   context,
@@ -294,9 +308,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             key: ValueKey(category.name),
             onTap: () {
               // プランニングカテゴリー詳細画面に遷移
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
                   builder: (context) => PlanningDetailScreen(
                     category: category,
                   ),
@@ -445,7 +459,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
   }
 
   /// カスタムリスト専用のリストアイテム（削除ボタン付き）
-  /// 
+  ///
   /// Phase E.5: リスト削除機能
   Widget _buildCustomListItem(
     BuildContext context,
@@ -538,6 +552,26 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 ),
               ),
             ],
+            if (list.isGroup) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  list.protocolVersion == CustomListHelpers.protocolGw17V1
+                      ? 'NIP-17'
+                      : 'MLS',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ),
+            ],
             // カウント
             if (count > 0)
               Container(
@@ -583,24 +617,34 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     var count = 0;
     var totalTodosInMap = 0;
     var todosWithCustomListId = 0;
-    
+
     // デバッグ: 日付nullのTodoを確認
     if (todos.containsKey(null)) {
-      AppLogger.debug('🔍 [SomedayScreen] date=null group has ${todos[null]!.length} todos');
+      AppLogger.debug(
+        '🔍 [SomedayScreen] date=null group has ${todos[null]!.length} todos',
+      );
       for (final todo in todos[null]!) {
-        AppLogger.debug('   - "${todo.title}" (customListId: ${todo.customListId}, completed: ${todo.completed})');
+        AppLogger.debug(
+          '   - "${todo.title}" (customListId: ${todo.customListId}, completed: ${todo.completed})',
+        );
       }
     } else {
-      AppLogger.debug('⚠️ [SomedayScreen] No date=null group found in todos map!');
+      AppLogger.debug(
+        '⚠️ [SomedayScreen] No date=null group found in todos map!',
+      );
     }
-    
+
     for (final entry in todos.entries) {
-      AppLogger.debug('🔍 [SomedayScreen] Date key: ${entry.key}, ${entry.value.length} todos');
+      AppLogger.debug(
+        '🔍 [SomedayScreen] Date key: ${entry.key}, ${entry.value.length} todos',
+      );
       for (final todo in entry.value) {
         totalTodosInMap++;
         if (todo.customListId != null) {
           todosWithCustomListId++;
-          AppLogger.debug('   - "${todo.title}" → customListId: ${todo.customListId}');
+          AppLogger.debug(
+            '   - "${todo.title}" → customListId: ${todo.customListId}',
+          );
         }
         if (todo.customListId == listId && !todo.completed) {
           count++;
@@ -608,12 +652,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
         }
       }
     }
-    
+
     AppLogger.debug('📊 [SomedayScreen] _getListTodoCount for list $listId:');
     AppLogger.debug('   - Total todos in map: $totalTodosInMap');
     AppLogger.debug('   - Todos with customListId: $todosWithCustomListId');
     AppLogger.debug('   - Matched todos: $count');
-    
+
     return count;
   }
 
@@ -637,7 +681,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
   }
 
   /// リスト削除の確認ダイアログ
-  /// 
+  ///
   /// Phase E.5: リスト削除機能
   Future<void> _confirmDeleteList(
     BuildContext context,
@@ -645,17 +689,21 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     CustomList list,
   ) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        backgroundColor: isDark
+            ? AppTheme.darkBackground
+            : AppTheme.lightBackground,
         title: Text(
           'DELETE LIST',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            color: isDark
+                ? AppTheme.darkTextPrimary
+                : AppTheme.lightTextPrimary,
             letterSpacing: 1.2,
           ),
         ),
@@ -663,7 +711,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           'Delete "${list.name}"?\n\nThis will remove the list and all its tasks from all devices.',
           style: TextStyle(
             fontSize: 14,
-            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+            color: isDark
+                ? AppTheme.darkTextSecondary
+                : AppTheme.lightTextSecondary,
           ),
         ),
         actions: [
@@ -672,7 +722,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             child: Text(
               'CANCEL',
               style: TextStyle(
-                color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                color: isDark
+                    ? AppTheme.darkTextSecondary
+                    : AppTheme.lightTextSecondary,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
               ),
@@ -694,31 +746,41 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
         ],
       ),
     );
-    
+
     if (confirmed == true) {
       // Issue #101: 削除処理の順序を修正
-      AppLogger.info('🗑️ [Someday UI] Starting list deletion: "${list.name}" (ID: ${list.id})');
-      
+      AppLogger.info(
+        '🗑️ [Someday UI] Starting list deletion: "${list.name}" (ID: ${list.id})',
+      );
+
       // 1. まずタスクを削除（失敗してもリストは残るのでやり直せる）
       AppLogger.info('🗑️ [Someday UI] Step 1: Deleting tasks in list...');
       final todosNotifier = ref.read(todosProvider.notifier);
       await todosNotifier.deleteAllTodosInList(list.id);
       AppLogger.info('✅ [Someday UI] Step 1: Tasks deleted');
-      
+
       // 2. 次にリストを削除（タスク削除が成功してから）
       AppLogger.info('🗑️ [Someday UI] Step 2: Deleting list itself...');
       await ref.read(customListsProvider.notifier).deleteList(list.id);
       AppLogger.info('✅ [Someday UI] Step 2: List deletion request completed');
-      
+
       // 3. 現在の状態を確認
       final currentLists = ref.read(customListsProvider).valueOrNull ?? [];
-      AppLogger.info('📋 [Someday UI] Current lists after deletion: ${currentLists.length} lists');
-      AppLogger.info('📋 [Someday UI] List IDs: ${currentLists.map((l) => l.id).join(", ")}');
+      AppLogger.info(
+        '📋 [Someday UI] Current lists after deletion: ${currentLists.length} lists',
+      );
+      AppLogger.info(
+        '📋 [Someday UI] List IDs: ${currentLists.map((l) => l.id).join(", ")}',
+      );
       final stillExists = currentLists.any((l) => l.id == list.id);
       if (stillExists) {
-        AppLogger.error('❌ [Someday UI] BUG: List "${list.name}" still exists in state after deletion!');
+        AppLogger.error(
+          '❌ [Someday UI] BUG: List "${list.name}" still exists in state after deletion!',
+        );
       } else {
-        AppLogger.info('✅ [Someday UI] List "${list.name}" successfully removed from state');
+        AppLogger.info(
+          '✅ [Someday UI] List "${list.name}" successfully removed from state',
+        );
       }
     }
   }
@@ -730,13 +792,17 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
       builder: (context) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return AlertDialog(
-          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          backgroundColor: isDark
+              ? AppTheme.darkBackground
+              : AppTheme.lightBackground,
           title: Text(
             'ADD LIST',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              color: isDark
+                  ? AppTheme.darkTextPrimary
+                  : AppTheme.lightTextPrimary,
               letterSpacing: 1.2,
             ),
           ),
@@ -786,12 +852,14 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     CustomList list,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          backgroundColor: isDark
+              ? AppTheme.darkBackground
+              : AppTheme.lightBackground,
           title: Row(
             children: [
               const Icon(
@@ -805,7 +873,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                  color: isDark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
                 ),
               ),
             ],
@@ -822,13 +892,33 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   color: AppTheme.primaryColor,
                 ),
               ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  list.protocolVersion == CustomListHelpers.protocolGw17V1
+                      ? 'NIP-17'
+                      : 'MLS legacy',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
               if (list.inviterName != null) ...[
                 Text(
                   '招待者: ${list.inviterName}',
                   style: TextStyle(
                     fontSize: 14,
-                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                    color: isDark
+                        ? AppTheme.darkTextSecondary
+                        : AppTheme.lightTextSecondary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -839,9 +929,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontFamily: 'monospace',
-                    color: isDark 
-                      ? AppTheme.darkTextSecondary.withOpacity(0.7) 
-                      : AppTheme.lightTextSecondary.withOpacity(0.7),
+                    color: isDark
+                        ? AppTheme.darkTextSecondary.withOpacity(0.7)
+                        : AppTheme.lightTextSecondary.withOpacity(0.7),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -850,7 +940,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 'このグループリストに参加しますか？',
                 style: TextStyle(
                   fontSize: 14,
-                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                  color: isDark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
                 ),
               ),
             ],
@@ -860,11 +952,13 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
               onPressed: () async {
                 // Issue #102: 辞退ボタン - 招待を辞退してリストを削除
                 Navigator.pop(context);
-                
+
                 // リストを削除
                 try {
-                  await ref.read(customListsProvider.notifier).deleteList(list.id);
-                  
+                  await ref
+                      .read(customListsProvider.notifier)
+                      .deleteList(list.id);
+
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -873,11 +967,15 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                       ),
                     );
                   }
-                  
-                  AppLogger.info('✅ [GroupInvitation] Declined invitation for: ${list.name}');
+
+                  AppLogger.info(
+                    '✅ [GroupInvitation] Declined invitation for: ${list.name}',
+                  );
                 } catch (e) {
-                  AppLogger.error('❌ [GroupInvitation] Failed to decline invitation: $e');
-                  
+                  AppLogger.error(
+                    '❌ [GroupInvitation] Failed to decline invitation: $e',
+                  );
+
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -922,10 +1020,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     CustomList list,
   ) async {
     var isLoadingDialogShown = false;
-    
+
     try {
-      AppLogger.info('🎉 [GroupInvitation] Accepting invitation for: ${list.name}');
-      
+      AppLogger.info(
+        '🎉 [GroupInvitation] Accepting invitation for: ${list.name}',
+      );
+
       // ローディングインジケータを表示（rootNavigator使用で安定性向上）
       showDialog<void>(
         context: context,
@@ -936,34 +1036,66 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
       );
       isLoadingDialogShown = true;
       AppLogger.debug('📱 [GroupInvitation] Loading dialog shown');
-      
+
+      if (list.protocolVersion == CustomListHelpers.protocolGw17V1) {
+        final updatedList = list.copyWith(
+          isGroup: true,
+          isPendingInvitation: false,
+          inviterNpub: null,
+          inviterName: null,
+          acceptedAt: DateTime.now(),
+          protocolVersion: CustomListHelpers.protocolGw17V1,
+        );
+        final customListsNotifier = ref.read(customListsProvider.notifier);
+        await customListsNotifier.updateList(updatedList);
+        await ref.read(todosProvider.notifier).syncGroupTodos(list.id);
+
+        if (context.mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          isLoadingDialogShown = false;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ ${list.name}に参加しました（シンプル共有）'),
+            ),
+          );
+        }
+        AppLogger.info('✅ [GroupInvitation] GW17 invitation accepted');
+        return;
+      }
+
       // Welcome Messageをデコード
       if (list.welcomeMsg == null) {
         throw Exception('Welcome message not found');
       }
-      
+
       // 公開鍵を取得
       final nostrService = ref.read(nostrServiceProvider);
       final userPubkey = await nostrService.getPublicKey();
-      
+
       if (userPubkey == null) {
         throw Exception('User public key not available');
       }
-      
+
       // 🔥 Phase D.9: タイムアウト追加（無限待機バグ修正）
       // AcceptGroupInvitationUseCaseを使用（Amber署名含むため長めのタイムアウト）
-      AppLogger.info('🔐 [GroupInvitation] Accepting invitation with timeout (3 min)...');
-      final acceptInvitationUseCase = ref.read(acceptGroupInvitationUseCaseProvider);
+      AppLogger.info(
+        '🔐 [GroupInvitation] Accepting invitation with timeout (3 min)...',
+      );
+      final acceptInvitationUseCase = ref.read(
+        acceptGroupInvitationUseCaseProvider,
+      );
       final result = await ErrorHandler.withTimeout(
-        operation: () => acceptInvitationUseCase(AcceptGroupInvitationParams(
-          publicKey: userPubkey,
-          groupId: list.id,
-          welcomeMessage: list.welcomeMsg!,
-        )),
+        operation: () => acceptInvitationUseCase(
+          AcceptGroupInvitationParams(
+            publicKey: userPubkey,
+            groupId: list.id,
+            welcomeMessage: list.welcomeMsg!,
+          ),
+        ),
         operationName: 'acceptGroupInvitation',
         timeout: const Duration(minutes: 3), // Amber署名を含むため長めに設定
       );
-      
+
       await result.fold(
         (failure) async {
           AppLogger.error('❌ [GroupInvitation] Failed: ${failure.message}');
@@ -971,8 +1103,10 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
         },
         (mlsGroup) async {
           AppLogger.info('✅ [GroupInvitation] Successfully joined MLS group');
-          AppLogger.info('🔑 [GroupInvitation] Key Package auto-published (forceUpload=true)');
-          
+          AppLogger.info(
+            '🔑 [GroupInvitation] Key Package auto-published (forceUpload=true)',
+          );
+
           // リストの招待フラグをクリア
           final updatedList = list.copyWith(
             // 🔥 Important: 受諾後は必ずグループリスト扱いにする
@@ -987,35 +1121,43 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             // Rust側から取得した実メンバー情報を保存（後続のUI/同期で参照可能に）
             groupMembers: mlsGroup.memberPubkeys,
           );
-          
+
           // ローカルストレージに保存
           AppLogger.debug('💾 [GroupInvitation] Updating custom list...');
           final customListsNotifier = ref.read(customListsProvider.notifier);
           await customListsNotifier.updateList(updatedList);
           AppLogger.debug('✅ [GroupInvitation] Custom list updated');
-          
-          AppLogger.info('🎉 [GroupInvitation] Group invitation accepted successfully');
-          
+
+          AppLogger.info(
+            '🎉 [GroupInvitation] Group invitation accepted successfully',
+          );
+
           // Phase D.5: グループタスクを同期（リスト内容が見えるように）
           AppLogger.info('🔄 [GroupInvitation] Syncing group todos...');
           try {
             await ref.read(todosProvider.notifier).syncGroupTodos(list.id);
             AppLogger.info('✅ [GroupInvitation] Group todos synced');
           } catch (e) {
-            AppLogger.warning('⚠️ [GroupInvitation] Failed to sync group todos: $e');
+            AppLogger.warning(
+              '⚠️ [GroupInvitation] Failed to sync group todos: $e',
+            );
             // エラーは無視（後で手動同期可能）
           }
-          
+
           // ローディングを閉じる（rootNavigatorを使用）
-          AppLogger.debug('🔓 [GroupInvitation] Closing loading dialog... context.mounted=${context.mounted}');
+          AppLogger.debug(
+            '🔓 [GroupInvitation] Closing loading dialog... context.mounted=${context.mounted}',
+          );
           if (context.mounted) {
             Navigator.of(context, rootNavigator: true).pop();
             isLoadingDialogShown = false;
             AppLogger.debug('✅ [GroupInvitation] Loading dialog closed');
           } else {
-            AppLogger.warning('⚠️ [GroupInvitation] Context not mounted, cannot close loading dialog');
+            AppLogger.warning(
+              '⚠️ [GroupInvitation] Context not mounted, cannot close loading dialog',
+            );
           }
-          
+
           // 成功メッセージ（自動遷移は行わず、ユーザーが自分でタップできるように）
           if (context.mounted) {
             AppLogger.debug('📢 [GroupInvitation] Showing success snackbar');
@@ -1024,34 +1166,58 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 content: Text('✅ ${list.name}に参加しました。リストをタップして開いてください。'),
               ),
             );
-            AppLogger.info('✅ [GroupInvitation] Invitation accepted successfully - user can now tap the list');
+            AppLogger.info(
+              '✅ [GroupInvitation] Invitation accepted successfully - user can now tap the list',
+            );
           } else {
-            AppLogger.warning('⚠️ [GroupInvitation] Context not mounted, cannot show snackbar');
+            AppLogger.warning(
+              '⚠️ [GroupInvitation] Context not mounted, cannot show snackbar',
+            );
           }
         },
       );
-      
     } catch (e, stackTrace) {
-      AppLogger.error('❌ [GroupInvitation] Failed to accept invitation', error: e, stackTrace: stackTrace);
-      
+      AppLogger.error(
+        '❌ [GroupInvitation] Failed to accept invitation',
+        error: e,
+        stackTrace: stackTrace,
+      );
+
       // ローディングを閉じる（エラー時も確実に閉じる、rootNavigatorを使用）
-      AppLogger.debug('🔓 [GroupInvitation] Closing loading dialog (error case)... isLoadingDialogShown=$isLoadingDialogShown, context.mounted=${context.mounted}');
+      AppLogger.debug(
+        '🔓 [GroupInvitation] Closing loading dialog (error case)... isLoadingDialogShown=$isLoadingDialogShown, context.mounted=${context.mounted}',
+      );
       if (isLoadingDialogShown && context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
-        AppLogger.debug('✅ [GroupInvitation] Loading dialog closed (error case)');
+        AppLogger.debug(
+          '✅ [GroupInvitation] Loading dialog closed (error case)',
+        );
       }
-      
+
       // Phase 2.5B: NoMatchingKeyPackageエラーの特別処理
       final errorMessage = e.toString();
       final isKeyPackageError = errorMessage.contains('NoMatchingKeyPackage');
-      
+      final isGw17 = list.protocolVersion == CustomListHelpers.protocolGw17V1;
+
+      if (isGw17) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('参加に失敗しました。NIP-17招待を再送してもらうか、接続状態を確認してください。'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
       // エラーメッセージ
       if (context.mounted) {
         showDialog<void>(
           context: context,
           builder: (context) {
             final l10n = AppLocalizations.of(context);
-            
+
             return AlertDialog(
               title: Row(
                 children: [
@@ -1071,90 +1237,97 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                     // Phase 2.5B: Key Packageエラーの詳細説明
                     const Text(
                       'Key Packageが変更されたため、グループに参加できません。',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.backup_outlined, size: 16, color: Colors.blue),
-                            const SizedBox(width: 4),
-                            Text(
-                              l10n.ifYouHaveBackup,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.backup_outlined,
+                                size: 16,
                                 color: Colors.blue,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.mlsBackupImportInstruction,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.ifYouHaveBackup,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.mlsBackupImportInstruction,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.info, size: 16, color: Colors.orange),
-                            const SizedBox(width: 4),
-                            Text(
-                              l10n.ifYouDontHaveBackup,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.info,
+                                size: 16,
                                 color: Colors.orange,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.requestReinviteFromAdmin,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.ifYouDontHaveBackup,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.requestReinviteFromAdmin,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ] else
-                  Text(l10n.inviteAcceptanceFailed(e.toString())),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
+                  ] else
+                    Text(l10n.inviteAcceptanceFailed(e.toString())),
+                ],
               ),
-            ],
-          );
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            );
           },
         );
       }
     }
   }
 }
-
