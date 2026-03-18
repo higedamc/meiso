@@ -8,6 +8,9 @@ class AppConfig {
   /// アプリバージョン
   static const String appVersion = '1.0.0';
 
+  /// Build channel identifier
+  static const String buildChannel = 'dev';
+
   /// Nostr デフォルトリレー
   static const List<String> defaultRelays = [
     'wss://relay.damus.io',
