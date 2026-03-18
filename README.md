@@ -66,6 +66,8 @@ fvm flutter build apk --release
 - **[Development Roadmap](docs/MLS_BETA_ROADMAP.md)** - Upcoming features and MLS group lists
 - **[Clean Architecture Guide](docs/REFACTOR_CLEAN_ARCHITECTURE_STRATEGY.md)** - Architecture details
 - **[Release Guide](docs/ZAPSTORE_RELEASE_GUIDE_JA.md)** - How to publish to Zapstore (Japanese)
+- **[Go CUI MVP Spec](docs/GO_CUI_MVP_SPEC.md)** - macOS supplemental CUI scope and auth model
+- **[Go CUI Operation Guide](docs/GO_CUI_OPERATION_GUIDE.md)** - build, E2E flow, and future TUI reuse strategy
 
 ## 🤝 Contributing
 
