@@ -141,8 +141,8 @@ jobs:
           SHA: ${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
-            echo "No Telegram token configured, skipping notification"
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram token/chat id is not fully configured, skipping notification"
             exit 0
           fi
           SHORT_SHA=${SHA::7}
@@ -157,7 +157,7 @@ jobs:
           Commit: \`${SHORT_SHA}\`
           [See logs](${RUN_URL})"
           fi
-          curl -s -X POST \
+          curl -fsS -X POST \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d chat_id="${TELEGRAM_CHAT_ID}" \
             -d parse_mode="Markdown" \
