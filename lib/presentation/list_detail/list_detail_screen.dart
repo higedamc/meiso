@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
@@ -152,6 +153,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
               builder: (context, ref, child) {
                 final todosAsync = ref.watch(todosProvider);
                 final expandedParents = ref.watch(subtaskExpansionProvider);
+                final hideCompleted = ref.watch(appSettingsProvider).valueOrNull?.hideCompletedTasks ?? false;
                 
                 return todosAsync.when(
                   data: (allTodos) {
@@ -160,6 +162,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                     for (final dateGroup in allTodos.values) {
                       for (final todo in dateGroup) {
                         if (todo.customListId == widget.customList.id) {
+                          if (hideCompleted && todo.completed) continue;
                           listTodos.add(todo);
                         }
                       }

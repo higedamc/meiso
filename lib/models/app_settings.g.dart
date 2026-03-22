@@ -35,6 +35,7 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
             (k, e) => MapEntry(k, e as bool),
           ) ??
           const <String, bool>{},
+      hideCompletedTasks: json['hideCompletedTasks'] as bool? ?? false,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
 
@@ -51,6 +52,7 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'lastViewedCustomListId': instance.lastViewedCustomListId,
       'taskUiMode': _$TaskUiModeEnumMap[instance.taskUiMode]!,
       'featureFlags': instance.featureFlags,
+      'hideCompletedTasks': instance.hideCompletedTasks,
       'updatedAt': instance.updatedAt.toIso8601String(),
     };
 

@@ -8,6 +8,7 @@ import '../../providers/app_settings_provider.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/proxy_status_provider.dart';
 import '../../providers/locale_provider.dart';
+import '../../features/media/presentation/screens/media_server_settings_screen.dart';
 
 class AppSettingsDetailScreen extends ConsumerWidget {
   const AppSettingsDetailScreen({super.key});
@@ -698,6 +699,46 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       settings.darkMode ? Icons.dark_mode : Icons.light_mode,
                       color: Colors.purple.shade700,
                     ),
+                  ),
+
+                  const Divider(height: 1),
+
+                  // 完了済みタスクを非表示
+                  SwitchListTile(
+                    title: Text(l10n.hideCompletedTasks),
+                    subtitle: Text(l10n.hideCompletedTasksSubtitle),
+                    value: settings.hideCompletedTasks,
+                    onChanged: (value) async {
+                      await ref
+                          .read(appSettingsProvider.notifier)
+                          .toggleHideCompletedTasks();
+                    },
+                    secondary: Icon(
+                      settings.hideCompletedTasks
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: Colors.purple.shade700,
+                    ),
+                  ),
+
+                  const Divider(height: 1),
+
+                  // メディアサーバー設定
+                  ListTile(
+                    leading: Icon(
+                      Icons.cloud_upload,
+                      color: Colors.purple.shade700,
+                    ),
+                    title: Text(l10n.mediaServers),
+                    subtitle: Text(l10n.mediaServersSubtitle),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const MediaServerSettingsScreen(),
+                        ),
+                      );
+                    },
                   ),
 
                   const Divider(height: 1),

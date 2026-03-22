@@ -325,6 +325,15 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
     });
   }
 
+  /// 完了済みタスク非表示を切り替え
+  Future<void> toggleHideCompletedTasks() async {
+    state.whenData((settings) async {
+      await updateSettings(settings.copyWith(
+        hideCompletedTasks: !settings.hideCompletedTasks,
+      ));
+    });
+  }
+
   /// 実験機能フラグを変更
   Future<void> setFeatureFlag(String featureKey, bool enabled) async {
     state.whenData((settings) async {
@@ -378,6 +387,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'custom_list_order': settings.customListOrder,
           'task_ui_mode': settings.taskUiMode.name,
           'feature_flags': settings.featureFlags,
+          'hide_completed_tasks': settings.hideCompletedTasks,
           'updated_at': settings.updatedAt.toIso8601String(),
         });
         
@@ -603,6 +613,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
                   ),
                 )
               : (state.valueOrNull?.featureFlags ?? const <String, bool>{}),
+          hideCompletedTasks: settingsMap['hide_completed_tasks'] as bool? ?? false,
           updatedAt: DateTime.parse(settingsMap['updated_at'] as String),
         );
         
@@ -643,6 +654,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           proxyUrl: bridgeSettings.proxyUrl,
           taskUiMode: state.valueOrNull?.taskUiMode ?? TaskUiMode.reminders,
           featureFlags: state.valueOrNull?.featureFlags ?? const <String, bool>{},
+          hideCompletedTasks: state.valueOrNull?.hideCompletedTasks ?? false,
           updatedAt: DateTime.parse(bridgeSettings.updatedAt),
         );
         

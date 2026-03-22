@@ -54,6 +54,9 @@ mixin _$AppSettings {
   /// 実験機能フラグ（feature_id -> enabled）
   Map<String, bool> get featureFlags => throw _privateConstructorUsedError;
 
+  /// 完了済みタスクを非表示にする
+  bool get hideCompletedTasks => throw _privateConstructorUsedError;
+
   /// 最終更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -86,6 +89,7 @@ abstract class $AppSettingsCopyWith<$Res> {
     String? lastViewedCustomListId,
     TaskUiMode taskUiMode,
     Map<String, bool> featureFlags,
+    bool hideCompletedTasks,
     DateTime updatedAt,
   });
 }
@@ -116,6 +120,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? lastViewedCustomListId = freezed,
     Object? taskUiMode = null,
     Object? featureFlags = null,
+    Object? hideCompletedTasks = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -164,6 +169,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
                 ? _value.featureFlags
                 : featureFlags // ignore: cast_nullable_to_non_nullable
                       as Map<String, bool>,
+            hideCompletedTasks: null == hideCompletedTasks
+                ? _value.hideCompletedTasks
+                : hideCompletedTasks // ignore: cast_nullable_to_non_nullable
+                      as bool,
             updatedAt: null == updatedAt
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -195,6 +204,7 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     String? lastViewedCustomListId,
     TaskUiMode taskUiMode,
     Map<String, bool> featureFlags,
+    bool hideCompletedTasks,
     DateTime updatedAt,
   });
 }
@@ -224,6 +234,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? lastViewedCustomListId = freezed,
     Object? taskUiMode = null,
     Object? featureFlags = null,
+    Object? hideCompletedTasks = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -272,6 +283,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             ? _value.featureFlags
             : featureFlags // ignore: cast_nullable_to_non_nullable
                   as Map<String, bool>,
+        hideCompletedTasks: null == hideCompletedTasks
+            ? _value.hideCompletedTasks
+            : hideCompletedTasks // ignore: cast_nullable_to_non_nullable
+                  as bool,
         updatedAt: null == updatedAt
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -296,6 +311,7 @@ class _$AppSettingsImpl implements _AppSettings {
     this.lastViewedCustomListId,
     this.taskUiMode = TaskUiMode.reminders,
     this.featureFlags = const <String, bool>{},
+    this.hideCompletedTasks = false,
     required this.updatedAt,
   });
 
@@ -356,13 +372,18 @@ class _$AppSettingsImpl implements _AppSettings {
   @JsonKey()
   final Map<String, bool> featureFlags;
 
+  /// 完了済みタスクを非表示にする
+  @override
+  @JsonKey()
+  final bool hideCompletedTasks;
+
   /// 最終更新日時
   @override
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, taskUiMode: $taskUiMode, featureFlags: $featureFlags, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, taskUiMode: $taskUiMode, featureFlags: $featureFlags, hideCompletedTasks: $hideCompletedTasks, updatedAt: $updatedAt)';
   }
 
   @override
@@ -394,6 +415,8 @@ class _$AppSettingsImpl implements _AppSettings {
               other.featureFlags,
               featureFlags,
             ) &&
+            (identical(other.hideCompletedTasks, hideCompletedTasks) ||
+                other.hideCompletedTasks == hideCompletedTasks) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt));
   }
@@ -413,6 +436,7 @@ class _$AppSettingsImpl implements _AppSettings {
     lastViewedCustomListId,
     taskUiMode,
     const DeepCollectionEquality().hash(featureFlags),
+    hideCompletedTasks,
     updatedAt,
   );
 
@@ -443,6 +467,7 @@ abstract class _AppSettings implements AppSettings {
     final String? lastViewedCustomListId,
     final TaskUiMode taskUiMode,
     final Map<String, bool> featureFlags,
+    final bool hideCompletedTasks,
     required final DateTime updatedAt,
   }) = _$AppSettingsImpl;
 
@@ -492,6 +517,10 @@ abstract class _AppSettings implements AppSettings {
   /// 実験機能フラグ（feature_id -> enabled）
   @override
   Map<String, bool> get featureFlags;
+
+  /// 完了済みタスクを非表示にする
+  @override
+  bool get hideCompletedTasks;
 
   /// 最終更新日時
   @override

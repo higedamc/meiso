@@ -59,6 +59,9 @@ class AppSettings with _$AppSettings {
 
     /// 実験機能フラグ（feature_id -> enabled）
     @Default(<String, bool>{}) Map<String, bool> featureFlags,
+
+    /// 完了済みタスクを非表示にする
+    @Default(false) bool hideCompletedTasks,
     
     /// 最終更新日時
     required DateTime updatedAt,

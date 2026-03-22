@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../app_theme.dart';
+import '../providers/app_settings_provider.dart';
 import '../providers/nostr_provider.dart';
 import '../providers/todos_provider.dart';
 import '../services/logger_service.dart';
@@ -138,7 +139,11 @@ class DayPage extends ConsumerWidget {
 
   /// Todoリスト部分
   Widget _buildTodoList(WidgetRef ref) {
-    final todos = ref.watch(todosForDateProvider(date));
+    final allTodos = ref.watch(todosForDateProvider(date));
+    final hideCompleted = ref.watch(appSettingsProvider).valueOrNull?.hideCompletedTasks ?? false;
+    final todos = hideCompleted
+        ? allTodos.where((t) => !t.completed).toList()
+        : allTodos;
 
     // リストが空の場合は、pull-to-refreshが動くようにCustomScrollViewを使用
     if (todos.isEmpty) {
