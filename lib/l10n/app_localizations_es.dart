@@ -1543,4 +1543,46 @@ class AppLocalizationsEs extends AppLocalizations {
   String inviteAcceptanceFailed(String error) {
     return 'Falló la aceptación de la invitación\n\n$error';
   }
+
+  @override
+  String get subtasksHeader => 'SUBTAREAS';
+
+  @override
+  String get noSubtasks => 'Aun no hay subtareas';
+
+  @override
+  String get addSubtaskHint => 'Agregar subtarea...';
+
+  @override
+  String get linkedTasksHeader => 'TAREAS VINCULADAS';
+
+  @override
+  String get noLinkedTasks => 'No hay tareas vinculadas';
+
+  @override
+  String get linkTaskDialogTitle => 'VINCULAR TAREA';
+
+  @override
+  String get linkTypeBlocks => 'Bloquea';
+
+  @override
+  String get linkTypeBlockedBy => 'Bloqueado por';
+
+  @override
+  String get linkTypeRelatedTo => 'Relacionado con';
+
+  @override
+  String get linkTypeDuplicateOf => 'Duplicado de';
+
+  @override
+  String get linkRelationship => 'Relacion';
+
+  @override
+  String get linkTargetTask => 'Tarea objetivo';
+
+  @override
+  String get linkButton => 'VINCULAR';
+
+  @override
+  String get noTasksToLink => 'No hay tareas disponibles para vincular';
 }

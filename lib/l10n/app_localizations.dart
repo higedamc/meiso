@@ -2763,6 +2763,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Invite acceptance failed\n\n{error}'**
   String inviteAcceptanceFailed(String error);
+
+  /// Header for subtask section
+  ///
+  /// In en, this message translates to:
+  /// **'SUBTASKS'**
+  String get subtasksHeader;
+
+  /// Placeholder when no subtasks
+  ///
+  /// In en, this message translates to:
+  /// **'No subtasks yet'**
+  String get noSubtasks;
+
+  /// Hint text for add subtask field
+  ///
+  /// In en, this message translates to:
+  /// **'Add subtask...'**
+  String get addSubtaskHint;
+
+  /// Header for linked tasks section
+  ///
+  /// In en, this message translates to:
+  /// **'LINKED TASKS'**
+  String get linkedTasksHeader;
+
+  /// Placeholder when no linked tasks
+  ///
+  /// In en, this message translates to:
+  /// **'No linked tasks'**
+  String get noLinkedTasks;
+
+  /// Title for link task dialog
+  ///
+  /// In en, this message translates to:
+  /// **'LINK TASK'**
+  String get linkTaskDialogTitle;
+
+  /// Link type: blocks
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks'**
+  String get linkTypeBlocks;
+
+  /// Link type: blocked by
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked by'**
+  String get linkTypeBlockedBy;
+
+  /// Link type: related to
+  ///
+  /// In en, this message translates to:
+  /// **'Related to'**
+  String get linkTypeRelatedTo;
+
+  /// Link type: duplicate of
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate of'**
+  String get linkTypeDuplicateOf;
+
+  /// Label for link relationship selector
+  ///
+  /// In en, this message translates to:
+  /// **'Relationship'**
+  String get linkRelationship;
+
+  /// Label for link target task selector
+  ///
+  /// In en, this message translates to:
+  /// **'Target task'**
+  String get linkTargetTask;
+
+  /// Button to confirm link
+  ///
+  /// In en, this message translates to:
+  /// **'LINK'**
+  String get linkButton;
+
+  /// Message when no tasks available for linking
+  ///
+  /// In en, this message translates to:
+  /// **'No tasks available to link'**
+  String get noTasksToLink;
 }
 
 class _AppLocalizationsDelegate

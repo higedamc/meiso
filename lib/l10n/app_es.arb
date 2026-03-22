@@ -887,6 +887,34 @@
   
   "requestReinviteFromAdmin": "Por favor solicita una nueva invitación al administrador del grupo.",
   
-  "inviteAcceptanceFailed": "Falló la aceptación de la invitación\n\n{error}"
+  "inviteAcceptanceFailed": "Falló la aceptación de la invitación\n\n{error}",
+
+  "subtasksHeader": "SUBTAREAS",
+
+  "noSubtasks": "Aun no hay subtareas",
+
+  "addSubtaskHint": "Agregar subtarea...",
+
+  "linkedTasksHeader": "TAREAS VINCULADAS",
+
+  "noLinkedTasks": "No hay tareas vinculadas",
+
+  "linkTaskDialogTitle": "VINCULAR TAREA",
+
+  "linkTypeBlocks": "Bloquea",
+
+  "linkTypeBlockedBy": "Bloqueado por",
+
+  "linkTypeRelatedTo": "Relacionado con",
+
+  "linkTypeDuplicateOf": "Duplicado de",
+
+  "linkRelationship": "Relacion",
+
+  "linkTargetTask": "Tarea objetivo",
+
+  "linkButton": "VINCULAR",
+
+  "noTasksToLink": "No hay tareas disponibles para vincular"
 }
 

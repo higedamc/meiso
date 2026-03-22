@@ -1522,4 +1522,46 @@ class AppLocalizationsEn extends AppLocalizations {
   String inviteAcceptanceFailed(String error) {
     return 'Invite acceptance failed\n\n$error';
   }
+
+  @override
+  String get subtasksHeader => 'SUBTASKS';
+
+  @override
+  String get noSubtasks => 'No subtasks yet';
+
+  @override
+  String get addSubtaskHint => 'Add subtask...';
+
+  @override
+  String get linkedTasksHeader => 'LINKED TASKS';
+
+  @override
+  String get noLinkedTasks => 'No linked tasks';
+
+  @override
+  String get linkTaskDialogTitle => 'LINK TASK';
+
+  @override
+  String get linkTypeBlocks => 'Blocks';
+
+  @override
+  String get linkTypeBlockedBy => 'Blocked by';
+
+  @override
+  String get linkTypeRelatedTo => 'Related to';
+
+  @override
+  String get linkTypeDuplicateOf => 'Duplicate of';
+
+  @override
+  String get linkRelationship => 'Relationship';
+
+  @override
+  String get linkTargetTask => 'Target task';
+
+  @override
+  String get linkButton => 'LINK';
+
+  @override
+  String get noTasksToLink => 'No tasks available to link';
 }

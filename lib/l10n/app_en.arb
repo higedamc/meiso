@@ -2365,6 +2365,76 @@
         "type": "String"
       }
     }
+  },
+
+  "subtasksHeader": "SUBTASKS",
+  "@subtasksHeader": {
+    "description": "Header for subtask section"
+  },
+
+  "noSubtasks": "No subtasks yet",
+  "@noSubtasks": {
+    "description": "Placeholder when no subtasks"
+  },
+
+  "addSubtaskHint": "Add subtask...",
+  "@addSubtaskHint": {
+    "description": "Hint text for add subtask field"
+  },
+
+  "linkedTasksHeader": "LINKED TASKS",
+  "@linkedTasksHeader": {
+    "description": "Header for linked tasks section"
+  },
+
+  "noLinkedTasks": "No linked tasks",
+  "@noLinkedTasks": {
+    "description": "Placeholder when no linked tasks"
+  },
+
+  "linkTaskDialogTitle": "LINK TASK",
+  "@linkTaskDialogTitle": {
+    "description": "Title for link task dialog"
+  },
+
+  "linkTypeBlocks": "Blocks",
+  "@linkTypeBlocks": {
+    "description": "Link type: blocks"
+  },
+
+  "linkTypeBlockedBy": "Blocked by",
+  "@linkTypeBlockedBy": {
+    "description": "Link type: blocked by"
+  },
+
+  "linkTypeRelatedTo": "Related to",
+  "@linkTypeRelatedTo": {
+    "description": "Link type: related to"
+  },
+
+  "linkTypeDuplicateOf": "Duplicate of",
+  "@linkTypeDuplicateOf": {
+    "description": "Link type: duplicate of"
+  },
+
+  "linkRelationship": "Relationship",
+  "@linkRelationship": {
+    "description": "Label for link relationship selector"
+  },
+
+  "linkTargetTask": "Target task",
+  "@linkTargetTask": {
+    "description": "Label for link target task selector"
+  },
+
+  "linkButton": "LINK",
+  "@linkButton": {
+    "description": "Button to confirm link"
+  },
+
+  "noTasksToLink": "No tasks available to link",
+  "@noTasksToLink": {
+    "description": "Message when no tasks available for linking"
   }
 }
 

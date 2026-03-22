@@ -1471,4 +1471,46 @@ class AppLocalizationsJa extends AppLocalizations {
   String inviteAcceptanceFailed(String error) {
     return '招待の受諾に失敗しました\n\n$error';
   }
+
+  @override
+  String get subtasksHeader => 'サブタスク';
+
+  @override
+  String get noSubtasks => 'サブタスクはまだありません';
+
+  @override
+  String get addSubtaskHint => 'サブタスクを追加...';
+
+  @override
+  String get linkedTasksHeader => 'リンクされたタスク';
+
+  @override
+  String get noLinkedTasks => 'リンクされたタスクはありません';
+
+  @override
+  String get linkTaskDialogTitle => 'タスクをリンク';
+
+  @override
+  String get linkTypeBlocks => 'ブロックしている';
+
+  @override
+  String get linkTypeBlockedBy => 'ブロックされている';
+
+  @override
+  String get linkTypeRelatedTo => '関連タスク';
+
+  @override
+  String get linkTypeDuplicateOf => '重複タスク';
+
+  @override
+  String get linkRelationship => '関係';
+
+  @override
+  String get linkTargetTask => '対象タスク';
+
+  @override
+  String get linkButton => 'リンク';
+
+  @override
+  String get noTasksToLink => 'リンクできるタスクがありません';
 }
