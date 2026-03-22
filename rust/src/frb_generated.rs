@@ -5933,6 +5933,9 @@ impl SseDecode for crate::api::TodoData {
         let mut var_recurrence = <Option<String>>::sse_decode(deserializer);
         let mut var_parentRecurringId = <Option<String>>::sse_decode(deserializer);
         let mut var_customListId = <Option<String>>::sse_decode(deserializer);
+        let mut var_parentTaskId = <Option<String>>::sse_decode(deserializer);
+        let mut var_depth = <i32>::sse_decode(deserializer);
+        let mut var_taskLinks = <Option<String>>::sse_decode(deserializer);
         return crate::api::TodoData {
             id: var_id,
             title: var_title,
@@ -5946,6 +5949,9 @@ impl SseDecode for crate::api::TodoData {
             recurrence: var_recurrence,
             parent_recurring_id: var_parentRecurringId,
             custom_list_id: var_customListId,
+            parent_task_id: var_parentTaskId,
+            depth: var_depth,
+            task_links: var_taskLinks,
         };
     }
 }
@@ -6949,6 +6955,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::TodoData {
             self.recurrence.into_into_dart().into_dart(),
             self.parent_recurring_id.into_into_dart().into_dart(),
             self.custom_list_id.into_into_dart().into_dart(),
+            self.parent_task_id.into_into_dart().into_dart(),
+            self.depth.into_into_dart().into_dart(),
+            self.task_links.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -7458,6 +7467,9 @@ impl SseEncode for crate::api::TodoData {
         <Option<String>>::sse_encode(self.recurrence, serializer);
         <Option<String>>::sse_encode(self.parent_recurring_id, serializer);
         <Option<String>>::sse_encode(self.custom_list_id, serializer);
+        <Option<String>>::sse_encode(self.parent_task_id, serializer);
+        <i32>::sse_encode(self.depth, serializer);
+        <Option<String>>::sse_encode(self.task_links, serializer);
     }
 }
 

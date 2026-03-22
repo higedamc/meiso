@@ -1513,18 +1513,19 @@ class TodoData {
   final String createdAt;
   final String updatedAt;
   final String? eventId;
-
-  /// リンクプレビュー（JSON文字列形式で保存）
   final String? linkPreview;
-
-  /// リカーリングタスクの繰り返しパターン（JSON文字列形式で保存）
   final String? recurrence;
-
-  /// 親リカーリングタスクのID
   final String? parentRecurringId;
-
-  /// カスタムリストID（SOMEDAYページのリストに属する場合）
   final String? customListId;
+
+  /// 親タスクID（サブタスク関係、NIP-XXA "parent" tag 互換）
+  final String? parentTaskId;
+
+  /// ネスト深度（0 = ルート）
+  final int depth;
+
+  /// タスクリンク（JSON文字列: [{targetTaskId, linkType}, ...]）
+  final String? taskLinks;
 
   const TodoData({
     required this.id,
@@ -1539,6 +1540,9 @@ class TodoData {
     this.recurrence,
     this.parentRecurringId,
     this.customListId,
+    this.parentTaskId,
+    required this.depth,
+    this.taskLinks,
   });
 
   @override
@@ -1554,7 +1558,10 @@ class TodoData {
       linkPreview.hashCode ^
       recurrence.hashCode ^
       parentRecurringId.hashCode ^
-      customListId.hashCode;
+      customListId.hashCode ^
+      parentTaskId.hashCode ^
+      depth.hashCode ^
+      taskLinks.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1572,7 +1579,10 @@ class TodoData {
           linkPreview == other.linkPreview &&
           recurrence == other.recurrence &&
           parentRecurringId == other.parentRecurringId &&
-          customListId == other.customListId;
+          customListId == other.customListId &&
+          parentTaskId == other.parentTaskId &&
+          depth == other.depth &&
+          taskLinks == other.taskLinks;
 }
 
 /// Todoリストのメタデータ（通常モード用 - Kind 30001）

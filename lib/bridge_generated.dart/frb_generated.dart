@@ -4745,7 +4745,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TodoData dco_decode_todo_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12) throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 15) throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return TodoData(
       id: dco_decode_String(arr[0]),
       title: dco_decode_String(arr[1]),
@@ -4759,6 +4759,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       recurrence: dco_decode_opt_String(arr[9]),
       parentRecurringId: dco_decode_opt_String(arr[10]),
       customListId: dco_decode_opt_String(arr[11]),
+      parentTaskId: dco_decode_opt_String(arr[12]),
+      depth: dco_decode_i_32(arr[13]),
+      taskLinks: dco_decode_opt_String(arr[14]),
     );
   }
 
@@ -5422,6 +5425,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_recurrence = sse_decode_opt_String(deserializer);
     var var_parentRecurringId = sse_decode_opt_String(deserializer);
     var var_customListId = sse_decode_opt_String(deserializer);
+    var var_parentTaskId = sse_decode_opt_String(deserializer);
+    var var_depth = sse_decode_i_32(deserializer);
+    var var_taskLinks = sse_decode_opt_String(deserializer);
     return TodoData(
       id: var_id,
       title: var_title,
@@ -5435,6 +5441,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       recurrence: var_recurrence,
       parentRecurringId: var_parentRecurringId,
       customListId: var_customListId,
+      parentTaskId: var_parentTaskId,
+      depth: var_depth,
+      taskLinks: var_taskLinks,
     );
   }
 
@@ -5953,6 +5962,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.recurrence, serializer);
     sse_encode_opt_String(self.parentRecurringId, serializer);
     sse_encode_opt_String(self.customListId, serializer);
+    sse_encode_opt_String(self.parentTaskId, serializer);
+    sse_encode_i_32(self.depth, serializer);
+    sse_encode_opt_String(self.taskLinks, serializer);
   }
 
   @protected

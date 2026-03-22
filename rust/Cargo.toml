@@ -60,3 +60,4 @@ opt-level = "z"  # 最適化レベル（サイズ優先）
 lto = true       # リンク時最適化
 codegen-units = 1
 strip = true     # シンボル削除
+panic = "abort"  # unwind情報を省いてバイナリ縮小

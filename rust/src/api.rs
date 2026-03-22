@@ -58,23 +58,28 @@ pub struct TodoData {
     pub id: String,
     pub title: String,
     pub completed: bool,
-    pub date: Option<String>, // ISO 8601形式 (null = Someday)
+    pub date: Option<String>,
     pub order: i32,
     pub created_at: String,
     pub updated_at: String,
     pub event_id: Option<String>,
-    /// リンクプレビュー（JSON文字列形式で保存）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link_preview: Option<String>,
-    /// リカーリングタスクの繰り返しパターン（JSON文字列形式で保存）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurrence: Option<String>,
-    /// 親リカーリングタスクのID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_recurring_id: Option<String>,
-    /// カスタムリストID（SOMEDAYページのリストに属する場合）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_list_id: Option<String>,
+    /// 親タスクID（サブタスク関係、NIP-XXA "parent" tag 互換）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_task_id: Option<String>,
+    /// ネスト深度（0 = ルート）
+    #[serde(default)]
+    pub depth: i32,
+    /// タスクリンク（JSON文字列: [{targetTaskId, linkType}, ...]）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_links: Option<String>,
 }
 
 fn normalize_todo_date_string(raw: &str) -> Option<String> {
