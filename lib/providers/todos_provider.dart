@@ -8,6 +8,7 @@ import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
 import '../models/custom_list.dart';
+import '../models/task_link.dart';
 import '../services/local_storage_service.dart';
 import '../services/logger_service.dart';
 import '../services/amber_service.dart';
@@ -60,6 +61,9 @@ final todosProvider =
     >(
       TodosNotifier.new,
     );
+
+/// 親タスクごとのサブタスク展開状態（メモリ保持）
+final subtaskExpansionProvider = StateProvider<Set<String>>((ref) => <String>{});
 
 class TodosNotifier
     extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>> {
@@ -936,6 +940,295 @@ class TodosNotifier
       }
     });
   }
+
+  // ============================================
+  // Subtask / Task-Link operations
+  // ============================================
+
+  /// 親タスクのサブタスク展開状態を返す
+  bool isSubtasksExpanded(String parentId) {
+    return _ref.read(subtaskExpansionProvider).contains(parentId);
+  }
+
+  /// 親タスクのサブタスク表示をトグルする
+  void toggleSubtasksExpanded(String parentId) {
+    final notifier = _ref.read(subtaskExpansionProvider.notifier);
+    final current = notifier.state;
+    if (current.contains(parentId)) {
+      notifier.state = current.where((id) => id != parentId).toSet();
+    } else {
+      notifier.state = {...current, parentId};
+    }
+  }
+
+  /// 指定タスクのサブタスク一覧を取得
+  List<Todo> getSubtasks(String parentId) {
+    final todos = state.valueOrNull;
+    if (todos == null) return [];
+    final all = <Todo>[];
+    for (final group in todos.values) {
+      all.addAll(group.where((t) => t.parentTaskId == parentId));
+    }
+    all.sort((a, b) => a.order.compareTo(b.order));
+    return all;
+  }
+
+  /// サブタスクの完了率を計算 (0.0 ~ 1.0)
+  double getSubtaskProgress(String parentId) {
+    final subs = getSubtasks(parentId);
+    if (subs.isEmpty) return 0.0;
+    return subs.where((t) => t.completed).length / subs.length;
+  }
+
+  /// サブタスクを追加
+  Future<void> addSubtask(String parentId, String title, DateTime? date) async {
+    if (title.trim().isEmpty) return;
+
+    await state.whenData((todos) async {
+      // 親タスクを検索
+      Todo? parent;
+      for (final group in todos.values) {
+        for (final t in group) {
+          if (t.id == parentId) {
+            parent = t;
+            break;
+          }
+        }
+        if (parent != null) break;
+      }
+      if (parent == null) return;
+      if (parent.isSubtask) {
+        AppLogger.warning(
+          '[Subtask] Blocked grandchild creation for parentId=$parentId',
+        );
+        return;
+      }
+
+      final effectiveDate = date ?? parent.date;
+      final siblings = getSubtasks(parentId);
+      final maxOrder = siblings.isEmpty
+          ? 0
+          : siblings.map((s) => s.order).reduce((a, b) => a > b ? a : b);
+
+      final createTodoUseCase = _ref.read(createTodoUseCaseProvider);
+      final result = await createTodoUseCase(
+        CreateTodoParams(
+          title: title,
+          date: effectiveDate,
+          customListId: parent.customListId,
+          currentTodos: todos,
+        ),
+      );
+
+      result.fold(
+        (failure) {
+          AppLogger.error('Failed to create subtask: ${failure.message}');
+        },
+        (newTodo) async {
+          final subtask = newTodo.copyWith(
+            parentTaskId: parentId,
+            depth: parent!.depth + 1,
+            order: maxOrder + 1,
+          );
+
+          final list = List<Todo>.from(todos[effectiveDate] ?? []);
+          list.add(subtask);
+
+          state = AsyncValue.data({...todos, effectiveDate: list});
+
+          await _saveAllTodosToLocal();
+          await _updateWidget();
+          _updateUnsyncedCount();
+          _syncToNostr(() => _syncAllTodosToNostr());
+        },
+      );
+    }).value;
+  }
+
+  /// タスクリンクを追加（双方向）
+  Future<void> addTaskLink(
+    String sourceId,
+    String targetId,
+    TaskLinkType linkType,
+  ) async {
+    await state.whenData((todos) async {
+      var updated = Map<DateTime?, List<Todo>>.from(todos);
+
+      // source にリンク追加
+      updated = _addLinkToTodo(updated, sourceId, targetId, linkType);
+      // target に逆方向リンク追加
+      updated = _addLinkToTodo(updated, targetId, sourceId, linkType.inverse);
+
+      state = AsyncValue.data(updated);
+      await _saveAllTodosToLocal();
+      _syncToNostr(() => _syncAllTodosToNostr());
+    }).value;
+  }
+
+  /// タスクリンクを削除（双方向）
+  Future<void> removeTaskLink(
+    String sourceId,
+    String targetId,
+    TaskLinkType linkType,
+  ) async {
+    await state.whenData((todos) async {
+      var updated = Map<DateTime?, List<Todo>>.from(todos);
+
+      updated = _removeLinkFromTodo(updated, sourceId, targetId, linkType);
+      updated =
+          _removeLinkFromTodo(updated, targetId, sourceId, linkType.inverse);
+
+      state = AsyncValue.data(updated);
+      await _saveAllTodosToLocal();
+      _syncToNostr(() => _syncAllTodosToNostr());
+    }).value;
+  }
+
+  /// ID からタスクを検索
+  Todo? findTodoById(String id) {
+    final todos = state.valueOrNull;
+    if (todos == null) return null;
+    for (final group in todos.values) {
+      for (final t in group) {
+        if (t.id == id) return t;
+      }
+    }
+    return null;
+  }
+
+  /// 全タスクのフラットリスト（検索用）
+  List<Todo> get allTodosFlat {
+    final todos = state.valueOrNull;
+    if (todos == null) return [];
+    return todos.values.expand((g) => g).toList();
+  }
+
+  Map<DateTime?, List<Todo>> _addLinkToTodo(
+    Map<DateTime?, List<Todo>> todos,
+    String todoId,
+    String targetId,
+    TaskLinkType linkType,
+  ) {
+    final result = <DateTime?, List<Todo>>{};
+    for (final entry in todos.entries) {
+      result[entry.key] = entry.value.map((t) {
+        if (t.id == todoId) {
+          final links = List<TaskLink>.from(t.taskLinks);
+          if (!links.any(
+            (l) => l.targetTaskId == targetId && l.linkType == linkType,
+          )) {
+            links.add(TaskLink(targetTaskId: targetId, linkType: linkType));
+          }
+          return t.copyWith(taskLinks: links, needsSync: true);
+        }
+        return t;
+      }).toList();
+    }
+    return result;
+  }
+
+  Map<DateTime?, List<Todo>> _removeLinkFromTodo(
+    Map<DateTime?, List<Todo>> todos,
+    String todoId,
+    String targetId,
+    TaskLinkType linkType,
+  ) {
+    final result = <DateTime?, List<Todo>>{};
+    for (final entry in todos.entries) {
+      result[entry.key] = entry.value.map((t) {
+        if (t.id == todoId) {
+          final links = List<TaskLink>.from(t.taskLinks);
+          links.removeWhere(
+            (l) => l.targetTaskId == targetId && l.linkType == linkType,
+          );
+          return t.copyWith(taskLinks: links, needsSync: true);
+        }
+        return t;
+      }).toList();
+    }
+    return result;
+  }
+
+  /// 親タスクとその子タスクを一括で完了にする
+  Future<void> completeParentAndSubtasks(String parentId) async {
+    await state.whenData((todos) async {
+      Todo? parentTodo;
+      var hasUpdated = false;
+      final now = DateTime.now();
+      final updated = <DateTime?, List<Todo>>{};
+
+      for (final entry in todos.entries) {
+        updated[entry.key] = entry.value.map((todo) {
+          final isParent = todo.id == parentId;
+          final isChild = todo.parentTaskId == parentId;
+          if (!isParent && !isChild) {
+            return todo;
+          }
+
+          if (isParent) {
+            parentTodo = todo;
+          }
+
+          if (todo.completed) {
+            return todo;
+          }
+
+          hasUpdated = true;
+          return todo.copyWith(
+            completed: true,
+            updatedAt: now,
+            needsSync: true,
+          );
+        }).toList();
+      }
+
+      if (!hasUpdated) {
+        return;
+      }
+
+      // 親を完了したら、一覧上の子表示は閉じる
+      final expansionNotifier = _ref.read(subtaskExpansionProvider.notifier);
+      expansionNotifier.state = expansionNotifier.state
+          .where((id) => id != parentId)
+          .toSet();
+
+      state = AsyncValue.data(updated);
+      await _saveAllTodosToLocal();
+      await _updateWidget();
+      _updateUnsyncedCount();
+
+      if (parentTodo?.customListId != null) {
+        final customListsAsync = _ref.read(customListsProvider);
+        final isGroup =
+            await customListsAsync.whenData((customLists) async {
+              final list = customLists.firstWhere(
+                (l) => l.id == parentTodo!.customListId!,
+                orElse: () => CustomList(
+                  id: '',
+                  name: '',
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                ),
+              );
+              return list.isGroup;
+            }).value ??
+            false;
+
+        if (isGroup) {
+          _syncToNostr(() async {
+            await _syncGroupToNostr(parentTodo!.customListId!);
+          });
+          return;
+        }
+      }
+
+      _syncToNostrBackground();
+    }).value;
+  }
+
+  // ============================================
+  // End of Subtask / Task-Link operations
+  // ============================================
 
   /// Todoを更新（楽観的UI更新）
   ///
@@ -5903,24 +6196,76 @@ class _MlsGroupRealtimeSubscription {
 final ProviderFamily<List<Todo>, DateTime?> todosForDateProvider =
     Provider.family<List<Todo>, DateTime?>((ref, date) {
       final todosAsync = ref.watch(todosProvider);
+      final expandedParents = ref.watch(subtaskExpansionProvider);
       return todosAsync.when(
         data: (todos) {
           final normalizedDate = date == null
               ? null
               : DateTime(date.year, date.month, date.day);
-          final list = todos[normalizedDate] ?? [];
+          final rawList = todos[normalizedDate] ?? [];
+          final rootTodos = rawList.where((t) => !t.isSubtask).toList();
+          final rootById = <String, Todo>{
+            for (final todo in rootTodos) todo.id: todo,
+          };
 
-          // 未完了タスクと完了済みタスクに分ける
-          final incomplete = list.where((t) => !t.completed).toList();
-          final completed = list.where((t) => t.completed).toList();
+          final subtasksByParent = <String, List<Todo>>{};
+          final orphanSubtasks = <Todo>[];
+          for (final todo in rawList.where((t) => t.isSubtask)) {
+            final parentId = todo.parentTaskId;
+            if (parentId != null && rootById.containsKey(parentId)) {
+              subtasksByParent.putIfAbsent(parentId, () => <Todo>[]).add(todo);
+            } else {
+              // 親が同日グループにいない子は末尾に表示する
+              orphanSubtasks.add(todo);
+            }
+          }
 
-          // 未完了タスクをorder順にソート
-          incomplete.sort((a, b) => a.order.compareTo(b.order));
-          // 完了済みタスクもorder順にソート（完了した順番を保持）
-          completed.sort((a, b) => a.order.compareTo(b.order));
+          for (final subtasks in subtasksByParent.values) {
+            subtasks.sort((a, b) => a.order.compareTo(b.order));
+          }
 
-          // 未完了 + 完了済みの順で結合
-          return [...incomplete, ...completed];
+          // 親タスクは従来どおり「未完了 → 完了」で並べる
+          final incompleteRoots = rootTodos.where((t) => !t.completed).toList()
+            ..sort((a, b) => a.order.compareTo(b.order));
+          final completedRoots = rootTodos.where((t) => t.completed).toList()
+            ..sort((a, b) => a.order.compareTo(b.order));
+
+          final arranged = <Todo>[];
+
+          void appendRootWithChildren(Todo root) {
+            arranged.add(root);
+
+            if (!expandedParents.contains(root.id)) {
+              return;
+            }
+
+            final subtasks = subtasksByParent[root.id];
+            if (subtasks == null || subtasks.isEmpty) {
+              return;
+            }
+
+            arranged.addAll(subtasks);
+          }
+
+          for (final root in incompleteRoots) {
+            appendRootWithChildren(root);
+          }
+          for (final root in completedRoots) {
+            appendRootWithChildren(root);
+          }
+
+          if (orphanSubtasks.isNotEmpty) {
+            final incompleteOrphans =
+                orphanSubtasks.where((t) => !t.completed).toList()
+                  ..sort((a, b) => a.order.compareTo(b.order));
+            final completedOrphans =
+                orphanSubtasks.where((t) => t.completed).toList()
+                  ..sort((a, b) => a.order.compareTo(b.order));
+            arranged.addAll(incompleteOrphans);
+            arranged.addAll(completedOrphans);
+          }
+
+          return arranged;
         },
         loading: () => [],
         error: (_, __) => [],

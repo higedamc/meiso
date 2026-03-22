@@ -151,6 +151,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
             child: Consumer(
               builder: (context, ref, child) {
                 final todosAsync = ref.watch(todosProvider);
+                final expandedParents = ref.watch(subtaskExpansionProvider);
                 
                 return todosAsync.when(
                   data: (allTodos) {
@@ -164,15 +165,10 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                       }
                     }
 
-                    // 未完了と完了済みに分ける
-                    final incomplete = listTodos.where((t) => !t.completed).toList();
-                    final completed = listTodos.where((t) => t.completed).toList();
-
-                    // order順にソート
-                    incomplete.sort((a, b) => a.order.compareTo(b.order));
-                    completed.sort((a, b) => a.order.compareTo(b.order));
-
-                    final sortedTodos = [...incomplete, ...completed];
+                    final sortedTodos = _arrangeTodosForDisplay(
+                      listTodos,
+                      expandedParents,
+                    );
 
                     if (sortedTodos.isEmpty) {
                       return Center(
@@ -231,6 +227,65 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
         ],
       ),
     );
+  }
+
+  List<Todo> _arrangeTodosForDisplay(List<Todo> listTodos, Set<String> expandedParents) {
+    final rootTodos = listTodos.where((t) => !t.isSubtask).toList();
+    final rootById = <String, Todo>{
+      for (final todo in rootTodos) todo.id: todo,
+    };
+
+    final subtasksByParent = <String, List<Todo>>{};
+    final orphanSubtasks = <Todo>[];
+    for (final todo in listTodos.where((t) => t.isSubtask)) {
+      final parentId = todo.parentTaskId;
+      if (parentId != null && rootById.containsKey(parentId)) {
+        subtasksByParent.putIfAbsent(parentId, () => <Todo>[]).add(todo);
+      } else {
+        orphanSubtasks.add(todo);
+      }
+    }
+
+    for (final subtasks in subtasksByParent.values) {
+      subtasks.sort((a, b) => a.order.compareTo(b.order));
+    }
+
+    final incompleteRoots = rootTodos.where((t) => !t.completed).toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final completedRoots = rootTodos.where((t) => t.completed).toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    final arranged = <Todo>[];
+
+    void appendRootWithChildren(Todo root) {
+      arranged.add(root);
+      if (!expandedParents.contains(root.id)) {
+        return;
+      }
+      final subtasks = subtasksByParent[root.id];
+      if (subtasks == null || subtasks.isEmpty) {
+        return;
+      }
+      arranged.addAll(subtasks);
+    }
+
+    for (final root in incompleteRoots) {
+      appendRootWithChildren(root);
+    }
+    for (final root in completedRoots) {
+      appendRootWithChildren(root);
+    }
+
+    if (orphanSubtasks.isNotEmpty) {
+      final incompleteOrphans = orphanSubtasks.where((t) => !t.completed).toList()
+        ..sort((a, b) => a.order.compareTo(b.order));
+      final completedOrphans = orphanSubtasks.where((t) => t.completed).toList()
+        ..sort((a, b) => a.order.compareTo(b.order));
+      arranged.addAll(incompleteOrphans);
+      arranged.addAll(completedOrphans);
+    }
+
+    return arranged;
   }
 
   /// 並び替え処理

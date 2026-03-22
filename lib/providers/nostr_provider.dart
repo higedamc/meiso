@@ -9,6 +9,7 @@ import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
 import '../models/custom_list.dart';
+import '../models/task_link.dart';
 import '../models/app_settings.dart';
 import '../models/relay_config.dart';
 import '../features/custom_list/domain/entities/gw17_group_message.dart';
@@ -388,7 +389,7 @@ class NostrService {
       }
     }
 
-    final todoDataList = todos.map((todo) {
+    final todoDataList = todos.map<rust_api.TodoData>((todo) {
       final todoData = rust_api.TodoData(
         id: todo.id,
         title: todo.title,
@@ -408,6 +409,11 @@ class NostrService {
         customListId: CustomListHelpers.normalizeListIdFromNostr(
           todo.customListId,
         ),
+        parentTaskId: todo.parentTaskId,
+        depth: todo.depth,
+        taskLinks: todo.taskLinks.isNotEmpty
+            ? jsonEncode(todo.taskLinks.map((l) => l.toJson()).toList())
+            : null,
       );
 
       // カスタムリストIDが設定されている場合のみログ
@@ -457,45 +463,7 @@ class NostrService {
     }
 
     return todoDataList.map((todoData) {
-      // JSON文字列からオブジェクトに復元
-      LinkPreview? linkPreview;
-      if (todoData.linkPreview != null) {
-        try {
-          linkPreview = LinkPreview.fromJson(
-            jsonDecode(todoData.linkPreview!) as Map<String, dynamic>,
-          );
-        } catch (e) {
-          AppLogger.warning(' Failed to parse linkPreview: $e');
-        }
-      }
-
-      RecurrencePattern? recurrence;
-      if (todoData.recurrence != null) {
-        try {
-          recurrence = RecurrencePattern.fromJson(
-            jsonDecode(todoData.recurrence!) as Map<String, dynamic>,
-          );
-        } catch (e) {
-          AppLogger.warning(' Failed to parse recurrence: $e');
-        }
-      }
-
-      return Todo(
-        id: todoData.id,
-        title: todoData.title,
-        completed: todoData.completed,
-        date: todoData.date != null ? DateTime.parse(todoData.date!) : null,
-        order: todoData.order,
-        createdAt: DateTime.parse(todoData.createdAt),
-        updatedAt: DateTime.parse(todoData.updatedAt),
-        eventId: todoData.eventId,
-        linkPreview: linkPreview,
-        recurrence: recurrence,
-        parentRecurringId: todoData.parentRecurringId,
-        customListId: CustomListHelpers.normalizeListIdFromNostr(
-          todoData.customListId,
-        ),
-      );
+      return _todoDataToTodo(todoData);
     }).toList();
   }
 
@@ -517,45 +485,65 @@ class NostrService {
     );
 
     return todoDataList.map((todoData) {
-      LinkPreview? linkPreview;
-      if (todoData.linkPreview != null) {
-        try {
-          linkPreview = LinkPreview.fromJson(
-            jsonDecode(todoData.linkPreview!) as Map<String, dynamic>,
-          );
-        } catch (e) {
-          AppLogger.warning(' Failed to parse linkPreview: $e');
-        }
-      }
-
-      RecurrencePattern? recurrence;
-      if (todoData.recurrence != null) {
-        try {
-          recurrence = RecurrencePattern.fromJson(
-            jsonDecode(todoData.recurrence!) as Map<String, dynamic>,
-          );
-        } catch (e) {
-          AppLogger.warning(' Failed to parse recurrence: $e');
-        }
-      }
-
-      return Todo(
-        id: todoData.id,
-        title: todoData.title,
-        completed: todoData.completed,
-        date: todoData.date != null ? DateTime.parse(todoData.date!) : null,
-        order: todoData.order,
-        createdAt: DateTime.parse(todoData.createdAt),
-        updatedAt: DateTime.parse(todoData.updatedAt),
-        eventId: todoData.eventId,
-        linkPreview: linkPreview,
-        recurrence: recurrence,
-        parentRecurringId: todoData.parentRecurringId,
-        customListId: CustomListHelpers.normalizeListIdFromNostr(
-          todoData.customListId,
-        ),
-      );
+      return _todoDataToTodo(todoData);
     }).toList();
+  }
+
+  /// TodoData → Todo 変換（Nostr受信時の共通ロジック）
+  Todo _todoDataToTodo(rust_api.TodoData todoData) {
+    LinkPreview? linkPreview;
+    if (todoData.linkPreview != null) {
+      try {
+        linkPreview = LinkPreview.fromJson(
+          jsonDecode(todoData.linkPreview!) as Map<String, dynamic>,
+        );
+      } catch (e) {
+        AppLogger.warning(' Failed to parse linkPreview: $e');
+      }
+    }
+
+    RecurrencePattern? recurrence;
+    if (todoData.recurrence != null) {
+      try {
+        recurrence = RecurrencePattern.fromJson(
+          jsonDecode(todoData.recurrence!) as Map<String, dynamic>,
+        );
+      } catch (e) {
+        AppLogger.warning(' Failed to parse recurrence: $e');
+      }
+    }
+
+    List<TaskLink> taskLinks = [];
+    if (todoData.taskLinks != null) {
+      try {
+        final decoded = jsonDecode(todoData.taskLinks!) as List;
+        taskLinks = decoded
+            .map((e) => TaskLink.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        AppLogger.warning(' Failed to parse taskLinks: $e');
+      }
+    }
+
+    return Todo(
+      id: todoData.id,
+      title: todoData.title,
+      completed: todoData.completed,
+      date: todoData.date != null ? DateTime.parse(todoData.date!) : null,
+      order: todoData.order,
+      createdAt: DateTime.parse(todoData.createdAt),
+      updatedAt: DateTime.parse(todoData.updatedAt),
+      eventId: todoData.eventId,
+      linkPreview: linkPreview,
+      recurrence: recurrence,
+      parentRecurringId: todoData.parentRecurringId,
+      customListId: CustomListHelpers.normalizeListIdFromNostr(
+        todoData.customListId,
+      ),
+      parentTaskId: todoData.parentTaskId,
+      depth: todoData.depth,
+      taskLinks: taskLinks,
+    );
   }
 
   // ========================================

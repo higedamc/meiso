@@ -6,11 +6,16 @@ import '../app_theme.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
+import '../models/app_settings.dart';
 import '../providers/todos_provider.dart';
+import '../providers/app_settings_provider.dart';
 import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
+import '../features/feature_gate/feature_gate_service.dart';
 import 'todo_item.dart';
+import 'subtask_section.dart';
+import 'task_link_section.dart';
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -71,6 +76,14 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
     final statusBarHeight = MediaQuery.of(context).padding.top;
+    final appSettings = ref.watch(appSettingsProvider).valueOrNull;
+    final featureGate = ref.watch(featureGateServiceProvider);
+    final activeTaskMode = appSettings == null
+        ? TaskUiMode.reminders
+        : featureGate.resolveActiveMode(appSettings);
+    final canUseTaskLinking = appSettings != null &&
+        featureGate.canUseTaskLinking(appSettings) &&
+        activeTaskMode == TaskUiMode.asana;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -126,6 +139,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                     child: TextField(
                       controller: _controller,
                       focusNode: _focusNode,
+                      keyboardType: TextInputType.multiline,
                       style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
                       decoration: InputDecoration(
                         border: InputBorder.none,
@@ -137,8 +151,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                         ),
                       ),
                       maxLines: null,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _save(),
+                      textInputAction: TextInputAction.newline,
                     ),
                   ),
                   
@@ -177,6 +190,19 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                         );
                       },
                     ),
+
+                  // サブタスクセクション（編集時のみ）
+                  if (isEditing && !(widget.todo?.isSubtask ?? false))
+                    SubtaskSection(
+                      parentTodo: widget.todo!,
+                    ),
+                  if (isEditing &&
+                      !(widget.todo?.isSubtask ?? false) &&
+                      canUseTaskLinking)
+                    TaskLinkSection(
+                      todo: widget.todo!,
+                    ),
+
                 ],
               ),
             ),
