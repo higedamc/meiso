@@ -7,6 +7,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
+        android:extractNativeLibs="true"
         android:localeConfig="@xml/locales_config">
         <activity
             android:name=".MainActivity"

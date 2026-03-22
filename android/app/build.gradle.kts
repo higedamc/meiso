@@ -18,6 +18,7 @@ android {
     namespace = "jp.godzhigella.meiso"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    flavorDimensions += "channel"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -38,9 +39,18 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         
-        // NDK設定 (arm64-v8a のみビルド - 最新のAndroidデバイス用)
-        ndk {
-            abiFilters.add("arm64-v8a")
+    }
+
+    productFlavors {
+        create("production") {
+            dimension = "channel"
+            applicationId = "jp.godzhigella.meiso"
+            resValue("string", "app_name", "Meiso")
+        }
+        create("beta") {
+            dimension = "channel"
+            applicationId = "jp.godzhigella.meiso.beta"
+            resValue("string", "app_name", "Meiso Beta")
         }
     }
 
@@ -49,6 +59,9 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // R8 disabled: flutter_rust_bridge FFI loading fails with minification
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
