@@ -56,6 +56,7 @@ app.*.map.json
 
 # Rust related
 rust/target/
+rust/build/
 rust/Cargo.lock
 rust/target/.rustc_info.json
 

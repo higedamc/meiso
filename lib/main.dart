@@ -42,13 +42,13 @@ void main() async {
     AppLogger.error('ローカルストレージ初期化エラー', error: e, tag: 'INIT');
   }
   
-  // Rustブリッジの初期化（エラーハンドリング付き）
+  // Rustブリッジの初期化（失敗時は起動を継続しない）
   try {
     await RustLib.init();
     AppLogger.info('Rust初期化成功', tag: 'INIT');
   } catch (e, stackTrace) {
     AppLogger.error('Rust初期化エラー', error: e, stackTrace: stackTrace, tag: 'INIT');
-    // エラーがあってもアプリは起動させる（Nostr機能なしで動作）
+    Error.throwWithStackTrace(e, stackTrace);
   }
   
   runApp(
