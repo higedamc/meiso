@@ -33,6 +33,13 @@ _$TodoImpl _$$TodoImplFromJson(Map<String, dynamic> json) => _$TodoImpl(
   parentRecurringId: json['parentRecurringId'] as String?,
   customListId: json['customListId'] as String?,
   needsSync: json['needsSync'] as bool? ?? true,
+  parentTaskId: json['parentTaskId'] as String?,
+  depth: (json['depth'] as num?)?.toInt() ?? 0,
+  taskLinks:
+      (json['taskLinks'] as List<dynamic>?)
+          ?.map((e) => TaskLink.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
 );
 
 Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
@@ -55,4 +62,7 @@ Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
       'parentRecurringId': instance.parentRecurringId,
       'customListId': instance.customListId,
       'needsSync': instance.needsSync,
+      'parentTaskId': instance.parentTaskId,
+      'depth': instance.depth,
+      'taskLinks': instance.taskLinks.map((e) => e.toJson()).toList(),
     };

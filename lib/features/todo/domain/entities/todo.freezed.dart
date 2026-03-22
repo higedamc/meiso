@@ -17,44 +17,28 @@ final _privateConstructorUsedError = UnsupportedError(
 
 /// @nodoc
 mixin _$Todo {
-  /// UUID (Nostrイベントの'd' tagとしても使用)
   String get id => throw _privateConstructorUsedError;
-
-  /// タスクのタイトル（Value Object）
   TodoTitle get title => throw _privateConstructorUsedError;
-
-  /// 完了状態
   bool get completed => throw _privateConstructorUsedError;
-
-  /// 日付（Value Object、null = Someday）
   TodoDate? get date => throw _privateConstructorUsedError;
-
-  /// 同じ日付内での並び順
   int get order => throw _privateConstructorUsedError;
-
-  /// 作成日時
   DateTime get createdAt => throw _privateConstructorUsedError;
-
-  /// 更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
-
-  /// Nostrイベントの event ID (同期後に設定)
   String? get eventId => throw _privateConstructorUsedError;
-
-  /// URLリンクプレビュー（JSON化して保存）
   String? get linkPreviewJson => throw _privateConstructorUsedError;
-
-  /// リカーリングタスクの繰り返しパターン（JSON化して保存）
   String? get recurrenceJson => throw _privateConstructorUsedError;
-
-  /// 親リカーリングタスクのID（このタスクが自動生成されたインスタンスの場合）
   String? get parentRecurringId => throw _privateConstructorUsedError;
-
-  /// カスタムリストID（SOMEDAYページのリストに属する場合）
   String? get customListId => throw _privateConstructorUsedError;
-
-  /// Nostrへの同期が必要かどうか（楽観的UI更新用）
   bool get needsSync => throw _privateConstructorUsedError;
+
+  /// 親タスクID（サブタスクの場合）
+  String? get parentTaskId => throw _privateConstructorUsedError;
+
+  /// ネスト深度（0 = ルート）
+  int get depth => throw _privateConstructorUsedError;
+
+  /// タスクリンク JSON（シリアライズ用）
+  String? get taskLinksJson => throw _privateConstructorUsedError;
 
   /// Create a copy of Todo
   /// with the given fields replaced by the non-null parameter values.
@@ -81,6 +65,9 @@ abstract class $TodoCopyWith<$Res> {
     String? parentRecurringId,
     String? customListId,
     bool needsSync,
+    String? parentTaskId,
+    int depth,
+    String? taskLinksJson,
   });
 }
 
@@ -112,6 +99,9 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
     Object? parentRecurringId = freezed,
     Object? customListId = freezed,
     Object? needsSync = null,
+    Object? parentTaskId = freezed,
+    Object? depth = null,
+    Object? taskLinksJson = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -167,6 +157,18 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
                 ? _value.needsSync
                 : needsSync // ignore: cast_nullable_to_non_nullable
                       as bool,
+            parentTaskId: freezed == parentTaskId
+                ? _value.parentTaskId
+                : parentTaskId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            depth: null == depth
+                ? _value.depth
+                : depth // ignore: cast_nullable_to_non_nullable
+                      as int,
+            taskLinksJson: freezed == taskLinksJson
+                ? _value.taskLinksJson
+                : taskLinksJson // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -195,6 +197,9 @@ abstract class _$$TodoImplCopyWith<$Res> implements $TodoCopyWith<$Res> {
     String? parentRecurringId,
     String? customListId,
     bool needsSync,
+    String? parentTaskId,
+    int depth,
+    String? taskLinksJson,
   });
 }
 
@@ -223,6 +228,9 @@ class __$$TodoImplCopyWithImpl<$Res>
     Object? parentRecurringId = freezed,
     Object? customListId = freezed,
     Object? needsSync = null,
+    Object? parentTaskId = freezed,
+    Object? depth = null,
+    Object? taskLinksJson = freezed,
   }) {
     return _then(
       _$TodoImpl(
@@ -278,6 +286,18 @@ class __$$TodoImplCopyWithImpl<$Res>
             ? _value.needsSync
             : needsSync // ignore: cast_nullable_to_non_nullable
                   as bool,
+        parentTaskId: freezed == parentTaskId
+            ? _value.parentTaskId
+            : parentTaskId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        depth: null == depth
+            ? _value.depth
+            : depth // ignore: cast_nullable_to_non_nullable
+                  as int,
+        taskLinksJson: freezed == taskLinksJson
+            ? _value.taskLinksJson
+            : taskLinksJson // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -300,63 +320,54 @@ class _$TodoImpl extends _Todo {
     this.parentRecurringId,
     this.customListId,
     required this.needsSync,
+    this.parentTaskId,
+    this.depth = 0,
+    this.taskLinksJson,
   }) : super._();
 
-  /// UUID (Nostrイベントの'd' tagとしても使用)
   @override
   final String id;
-
-  /// タスクのタイトル（Value Object）
   @override
   final TodoTitle title;
-
-  /// 完了状態
   @override
   final bool completed;
-
-  /// 日付（Value Object、null = Someday）
   @override
   final TodoDate? date;
-
-  /// 同じ日付内での並び順
   @override
   final int order;
-
-  /// 作成日時
   @override
   final DateTime createdAt;
-
-  /// 更新日時
   @override
   final DateTime updatedAt;
-
-  /// Nostrイベントの event ID (同期後に設定)
   @override
   final String? eventId;
-
-  /// URLリンクプレビュー（JSON化して保存）
   @override
   final String? linkPreviewJson;
-
-  /// リカーリングタスクの繰り返しパターン（JSON化して保存）
   @override
   final String? recurrenceJson;
-
-  /// 親リカーリングタスクのID（このタスクが自動生成されたインスタンスの場合）
   @override
   final String? parentRecurringId;
-
-  /// カスタムリストID（SOMEDAYページのリストに属する場合）
   @override
   final String? customListId;
-
-  /// Nostrへの同期が必要かどうか（楽観的UI更新用）
   @override
   final bool needsSync;
 
+  /// 親タスクID（サブタスクの場合）
+  @override
+  final String? parentTaskId;
+
+  /// ネスト深度（0 = ルート）
+  @override
+  @JsonKey()
+  final int depth;
+
+  /// タスクリンク JSON（シリアライズ用）
+  @override
+  final String? taskLinksJson;
+
   @override
   String toString() {
-    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, linkPreviewJson: $linkPreviewJson, recurrenceJson: $recurrenceJson, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync)';
+    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, linkPreviewJson: $linkPreviewJson, recurrenceJson: $recurrenceJson, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync, parentTaskId: $parentTaskId, depth: $depth, taskLinksJson: $taskLinksJson)';
   }
 
   @override
@@ -384,7 +395,12 @@ class _$TodoImpl extends _Todo {
             (identical(other.customListId, customListId) ||
                 other.customListId == customListId) &&
             (identical(other.needsSync, needsSync) ||
-                other.needsSync == needsSync));
+                other.needsSync == needsSync) &&
+            (identical(other.parentTaskId, parentTaskId) ||
+                other.parentTaskId == parentTaskId) &&
+            (identical(other.depth, depth) || other.depth == depth) &&
+            (identical(other.taskLinksJson, taskLinksJson) ||
+                other.taskLinksJson == taskLinksJson));
   }
 
   @override
@@ -403,6 +419,9 @@ class _$TodoImpl extends _Todo {
     parentRecurringId,
     customListId,
     needsSync,
+    parentTaskId,
+    depth,
+    taskLinksJson,
   );
 
   /// Create a copy of Todo
@@ -429,60 +448,50 @@ abstract class _Todo extends Todo {
     final String? parentRecurringId,
     final String? customListId,
     required final bool needsSync,
+    final String? parentTaskId,
+    final int depth,
+    final String? taskLinksJson,
   }) = _$TodoImpl;
   const _Todo._() : super._();
 
-  /// UUID (Nostrイベントの'd' tagとしても使用)
   @override
   String get id;
-
-  /// タスクのタイトル（Value Object）
   @override
   TodoTitle get title;
-
-  /// 完了状態
   @override
   bool get completed;
-
-  /// 日付（Value Object、null = Someday）
   @override
   TodoDate? get date;
-
-  /// 同じ日付内での並び順
   @override
   int get order;
-
-  /// 作成日時
   @override
   DateTime get createdAt;
-
-  /// 更新日時
   @override
   DateTime get updatedAt;
-
-  /// Nostrイベントの event ID (同期後に設定)
   @override
   String? get eventId;
-
-  /// URLリンクプレビュー（JSON化して保存）
   @override
   String? get linkPreviewJson;
-
-  /// リカーリングタスクの繰り返しパターン（JSON化して保存）
   @override
   String? get recurrenceJson;
-
-  /// 親リカーリングタスクのID（このタスクが自動生成されたインスタンスの場合）
   @override
   String? get parentRecurringId;
-
-  /// カスタムリストID（SOMEDAYページのリストに属する場合）
   @override
   String? get customListId;
-
-  /// Nostrへの同期が必要かどうか（楽観的UI更新用）
   @override
   bool get needsSync;
+
+  /// 親タスクID（サブタスクの場合）
+  @override
+  String? get parentTaskId;
+
+  /// ネスト深度（0 = ルート）
+  @override
+  int get depth;
+
+  /// タスクリンク JSON（シリアライズ用）
+  @override
+  String? get taskLinksJson;
 
   /// Create a copy of Todo
   /// with the given fields replaced by the non-null parameter values.
