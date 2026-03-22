@@ -16,6 +16,7 @@ import '../features/feature_gate/feature_gate_service.dart';
 import 'todo_item.dart';
 import 'subtask_section.dart';
 import 'task_link_section.dart';
+import '../features/media/presentation/widgets/image_attachment_section.dart';
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -43,6 +44,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
   late FocusNode _focusNode;
   RecurrencePattern? _recurrence;
   bool _showRecurringTasksTips = false;
+  String? _imageUrl;
 
   bool get isEditing => widget.todo != null;
 
@@ -52,6 +54,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     _controller = TextEditingController(text: widget.todo?.title ?? '');
     _focusNode = FocusNode();
     _recurrence = widget.todo?.recurrence;
+    _imageUrl = widget.todo?.imageUrl;
     
     // Recurring Tasks Tipsを表示するか確認（新規作成時のみ）
     if (!isEditing) {
@@ -190,6 +193,14 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                         );
                       },
                     ),
+
+                  // 画像添付セクション
+                  ImageAttachmentSection(
+                    imageUrl: _imageUrl,
+                    onImageChanged: (url) {
+                      setState(() => _imageUrl = url);
+                    },
+                  ),
 
                   // サブタスクセクション（編集時のみ）
                   if (isEditing && !(widget.todo?.isSubtask ?? false))
@@ -528,6 +539,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
         final updatedTodo = widget.todo!.copyWith(
           title: text,
           recurrence: _recurrence,
+          imageUrl: _imageUrl,
         );
         await ref.read(todosProvider.notifier).updateTodoInGroup(
           groupId: widget.customListId!,
@@ -588,6 +600,15 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
           );
           AppLogger.info(' Todo update completed and synced');
         }
+
+        // 画像URLの変更があれば別途保存
+        if (_imageUrl != widget.todo!.imageUrl) {
+          await ref.read(todosProvider.notifier).updateTodoImageUrl(
+            widget.todo!.id,
+            widget.todo!.date,
+            _imageUrl,
+          );
+        }
       }
     } else {
       // 追加モード: 新しいTodoを作成
@@ -607,6 +628,22 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
           customListId: widget.customListId,
         );
         AppLogger.info(' Todo added and synced to Nostr');
+      }
+
+      // 新規作成時に画像が添付されていれば、直後に反映
+      if (_imageUrl != null) {
+        final todosData = ref.read(todosProvider).valueOrNull;
+        if (todosData != null) {
+          final list = todosData[widget.date] ?? [];
+          if (list.isNotEmpty) {
+            final newTodo = list.last;
+            await ref.read(todosProvider.notifier).updateTodoImageUrl(
+              newTodo.id,
+              widget.date,
+              _imageUrl,
+            );
+          }
+        }
       }
     }
 

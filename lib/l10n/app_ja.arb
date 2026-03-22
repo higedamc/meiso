@@ -905,6 +905,60 @@
 
   "linkButton": "リンク",
 
-  "noTasksToLink": "リンクできるタスクがありません"
+  "noTasksToLink": "リンクできるタスクがありません",
+
+  "hideCompletedTasks": "完了済みタスクを非表示",
+
+  "hideCompletedTasksSubtitle": "すべてのビューで完了済みタスクを非表示にする",
+
+  "attachImage": "画像を添付",
+
+  "removeImage": "画像を削除",
+
+  "uploadingImage": "画像をアップロード中...",
+
+  "imageUploadFailed": "画像のアップロードに失敗しました: {reason}",
+
+  "imageUploaded": "画像を添付しました",
+
+  "imageSourceCamera": "カメラ",
+
+  "imageSourceGallery": "ギャラリー",
+
+  "mediaServers": "メディアサーバー",
+
+  "mediaServersSubtitle": "Blossom / NIP-96 アップロードサーバーを管理",
+
+  "addMediaServer": "サーバーを追加",
+
+  "mediaServerUrl": "サーバーURL",
+
+  "mediaServerType": "サーバータイプ",
+
+  "mediaServerManual": "手動",
+
+  "mediaServerAutoDiscovered": "自動検出 (Kind 10063)",
+
+  "deleteMediaServer": "サーバーを削除",
+
+  "noMediaServers": "メディアサーバーが設定されていません。サーバーを追加するか、Nostrに接続して自動検出してください。",
+
+  "mediaServerAdded": "メディアサーバーを追加しました",
+
+  "mediaServerDeleted": "メディアサーバーを削除しました",
+
+  "invalidUrl": "有効なURLを入力してください",
+
+  "refreshServers": "サーバーを更新",
+
+  "selectUploadServer": "アップロード先",
+
+  "noServersFound": "利用可能なサーバーがありません。下にURLを入力してください。",
+
+  "addCustomServer": "カスタムURLを使用",
+
+  "customServerUrlHint": "https://example.com",
+
+  "upload": "アップロード"
 }
 

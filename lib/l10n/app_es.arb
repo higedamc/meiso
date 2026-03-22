@@ -915,6 +915,60 @@
 
   "linkButton": "VINCULAR",
 
-  "noTasksToLink": "No hay tareas disponibles para vincular"
+  "noTasksToLink": "No hay tareas disponibles para vincular",
+
+  "hideCompletedTasks": "Ocultar Tareas Completadas",
+
+  "hideCompletedTasksSubtitle": "Ocultar tareas completadas en todas las vistas",
+
+  "attachImage": "Adjuntar Imagen",
+
+  "removeImage": "Eliminar Imagen",
+
+  "uploadingImage": "Subiendo imagen...",
+
+  "imageUploadFailed": "Error al subir imagen: {reason}",
+
+  "imageUploaded": "Imagen adjuntada exitosamente",
+
+  "imageSourceCamera": "Camara",
+
+  "imageSourceGallery": "Galeria",
+
+  "mediaServers": "Servidores de Medios",
+
+  "mediaServersSubtitle": "Gestionar servidores de carga Blossom / NIP-96",
+
+  "addMediaServer": "Agregar Servidor",
+
+  "mediaServerUrl": "URL del Servidor",
+
+  "mediaServerType": "Tipo de Servidor",
+
+  "mediaServerManual": "Manual",
+
+  "mediaServerAutoDiscovered": "Auto-descubierto (Kind 10063)",
+
+  "deleteMediaServer": "Eliminar Servidor",
+
+  "noMediaServers": "No hay servidores configurados. Agregue uno o conectese a Nostr para descubrirlos automaticamente.",
+
+  "mediaServerAdded": "Servidor de medios agregado",
+
+  "mediaServerDeleted": "Servidor de medios eliminado",
+
+  "invalidUrl": "Ingrese una URL valida",
+
+  "refreshServers": "Actualizar Servidores",
+
+  "selectUploadServer": "Subir a",
+
+  "noServersFound": "No se encontraron servidores. Ingrese una URL abajo.",
+
+  "addCustomServer": "Usar URL personalizada",
+
+  "customServerUrlHint": "https://example.com",
+
+  "upload": "Subir"
 }
 

@@ -2847,6 +2847,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No tasks available to link'**
   String get noTasksToLink;
+
+  /// Setting to hide completed tasks from task lists
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Completed Tasks'**
+  String get hideCompletedTasks;
+
+  /// Subtitle for hide completed tasks setting
+  ///
+  /// In en, this message translates to:
+  /// **'Hide completed tasks in all views'**
+  String get hideCompletedTasksSubtitle;
+
+  /// Button to attach an image to a task
+  ///
+  /// In en, this message translates to:
+  /// **'Attach Image'**
+  String get attachImage;
+
+  /// Button to remove attached image
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Image'**
+  String get removeImage;
+
+  /// Message shown while image is being uploaded
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading image...'**
+  String get uploadingImage;
+
+  /// Error message when image upload fails
+  ///
+  /// In en, this message translates to:
+  /// **'Image upload failed: {reason}'**
+  String imageUploadFailed(String reason);
+
+  /// Success message after image upload
+  ///
+  /// In en, this message translates to:
+  /// **'Image attached successfully'**
+  String get imageUploaded;
+
+  /// Option to take photo with camera
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get imageSourceCamera;
+
+  /// Option to select from gallery
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get imageSourceGallery;
+
+  /// Title for media server settings
+  ///
+  /// In en, this message translates to:
+  /// **'Media Servers'**
+  String get mediaServers;
+
+  /// Subtitle for media server settings
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Blossom / NIP-96 upload servers'**
+  String get mediaServersSubtitle;
+
+  /// Button to add a manual media server
+  ///
+  /// In en, this message translates to:
+  /// **'Add Server'**
+  String get addMediaServer;
+
+  /// Label for media server URL input
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL'**
+  String get mediaServerUrl;
+
+  /// Label for media server type selector
+  ///
+  /// In en, this message translates to:
+  /// **'Server Type'**
+  String get mediaServerType;
+
+  /// Label for manually added server
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get mediaServerManual;
+
+  /// Label for auto-discovered server via Nostr
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-discovered (Kind 10063)'**
+  String get mediaServerAutoDiscovered;
+
+  /// Button to delete a media server
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Server'**
+  String get deleteMediaServer;
+
+  /// Empty state when no media servers
+  ///
+  /// In en, this message translates to:
+  /// **'No media servers configured. Add a server or connect to Nostr to auto-discover.'**
+  String get noMediaServers;
+
+  /// Confirmation when server added
+  ///
+  /// In en, this message translates to:
+  /// **'Media server added'**
+  String get mediaServerAdded;
+
+  /// Confirmation when server deleted
+  ///
+  /// In en, this message translates to:
+  /// **'Media server removed'**
+  String get mediaServerDeleted;
+
+  /// Validation error for invalid URL
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a valid URL'**
+  String get invalidUrl;
+
+  /// Button to refresh server list
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Servers'**
+  String get refreshServers;
+
+  /// Title for the server selection bottom sheet when uploading an image
+  ///
+  /// In en, this message translates to:
+  /// **'Upload to'**
+  String get selectUploadServer;
+
+  /// Message shown when no upload servers are available
+  ///
+  /// In en, this message translates to:
+  /// **'No upload servers found. Add a server URL below.'**
+  String get noServersFound;
+
+  /// Option to add a one-off custom server URL for upload
+  ///
+  /// In en, this message translates to:
+  /// **'Use custom URL'**
+  String get addCustomServer;
+
+  /// Hint text for custom server URL input
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com'**
+  String get customServerUrlHint;
+
+  /// Upload button label
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get upload;
 }
 
 class _AppLocalizationsDelegate

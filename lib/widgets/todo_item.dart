@@ -12,6 +12,7 @@ import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
 import 'circular_checkbox.dart';
+import '../features/media/presentation/widgets/image_thumbnail.dart';
 
 /// リカーリングタスクアクションオプション（削除・更新共通）
 enum RecurringActionOption {
@@ -680,6 +681,10 @@ class TodoItem extends StatelessWidget {
                             ),
                           ),
                         
+                        // 添付画像サムネイル
+                        if (todo.imageUrl != null)
+                          ImageThumbnail(imageUrl: todo.imageUrl!),
+
                         // サブタスクインジケーター
                         if (!todo.isSubtask)
                           Consumer(

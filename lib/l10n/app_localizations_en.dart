@@ -1564,4 +1564,89 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noTasksToLink => 'No tasks available to link';
+
+  @override
+  String get hideCompletedTasks => 'Hide Completed Tasks';
+
+  @override
+  String get hideCompletedTasksSubtitle => 'Hide completed tasks in all views';
+
+  @override
+  String get attachImage => 'Attach Image';
+
+  @override
+  String get removeImage => 'Remove Image';
+
+  @override
+  String get uploadingImage => 'Uploading image...';
+
+  @override
+  String imageUploadFailed(String reason) {
+    return 'Image upload failed: $reason';
+  }
+
+  @override
+  String get imageUploaded => 'Image attached successfully';
+
+  @override
+  String get imageSourceCamera => 'Camera';
+
+  @override
+  String get imageSourceGallery => 'Gallery';
+
+  @override
+  String get mediaServers => 'Media Servers';
+
+  @override
+  String get mediaServersSubtitle => 'Manage Blossom / NIP-96 upload servers';
+
+  @override
+  String get addMediaServer => 'Add Server';
+
+  @override
+  String get mediaServerUrl => 'Server URL';
+
+  @override
+  String get mediaServerType => 'Server Type';
+
+  @override
+  String get mediaServerManual => 'Manual';
+
+  @override
+  String get mediaServerAutoDiscovered => 'Auto-discovered (Kind 10063)';
+
+  @override
+  String get deleteMediaServer => 'Delete Server';
+
+  @override
+  String get noMediaServers =>
+      'No media servers configured. Add a server or connect to Nostr to auto-discover.';
+
+  @override
+  String get mediaServerAdded => 'Media server added';
+
+  @override
+  String get mediaServerDeleted => 'Media server removed';
+
+  @override
+  String get invalidUrl => 'Please enter a valid URL';
+
+  @override
+  String get refreshServers => 'Refresh Servers';
+
+  @override
+  String get selectUploadServer => 'Upload to';
+
+  @override
+  String get noServersFound =>
+      'No upload servers found. Add a server URL below.';
+
+  @override
+  String get addCustomServer => 'Use custom URL';
+
+  @override
+  String get customServerUrlHint => 'https://example.com';
+
+  @override
+  String get upload => 'Upload';
 }

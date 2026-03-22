@@ -1585,4 +1585,91 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get noTasksToLink => 'No hay tareas disponibles para vincular';
+
+  @override
+  String get hideCompletedTasks => 'Ocultar Tareas Completadas';
+
+  @override
+  String get hideCompletedTasksSubtitle =>
+      'Ocultar tareas completadas en todas las vistas';
+
+  @override
+  String get attachImage => 'Adjuntar Imagen';
+
+  @override
+  String get removeImage => 'Eliminar Imagen';
+
+  @override
+  String get uploadingImage => 'Subiendo imagen...';
+
+  @override
+  String imageUploadFailed(String reason) {
+    return 'Error al subir imagen: $reason';
+  }
+
+  @override
+  String get imageUploaded => 'Imagen adjuntada exitosamente';
+
+  @override
+  String get imageSourceCamera => 'Camara';
+
+  @override
+  String get imageSourceGallery => 'Galeria';
+
+  @override
+  String get mediaServers => 'Servidores de Medios';
+
+  @override
+  String get mediaServersSubtitle =>
+      'Gestionar servidores de carga Blossom / NIP-96';
+
+  @override
+  String get addMediaServer => 'Agregar Servidor';
+
+  @override
+  String get mediaServerUrl => 'URL del Servidor';
+
+  @override
+  String get mediaServerType => 'Tipo de Servidor';
+
+  @override
+  String get mediaServerManual => 'Manual';
+
+  @override
+  String get mediaServerAutoDiscovered => 'Auto-descubierto (Kind 10063)';
+
+  @override
+  String get deleteMediaServer => 'Eliminar Servidor';
+
+  @override
+  String get noMediaServers =>
+      'No hay servidores configurados. Agregue uno o conectese a Nostr para descubrirlos automaticamente.';
+
+  @override
+  String get mediaServerAdded => 'Servidor de medios agregado';
+
+  @override
+  String get mediaServerDeleted => 'Servidor de medios eliminado';
+
+  @override
+  String get invalidUrl => 'Ingrese una URL valida';
+
+  @override
+  String get refreshServers => 'Actualizar Servidores';
+
+  @override
+  String get selectUploadServer => 'Subir a';
+
+  @override
+  String get noServersFound =>
+      'No se encontraron servidores. Ingrese una URL abajo.';
+
+  @override
+  String get addCustomServer => 'Usar URL personalizada';
+
+  @override
+  String get customServerUrlHint => 'https://example.com';
+
+  @override
+  String get upload => 'Subir';
 }

@@ -2435,6 +2435,146 @@
   "noTasksToLink": "No tasks available to link",
   "@noTasksToLink": {
     "description": "Message when no tasks available for linking"
+  },
+
+  "hideCompletedTasks": "Hide Completed Tasks",
+  "@hideCompletedTasks": {
+    "description": "Setting to hide completed tasks from task lists"
+  },
+
+  "hideCompletedTasksSubtitle": "Hide completed tasks in all views",
+  "@hideCompletedTasksSubtitle": {
+    "description": "Subtitle for hide completed tasks setting"
+  },
+
+  "attachImage": "Attach Image",
+  "@attachImage": {
+    "description": "Button to attach an image to a task"
+  },
+
+  "removeImage": "Remove Image",
+  "@removeImage": {
+    "description": "Button to remove attached image"
+  },
+
+  "uploadingImage": "Uploading image...",
+  "@uploadingImage": {
+    "description": "Message shown while image is being uploaded"
+  },
+
+  "imageUploadFailed": "Image upload failed: {reason}",
+  "@imageUploadFailed": {
+    "description": "Error message when image upload fails",
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+
+  "imageUploaded": "Image attached successfully",
+  "@imageUploaded": {
+    "description": "Success message after image upload"
+  },
+
+  "imageSourceCamera": "Camera",
+  "@imageSourceCamera": {
+    "description": "Option to take photo with camera"
+  },
+
+  "imageSourceGallery": "Gallery",
+  "@imageSourceGallery": {
+    "description": "Option to select from gallery"
+  },
+
+  "mediaServers": "Media Servers",
+  "@mediaServers": {
+    "description": "Title for media server settings"
+  },
+
+  "mediaServersSubtitle": "Manage Blossom / NIP-96 upload servers",
+  "@mediaServersSubtitle": {
+    "description": "Subtitle for media server settings"
+  },
+
+  "addMediaServer": "Add Server",
+  "@addMediaServer": {
+    "description": "Button to add a manual media server"
+  },
+
+  "mediaServerUrl": "Server URL",
+  "@mediaServerUrl": {
+    "description": "Label for media server URL input"
+  },
+
+  "mediaServerType": "Server Type",
+  "@mediaServerType": {
+    "description": "Label for media server type selector"
+  },
+
+  "mediaServerManual": "Manual",
+  "@mediaServerManual": {
+    "description": "Label for manually added server"
+  },
+
+  "mediaServerAutoDiscovered": "Auto-discovered (Kind 10063)",
+  "@mediaServerAutoDiscovered": {
+    "description": "Label for auto-discovered server via Nostr"
+  },
+
+  "deleteMediaServer": "Delete Server",
+  "@deleteMediaServer": {
+    "description": "Button to delete a media server"
+  },
+
+  "noMediaServers": "No media servers configured. Add a server or connect to Nostr to auto-discover.",
+  "@noMediaServers": {
+    "description": "Empty state when no media servers"
+  },
+
+  "mediaServerAdded": "Media server added",
+  "@mediaServerAdded": {
+    "description": "Confirmation when server added"
+  },
+
+  "mediaServerDeleted": "Media server removed",
+  "@mediaServerDeleted": {
+    "description": "Confirmation when server deleted"
+  },
+
+  "invalidUrl": "Please enter a valid URL",
+  "@invalidUrl": {
+    "description": "Validation error for invalid URL"
+  },
+
+  "refreshServers": "Refresh Servers",
+  "@refreshServers": {
+    "description": "Button to refresh server list"
+  },
+
+  "selectUploadServer": "Upload to",
+  "@selectUploadServer": {
+    "description": "Title for the server selection bottom sheet when uploading an image"
+  },
+
+  "noServersFound": "No upload servers found. Add a server URL below.",
+  "@noServersFound": {
+    "description": "Message shown when no upload servers are available"
+  },
+
+  "addCustomServer": "Use custom URL",
+  "@addCustomServer": {
+    "description": "Option to add a one-off custom server URL for upload"
+  },
+
+  "customServerUrlHint": "https://example.com",
+  "@customServerUrlHint": {
+    "description": "Hint text for custom server URL input"
+  },
+
+  "upload": "Upload",
+  "@upload": {
+    "description": "Upload button label"
   }
 }
 
