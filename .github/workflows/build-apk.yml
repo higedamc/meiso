@@ -85,8 +85,8 @@ jobs:
           EOF
           echo "has_keystore=true" >> $GITHUB_OUTPUT
 
-      - name: Build APK
-        run: flutter build apk --release
+      - name: Build production APK
+        run: flutter build apk --flavor production --release --dart-define=BUILD_CHANNEL=release
 
       - name: Sign APK with release key
         if: steps.keystore.outputs.has_keystore == 'true'
@@ -101,13 +101,13 @@ jobs:
             --ks-key-alias "$KEY_ALIAS" \
             --ks-pass "pass:$KEYSTORE_PASSWORD" \
             --key-pass "pass:$KEY_PASSWORD" \
-            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-production-release.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: meiso-apk-${{ github.sha }}
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-production-release.apk
           retention-days: 30
 
   release:
@@ -125,7 +125,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: app-release.apk
+          files: app-production-release.apk
 
   notify:
     needs: build
