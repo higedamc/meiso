@@ -48,6 +48,12 @@ mixin _$AppSettings {
   /// 最後に見ていたカスタムリストID
   String? get lastViewedCustomListId => throw _privateConstructorUsedError;
 
+  /// タスクUIモード（既定: Reminders）
+  TaskUiMode get taskUiMode => throw _privateConstructorUsedError;
+
+  /// 実験機能フラグ（feature_id -> enabled）
+  Map<String, bool> get featureFlags => throw _privateConstructorUsedError;
+
   /// 最終更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -78,6 +84,8 @@ abstract class $AppSettingsCopyWith<$Res> {
     String proxyUrl,
     List<String> customListOrder,
     String? lastViewedCustomListId,
+    TaskUiMode taskUiMode,
+    Map<String, bool> featureFlags,
     DateTime updatedAt,
   });
 }
@@ -106,6 +114,8 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? proxyUrl = null,
     Object? customListOrder = null,
     Object? lastViewedCustomListId = freezed,
+    Object? taskUiMode = null,
+    Object? featureFlags = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -146,6 +156,14 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
                 ? _value.lastViewedCustomListId
                 : lastViewedCustomListId // ignore: cast_nullable_to_non_nullable
                       as String?,
+            taskUiMode: null == taskUiMode
+                ? _value.taskUiMode
+                : taskUiMode // ignore: cast_nullable_to_non_nullable
+                      as TaskUiMode,
+            featureFlags: null == featureFlags
+                ? _value.featureFlags
+                : featureFlags // ignore: cast_nullable_to_non_nullable
+                      as Map<String, bool>,
             updatedAt: null == updatedAt
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -175,6 +193,8 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     String proxyUrl,
     List<String> customListOrder,
     String? lastViewedCustomListId,
+    TaskUiMode taskUiMode,
+    Map<String, bool> featureFlags,
     DateTime updatedAt,
   });
 }
@@ -202,6 +222,8 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? proxyUrl = null,
     Object? customListOrder = null,
     Object? lastViewedCustomListId = freezed,
+    Object? taskUiMode = null,
+    Object? featureFlags = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -242,6 +264,14 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             ? _value.lastViewedCustomListId
             : lastViewedCustomListId // ignore: cast_nullable_to_non_nullable
                   as String?,
+        taskUiMode: null == taskUiMode
+            ? _value.taskUiMode
+            : taskUiMode // ignore: cast_nullable_to_non_nullable
+                  as TaskUiMode,
+        featureFlags: null == featureFlags
+            ? _value.featureFlags
+            : featureFlags // ignore: cast_nullable_to_non_nullable
+                  as Map<String, bool>,
         updatedAt: null == updatedAt
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -264,6 +294,8 @@ class _$AppSettingsImpl implements _AppSettings {
     this.proxyUrl = 'socks5://127.0.0.1:9050',
     this.customListOrder = const [],
     this.lastViewedCustomListId,
+    this.taskUiMode = TaskUiMode.reminders,
+    this.featureFlags = const <String, bool>{},
     required this.updatedAt,
   });
 
@@ -314,13 +346,23 @@ class _$AppSettingsImpl implements _AppSettings {
   @override
   final String? lastViewedCustomListId;
 
+  /// タスクUIモード（既定: Reminders）
+  @override
+  @JsonKey()
+  final TaskUiMode taskUiMode;
+
+  /// 実験機能フラグ（feature_id -> enabled）
+  @override
+  @JsonKey()
+  final Map<String, bool> featureFlags;
+
   /// 最終更新日時
   @override
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, taskUiMode: $taskUiMode, featureFlags: $featureFlags, updatedAt: $updatedAt)';
   }
 
   @override
@@ -346,6 +388,12 @@ class _$AppSettingsImpl implements _AppSettings {
             ) &&
             (identical(other.lastViewedCustomListId, lastViewedCustomListId) ||
                 other.lastViewedCustomListId == lastViewedCustomListId) &&
+            (identical(other.taskUiMode, taskUiMode) ||
+                other.taskUiMode == taskUiMode) &&
+            const DeepCollectionEquality().equals(
+              other.featureFlags,
+              featureFlags,
+            ) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt));
   }
@@ -363,6 +411,8 @@ class _$AppSettingsImpl implements _AppSettings {
     proxyUrl,
     const DeepCollectionEquality().hash(customListOrder),
     lastViewedCustomListId,
+    taskUiMode,
+    const DeepCollectionEquality().hash(featureFlags),
     updatedAt,
   );
 
@@ -391,6 +441,8 @@ abstract class _AppSettings implements AppSettings {
     final String proxyUrl,
     final List<String> customListOrder,
     final String? lastViewedCustomListId,
+    final TaskUiMode taskUiMode,
+    final Map<String, bool> featureFlags,
     required final DateTime updatedAt,
   }) = _$AppSettingsImpl;
 
@@ -432,6 +484,14 @@ abstract class _AppSettings implements AppSettings {
   /// 最後に見ていたカスタムリストID
   @override
   String? get lastViewedCustomListId;
+
+  /// タスクUIモード（既定: Reminders）
+  @override
+  TaskUiMode get taskUiMode;
+
+  /// 実験機能フラグ（feature_id -> enabled）
+  @override
+  Map<String, bool> get featureFlags;
 
   /// 最終更新日時
   @override

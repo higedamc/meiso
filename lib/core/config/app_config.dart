@@ -1,6 +1,22 @@
+enum BuildChannel {
+  beta,
+  release,
+}
+
 /// アプリケーション全体の設定
 class AppConfig {
   const AppConfig._();
+
+  /// ビルドチャネル（--dart-define=BUILD_CHANNEL=beta|release で上書き）
+  static const String _buildChannelRaw = String.fromEnvironment(
+    'BUILD_CHANNEL',
+    defaultValue: 'release',
+  );
+  static const BuildChannel buildChannel = _buildChannelRaw == 'beta'
+      ? BuildChannel.beta
+      : BuildChannel.release;
+  static const bool isBetaChannel = buildChannel == BuildChannel.beta;
+  static const bool isReleaseChannel = buildChannel == BuildChannel.release;
 
   /// アプリ名
   static const String appName = 'Meiso';

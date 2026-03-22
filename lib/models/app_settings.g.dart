@@ -27,6 +27,14 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
               .toList() ??
           const [],
       lastViewedCustomListId: json['lastViewedCustomListId'] as String?,
+      taskUiMode:
+          $enumDecodeNullable(_$TaskUiModeEnumMap, json['taskUiMode']) ??
+          TaskUiMode.reminders,
+      featureFlags:
+          (json['featureFlags'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, e as bool),
+          ) ??
+          const <String, bool>{},
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
 
@@ -41,6 +49,8 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'proxyUrl': instance.proxyUrl,
       'customListOrder': instance.customListOrder,
       'lastViewedCustomListId': instance.lastViewedCustomListId,
+      'taskUiMode': _$TaskUiModeEnumMap[instance.taskUiMode]!,
+      'featureFlags': instance.featureFlags,
       'updatedAt': instance.updatedAt.toIso8601String(),
     };
 
@@ -48,4 +58,11 @@ const _$TorModeEnumMap = {
   TorMode.disabled: 'disabled',
   TorMode.internal: 'internal',
   TorMode.orbot: 'orbot',
+};
+
+const _$TaskUiModeEnumMap = {
+  TaskUiMode.reminders: 'reminders',
+  TaskUiMode.asana: 'asana',
+  TaskUiMode.wunderlist: 'wunderlist',
+  TaskUiMode.kanban: 'kanban',
 };

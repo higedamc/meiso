@@ -7,7 +7,12 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 import 'package:meiso/l10n/app_localizations.dart';
+import 'package:meiso/core/config/app_config.dart';
 import '../../app_theme.dart';
+import '../../features/feature_gate/feature_gate_service.dart';
+import '../../features/feature_gate/feature_id.dart';
+import '../../models/app_settings.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/todos_provider.dart';
@@ -27,6 +32,13 @@ class SettingsScreen extends ConsumerWidget {
     final publicKeyNpubAsync = ref.watch(publicKeyNpubProvider);
     final isAmberMode = ref.watch(isAmberModeProvider);
     final relayStatuses = ref.watch(relayStatusProvider);
+    final appSettingsAsync = ref.watch(appSettingsProvider);
+    final appSettings = appSettingsAsync.valueOrNull;
+    final gate = ref.watch(featureGateServiceProvider);
+    final canShowExperimental = AppConfig.isBetaChannel && appSettings != null;
+    final activeTaskMode = appSettings == null
+        ? TaskUiMode.reminders
+        : gate.resolveActiveMode(appSettings);
 
     // 接続中のリレー数をカウント
     final connectedRelaysCount = relayStatuses.values
@@ -266,6 +278,69 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle: l10n.mlsGroupBackupSubtitle,
                     onTap: () => showMlsBackupDialog(context, ref),
                   ),
+                  if (canShowExperimental) const Divider(height: 1),
+                  if (canShowExperimental)
+                    ListTile(
+                      leading: const Icon(Icons.science, color: Colors.deepOrange),
+                      title: const Text('Experimental Features (Beta)'),
+                      subtitle: Text(
+                        'Active mode: ${_modeLabel(activeTaskMode)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  if (canShowExperimental)
+                    _buildExperimentalToggleTile(
+                      context,
+                      ref: ref,
+                      settings: appSettings,
+                      gate: gate,
+                      featureId: FeatureId.asanaMode,
+                      title: 'Enable Asana Mode',
+                      subtitle: 'Unlock Asana-like interaction mode.',
+                    ),
+                  if (canShowExperimental)
+                    _buildExperimentalToggleTile(
+                      context,
+                      ref: ref,
+                      settings: appSettings,
+                      gate: gate,
+                      featureId: FeatureId.wunderlistMode,
+                      title: 'Enable Wunderlist Mode',
+                      subtitle: 'Unlock Wunderlist-like interaction mode.',
+                    ),
+                  if (canShowExperimental)
+                    _buildExperimentalToggleTile(
+                      context,
+                      ref: ref,
+                      settings: appSettings,
+                      gate: gate,
+                      featureId: FeatureId.kanbanMode,
+                      title: 'Enable Kanban Mode',
+                      subtitle: 'Unlock Kanban-like interaction mode.',
+                    ),
+                  if (canShowExperimental)
+                    _buildExperimentalToggleTile(
+                      context,
+                      ref: ref,
+                      settings: appSettings,
+                      gate: gate,
+                      featureId: FeatureId.taskLinking,
+                      title: 'Enable Task Linking',
+                      subtitle: 'Asana mode only. Adds linked task controls.',
+                    ),
+                  if (canShowExperimental)
+                    ListTile(
+                      leading: const Icon(Icons.swap_horiz, color: AppTheme.primaryPurple),
+                      title: const Text('Task UI Mode'),
+                      subtitle: Text(_modeLabel(activeTaskMode)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _showTaskModeDialog(
+                        context,
+                        ref: ref,
+                        settings: appSettings,
+                        gate: gate,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -324,6 +399,74 @@ class SettingsScreen extends ConsumerWidget {
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: onTap,
     );
+  }
+
+  Widget _buildExperimentalToggleTile(
+    BuildContext context, {
+    required WidgetRef ref,
+    required AppSettings settings,
+    required FeatureGateService gate,
+    required FeatureId featureId,
+    required String title,
+    required String subtitle,
+  }) {
+    final isEnabled = gate.isFeatureEnabled(settings, featureId);
+    return SwitchListTile(
+      dense: true,
+      title: Text(title),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      value: isEnabled,
+      onChanged: (value) async {
+        await ref.read(appSettingsProvider.notifier).setFeatureFlag(
+              featureId.key,
+              value,
+            );
+      },
+      secondary: const Icon(Icons.tune, color: AppTheme.primaryPurple),
+    );
+  }
+
+  String _modeLabel(TaskUiMode mode) {
+    switch (mode) {
+      case TaskUiMode.asana:
+        return 'Asana';
+      case TaskUiMode.wunderlist:
+        return 'Wunderlist';
+      case TaskUiMode.kanban:
+        return 'Kanban';
+      case TaskUiMode.reminders:
+        return 'Reminders';
+    }
+  }
+
+  Future<void> _showTaskModeDialog(
+    BuildContext context, {
+    required WidgetRef ref,
+    required AppSettings settings,
+    required FeatureGateService gate,
+  }) async {
+    final options = gate.availableModes(settings);
+    final selected = await showDialog<TaskUiMode>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Task UI Mode'),
+        children: options
+            .map(
+              (mode) => RadioListTile<TaskUiMode>(
+                value: mode,
+                groupValue: gate.resolveActiveMode(settings),
+                onChanged: (value) => Navigator.of(ctx).pop(value),
+                title: Text(_modeLabel(mode)),
+                dense: true,
+              ),
+            )
+            .toList(),
+      ),
+    );
+
+    if (selected != null && selected != settings.taskUiMode) {
+      await ref.read(appSettingsProvider.notifier).setTaskUiMode(selected);
+    }
   }
 
   /// Key Package公開
