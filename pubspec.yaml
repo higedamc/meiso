@@ -81,6 +81,11 @@ dependencies:
   
   # Logging
   talker_flutter: ^4.6.1
+  
+  # Image
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:

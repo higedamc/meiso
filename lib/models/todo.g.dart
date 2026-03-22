@@ -40,6 +40,7 @@ _$TodoImpl _$$TodoImplFromJson(Map<String, dynamic> json) => _$TodoImpl(
           ?.map((e) => TaskLink.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const [],
+  imageUrl: json['imageUrl'] as String?,
 );
 
 Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
@@ -65,4 +66,5 @@ Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
       'parentTaskId': instance.parentTaskId,
       'depth': instance.depth,
       'taskLinks': instance.taskLinks.map((e) => e.toJson()).toList(),
+      'imageUrl': instance.imageUrl,
     };

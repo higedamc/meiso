@@ -41,6 +41,9 @@ class Todo with _$Todo {
 
     /// タスクリンク（blocks, blocked_by, related_to, duplicate_of）
     @Default([]) List<TaskLink> taskLinks,
+
+    /// 添付画像のURL（Blossom/NIP-96経由でアップロード済み）
+    String? imageUrl,
   }) = _Todo;
 
   factory Todo.fromJson(Map<String, dynamic> json) => _$TodoFromJson(json);

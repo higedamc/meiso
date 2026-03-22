@@ -943,6 +943,56 @@ Future<String> fetchKeyPackageByNpub({required String npub}) =>
 Future<String> fetchKeyPackageByNpubWithClientId({required String npub, String? clientId}) =>
     RustLib.instance.api.crateApiFetchKeyPackageByNpubWithClientId(npub: npub, clientId: clientId);
 
+/// Kind 10063 (BUD-03 / NIP-B7) からBlossomサーバーリストを取得
+Future<List<String>> fetchBlossomServerList() => RustLib.instance.api.crateApiFetchBlossomServerList();
+
+Future<List<String>> fetchBlossomServerListWithClientId({String? clientId}) =>
+    RustLib.instance.api.crateApiFetchBlossomServerListWithClientId(clientId: clientId);
+
+/// Kind 24242 Blossom auth event を作成・署名して返す（秘密鍵モード）
+///
+/// Amber モードでは `create_unsigned_blossom_auth_event` で未署名JSONを取得し、
+/// Amber 側で署名後に base64 エンコードして Authorization ヘッダーに使用する。
+Future<String> signBlossomAuthEvent({required String sha256Hex, required PlatformInt64 fileSize}) =>
+    RustLib.instance.api.crateApiSignBlossomAuthEvent(sha256Hex: sha256Hex, fileSize: fileSize);
+
+Future<String> signBlossomAuthEventWithClientId({
+  required String sha256Hex,
+  required PlatformInt64 fileSize,
+  String? clientId,
+}) => RustLib.instance.api.crateApiSignBlossomAuthEventWithClientId(
+  sha256Hex: sha256Hex,
+  fileSize: fileSize,
+  clientId: clientId,
+);
+
+/// Kind 24242 未署名イベントを作成（Amber 署名用）
+Future<String> createUnsignedBlossomAuthEvent({
+  required String sha256Hex,
+  required PlatformInt64 fileSize,
+  required String publicKeyHex,
+}) => RustLib.instance.api.crateApiCreateUnsignedBlossomAuthEvent(
+  sha256Hex: sha256Hex,
+  fileSize: fileSize,
+  publicKeyHex: publicKeyHex,
+);
+
+/// Kind 27235 NIP-98 HTTP auth event を作成・署名して返す（秘密鍵モード）
+///
+/// Amber モードでは `create_unsigned_nip98_auth_event` で未署名JSONを取得する。
+Future<String> signNip98AuthEvent({required String url, required String method}) =>
+    RustLib.instance.api.crateApiSignNip98AuthEvent(url: url, method: method);
+
+Future<String> signNip98AuthEventWithClientId({required String url, required String method, String? clientId}) =>
+    RustLib.instance.api.crateApiSignNip98AuthEventWithClientId(url: url, method: method, clientId: clientId);
+
+/// Kind 27235 未署名イベントを作成（Amber 署名用）
+Future<String> createUnsignedNip98AuthEvent({
+  required String url,
+  required String method,
+  required String publicKeyHex,
+}) => RustLib.instance.api.crateApiCreateUnsignedNip98AuthEvent(url: url, method: method, publicKeyHex: publicKeyHex);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MeisoNostrClient>>
 abstract class MeisoNostrClient implements RustOpaqueInterface {
   /// アプリ設定をNostrイベントとして作成（Kind 30078 - NIP-78）

@@ -4686,3 +4686,220 @@ pub fn fetch_key_package_by_npub_with_client_id(
     })
 }
 
+// ========================================
+// Blossom / NIP-96 メディアアップロード API
+// ========================================
+
+/// Kind 10063 (BUD-03 / NIP-B7) からBlossomサーバーリストを取得
+pub fn fetch_blossom_server_list() -> Result<Vec<String>> {
+    fetch_blossom_server_list_with_client_id(None)
+}
+
+pub fn fetch_blossom_server_list_with_client_id(
+    client_id: Option<String>,
+) -> Result<Vec<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let public_key_hex = client.public_key_hex();
+        let public_key = PublicKey::from_hex(&public_key_hex)
+            .context("Failed to parse public key")?;
+
+        let filter = Filter::new()
+            .kind(Kind::Custom(10063))
+            .author(public_key);
+
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        let mut server_urls = Vec::new();
+        if let Some(event) = events.first() {
+            for tag in event.tags.iter() {
+                let tag_vec = tag.clone().to_vec();
+                if tag_vec.len() >= 2 && tag_vec[0] == "server" {
+                    server_urls.push(tag_vec[1].clone());
+                }
+            }
+            println!(
+                "📥 [Blossom] Fetched {} servers from Kind 10063",
+                server_urls.len()
+            );
+        } else {
+            println!("⚠️ [Blossom] No Kind 10063 event found for user");
+        }
+
+        Ok(server_urls)
+    })
+}
+
+/// Kind 24242 Blossom auth event を作成・署名して返す（秘密鍵モード）
+///
+/// Amber モードでは `create_unsigned_blossom_auth_event` で未署名JSONを取得し、
+/// Amber 側で署名後に base64 エンコードして Authorization ヘッダーに使用する。
+pub fn sign_blossom_auth_event(
+    sha256_hex: String,
+    file_size: i64,
+) -> Result<String> {
+    sign_blossom_auth_event_with_client_id(sha256_hex, file_size, None)
+}
+
+pub fn sign_blossom_auth_event_with_client_id(
+    sha256_hex: String,
+    file_size: i64,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .as_ref()
+            .context("Secret key required for Blossom auth signing")?;
+
+        let expiration = Timestamp::now().as_u64() + 600; // 10 min
+        let size_str = file_size.to_string();
+        let exp_str = expiration.to_string();
+
+        let tags = vec![
+            Tag::parse(["t", "upload"])
+                .map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
+            Tag::parse(["x", sha256_hex.as_str()])
+                .map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
+            Tag::parse(["size", size_str.as_str()])
+                .map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
+            Tag::parse(["expiration", exp_str.as_str()])
+                .map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
+        ];
+
+        let event = EventBuilder::new(Kind::Custom(24242), "Upload")
+            .tags(tags)
+            .sign(keys)
+            .await
+            .context("Failed to sign Blossom auth event")?;
+
+        let signed_json = event.as_json();
+        println!(
+            "✅ [Blossom] Signed Kind 24242 auth event: {}",
+            event.id.to_hex()
+        );
+        Ok(signed_json)
+    })
+}
+
+/// Kind 24242 未署名イベントを作成（Amber 署名用）
+pub fn create_unsigned_blossom_auth_event(
+    sha256_hex: String,
+    file_size: i64,
+    public_key_hex: String,
+) -> Result<String> {
+    use serde_json::json;
+
+    let public_key =
+        PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let expiration = created_at + 600;
+
+    let tags = vec![
+        vec!["t".to_string(), "upload".to_string()],
+        vec!["x".to_string(), sha256_hex],
+        vec!["size".to_string(), file_size.to_string()],
+        vec!["expiration".to_string(), expiration.to_string()],
+    ];
+
+    let unsigned_event = json!({
+        "pubkey": public_key.to_hex(),
+        "created_at": created_at,
+        "kind": 24242,
+        "tags": tags,
+        "content": "Upload",
+    });
+
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    println!("📝 [Blossom] Created unsigned Kind 24242 auth event for Amber signing");
+    Ok(event_json)
+}
+
+/// Kind 27235 NIP-98 HTTP auth event を作成・署名して返す（秘密鍵モード）
+///
+/// Amber モードでは `create_unsigned_nip98_auth_event` で未署名JSONを取得する。
+pub fn sign_nip98_auth_event(
+    url: String,
+    method: String,
+) -> Result<String> {
+    sign_nip98_auth_event_with_client_id(url, method, None)
+}
+
+pub fn sign_nip98_auth_event_with_client_id(
+    url: String,
+    method: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .as_ref()
+            .context("Secret key required for NIP-98 auth signing")?;
+
+        let method_upper = method.to_uppercase();
+        let tags = vec![
+            Tag::parse(["u", url.as_str()])
+                .map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
+            Tag::parse(["method", method_upper.as_str()])
+                .map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
+        ];
+
+        let event = EventBuilder::new(Kind::Custom(27235), "")
+            .tags(tags)
+            .sign(keys)
+            .await
+            .context("Failed to sign NIP-98 auth event")?;
+
+        let signed_json = event.as_json();
+        println!(
+            "✅ [NIP-98] Signed Kind 27235 auth event: {}",
+            event.id.to_hex()
+        );
+        Ok(signed_json)
+    })
+}
+
+/// Kind 27235 未署名イベントを作成（Amber 署名用）
+pub fn create_unsigned_nip98_auth_event(
+    url: String,
+    method: String,
+    public_key_hex: String,
+) -> Result<String> {
+    use serde_json::json;
+
+    let public_key =
+        PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let tags = vec![
+        vec!["u".to_string(), url],
+        vec!["method".to_string(), method.to_uppercase()],
+    ];
+
+    let unsigned_event = json!({
+        "pubkey": public_key.to_hex(),
+        "created_at": created_at,
+        "kind": 27235,
+        "tags": tags,
+        "content": "",
+    });
+
+    let event_json = serde_json::to_string(&unsigned_event)?;
+    println!("📝 [NIP-98] Created unsigned Kind 27235 auth event for Amber signing");
+    Ok(event_json)
+}
+

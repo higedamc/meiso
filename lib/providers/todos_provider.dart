@@ -1368,6 +1368,36 @@ class TodosNotifier
     }).value;
   }
 
+  /// Todoの添付画像URLを更新（楽観的UI更新）
+  Future<void> updateTodoImageUrl(
+    String id,
+    DateTime? date,
+    String? imageUrl,
+  ) async {
+    await state.whenData((todos) async {
+      final list = List<Todo>.from(todos[date] ?? []);
+      final index = list.indexWhere((t) => t.id == id);
+
+      if (index != -1) {
+        list[index] = list[index].copyWith(
+          imageUrl: imageUrl,
+          updatedAt: DateTime.now(),
+          needsSync: true,
+        );
+
+        state = AsyncValue.data({
+          ...todos,
+          date: list,
+        });
+
+        await _saveAllTodosToLocal();
+        await _updateWidget();
+        _updateUnsyncedCount();
+        _syncToNostrBackground();
+      }
+    }).value;
+  }
+
   /// Todoのタイトルと繰り返しパターンを更新（楽観的UI更新）
   Future<void> updateTodoWithRecurrence(
     String id,

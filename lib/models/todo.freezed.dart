@@ -50,6 +50,9 @@ mixin _$Todo {
   /// タスクリンク（blocks, blocked_by, related_to, duplicate_of）
   List<TaskLink> get taskLinks => throw _privateConstructorUsedError;
 
+  /// 添付画像のURL（Blossom/NIP-96経由でアップロード済み）
+  String? get imageUrl => throw _privateConstructorUsedError;
+
   /// Serializes this Todo to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -86,6 +89,7 @@ abstract class $TodoCopyWith<$Res> {
     String? parentTaskId,
     int depth,
     List<TaskLink> taskLinks,
+    String? imageUrl,
   });
 
   $LinkPreviewCopyWith<$Res>? get linkPreview;
@@ -128,6 +132,7 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
     Object? parentTaskId = freezed,
     Object? depth = null,
     Object? taskLinks = null,
+    Object? imageUrl = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -215,6 +220,10 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
                 ? _value.taskLinks
                 : taskLinks // ignore: cast_nullable_to_non_nullable
                       as List<TaskLink>,
+            imageUrl: freezed == imageUrl
+                ? _value.imageUrl
+                : imageUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -279,6 +288,7 @@ abstract class _$$TodoImplCopyWith<$Res> implements $TodoCopyWith<$Res> {
     String? parentTaskId,
     int depth,
     List<TaskLink> taskLinks,
+    String? imageUrl,
   });
 
   @override
@@ -320,6 +330,7 @@ class __$$TodoImplCopyWithImpl<$Res>
     Object? parentTaskId = freezed,
     Object? depth = null,
     Object? taskLinks = null,
+    Object? imageUrl = freezed,
   }) {
     return _then(
       _$TodoImpl(
@@ -407,6 +418,10 @@ class __$$TodoImplCopyWithImpl<$Res>
             ? _value.taskLinks
             : taskLinks // ignore: cast_nullable_to_non_nullable
                   as List<TaskLink>,
+        imageUrl: freezed == imageUrl
+            ? _value.imageUrl
+            : imageUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -437,6 +452,7 @@ class _$TodoImpl implements _Todo {
     this.parentTaskId,
     this.depth = 0,
     this.taskLinks = const [],
+    this.imageUrl,
   });
 
   factory _$TodoImpl.fromJson(Map<String, dynamic> json) =>
@@ -499,9 +515,13 @@ class _$TodoImpl implements _Todo {
   @JsonKey()
   final List<TaskLink> taskLinks;
 
+  /// 添付画像のURL（Blossom/NIP-96経由でアップロード済み）
+  @override
+  final String? imageUrl;
+
   @override
   String toString() {
-    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, localOpId: $localOpId, localRelaySyncedAt: $localRelaySyncedAt, globalRelaySyncedAt: $globalRelaySyncedAt, globalSyncPending: $globalSyncPending, globalSyncFailed: $globalSyncFailed, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync, parentTaskId: $parentTaskId, depth: $depth, taskLinks: $taskLinks)';
+    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, localOpId: $localOpId, localRelaySyncedAt: $localRelaySyncedAt, globalRelaySyncedAt: $globalRelaySyncedAt, globalSyncPending: $globalSyncPending, globalSyncFailed: $globalSyncFailed, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync, parentTaskId: $parentTaskId, depth: $depth, taskLinks: $taskLinks, imageUrl: $imageUrl)';
   }
 
   @override
@@ -543,7 +563,9 @@ class _$TodoImpl implements _Todo {
             (identical(other.parentTaskId, parentTaskId) ||
                 other.parentTaskId == parentTaskId) &&
             (identical(other.depth, depth) || other.depth == depth) &&
-            const DeepCollectionEquality().equals(other.taskLinks, taskLinks));
+            const DeepCollectionEquality().equals(other.taskLinks, taskLinks) &&
+            (identical(other.imageUrl, imageUrl) ||
+                other.imageUrl == imageUrl));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -571,6 +593,7 @@ class _$TodoImpl implements _Todo {
     parentTaskId,
     depth,
     const DeepCollectionEquality().hash(taskLinks),
+    imageUrl,
   ]);
 
   /// Create a copy of Todo
@@ -610,6 +633,7 @@ abstract class _Todo implements Todo {
     final String? parentTaskId,
     final int depth,
     final List<TaskLink> taskLinks,
+    final String? imageUrl,
   }) = _$TodoImpl;
 
   factory _Todo.fromJson(Map<String, dynamic> json) = _$TodoImpl.fromJson;
@@ -663,6 +687,10 @@ abstract class _Todo implements Todo {
   /// タスクリンク（blocks, blocked_by, related_to, duplicate_of）
   @override
   List<TaskLink> get taskLinks;
+
+  /// 添付画像のURL（Blossom/NIP-96経由でアップロード済み）
+  @override
+  String? get imageUrl;
 
   /// Create a copy of Todo
   /// with the given fields replaced by the non-null parameter values.

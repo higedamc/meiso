@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -622713055;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -323071029;
 
 // Section: executor
 
@@ -1188,6 +1188,47 @@ fn wire__crate__api__create_todo_list_with_client_id_impl(
         },
     )
 }
+fn wire__crate__api__create_unsigned_blossom_auth_event_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "create_unsigned_blossom_auth_event",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_sha256_hex = <String>::sse_decode(&mut deserializer);
+            let api_file_size = <i64>::sse_decode(&mut deserializer);
+            let api_public_key_hex = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::create_unsigned_blossom_auth_event(
+                            api_sha256_hex,
+                            api_file_size,
+                            api_public_key_hex,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__create_unsigned_encrypted_app_settings_event_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1473,6 +1514,47 @@ fn wire__crate__api__create_unsigned_key_package_event_impl(
                             api_key_package_result,
                             api_public_key_hex,
                             api_relays,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__create_unsigned_nip98_auth_event_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "create_unsigned_nip98_auth_event",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_url = <String>::sse_decode(&mut deserializer);
+            let api_method = <String>::sse_decode(&mut deserializer);
+            let api_public_key_hex = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::create_unsigned_nip98_auth_event(
+                            api_url,
+                            api_method,
+                            api_public_key_hex,
                         )?;
                         Ok(output_ok)
                     })(),
@@ -2081,6 +2163,76 @@ fn wire__crate__api__fetch_all_todo_list_metadata_with_client_id_impl(
                     (move || {
                         let output_ok =
                             crate::api::fetch_all_todo_list_metadata_with_client_id(api_client_id)?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__fetch_blossom_server_list_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_blossom_server_list",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::fetch_blossom_server_list()?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__fetch_blossom_server_list_with_client_id_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_blossom_server_list_with_client_id",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_client_id = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok =
+                            crate::api::fetch_blossom_server_list_with_client_id(api_client_id)?;
                         Ok(output_ok)
                     })(),
                 )
@@ -4598,6 +4750,84 @@ fn wire__crate__api__send_signed_event_with_client_id_impl(
         },
     )
 }
+fn wire__crate__api__sign_blossom_auth_event_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "sign_blossom_auth_event",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_sha256_hex = <String>::sse_decode(&mut deserializer);
+            let api_file_size = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok =
+                            crate::api::sign_blossom_auth_event(api_sha256_hex, api_file_size)?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__sign_blossom_auth_event_with_client_id_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "sign_blossom_auth_event_with_client_id",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_sha256_hex = <String>::sse_decode(&mut deserializer);
+            let api_file_size = <i64>::sse_decode(&mut deserializer);
+            let api_client_id = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::sign_blossom_auth_event_with_client_id(
+                            api_sha256_hex,
+                            api_file_size,
+                            api_client_id,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__sign_event_with_ephemeral_key_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -4627,6 +4857,83 @@ fn wire__crate__api__sign_event_with_ephemeral_key_impl(
                     (move || {
                         let output_ok =
                             crate::api::sign_event_with_ephemeral_key(api_unsigned_event_json)?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__sign_nip98_auth_event_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "sign_nip98_auth_event",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_url = <String>::sse_decode(&mut deserializer);
+            let api_method = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::sign_nip98_auth_event(api_url, api_method)?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__sign_nip98_auth_event_with_client_id_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "sign_nip98_auth_event_with_client_id",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_url = <String>::sse_decode(&mut deserializer);
+            let api_method = <String>::sse_decode(&mut deserializer);
+            let api_client_id = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::sign_nip98_auth_event_with_client_id(
+                            api_url,
+                            api_method,
+                            api_client_id,
+                        )?;
                         Ok(output_ok)
                     })(),
                 )
@@ -6147,89 +6454,101 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__create_unsigned_encrypted_app_settings_event_impl(
+        25 => wire__crate__api__create_unsigned_blossom_auth_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__create_unsigned_encrypted_todo_event_impl(
+        26 => wire__crate__api__create_unsigned_encrypted_app_settings_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__create_unsigned_encrypted_todo_list_event_impl(
+        27 => wire__crate__api__create_unsigned_encrypted_todo_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__create_unsigned_encrypted_todo_list_event_with_list_id_impl(
+        28 => wire__crate__api__create_unsigned_encrypted_todo_list_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__create_unsigned_group_invitation_event_impl(
+        29 => wire__crate__api__create_unsigned_encrypted_todo_list_event_with_list_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__create_unsigned_group_task_list_event_impl(
+        30 => wire__crate__api__create_unsigned_group_invitation_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__create_unsigned_key_package_event_impl(
+        31 => wire__crate__api__create_unsigned_group_task_list_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__create_unsigned_relay_list_event_impl(
+        32 => wire__crate__api__create_unsigned_key_package_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__crate__api__decrypt_group_data_with_aes_key_impl(
+        33 => wire__crate__api__create_unsigned_nip98_auth_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__decrypt_group_task_list_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__delete_events_impl(port, ptr, rust_vec_len, data_len),
-        36 => {
+        34 => wire__crate__api__create_unsigned_relay_list_event_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        35 => wire__crate__api__decrypt_group_data_with_aes_key_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        36 => wire__crate__api__decrypt_group_task_list_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__delete_events_impl(port, ptr, rust_vec_len, data_len),
+        38 => {
             wire__crate__api__delete_events_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        37 => wire__crate__api__delete_stored_keys_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__encrypt_group_data_with_aes_key_impl(
+        39 => wire__crate__api__delete_stored_keys_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__encrypt_group_data_with_aes_key_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__encrypt_group_task_list_impl(port, ptr, rust_vec_len, data_len),
-        40 => {
+        41 => wire__crate__api__encrypt_group_task_list_impl(port, ptr, rust_vec_len, data_len),
+        42 => {
             wire__crate__api__export_mls_database_as_base64_impl(port, ptr, rust_vec_len, data_len)
         }
-        41 => wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_impl(
+        43 => wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_since_impl(
+        44 => wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_since_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => {
+        45 => {
             wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id_impl(
                 port,
                 ptr,
@@ -6237,318 +6556,341 @@ fn pde_ffi_dispatcher_primary_impl(
                 data_len,
             )
         }
-        44 => wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_with_client_id_impl(
+        46 => wire__crate__api__fetch_all_encrypted_todo_lists_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__crate__api__fetch_all_encrypted_todo_lists_subscribe_since_with_client_id_impl(
+        47 => wire__crate__api__fetch_all_encrypted_todo_lists_subscribe_since_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__fetch_all_encrypted_todo_lists_subscribe_with_client_id_impl(
+        48 => wire__crate__api__fetch_all_encrypted_todo_lists_subscribe_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => {
+        49 => {
             wire__crate__api__fetch_all_todo_list_metadata_impl(port, ptr, rust_vec_len, data_len)
         }
-        48 => wire__crate__api__fetch_all_todo_list_metadata_with_client_id_impl(
+        50 => wire__crate__api__fetch_all_todo_list_metadata_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__crate__api__fetch_deletion_events_for_pubkey_impl(
+        51 => wire__crate__api__fetch_blossom_server_list_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__fetch_blossom_server_list_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__crate__api__fetch_deletion_events_for_pubkey_with_client_id_impl(
+        53 => wire__crate__api__fetch_deletion_events_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_impl(
+        54 => wire__crate__api__fetch_deletion_events_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_with_client_id_impl(
+        55 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__fetch_encrypted_group_task_lists_for_pubkey_impl(
+        56 => wire__crate__api__fetch_encrypted_app_settings_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__crate__api__fetch_encrypted_group_task_lists_for_pubkey_with_client_id_impl(
+        57 => wire__crate__api__fetch_encrypted_group_task_lists_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_impl(
+        58 => wire__crate__api__fetch_encrypted_group_task_lists_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_with_client_id_impl(
+        59 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => wire__crate__api__fetch_encrypted_todos_for_pubkey_impl(
+        60 => wire__crate__api__fetch_encrypted_todo_list_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__crate__api__fetch_encrypted_todos_for_pubkey_with_client_id_impl(
+        61 => wire__crate__api__fetch_encrypted_todos_for_pubkey_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__fetch_key_package_by_npub_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__fetch_key_package_by_npub_with_client_id_impl(
+        62 => wire__crate__api__fetch_encrypted_todos_for_pubkey_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        61 => wire__crate__api__fetch_mls_group_events_by_group_id_impl(
+        63 => wire__crate__api__fetch_key_package_by_npub_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__fetch_key_package_by_npub_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__fetch_mls_group_events_by_group_id_with_client_id_impl(
+        65 => wire__crate__api__fetch_mls_group_events_by_group_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        63 => wire__crate__api__fetch_mls_group_todo_events_since_impl(
+        66 => wire__crate__api__fetch_mls_group_events_by_group_id_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__crate__api__fetch_mls_group_todo_events_since_with_client_id_impl(
+        67 => wire__crate__api__fetch_mls_group_todo_events_since_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__crate__api__fetch_my_group_task_lists_impl(port, ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__fetch_todo_list_names_only_impl(port, ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__fetch_todo_list_names_only_with_client_id_impl(
+        68 => wire__crate__api__fetch_mls_group_todo_events_since_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__crate__api__find_personal_list_event_id_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__find_personal_list_event_id_with_client_id_impl(
+        69 => wire__crate__api__fetch_my_group_task_lists_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__fetch_todo_list_names_only_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__fetch_todo_list_names_only_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__crate__api__generate_keypair_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__generate_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__get_public_key_npub_impl(port, ptr, rust_vec_len, data_len),
-        73 => wire__crate__api__get_public_key_npub_with_client_id_impl(
+        72 => wire__crate__api__find_personal_list_event_id_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__find_personal_list_event_id_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        74 => wire__crate__api__has_encrypted_key_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__has_public_key_impl(port, ptr, rust_vec_len, data_len),
-        76 => wire__crate__api__hex_to_npub_impl(port, ptr, rust_vec_len, data_len),
-        77 => wire__crate__api__import_mls_database_from_base64_impl(
+        74 => wire__crate__api__generate_keypair_impl(port, ptr, rust_vec_len, data_len),
+        75 => wire__crate__api__generate_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__get_public_key_npub_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__get_public_key_npub_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        78 => wire__crate__api__init_nostr_client_impl(port, ptr, rust_vec_len, data_len),
-        79 => wire__crate__api__init_nostr_client_with_id_impl(port, ptr, rust_vec_len, data_len),
-        80 => {
+        78 => wire__crate__api__has_encrypted_key_impl(port, ptr, rust_vec_len, data_len),
+        79 => wire__crate__api__has_public_key_impl(port, ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__hex_to_npub_impl(port, ptr, rust_vec_len, data_len),
+        81 => wire__crate__api__import_mls_database_from_base64_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        82 => wire__crate__api__init_nostr_client_impl(port, ptr, rust_vec_len, data_len),
+        83 => wire__crate__api__init_nostr_client_with_id_impl(port, ptr, rust_vec_len, data_len),
+        84 => {
             wire__crate__api__init_nostr_client_with_proxy_impl(port, ptr, rust_vec_len, data_len)
         }
-        81 => {
+        85 => {
             wire__crate__api__init_nostr_client_with_pubkey_impl(port, ptr, rust_vec_len, data_len)
         }
-        82 => wire__crate__api__init_nostr_client_with_pubkey_and_id_impl(
+        86 => wire__crate__api__init_nostr_client_with_pubkey_and_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        83 => wire__crate__api__init_nostr_client_with_pubkey_and_proxy_impl(
+        87 => wire__crate__api__init_nostr_client_with_pubkey_and_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        84 => wire__crate__api__init_nostr_client_with_pubkey_and_tor_mode_impl(
+        88 => wire__crate__api__init_nostr_client_with_pubkey_and_tor_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        85 => wire__crate__api__init_nostr_client_with_tor_mode_impl(
+        89 => wire__crate__api__init_nostr_client_with_tor_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        86 => wire__crate__api__is_cache_valid_impl(port, ptr, rust_vec_len, data_len),
-        87 => wire__crate__api__load_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        88 => wire__crate__api__load_public_key_impl(port, ptr, rust_vec_len, data_len),
-        89 => wire__crate__api__mls_add_todo_impl(port, ptr, rust_vec_len, data_len),
-        90 => wire__crate__api__mls_create_key_package_impl(port, ptr, rust_vec_len, data_len),
-        91 => wire__crate__api__mls_create_todo_group_impl(port, ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__mls_decrypt_todo_impl(port, ptr, rust_vec_len, data_len),
-        93 => wire__crate__api__mls_encrypt_group_event_content_impl(
+        90 => wire__crate__api__is_cache_valid_impl(port, ptr, rust_vec_len, data_len),
+        91 => wire__crate__api__load_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        92 => wire__crate__api__load_public_key_impl(port, ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__mls_add_todo_impl(port, ptr, rust_vec_len, data_len),
+        94 => wire__crate__api__mls_create_key_package_impl(port, ptr, rust_vec_len, data_len),
+        95 => wire__crate__api__mls_create_todo_group_impl(port, ptr, rust_vec_len, data_len),
+        96 => wire__crate__api__mls_decrypt_todo_impl(port, ptr, rust_vec_len, data_len),
+        97 => wire__crate__api__mls_encrypt_group_event_content_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        94 => wire__crate__api__mls_get_group_info_impl(port, ptr, rust_vec_len, data_len),
-        95 => wire__crate__api__mls_get_listen_key_impl(port, ptr, rust_vec_len, data_len),
-        96 => wire__crate__api__mls_init_db_impl(port, ptr, rust_vec_len, data_len),
-        97 => wire__crate__api__mls_join_group_impl(port, ptr, rust_vec_len, data_len),
-        98 => wire__crate__api__npub_to_hex_impl(port, ptr, rust_vec_len, data_len),
-        99 => wire__crate__api__receive_subscription_events_impl(port, ptr, rust_vec_len, data_len),
-        100 => wire__crate__api__receive_subscription_events_with_client_id_impl(
+        98 => wire__crate__api__mls_get_group_info_impl(port, ptr, rust_vec_len, data_len),
+        99 => wire__crate__api__mls_get_listen_key_impl(port, ptr, rust_vec_len, data_len),
+        100 => wire__crate__api__mls_init_db_impl(port, ptr, rust_vec_len, data_len),
+        101 => wire__crate__api__mls_join_group_impl(port, ptr, rust_vec_len, data_len),
+        102 => wire__crate__api__npub_to_hex_impl(port, ptr, rust_vec_len, data_len),
+        103 => {
+            wire__crate__api__receive_subscription_events_impl(port, ptr, rust_vec_len, data_len)
+        }
+        104 => wire__crate__api__receive_subscription_events_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        101 => wire__crate__api__reconnect_to_relays_impl(port, ptr, rust_vec_len, data_len),
-        102 => wire__crate__api__reconnect_to_relays_with_client_id_impl(
+        105 => wire__crate__api__reconnect_to_relays_impl(port, ptr, rust_vec_len, data_len),
+        106 => wire__crate__api__reconnect_to_relays_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        103 => wire__crate__api__reconnect_to_relays_with_timeout_impl(
+        107 => wire__crate__api__reconnect_to_relays_with_timeout_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        104 => wire__crate__api__reconnect_to_relays_with_timeout_and_client_id_impl(
+        108 => wire__crate__api__reconnect_to_relays_with_timeout_and_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        105 => wire__crate__api__remove_member_from_group_task_list_impl(
+        109 => wire__crate__api__remove_member_from_group_task_list_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        106 => wire__crate__api__save_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        107 => wire__crate__api__save_app_settings_with_client_id_impl(
+        110 => wire__crate__api__save_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        111 => wire__crate__api__save_app_settings_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        108 => wire__crate__api__save_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        109 => {
+        112 => wire__crate__api__save_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        113 => {
             wire__crate__api__save_group_task_list_to_nostr_impl(port, ptr, rust_vec_len, data_len)
         }
-        110 => wire__crate__api__save_public_key_impl(port, ptr, rust_vec_len, data_len),
-        111 => wire__crate__api__save_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        112 => {
+        114 => wire__crate__api__save_public_key_impl(port, ptr, rust_vec_len, data_len),
+        115 => wire__crate__api__save_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        116 => {
             wire__crate__api__save_relay_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        113 => wire__crate__api__send_signed_event_impl(port, ptr, rust_vec_len, data_len),
-        114 => wire__crate__api__send_signed_event_with_client_id_impl(
+        117 => wire__crate__api__send_signed_event_impl(port, ptr, rust_vec_len, data_len),
+        118 => wire__crate__api__send_signed_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        115 => {
+        119 => wire__crate__api__sign_blossom_auth_event_impl(port, ptr, rust_vec_len, data_len),
+        120 => wire__crate__api__sign_blossom_auth_event_with_client_id_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        121 => {
             wire__crate__api__sign_event_with_ephemeral_key_impl(port, ptr, rust_vec_len, data_len)
         }
-        116 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
-        117 => wire__crate__api__start_subscription_with_client_id_impl(
+        122 => wire__crate__api__sign_nip98_auth_event_impl(port, ptr, rust_vec_len, data_len),
+        123 => wire__crate__api__sign_nip98_auth_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        118 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
-        119 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
+        124 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
+        125 => wire__crate__api__start_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        120 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
-        121 => wire__crate__api__stop_subscription_with_client_id_impl(
+        126 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
+        127 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        122 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        123 => wire__crate__api__sync_app_settings_with_client_id_impl(
+        128 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
+        129 => wire__crate__api__stop_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        124 => wire__crate__api__sync_group_invitations_impl(port, ptr, rust_vec_len, data_len),
-        125 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        126 => {
+        130 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        131 => wire__crate__api__sync_app_settings_with_client_id_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        132 => wire__crate__api__sync_group_invitations_impl(port, ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        134 => {
             wire__crate__api__sync_relay_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        127 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
-        128 => wire__crate__api__sync_todo_list_since_impl(port, ptr, rust_vec_len, data_len),
-        129 => wire__crate__api__sync_todo_list_since_with_client_id_impl(
+        135 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
+        136 => wire__crate__api__sync_todo_list_since_impl(port, ptr, rust_vec_len, data_len),
+        137 => wire__crate__api__sync_todo_list_since_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        130 => {
+        138 => {
             wire__crate__api__sync_todo_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        131 => wire__crate__api__tor_mode_default_impl(port, ptr, rust_vec_len, data_len),
-        132 => wire__crate__api__update_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        133 => wire__crate__api__update_relay_list_with_client_id_impl(
+        139 => wire__crate__api__tor_mode_default_impl(port, ptr, rust_vec_len, data_len),
+        140 => wire__crate__api__update_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        141 => wire__crate__api__update_relay_list_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        134 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
+        142 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
