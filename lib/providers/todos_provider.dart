@@ -2381,7 +2381,9 @@ class TodosNotifier
         date: toDate,
         order: _getNextOrder({toDate: toList}, toDate),
         updatedAt: DateTime.now(),
-        needsSync: true, // 同期が必要
+        needsSync: true,
+        parentTaskId: null,
+        depth: 0,
       );
       toList.add(movedTodo);
 
