@@ -23,6 +23,7 @@ type Signer interface {
 	PublicKey(ctx context.Context) (string, error)
 	Sign(ctx context.Context, ev *nostr.Event) error
 	EncryptNIP44(ctx context.Context, recipientPubkey string, plaintext string) (string, error)
+	DecryptNIP44(ctx context.Context, senderPubkey string, ciphertext string) (string, error)
 	Name() string
 }
 
@@ -64,6 +65,14 @@ func (s *LocalSigner) EncryptNIP44(_ context.Context, recipientPubkey string, pl
 		return "", err
 	}
 	return nip44.Encrypt(plaintext, ck)
+}
+
+func (s *LocalSigner) DecryptNIP44(_ context.Context, senderPubkey string, ciphertext string) (string, error) {
+	ck, err := nip44.GenerateConversationKey(senderPubkey, s.secret)
+	if err != nil {
+		return "", err
+	}
+	return nip44.Decrypt(ciphertext, ck)
 }
 
 type BrowserSigner struct {
@@ -137,6 +146,10 @@ func (s *BrowserSigner) Sign(ctx context.Context, ev *nostr.Event) error {
 
 func (s *BrowserSigner) EncryptNIP44(_ context.Context, _ string, _ string) (string, error) {
 	return "", errors.New("remote browser signer mode does not expose NIP-44 encryption")
+}
+
+func (s *BrowserSigner) DecryptNIP44(_ context.Context, _ string, _ string) (string, error) {
+	return "", errors.New("remote browser signer mode does not expose NIP-44 decryption")
 }
 
 type NIP07Signer struct {
@@ -238,6 +251,10 @@ func (s *NIP07Signer) Sign(ctx context.Context, ev *nostr.Event) error {
 		_ = srv.Shutdown(context.Background())
 		return errors.New("nip07 sign timeout")
 	}
+}
+
+func (s *NIP07Signer) DecryptNIP44(_ context.Context, _ string, _ string) (string, error) {
+	return "", errors.New("nip07 signer does not support NIP-44 decryption in CUI; use login-local instead")
 }
 
 func (s *NIP07Signer) EncryptNIP44(ctx context.Context, recipientPubkey string, plaintext string) (string, error) {

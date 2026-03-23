@@ -30,7 +30,7 @@ func Run(ctx context.Context, svc *app.Service, args []string) error {
 	case "sync":
 		return runSync(ctx, svc)
 	case "list":
-		return runTaskList(svc)
+		return runTaskList(svc, args[1:])
 	case "add":
 		return runTaskAdd(svc, args[1:])
 	case "done":
@@ -92,15 +92,28 @@ func runLogout(svc *app.Service) error {
 }
 
 func runSync(ctx context.Context, svc *app.Service) error {
-	n, err := svc.Sync(ctx)
+	result, err := svc.Sync(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("sync completed: %d task(s)\n", n)
+	fmt.Printf("sync completed: pulled %d, pushed %d\n", result.Pulled, result.Pushed)
 	return nil
 }
 
-func runTaskList(svc *app.Service) error {
+func runTaskList(svc *app.Service, args []string) error {
+	flat := false
+	filterList := ""
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--flat":
+			flat = true
+		default:
+			if !strings.HasPrefix(args[i], "-") {
+				filterList = args[i]
+			}
+		}
+	}
+
 	tasks, err := svc.ListTasks()
 	if err != nil {
 		return err
@@ -109,20 +122,28 @@ func runTaskList(svc *app.Service) error {
 		fmt.Println("no tasks")
 		return nil
 	}
-	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tSTATUS\tDUE\tDIRTY\tTITLE")
-	for _, t := range tasks {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%v\t%s\n", t.ID, t.Status, t.Due, t.Dirty, t.Title)
+
+	if flat {
+		tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(tw, "ID\tSTATUS\tDUE\tDIRTY\tLIST\tTITLE")
+		for _, t := range tasks {
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%v\t%s\t%s\n",
+				t.ID, t.Status, t.Due, t.Dirty, t.DisplayListName(), t.Title)
+		}
+		return tw.Flush()
 	}
-	return tw.Flush()
+
+	printTree(os.Stdout, tasks, filterList)
+	return nil
 }
 
 func runTaskAdd(svc *app.Service, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: meiso add --title <text> [--due today|tomorrow|someday]")
+		return errors.New("usage: meiso add --title <text> [--due today|tomorrow|someday] [--list <name>]")
 	}
 	title := ""
 	due := model.DueToday
+	listName := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--title":
@@ -146,13 +167,20 @@ func runTaskAdd(svc *app.Service, args []string) error {
 				return fmt.Errorf("invalid due: %s", args[i+1])
 			}
 			i++
+		case "--list":
+			if i+1 >= len(args) {
+				return errors.New("--list value is required")
+			}
+			listName = args[i+1]
+			i++
 		}
 	}
-	task, err := svc.AddTask(title, due)
+	task, err := svc.AddTask(title, due, listName)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("task added: %s %s\n", task.ID, task.Title)
+	list := task.DisplayListName()
+	fmt.Printf("task added: %s [%s] %s\n", task.ID, list, task.Title)
 	return nil
 }
 
@@ -175,8 +203,8 @@ func printUsage() {
   status
   logout
   sync
-  list
-  add --title <text> [--due today|tomorrow|someday]
+  list [--flat] [<list-name>]
+  add --title <text> [--due today|tomorrow|someday] [--list <name>]
   done --id <task-id>`)
 }
 
