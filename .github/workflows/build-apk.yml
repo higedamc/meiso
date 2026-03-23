@@ -17,9 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Initialize cargokit submodule
-        run: git submodule update --init --recursive cargokit
-
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
