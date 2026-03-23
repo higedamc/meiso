@@ -102,17 +102,19 @@ final Provider<NostrSubscriptionService> nostrSubscriptionServiceProvider =
 /// NostrServiceを提供するProvider
 final Provider<NostrService> nostrServiceProvider = Provider(NostrService.new);
 
-class LocalFirstSendResult {
-  const LocalFirstSendResult({
-    required this.localSendResult,
-    required this.globalBackfillQueued,
-    required this.usedLocalRelay,
+/// Result of the three-tier send: Hive (implicit) -> Global relays -> Local relay (Citrine)
+class RelaySendResult {
+  const RelaySendResult({
+    required this.primarySendResult,
+    required this.localBackfillQueued,
   });
 
-  final rust_api.EventSendResult localSendResult;
-  final bool globalBackfillQueued;
-  final bool usedLocalRelay;
+  final rust_api.EventSendResult primarySendResult;
+  final bool localBackfillQueued;
 }
+
+@Deprecated('Use RelaySendResult instead')
+typedef LocalFirstSendResult = RelaySendResult;
 
 class NostrService {
   NostrService(this._ref);
@@ -564,52 +566,58 @@ class NostrService {
     _globalBackfillResultHandler = handler;
   }
 
-  Future<LocalFirstSendResult> sendSignedEventLocalFirst(
+  /// Three-tier send: Global relays (primary) -> Local relay (Citrine, backfill)
+  ///
+  /// Global relays are the source of truth. Local relay is supplementary
+  /// for faster reads. If local relay is down, the send still succeeds.
+  Future<RelaySendResult> sendSignedEventGlobalFirst(
     String signedEventJson,
   ) async {
     final relaySplit = await _resolveRelaySplit();
     final localRelays = relaySplit.$1;
     final globalRelays = relaySplit.$2;
 
-    // Local relay not configured: fall back to default broadcast behavior
-    if (localRelays.isEmpty) {
-      final fallback = await sendSignedEvent(signedEventJson);
-      return LocalFirstSendResult(
-        localSendResult: fallback,
-        globalBackfillQueued: false,
-        usedLocalRelay: false,
-      );
-    }
+    final primaryRelays = globalRelays.isNotEmpty
+        ? globalRelays
+        : defaultRelays;
 
+    // Send to global relays (primary)
     await _ensureClientForRelays(
-      clientId: _localRelayClientId,
-      relays: localRelays,
+      clientId: _globalRelayClientId,
+      relays: primaryRelays,
     );
-
-    final localSend = await rust_api.sendSignedEventWithClientId(
+    final globalSend = await rust_api.sendSignedEventWithClientId(
       eventJson: signedEventJson,
-      clientId: _localRelayClientId,
+      clientId: _globalRelayClientId,
     );
 
-    var queued = false;
-    if (localSend.success && globalRelays.isNotEmpty) {
-      await _enqueueGlobalBackfill(
+    // Queue local relay backfill (non-blocking, fire-and-forget)
+    var localQueued = false;
+    if (globalSend.success && localRelays.isNotEmpty) {
+      await _enqueueLocalBackfill(
         signedEventJson: signedEventJson,
-        eventId: localSend.eventId,
-        globalRelays: globalRelays,
+        eventId: globalSend.eventId,
+        localRelays: localRelays,
       );
-      queued = true;
-      unawaited(processGlobalBackfillQueue());
+      localQueued = true;
+      unawaited(processLocalBackfillQueue());
     }
 
-    return LocalFirstSendResult(
-      localSendResult: localSend,
-      globalBackfillQueued: queued,
-      usedLocalRelay: true,
+    return RelaySendResult(
+      primarySendResult: globalSend,
+      localBackfillQueued: localQueued,
     );
   }
 
-  Future<void> processGlobalBackfillQueue() async {
+  /// Backward-compatible alias
+  Future<RelaySendResult> sendSignedEventLocalFirst(
+    String signedEventJson,
+  ) async {
+    return sendSignedEventGlobalFirst(signedEventJson);
+  }
+
+  /// Process the local relay backfill queue (sends pending events to Citrine).
+  Future<void> processLocalBackfillQueue() async {
     if (_processingBackfillQueue) return;
     _processingBackfillQueue = true;
 
@@ -622,8 +630,9 @@ class NostrService {
         final retries = (item['retries'] as int?) ?? 0;
         final eventJson = item['event_json'] as String?;
         final eventId = item['event_id'] as String?;
+        // Support both old 'global_relays' key and new 'local_relays' key
         final relays =
-            (item['global_relays'] as List?)
+            ((item['local_relays'] ?? item['global_relays']) as List?)
                 ?.map((r) => r.toString())
                 .toList() ??
             <String>[];
@@ -634,12 +643,12 @@ class NostrService {
 
         try {
           await _ensureClientForRelays(
-            clientId: _globalRelayClientId,
+            clientId: _localRelayClientId,
             relays: relays,
           );
           final result = await rust_api.sendSignedEventWithClientId(
             eventJson: eventJson,
-            clientId: _globalRelayClientId,
+            clientId: _localRelayClientId,
           );
 
           if (result.success) {
@@ -650,7 +659,11 @@ class NostrService {
           }
 
           final nextRetries = retries + 1;
-          if (nextRetries >= 5) {
+          if (nextRetries >= 3) {
+            // Local relay failures are non-critical; drop after 3 retries
+            AppLogger.debug(
+              ' [Backfill] Dropping local relay backfill for $eventId after $nextRetries retries',
+            );
             if (_globalBackfillResultHandler != null) {
               await _globalBackfillResultHandler!(
                 eventId,
@@ -667,7 +680,10 @@ class NostrService {
           }
         } catch (e) {
           final nextRetries = retries + 1;
-          if (nextRetries >= 5) {
+          if (nextRetries >= 3) {
+            AppLogger.debug(
+              ' [Backfill] Dropping local relay backfill for $eventId: $e',
+            );
             if (_globalBackfillResultHandler != null) {
               await _globalBackfillResultHandler!(eventId, false, e.toString());
             }
@@ -687,16 +703,21 @@ class NostrService {
     }
   }
 
-  Future<void> _enqueueGlobalBackfill({
+  /// Backward-compatible alias
+  Future<void> processGlobalBackfillQueue() async {
+    return processLocalBackfillQueue();
+  }
+
+  Future<void> _enqueueLocalBackfill({
     required String signedEventJson,
     required String eventId,
-    required List<String> globalRelays,
+    required List<String> localRelays,
   }) async {
     final queue = localStorageService.loadGlobalBackfillQueue();
     queue.add({
       'event_json': signedEventJson,
       'event_id': eventId,
-      'global_relays': globalRelays,
+      'local_relays': localRelays,
       'retries': 0,
       'created_at': DateTime.now().toIso8601String(),
     });

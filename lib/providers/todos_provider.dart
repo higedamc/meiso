@@ -3079,21 +3079,21 @@ class TodosNotifier
               );
             }
 
-            // リレーに送信（Citrine等ローカル優先）
+            // Global relays first, local relay (Citrine) as backfill
             AppLogger.debug(' リレーに送信中（リスト: $listId）...');
-            final sendResult = await nostrService.sendSignedEventLocalFirst(
+            final sendResult = await nostrService.sendSignedEventGlobalFirst(
               signedEvent,
             );
-            if (!sendResult.localSendResult.success) {
+            if (!sendResult.primarySendResult.success) {
               _clearEventIdForTodos(listTodos);
               throw Exception(
-                sendResult.localSendResult.errorMessage ??
-                    'Local relay send failed',
+                sendResult.primarySendResult.errorMessage ??
+                    'Global relay send failed',
               );
             }
-            AppLogger.info(' 送信完了: ${sendResult.localSendResult.eventId}');
+            AppLogger.info(' 送信完了: ${sendResult.primarySendResult.eventId}');
             AppLogger.debug(
-              ' List "$listId" event ID: ${sendResult.localSendResult.eventId}',
+              ' List "$listId" event ID: ${sendResult.primarySendResult.eventId}',
             );
 
             // customListIdの名前ベースIDマイグレーション（必要なものだけ）
@@ -3121,8 +3121,8 @@ class TodosNotifier
 
             await _markTodosSyncedWithEventId(
               listTodos,
-              sendResult.localSendResult.eventId,
-              globalBackfillPending: sendResult.globalBackfillQueued,
+              sendResult.primarySendResult.eventId,
+              globalBackfillPending: sendResult.localBackfillQueued,
             );
             AppLogger.info(
               ' Updated eventId for ${listTodos.length} todos in list "$listId"',
