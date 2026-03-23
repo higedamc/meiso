@@ -29,8 +29,12 @@ func Run(ctx context.Context, svc *app.Service, args []string) error {
 		return runLogout(svc)
 	case "sync":
 		return runSync(ctx, svc)
-	case "task":
-		return runTask(svc, args[1:])
+	case "list":
+		return runTaskList(svc)
+	case "add":
+		return runTaskAdd(svc, args[1:])
+	case "done":
+		return runTaskDone(svc, args[1:])
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
@@ -47,7 +51,7 @@ func runLogin(ctx context.Context, svc *app.Service) error {
 
 func runLoginLocal(svc *app.Service, args []string) error {
 	if len(args) < 2 || args[0] != "--secret" {
-		return errors.New("usage: meiso-cui login-local --secret <nsec-or-hex>")
+		return errors.New("usage: meiso login-local --secret <nsec-or-hex>")
 	}
 	session, err := svc.LoginLocal(args[1])
 	if err != nil {
@@ -96,22 +100,6 @@ func runSync(ctx context.Context, svc *app.Service) error {
 	return nil
 }
 
-func runTask(svc *app.Service, args []string) error {
-	if len(args) == 0 {
-		return errors.New("usage: meiso-cui task [list|add|done]")
-	}
-	switch args[0] {
-	case "list":
-		return runTaskList(svc)
-	case "add":
-		return runTaskAdd(svc, args[1:])
-	case "done":
-		return runTaskDone(svc, args[1:])
-	default:
-		return fmt.Errorf("unknown task subcommand: %s", args[0])
-	}
-}
-
 func runTaskList(svc *app.Service) error {
 	tasks, err := svc.ListTasks()
 	if err != nil {
@@ -131,7 +119,7 @@ func runTaskList(svc *app.Service) error {
 
 func runTaskAdd(svc *app.Service, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: meiso-cui task add --title <text> [--due today|tomorrow|someday]")
+		return errors.New("usage: meiso add --title <text> [--due today|tomorrow|someday]")
 	}
 	title := ""
 	due := model.DueToday
@@ -170,7 +158,7 @@ func runTaskAdd(svc *app.Service, args []string) error {
 
 func runTaskDone(svc *app.Service, args []string) error {
 	if len(args) < 2 || args[0] != "--id" {
-		return errors.New("usage: meiso-cui task done --id <task-id>")
+		return errors.New("usage: meiso done --id <task-id>")
 	}
 	task, err := svc.DoneTask(args[1])
 	if err != nil {
@@ -181,15 +169,15 @@ func runTaskDone(svc *app.Service, args []string) error {
 }
 
 func printUsage() {
-	fmt.Println(`meiso-cui commands:
+	fmt.Println(`meiso commands:
   login
   login-local --secret <nsec-or-hex>
   status
   logout
   sync
-  task list
-  task add --title <text> [--due today|tomorrow|someday]
-  task done --id <task-id>`)
+  list
+  add --title <text> [--due today|tomorrow|someday]
+  done --id <task-id>`)
 }
 
 func shorten(v string) string {

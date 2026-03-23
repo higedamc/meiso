@@ -2,12 +2,42 @@
 
 Supplemental macOS-first CUI for Meiso, designed for no-Apple-ID workflows and future TUI reuse.
 
-## Quick start
+## Install
+
+```bash
+cd cui
+make install
+```
+
+`~/go/bin` が PATH に含まれていれば、以下のように直接実行可能:
+
+```bash
+meiso status
+meiso list
+meiso add --title "Buy coffee" --due today
+```
+
+PATH が未設定の場合は `~/.zshrc` に追記:
+
+```bash
+export PATH="$HOME/go/bin:$PATH"
+```
+
+## Uninstall
+
+```bash
+cd cui
+make uninstall
+```
+
+バイナリ (`$GOPATH/bin/meiso`) とローカルデータ (`~/Library/Application Support/meiso-cui/`) を削除する。
+
+## Quick start (dev)
 
 ```bash
 cd cui
 go mod tidy
-go run ./cmd/meiso-cui status
+go run ./cmd/meiso status
 ```
 
 ## Environment variables
@@ -19,13 +49,13 @@ go run ./cmd/meiso-cui status
 ## Commands
 
 ```bash
-go run ./cmd/meiso-cui login
-go run ./cmd/meiso-cui status
-go run ./cmd/meiso-cui task add --title "Buy coffee" --due today
-go run ./cmd/meiso-cui task list
-go run ./cmd/meiso-cui task done --id <task-id>
-go run ./cmd/meiso-cui sync
-go run ./cmd/meiso-cui logout
+meiso login
+meiso status
+meiso add --title "Buy coffee" --due today
+meiso list
+meiso done --id <task-id>
+meiso sync
+meiso logout
 ```
 
 ## NIP-07-like flow
