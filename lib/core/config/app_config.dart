@@ -21,9 +21,6 @@ class AppConfig {
   /// アプリ名
   static const String appName = 'Meiso';
 
-  /// アプリバージョン
-  static const String appVersion = '1.0.0';
-
   /// Nostr デフォルトリレー
   static const List<String> defaultRelays = [
     'wss://relay.damus.io',

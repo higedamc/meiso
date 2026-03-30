@@ -60,6 +60,9 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Run tests
+        run: flutter test --no-pub
+
       - name: Build beta APK
         run: flutter build apk --flavor beta --release --dart-define=BUILD_CHANNEL=beta
 

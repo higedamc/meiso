@@ -52,6 +52,10 @@ android {
 
     buildTypes {
         release {
+            // Zapstore v1.1.9 で debug keystore (SHA256: ba94cf06...) で公開済み。
+            // 署名を変更すると既存ユーザーがアップデートできなくなるため、
+            // production flavor も debug keystore を維持する。
+            // Zapstore 向けビルドは必ずローカルで行うこと (CI の debug keystore は別物)。
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-30
+
+### Added
+- **Subtask Support (Issue #128)**: Reminders-first subtask mode with parent-child task relationships
+  - `parentTaskId` / `depth` fields on Todo model
+  - Subtask CRUD in TodosNotifier, inline UI in todo_edit_screen and todo_item
+  - Task Links model (blocks, blocked_by, related_to, duplicate_of) for Asana mode
+- **Image Attachments**: Blossom / NIP-96 image upload with server picker and full-screen viewer
+  - Amber-mode signing support for media uploads
+- **Product Flavors**: `production` (Zapstore) / `beta` (GitHub Actions) build split
+  - `--dart-define=BUILD_CHANNEL` for compile-time channel detection
+- **Feature Gate System**: Beta-only experimental feature toggles (Asana/Wunderlist/Kanban modes, Task Linking)
+- **Hide Completed Tasks**: Toggle in App Settings to hide completed tasks
+- **CI/CD**: GitHub Actions workflow for automated beta APK builds with Telegram notifications
+- **Go CUI**: Bidirectional Nostr sync, custom lists, tree view for terminal-based task management
+
+### Changed
+- **Three-Tier Sync**: Refactored sync flow to Hive -> Global -> Citrine relay architecture
+- **CargoKit**: Vendored cargokit to resolve CI submodule fetch failures; fixed flavor compatibility in plugin.gradle
+- **Rust Bridge**: Regenerated FRB bindings with subtask/task-link fields
+- **Test Suite**: Fixed 17 broken tests, added tests for recurring instance generation and child instance removal
+
+### Fixed
+- CargoKit product flavor compatibility (Rust .so missing from APK)
+- Removed stale prebuilt jniLibs that masked cargokit output
+- CI build failures (cargokit submodule, Amber gitlink, signing config)
+
 ## [1.1.9] - 2026-03-13
 
 ### Added
