@@ -64,7 +64,7 @@ jobs:
         run: flutter test --no-pub
 
       - name: Build beta APK
-        run: flutter build apk --flavor beta --release --dart-define=BUILD_CHANNEL=beta
+        run: flutter build apk --flavor beta --release --dart-define=BUILD_CHANNEL=beta --target-platform android-arm64
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
