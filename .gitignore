@@ -65,7 +65,7 @@ Amber/
 
 # Temporary backup files
 .tmp_backup/
-pubspec.lock
+# pubspec.lock — アプリケーションでは lock ファイルをコミットして CI との再現性を担保する
 # rust/src/frb_generated.rs  # tracked for CI builds
 
 # Local utility scripts

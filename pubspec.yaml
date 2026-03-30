@@ -54,7 +54,7 @@ dependencies:
   path_provider: ^2.1.5
   
   # Rust Bridge
-  flutter_rust_bridge: ^2.0.0
+  flutter_rust_bridge: 2.11.1
   ffi: ^2.1.0
   
   # UI
