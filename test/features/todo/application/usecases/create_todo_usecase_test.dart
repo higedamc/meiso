@@ -1,125 +1,87 @@
-import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/core/common/failure.dart';
 import 'package:meiso/features/todo/application/usecases/create_todo_usecase.dart';
-import 'package:meiso/features/todo/domain/entities/todo.dart';
-import 'package:meiso/features/todo/domain/repositories/todo_repository.dart';
-import 'package:meiso/features/todo/domain/value_objects/todo_date.dart';
-import 'package:meiso/features/todo/domain/value_objects/todo_title.dart';
-import 'package:mocktail/mocktail.dart';
-
-class MockTodoRepository extends Mock implements TodoRepository {}
-
-class FakeTodo extends Fake implements Todo {}
+import 'package:meiso/models/todo.dart';
 
 void main() {
   late CreateTodoUseCase usecase;
-  late MockTodoRepository mockRepository;
-
-  setUpAll(() {
-    registerFallbackValue(FakeTodo());
-  });
 
   setUp(() {
-    mockRepository = MockTodoRepository();
-    usecase = CreateTodoUseCase(mockRepository);
+    usecase = CreateTodoUseCase();
   });
 
-  group('CreateTodoUseCase', () {
-    final testTitle = TodoTitle.unsafe('Test Todo');
-    final testDate = TodoDate.dateOnly(DateTime(2025, 11, 12));
+  final today = DateTime(2025, 11, 12);
 
+  group('CreateTodoUseCase', () {
     test('タイトルのみで正常にTodoが作成される', () async {
-      // Arrange
-      final params = CreateTodoParams(title: testTitle.value);
-      
-      when(() => mockRepository.createTodo(any())).thenAnswer(
-        (invocation) async {
-          final todo = invocation.positionalArguments[0] as Todo;
-          return Right(todo.copyWith(id: 'test-id-1'));
-        },
+      final params = CreateTodoParams(
+        title: 'Buy groceries',
+        date: null,
+        currentTodos: const {},
       );
 
-      // Act
       final result = await usecase(params);
 
-      // Assert
       expect(result.isRight(), true);
       result.fold(
         (_) => fail('Should succeed'),
         (todo) {
-          expect(todo.id, 'test-id-1');
-          expect(todo.title.value, testTitle.value);
+          expect(todo.id, isNotEmpty);
+          expect(todo.title, 'Buy groceries');
           expect(todo.completed, false);
-          expect(todo.date, null);
+          expect(todo.date, isNull);
+          expect(todo.needsSync, true);
+          expect(todo.order, 0);
         },
       );
-
-      verify(() => mockRepository.createTodo(any())).called(1);
     });
 
     test('日付付きでTodoが作成される', () async {
-      // Arrange
       final params = CreateTodoParams(
-        title: testTitle.value,
-        date: testDate,
+        title: 'Meeting',
+        date: today,
+        currentTodos: const {},
       );
 
-      when(() => mockRepository.createTodo(any())).thenAnswer(
-        (invocation) async {
-          final todo = invocation.positionalArguments[0] as Todo;
-          return Right(todo.copyWith(id: 'test-id-2'));
-        },
-      );
-
-      // Act
       final result = await usecase(params);
 
-      // Assert
       expect(result.isRight(), true);
       result.fold(
         (_) => fail('Should succeed'),
         (todo) {
-          expect(todo.date, testDate);
+          expect(todo.date, today);
         },
       );
     });
 
     test('カスタムリスト付きでTodoが作成される', () async {
-      // Arrange
       final params = CreateTodoParams(
-        title: testTitle.value,
-        customListId: 'Shopping',
+        title: 'Sprint task',
+        date: today,
+        customListId: 'work-list-1',
+        currentTodos: const {},
       );
 
-      when(() => mockRepository.createTodo(any())).thenAnswer(
-        (invocation) async {
-          final todo = invocation.positionalArguments[0] as Todo;
-          return Right(todo.copyWith(id: 'test-id-3'));
-        },
-      );
-
-      // Act
       final result = await usecase(params);
 
-      // Assert
       expect(result.isRight(), true);
       result.fold(
         (_) => fail('Should succeed'),
         (todo) {
-          expect(todo.customListId, 'Shopping');
+          expect(todo.customListId, 'work-list-1');
         },
       );
     });
 
     test('空のタイトルでバリデーションエラーが返る', () async {
-      // Arrange
-      const params = CreateTodoParams(title: '');
+      const params = CreateTodoParams(
+        title: '',
+        date: null,
+        currentTodos: {},
+      );
 
-      // Act
       final result = await usecase(params);
 
-      // Assert
       expect(result.isLeft(), true);
       result.fold(
         (failure) {
@@ -128,78 +90,68 @@ void main() {
         },
         (_) => fail('Should fail'),
       );
-
-      verifyNever(() => mockRepository.createTodo(any()));
     });
 
-    test('長すぎるタイトルでバリデーションエラーが返る', () async {
-      // Arrange
-      final longTitle = 'a' * 501;
-      final params = CreateTodoParams(title: longTitle);
-
-      // Act
-      final result = await usecase(params);
-
-      // Assert
-      expect(result.isLeft(), true);
-      result.fold(
-        (failure) {
-          expect(failure, isA<ValidationFailure>());
-          expect(failure.message, contains('500'));
-        },
-        (_) => fail('Should fail'),
+    test('空白のみのタイトルでバリデーションエラーが返る', () async {
+      const params = CreateTodoParams(
+        title: '   ',
+        date: null,
+        currentTodos: {},
       );
 
-      verifyNever(() => mockRepository.createTodo(any()));
-    });
-
-    test('Repository失敗時にエラーが返る', () async {
-      // Arrange
-      final params = CreateTodoParams(title: testTitle.value);
-
-      when(() => mockRepository.createTodo(any())).thenAnswer(
-        (_) async => const Left(ServerFailure('Database error')),
-      );
-
-      // Act
       final result = await usecase(params);
 
-      // Assert
       expect(result.isLeft(), true);
       result.fold(
-        (failure) {
-          expect(failure, isA<ServerFailure>());
-        },
+        (failure) => expect(failure, isA<ValidationFailure>()),
         (_) => fail('Should fail'),
       );
     });
 
-    test('order指定でTodoが作成される', () async {
-      // Arrange
+    test('orderが既存Todoの最大値+1になる', () async {
+      final existingTodos = <DateTime?, List<Todo>>{
+        today: [
+          Todo(id: 'a', title: 'A', createdAt: today, updatedAt: today, date: today, order: 0),
+          Todo(id: 'b', title: 'B', createdAt: today, updatedAt: today, date: today, order: 3),
+        ],
+      };
+
       final params = CreateTodoParams(
-        title: testTitle.value,
-        order: 1,
+        title: 'New task',
+        date: today,
+        currentTodos: existingTodos,
       );
 
-      when(() => mockRepository.createTodo(any())).thenAnswer(
-        (invocation) async {
-          final todo = invocation.positionalArguments[0] as Todo;
-          return Right(todo.copyWith(id: 'test-id-4'));
-        },
-      );
-
-      // Act
       final result = await usecase(params);
 
-      // Assert
       expect(result.isRight(), true);
       result.fold(
         (_) => fail('Should succeed'),
         (todo) {
-          expect(todo.order, 1);
+          expect(todo.order, 4);
+        },
+      );
+    });
+
+    test('該当日付にTodoがない場合order=0で作成される', () async {
+      final tomorrow = DateTime(2025, 11, 13);
+      final params = CreateTodoParams(
+        title: 'First task',
+        date: tomorrow,
+        currentTodos: {
+          today: [Todo(id: 'a', title: 'A', createdAt: today, updatedAt: today, date: today)],
+        },
+      );
+
+      final result = await usecase(params);
+
+      expect(result.isRight(), true);
+      result.fold(
+        (_) => fail('Should succeed'),
+        (todo) {
+          expect(todo.order, 0);
         },
       );
     });
   });
 }
-
