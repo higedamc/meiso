@@ -47,6 +47,9 @@ android {
             dimension = "channel"
             applicationId = "jp.godzhigella.meiso.beta"
             resValue("string", "app_name", "Meiso Beta")
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
         }
     }
 
