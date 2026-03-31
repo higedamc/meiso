@@ -2400,36 +2400,65 @@ class TodosNotifier
     if (fromDate == toDate) return;
 
     await state.whenData((todos) async {
-      final fromList = List<Todo>.from(todos[fromDate] ?? []);
-      final toList = List<Todo>.from(todos[toDate] ?? []);
+      final updated = Map<DateTime?, List<Todo>>.from(
+        todos.map((k, v) => MapEntry(k, List<Todo>.from(v))),
+      );
+
+      final fromList = updated[fromDate] ?? [];
+      final toList = updated.putIfAbsent(toDate, () => []);
 
       final todoIndex = fromList.indexWhere((t) => t.id == id);
       if (todoIndex == -1) return;
 
       final todo = fromList.removeAt(todoIndex);
-      final movedTodo = todo.copyWith(
-        date: toDate,
-        order: _getNextOrder({toDate: toList}, toDate),
-        updatedAt: DateTime.now(),
-        needsSync: true,
-        parentTaskId: null,
-        depth: 0,
-      );
-      toList.add(movedTodo);
+      final now = DateTime.now();
+      final isSubtask = todo.parentTaskId != null;
 
-      state = AsyncValue.data({
-        ...todos,
-        fromDate: fromList,
-        toDate: toList,
-      });
+      if (isSubtask) {
+        // サブタスク自身を移動 -> ルートに昇格
+        final movedTodo = todo.copyWith(
+          date: toDate,
+          order: _getNextOrder(updated, toDate),
+          updatedAt: now,
+          needsSync: true,
+          parentTaskId: null,
+          depth: 0,
+        );
+        toList.add(movedTodo);
+      } else {
+        // ルートタスクを移動 -> 子タスクも追従
+        final movedTodo = todo.copyWith(
+          date: toDate,
+          order: _getNextOrder(updated, toDate),
+          updatedAt: now,
+          needsSync: true,
+        );
+        toList.add(movedTodo);
 
-      // ローカルストレージに保存（awaitする）
+        // 全日付グループからこの親の子タスクを収集して移動
+        final childIds = <String>{};
+        for (final dateKey in updated.keys.toList()) {
+          final group = updated[dateKey]!;
+          final children = group.where((t) => t.parentTaskId == id).toList();
+          if (children.isEmpty) continue;
+          for (final child in children) {
+            childIds.add(child.id);
+            group.remove(child);
+            toList.add(child.copyWith(
+              date: toDate,
+              updatedAt: now,
+              needsSync: true,
+            ));
+          }
+        }
+      }
+
+      updated[fromDate] = fromList;
+      updated[toDate] = toList;
+      state = AsyncValue.data(updated);
+
       await _saveAllTodosToLocal();
-
-      // Widgetを更新
       await _updateWidget();
-
-      // 【楽観的UI更新】即座に同期（バックグラウンド）
       _updateUnsyncedCount();
       _syncToNostrBackground();
     }).value;
@@ -2998,6 +3027,12 @@ class TodosNotifier
                       'custom_list_id': listId == 'default' ? null : listId,
                       'recurrence': todo.recurrence?.toJson(),
                       'parent_recurring_id': todo.parentRecurringId,
+                      'parent_task_id': todo.parentTaskId,
+                      'depth': todo.depth,
+                      'task_links': todo.taskLinks.isNotEmpty
+                          ? todo.taskLinks.map((l) => l.toJson()).toList()
+                          : null,
+                      'image_url': todo.imageUrl,
                       'needs_sync': todo.needsSync,
                     },
                   )
@@ -3808,7 +3843,11 @@ class TodosNotifier
                         )
                       : null,
                   parentRecurringId: map['parent_recurring_id'] as String?,
-                  needsSync: false, // Nostrから取得したデータは常に同期済み
+                  parentTaskId: map['parent_task_id'] as String?,
+                  depth: (map['depth'] as int?) ?? 0,
+                  taskLinks: _parseTaskLinksFromMap(map['task_links']),
+                  imageUrl: map['image_url'] as String?,
+                  needsSync: false,
                 );
               }).toList();
 
@@ -4141,6 +4180,10 @@ class TodosNotifier
                       )
                     : null,
                 parentRecurringId: map['parent_recurring_id'] as String?,
+                parentTaskId: map['parent_task_id'] as String?,
+                depth: (map['depth'] as int?) ?? 0,
+                taskLinks: _parseTaskLinksFromMap(map['task_links']),
+                imageUrl: map['image_url'] as String?,
                 needsSync: false,
               );
             }).toList();
@@ -4218,6 +4261,19 @@ class TodosNotifier
   }
 
   /// d tag（meiso-todos / meiso-list-xxx）からcustomListIdへ変換
+  List<TaskLink> _parseTaskLinksFromMap(dynamic raw) {
+    if (raw == null) return [];
+    try {
+      final list = raw is String ? jsonDecode(raw) as List : raw as List;
+      return list
+          .map((e) => TaskLink.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      AppLogger.warning(' Failed to parse taskLinks from map: $e');
+      return [];
+    }
+  }
+
   String? _customListIdFromDTag(String? dTag) {
     if (dTag == null) return null;
     if (dTag == 'meiso-todos') return null;
