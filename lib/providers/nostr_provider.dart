@@ -416,6 +416,7 @@ class NostrService {
         taskLinks: todo.taskLinks.isNotEmpty
             ? jsonEncode(todo.taskLinks.map((l) => l.toJson()).toList())
             : null,
+        imageUrl: todo.imageUrl,
       );
 
       // カスタムリストIDが設定されている場合のみログ
@@ -545,6 +546,7 @@ class NostrService {
       parentTaskId: todoData.parentTaskId,
       depth: todoData.depth,
       taskLinks: taskLinks,
+      imageUrl: todoData.imageUrl,
     );
   }
 

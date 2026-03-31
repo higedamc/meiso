@@ -80,6 +80,9 @@ pub struct TodoData {
     /// タスクリンク（JSON文字列: [{targetTaskId, linkType}, ...]）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_links: Option<String>,
+    /// 添付画像URL（Blossom/NIP-96経由）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
 }
 
 fn normalize_todo_date_string(raw: &str) -> Option<String> {

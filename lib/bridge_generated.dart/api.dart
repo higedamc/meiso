@@ -1577,6 +1577,9 @@ class TodoData {
   /// タスクリンク（JSON文字列: [{targetTaskId, linkType}, ...]）
   final String? taskLinks;
 
+  /// 添付画像URL（Blossom/NIP-96経由）
+  final String? imageUrl;
+
   const TodoData({
     required this.id,
     required this.title,
@@ -1593,6 +1596,7 @@ class TodoData {
     this.parentTaskId,
     required this.depth,
     this.taskLinks,
+    this.imageUrl,
   });
 
   @override
@@ -1611,7 +1615,8 @@ class TodoData {
       customListId.hashCode ^
       parentTaskId.hashCode ^
       depth.hashCode ^
-      taskLinks.hashCode;
+      taskLinks.hashCode ^
+      imageUrl.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1632,7 +1637,8 @@ class TodoData {
           customListId == other.customListId &&
           parentTaskId == other.parentTaskId &&
           depth == other.depth &&
-          taskLinks == other.taskLinks;
+          taskLinks == other.taskLinks &&
+          imageUrl == other.imageUrl;
 }
 
 /// Todoリストのメタデータ（通常モード用 - Kind 30001）
