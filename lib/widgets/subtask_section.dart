@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app_theme.dart';
+import '../l10n/app_localizations.dart';
 import '../models/todo.dart';
 import '../providers/todos_provider.dart';
 import 'circular_checkbox.dart';
@@ -31,6 +32,7 @@ class _SubtaskSectionState extends ConsumerState<SubtaskSection> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return Consumer(
       builder: (context, ref, _) {
@@ -61,7 +63,7 @@ class _SubtaskSectionState extends ConsumerState<SubtaskSection> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'SUBTASKS',
+                        l10n.subtasksHeader,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -135,13 +137,13 @@ class _SubtaskSectionState extends ConsumerState<SubtaskSection> {
                       )),
 
                   // 追加フィールド
-                  if (_isAdding) _buildAddField(context, ref, isDark, theme),
+                  if (_isAdding) _buildAddField(context, ref, isDark, theme, l10n),
 
                   if (subtasks.isEmpty && !_isAdding)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
-                        'No subtasks yet',
+                        l10n.noSubtasks,
                         style: TextStyle(
                           fontSize: 13,
                           color: isDark
@@ -228,6 +230,7 @@ class _SubtaskSectionState extends ConsumerState<SubtaskSection> {
     WidgetRef ref,
     bool isDark,
     ThemeData theme,
+    AppLocalizations l10n,
   ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -242,7 +245,7 @@ class _SubtaskSectionState extends ConsumerState<SubtaskSection> {
               style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText: 'Add subtask...',
+                hintText: l10n.addSubtaskHint,
                 hintStyle: TextStyle(
                   fontSize: 14,
                   color: isDark
@@ -262,7 +265,7 @@ class _SubtaskSectionState extends ConsumerState<SubtaskSection> {
             onPressed: () => _submitSubtask(ref, _addController.text),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            tooltip: 'Add subtask',
+            tooltip: l10n.addSubtaskHint,
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 18),

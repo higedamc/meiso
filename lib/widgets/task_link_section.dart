@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app_theme.dart';
+import '../l10n/app_localizations.dart';
 import '../models/todo.dart';
 import '../models/task_link.dart';
 import '../providers/todos_provider.dart';
@@ -15,6 +16,7 @@ class TaskLinkSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return Consumer(
       builder: (context, ref, _) {
@@ -41,7 +43,7 @@ class TaskLinkSection extends ConsumerWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'LINKED TASKS',
+                        l10n.linkedTasksHeader,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -69,7 +71,7 @@ class TaskLinkSection extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
-                        'No linked tasks',
+                        l10n.noLinkedTasks,
                         style: TextStyle(
                           fontSize: 13,
                           color: isDark
@@ -187,6 +189,7 @@ class TaskLinkSection extends ConsumerWidget {
   }
 
   Future<void> _showAddLinkDialog(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
     final allTodos = ref.read(todosProvider.notifier).allTodosFlat;
     // 自分自身と既にリンクしているタスクを除外
     final existingTargets =
@@ -199,9 +202,11 @@ class TaskLinkSection extends ConsumerWidget {
         .toList();
 
     if (candidates.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No tasks available to link')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.noTasksToLink)),
+        );
+      }
       return;
     }
 
@@ -214,9 +219,9 @@ class TaskLinkSection extends ConsumerWidget {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             return AlertDialog(
-              title: const Text(
-                'LINK TASK',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              title: Text(
+                l10n.linkTaskDialogTitle,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               content: SizedBox(
                 width: double.maxFinite,
@@ -225,10 +230,9 @@ class TaskLinkSection extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // リンクタイプ選択
-                    const Text(
-                      'Relationship',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    Text(
+                      l10n.linkRelationship,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -255,10 +259,9 @@ class TaskLinkSection extends ConsumerWidget {
                     const SizedBox(height: 16),
 
                     // ターゲットタスク選択
-                    const Text(
-                      'Target task',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    Text(
+                      l10n.linkTargetTask,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
                     SizedBox(
@@ -292,7 +295,7 @@ class TaskLinkSection extends ConsumerWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('CANCEL'),
+                  child: Text(l10n.cancelButton),
                 ),
                 ElevatedButton(
                   onPressed: selectedType != null && selectedTarget != null
@@ -305,7 +308,7 @@ class TaskLinkSection extends ConsumerWidget {
                     backgroundColor: AppTheme.primaryPurple,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('LINK'),
+                  child: Text(l10n.linkButton),
                 ),
               ],
             );
