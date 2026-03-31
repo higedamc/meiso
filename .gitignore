@@ -65,6 +65,12 @@ Amber/
 
 # Temporary backup files
 .tmp_backup/
+.tmp_gradle_tasks.txt
+tmp-fetch-note/
+
+# Build artifacts
+android/build/
+cui/meiso
 # pubspec.lock — アプリケーションでは lock ファイルをコミットして CI との再現性を担保する
 # rust/src/frb_generated.rs  # tracked for CI builds
 
