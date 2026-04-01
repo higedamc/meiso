@@ -19,6 +19,7 @@ import '../services/nostr_cache_service.dart';
 import '../services/nostr_subscription_service.dart';
 import '../services/amber_service.dart';
 import 'sync_status_provider.dart';
+import 'relay_status_provider.dart';
 import '../utils/error_handler.dart';
 
 /// デフォルトのNostrリレーリスト
@@ -266,17 +267,13 @@ class NostrService {
         break;
     }
 
-    // Providerの状態を更新
     _ref.read(publicKeyProvider.notifier).state = publicKey;
     _ref.read(nostrInitializedProvider.notifier).state = true;
+    _ref.read(relayStatusProvider.notifier).initializeAsConnected(relayList);
 
-    // Amber使用フラグをfalseに設定（秘密鍵モード）
     await localStorageService.setUseAmber(false);
-
-    // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
-    // キャッシュとSubscriptionサービスを初期化
     await _initializeCacheAndSubscription(publicKey);
     unawaited(processGlobalBackfillQueue());
 
@@ -338,11 +335,10 @@ class NostrService {
         break;
     }
 
-    // Providerの状態を更新
     _ref.read(publicKeyProvider.notifier).state = publicKey;
     _ref.read(nostrInitializedProvider.notifier).state = true;
+    _ref.read(relayStatusProvider.notifier).initializeAsConnected(relayList);
 
-    // hex形式からnpub形式に変換して設定
     try {
       final npubKey = await rust_api.hexToNpub(hex: publicKey);
       _ref.read(nostrPublicKeyProvider.notifier).state = npubKey;
@@ -351,14 +347,11 @@ class NostrService {
       AppLogger.error('❌ hex→npub変換エラー: $e');
     }
 
-    // Amber使用フラグを設定
     await localStorageService.setUseAmber(true);
 
-    // キャッシュとSubscriptionサービスを初期化
     await _initializeCacheAndSubscription(publicKey);
     unawaited(processGlobalBackfillQueue());
 
-    // 同期ステータスを初期化済みに設定
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
     final modeStr = effectiveTorMode == TorMode.disabled
@@ -974,8 +967,10 @@ class NostrService {
     AppLogger.info(' Reconnecting to relays...');
     try {
       await rust_api.reconnectToRelays();
+      _ref.read(relayStatusProvider.notifier).markAllConnected();
       AppLogger.info(' Successfully reconnected to relays');
     } catch (e) {
+      _ref.read(relayStatusProvider.notifier).markAllDisconnected();
       AppLogger.error(' Failed to reconnect to relays: $e');
       rethrow;
     }
@@ -991,8 +986,10 @@ class NostrService {
       await rust_api.reconnectToRelaysWithTimeout(
         timeoutSecs: BigInt.from(timeout),
       );
+      _ref.read(relayStatusProvider.notifier).markAllConnected();
       AppLogger.info(' Successfully reconnected to relays');
     } catch (e) {
+      _ref.read(relayStatusProvider.notifier).markAllDisconnected();
       AppLogger.error(' Failed to reconnect to relays: $e');
       rethrow;
     }

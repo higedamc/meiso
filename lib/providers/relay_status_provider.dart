@@ -74,13 +74,38 @@ class RelayStatusNotifier extends StateNotifier<Map<String, RelayStatus>> {
     state = {};
   }
 
-  /// デフォルトリレーで初期化
+  /// リレーリストを disconnected で初期化
   void initializeWithRelays(List<String> relays) {
     final newState = <String, RelayStatus>{};
     for (final url in relays) {
       newState[url] = RelayStatus(url: url, state: RelayConnectionState.disconnected);
     }
     state = newState;
+  }
+
+  /// リレーリストを connected で初期化（Rust 接続成功後に使用）
+  void initializeAsConnected(List<String> relays) {
+    final newState = <String, RelayStatus>{};
+    for (final url in relays) {
+      newState[url] = RelayStatus(url: url, state: RelayConnectionState.connected);
+    }
+    state = newState;
+  }
+
+  /// 登録済みリレーを一括で disconnected にマーク
+  void markAllDisconnected() {
+    state = {
+      for (final entry in state.entries)
+        entry.key: entry.value.copyWith(state: RelayConnectionState.disconnected),
+    };
+  }
+
+  /// 登録済みリレーを一括で connected にマーク
+  void markAllConnected() {
+    state = {
+      for (final entry in state.entries)
+        entry.key: entry.value.copyWith(state: RelayConnectionState.connected),
+    };
   }
 
   /// 接続中に設定
