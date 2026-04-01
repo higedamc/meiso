@@ -189,6 +189,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
 
                     return ReorderableListView.builder(
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      buildDefaultDragHandles: false,
                       itemCount: sortedTodos.length,
                       onReorder: (oldIndex, newIndex) {
                         _handleReorder(
@@ -205,6 +206,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                         return TodoItem(
                           key: ValueKey(todo.id),
                           todo: todo,
+                          index: index,
                         );
                       },
                     );

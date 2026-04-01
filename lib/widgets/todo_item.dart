@@ -31,10 +31,12 @@ enum RecurringActionType {
 class TodoItem extends StatelessWidget {
   const TodoItem({
     required this.todo,
+    this.index,
     super.key,
   });
 
   final Todo todo;
+  final int? index;
 
   void _showEditDialog(BuildContext context, WidgetRef ref) {
     Navigator.of(context).push(
@@ -641,126 +643,137 @@ class TodoItem extends StatelessWidget {
                 ),
               ),
             ),
-            child: InkWell(
-              onTap: () => _showEditDialog(context, ref),
-              onLongPress: () => _showJsonDialog(context, ref),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Todo タイトル行（サブタスクはインデント表示）
-                  Padding(
-                    padding: EdgeInsets.only(
-                      left: 16.0 + (todo.depth * 24.0),
-                      right: 16,
-                      top: 14,
-                      bottom: 14,
-                    ),
-                    child: Row(
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _showEditDialog(context, ref),
+                    onLongPress: () => _showJsonDialog(context, ref),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 円形チェックボックス
-                        CircularCheckbox(
-                          value: todo.completed,
-                          onChanged: (_) {
-                            _handleTodoToggle(context, ref);
-                          },
-                          size: 22,
-                        ),
-                        
-                        const SizedBox(width: 12),
-                        
-                        // タイトル（リンクプレビューがある場合は非表示）
-                        if (todo.linkPreview == null)
-                          Expanded(
-                            child: Text(
-                              todo.title,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: todo.completed
-                                  ? AppTheme.todoTitleCompleted
-                                  : AppTheme.todoTitle(context),
-                            ),
+                        Padding(
+                          padding: EdgeInsets.only(
+                            left: 16.0 + (todo.depth * 24.0),
+                            right: index != null ? 0 : 16,
+                            top: 14,
+                            bottom: 14,
                           ),
-                        
-                        // 添付画像サムネイル
-                        if (todo.imageUrl != null)
-                          ImageThumbnail(imageUrl: todo.imageUrl!),
-
-                        // サブタスクインジケーター
-                        if (!todo.isSubtask)
-                          Consumer(
-                            builder: (context, ref, _) {
-                              final notifier = ref.watch(todosProvider.notifier);
-                              final subs = notifier.getSubtasks(todo.id);
-                              if (subs.isEmpty) {
-                                return const SizedBox.shrink();
-                              }
-                              final isExpanded =
-                                  ref.watch(subtaskExpansionProvider).contains(todo.id);
-                              return Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(8),
-                                  onTap: () =>
-                                      notifier.toggleSubtasksExpanded(todo.id),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 2,
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          '${subs.length}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.color
-                                                ?.withOpacity(0.75),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 2),
-                                        Icon(
-                                          isExpanded
-                                              ? Icons.keyboard_arrow_down
-                                              : Icons.keyboard_arrow_right,
-                                          size: 16,
-                                          color: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.color
-                                              ?.withOpacity(0.65),
-                                        ),
-                                      ],
-                                    ),
+                          child: Row(
+                            children: [
+                              CircularCheckbox(
+                                value: todo.completed,
+                                onChanged: (_) {
+                                  _handleTodoToggle(context, ref);
+                                },
+                                size: 22,
+                              ),
+                              
+                              const SizedBox(width: 12),
+                              
+                              if (todo.linkPreview == null)
+                                Expanded(
+                                  child: Text(
+                                    todo.title,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: todo.completed
+                                        ? AppTheme.todoTitleCompleted
+                                        : AppTheme.todoTitle(context),
                                   ),
                                 ),
-                              );
-                            },
-                          ),
+                              
+                              if (todo.imageUrl != null)
+                                ImageThumbnail(imageUrl: todo.imageUrl!),
 
-                        // リカーリングタスクのマーカー
-                        if (todo.isRecurring)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: Icon(
-                              Icons.repeat,
-                              size: 18,
-                              color: AppTheme.primaryPurple.withOpacity(0.5),
-                            ),
+                              if (!todo.isSubtask)
+                                Consumer(
+                                  builder: (context, ref, _) {
+                                    final notifier = ref.watch(todosProvider.notifier);
+                                    final subs = notifier.getSubtasks(todo.id);
+                                    if (subs.isEmpty) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final isExpanded =
+                                        ref.watch(subtaskExpansionProvider).contains(todo.id);
+                                    return Padding(
+                                      padding: const EdgeInsets.only(left: 8),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () =>
+                                            notifier.toggleSubtasksExpanded(todo.id),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 2,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                '${subs.length}',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.color
+                                                      ?.withOpacity(0.75),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 2),
+                                              Icon(
+                                                isExpanded
+                                                    ? Icons.keyboard_arrow_down
+                                                    : Icons.keyboard_arrow_right,
+                                                size: 16,
+                                                color: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.color
+                                                    ?.withOpacity(0.65),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                              if (todo.isRecurring)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Icon(
+                                    Icons.repeat,
+                                    size: 18,
+                                    color: AppTheme.primaryPurple.withOpacity(0.5),
+                                  ),
+                                ),
+                            ],
                           ),
+                        ),
+                        
+                        if (todo.linkPreview != null)
+                          _buildLinkCard(context, todo.linkPreview!),
                       ],
                     ),
                   ),
-                  
-                  // リンクカード（URLが検出された場合）
-                  if (todo.linkPreview != null)
-                    _buildLinkCard(context, todo.linkPreview!),
-                ],
-              ),
+                ),
+                if (index != null)
+                  ReorderableDelayedDragStartListener(
+                    index: index!,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                      child: Icon(
+                        Icons.drag_indicator,
+                        size: 20,
+                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.3),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         );

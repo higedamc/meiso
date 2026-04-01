@@ -2354,6 +2354,9 @@ class TodosNotifier
   }
 
   /// Todoを並び替え（楽観的UI更新）
+  ///
+  /// ReorderableListView の onReorder から rawIndex をそのまま受け取る。
+  /// サブタスクを親グループ外にドロップした場合、ルートタスクに昇格する。
   Future<void> reorderTodo(
     DateTime? date,
     int oldIndex,
@@ -2369,12 +2372,24 @@ class TodosNotifier
       final item = list.removeAt(oldIndex);
       list.insert(newIndex, item);
 
-      // orderを再計算
+      // サブタスク昇格判定: 親グループ外に移動されたら root に昇格
+      if (item.parentTaskId != null) {
+        final promoted = _shouldPromoteToRoot(list, newIndex, item);
+        if (promoted) {
+          list[newIndex] = item.copyWith(
+            parentTaskId: null,
+            depth: 0,
+          );
+          HapticFeedback.mediumImpact();
+        }
+      }
+
+      final now = DateTime.now();
       for (var i = 0; i < list.length; i++) {
         list[i] = list[i].copyWith(
           order: i,
-          updatedAt: DateTime.now(),
-          needsSync: true, // 同期が必要
+          updatedAt: now,
+          needsSync: true,
         );
       }
 
@@ -2383,16 +2398,21 @@ class TodosNotifier
         date: list,
       });
 
-      // ローカルストレージに保存（awaitする）
       await _saveAllTodosToLocal();
-
-      // Widgetを更新
       await _updateWidget();
-
-      // 【楽観的UI更新】即座に同期（バックグラウンド）
       _updateUnsyncedCount();
       _syncToNostrBackground();
     }).value;
+  }
+
+  /// サブタスクが親グループの外に移動されたかを判定する。
+  /// 直前のアイテムが同じ親 or 親自身でなければ昇格対象。
+  bool _shouldPromoteToRoot(List<Todo> list, int movedIndex, Todo item) {
+    if (movedIndex == 0) return true;
+    final prev = list[movedIndex - 1];
+    if (prev.id == item.parentTaskId) return false;
+    if (prev.parentTaskId == item.parentTaskId) return false;
+    return true;
   }
 
   /// Todoを別の日付に移動（楽観的UI更新）

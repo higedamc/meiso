@@ -159,20 +159,19 @@ class DayPage extends ConsumerWidget {
 
     return ReorderableListView.builder(
       padding: EdgeInsets.zero,
+      buildDefaultDragHandles: false,
       itemCount: todos.length,
       onReorder: (oldIndex, newIndex) {
-        final todo = todos[oldIndex];
-        // newIndexの調整（ReorderableListViewの仕様）
-        final adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
         ref
             .read(todosProvider.notifier)
-            .reorderTodo(date, oldIndex, adjustedIndex);
+            .reorderTodo(date, oldIndex, newIndex);
       },
       itemBuilder: (context, index) {
         final todo = todos[index];
         return TodoItem(
           key: Key(todo.id),
           todo: todo,
+          index: index,
         );
       },
     );
