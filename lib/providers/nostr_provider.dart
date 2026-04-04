@@ -21,6 +21,7 @@ import '../services/amber_service.dart';
 import 'sync_status_provider.dart';
 import 'relay_status_provider.dart';
 import '../utils/error_handler.dart';
+import '../utils/nostr_relay_user_agent.dart';
 
 /// デフォルトのNostrリレーリスト
 const List<String> defaultRelays = [
@@ -220,6 +221,23 @@ class NostrService {
     return rust_api.generateSecretKey();
   }
 
+  /// Relay WebSocket User-Agent (#130) and NIP-89 toggle (#131) before any relay connect.
+  Future<void> _applyRelayConnectionMetadata() async {
+    try {
+      final ua = await buildNostrRelayUserAgent();
+      await rust_api.setRelayWebsocketUserAgent(userAgent: ua);
+    } catch (e, st) {
+      AppLogger.warning('Relay User-Agent not set', error: e, stackTrace: st);
+    }
+    try {
+      final s = await localStorageService.loadAppSettings();
+      final enabled = s?.nip89ClientTagEnabled ?? true;
+      await rust_api.setNip89ClientTagEnabled(enabled: enabled);
+    } catch (e, st) {
+      AppLogger.warning('NIP-89 client tag flag not set', error: e, stackTrace: st);
+    }
+  }
+
   /// Nostrクライアントを初期化（秘密鍵を使用）
   Future<String> initializeNostr({
     required String secretKey,
@@ -229,6 +247,8 @@ class NostrService {
   }) async {
     final relayList = relays ?? defaultRelays;
     final effectiveTorMode = torMode ?? TorMode.disabled;
+
+    await _applyRelayConnectionMetadata();
 
     // TorMode に応じて接続方法を選択
     final String publicKey;
@@ -295,6 +315,8 @@ class NostrService {
   }) async {
     final relayList = relays ?? defaultRelays;
     final effectiveTorMode = torMode ?? TorMode.disabled;
+
+    await _applyRelayConnectionMetadata();
 
     // TorMode に応じて接続方法を選択
     final String publicKey;
@@ -744,6 +766,7 @@ class NostrService {
       if (pubkey == null) {
         throw Exception('Public key is not initialized');
       }
+      await _applyRelayConnectionMetadata();
       await rust_api.initNostrClientWithPubkey(
         publicKeyHex: pubkey,
         relays: uniqueRelays,
@@ -792,6 +815,7 @@ class NostrService {
       if (pubkey == null) {
         throw Exception('Public key is not initialized');
       }
+      await _applyRelayConnectionMetadata();
       await rust_api.initNostrClientWithPubkeyAndId(
         clientId: clientId,
         publicKeyHex: pubkey,

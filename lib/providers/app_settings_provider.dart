@@ -129,6 +129,14 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
     
     // ローカルストレージに保存
     await localStorageService.saveAppSettings(updatedSettings);
+
+    try {
+      await bridge.setNip89ClientTagEnabled(
+        enabled: updatedSettings.nip89ClientTagEnabled,
+      );
+    } catch (e) {
+      AppLogger.warning(' Rust NIP-89 フラグ更新失敗: $e');
+    }
     
     // Nostrに同期
     await _syncToNostr(updatedSettings);
@@ -388,6 +396,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'task_ui_mode': settings.taskUiMode.name,
           'feature_flags': settings.featureFlags,
           'hide_completed_tasks': settings.hideCompletedTasks,
+          'nip89_client_tag_enabled': settings.nip89ClientTagEnabled,
           'updated_at': settings.updatedAt.toIso8601String(),
         });
         
@@ -480,6 +489,8 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           torMode: _toBridgeTorMode(settings.torMode),
           proxyUrl: settings.proxyUrl,
           customListOrder: settings.customListOrder,
+          lastViewedCustomListId: settings.lastViewedCustomListId,
+          nip89ClientTagEnabled: settings.nip89ClientTagEnabled,
           updatedAt: settings.updatedAt.toIso8601String(),
         );
         
@@ -614,11 +625,22 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
                 )
               : (state.valueOrNull?.featureFlags ?? const <String, bool>{}),
           hideCompletedTasks: settingsMap['hide_completed_tasks'] as bool? ?? false,
+          nip89ClientTagEnabled:
+              settingsMap['nip89_client_tag_enabled'] as bool? ?? true,
+          customListOrder: settingsMap['custom_list_order'] is List
+              ? List<String>.from(settingsMap['custom_list_order'] as List)
+              : (state.valueOrNull?.customListOrder ?? const []),
+          lastViewedCustomListId:
+              settingsMap['last_viewed_custom_list_id'] as String? ??
+                  state.valueOrNull?.lastViewedCustomListId,
           updatedAt: DateTime.parse(settingsMap['updated_at'] as String),
         );
         
         state = AsyncValue.data(syncedSettings);
         await localStorageService.saveAppSettings(syncedSettings);
+        await bridge.setNip89ClientTagEnabled(
+          enabled: syncedSettings.nip89ClientTagEnabled,
+        );
         AppLogger.info(' 設定同期完了（Amberモード）');
         await localStorageService.setLastAppSettingsSyncTime(DateTime.now());
         
@@ -652,14 +674,20 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           relays: syncedRelays,
           torMode: _parseTorMode(bridgeSettings.torMode),
           proxyUrl: bridgeSettings.proxyUrl,
+          customListOrder: bridgeSettings.customListOrder,
+          lastViewedCustomListId: bridgeSettings.lastViewedCustomListId,
           taskUiMode: state.valueOrNull?.taskUiMode ?? TaskUiMode.reminders,
           featureFlags: state.valueOrNull?.featureFlags ?? const <String, bool>{},
           hideCompletedTasks: state.valueOrNull?.hideCompletedTasks ?? false,
+          nip89ClientTagEnabled: bridgeSettings.nip89ClientTagEnabled,
           updatedAt: DateTime.parse(bridgeSettings.updatedAt),
         );
         
         state = AsyncValue.data(syncedSettings);
         await localStorageService.saveAppSettings(syncedSettings);
+        await bridge.setNip89ClientTagEnabled(
+          enabled: syncedSettings.nip89ClientTagEnabled,
+        );
         AppLogger.info(' 設定同期完了（通常モード）');
         await localStorageService.setLastAppSettingsSyncTime(DateTime.now());
       }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Nostr relay User-Agent (Issue #130)**: WebSocket handshake sends `meiso/<version> (<os>; <os_version>)` using a vendored `async-wsocket` fork and `setRelayWebsocketUserAgent` before client init.
+- **NIP-89 client tag (Issue #131)**: Published events include a minimal `["client","meiso"]` tag unless disabled under Settings → Advanced (synced in Kind 30078 as `nip89_client_tag_enabled`).
+
+### Changed
+- **Rust**: `async-wsocket` 0.10.1 patched at `rust/vendor/async-wsocket` with `[patch.crates-io]`; direct dependency from the `rust` crate for the setter API.
+
 ## [1.3.0] - 2026-03-30
 
 ### Added

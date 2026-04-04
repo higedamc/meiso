@@ -131,6 +131,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get advancedSectionSubtitle => 'Developer features';
 
   @override
+  String get settingsNip89ClientTagTitle => 'NIP-89 client tag on events';
+
+  @override
+  String get settingsNip89ClientTagSubtitle =>
+      'Helps relays and tools identify Meiso. Turn off if you prefer not to send this metadata.';
+
+  @override
   String get keyPackagePublishTitle => 'Publish Key Package';
 
   @override

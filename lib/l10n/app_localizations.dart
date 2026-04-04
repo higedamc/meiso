@@ -322,6 +322,18 @@ abstract class AppLocalizations {
   /// **'Developer features'**
   String get advancedSectionSubtitle;
 
+  /// Toggle title for adding NIP-89 client identification to published Nostr events
+  ///
+  /// In en, this message translates to:
+  /// **'NIP-89 client tag on events'**
+  String get settingsNip89ClientTagTitle;
+
+  /// Explains NIP-89 client tag and privacy opt-out
+  ///
+  /// In en, this message translates to:
+  /// **'Helps relays and tools identify Meiso. Turn off if you prefer not to send this metadata.'**
+  String get settingsNip89ClientTagSubtitle;
+
   /// Menu title for publishing Key Package
   ///
   /// In en, this message translates to:

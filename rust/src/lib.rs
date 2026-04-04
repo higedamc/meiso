@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub mod api;
+pub mod nostr_client_meta;
 pub mod key_store;
 pub mod group_tasks;
 pub mod mls;

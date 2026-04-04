@@ -199,6 +199,16 @@
     "description": "Subtitle for advanced section in settings"
   },
 
+  "settingsNip89ClientTagTitle": "NIP-89 client tag on events",
+  "@settingsNip89ClientTagTitle": {
+    "description": "Toggle title for adding NIP-89 client identification to published Nostr events"
+  },
+
+  "settingsNip89ClientTagSubtitle": "Helps relays and tools identify Meiso. Turn off if you prefer not to send this metadata.",
+  "@settingsNip89ClientTagSubtitle": {
+    "description": "Explains NIP-89 client tag and privacy opt-out"
+  },
+
   "keyPackagePublishTitle": "Publish Key Package",
   "@keyPackagePublishTitle": {
     "description": "Menu title for publishing Key Package"

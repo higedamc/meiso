@@ -254,6 +254,27 @@ class SettingsScreen extends ConsumerWidget {
                 tilePadding: const EdgeInsets.symmetric(horizontal: 16),
                 childrenPadding: const EdgeInsets.only(left: 16),
                 children: [
+                  if (appSettings != null) ...[
+                    SwitchListTile(
+                      dense: true,
+                      secondary: const Icon(
+                        Icons.label_outline,
+                        color: AppTheme.primaryPurple,
+                      ),
+                      title: Text(l10n.settingsNip89ClientTagTitle),
+                      subtitle: Text(
+                        l10n.settingsNip89ClientTagSubtitle,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      value: appSettings.nip89ClientTagEnabled,
+                      onChanged: (v) async {
+                        await ref.read(appSettingsProvider.notifier).updateSettings(
+                              appSettings.copyWith(nip89ClientTagEnabled: v),
+                            );
+                      },
+                    ),
+                    const Divider(height: 1),
+                  ],
                   _buildSettingTile(
                     context,
                     icon: Icons.vpn_key,

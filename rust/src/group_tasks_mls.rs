@@ -51,15 +51,20 @@ fn create_unsigned_event(
         .duration_since(UNIX_EPOCH)?
         .as_secs();
     
+    let mut tag_rows: Vec<Vec<String>> = vec![
+        vec!["d".to_string(), todo_id.to_string()],
+        vec!["list_id".to_string(), list_id.to_string()],
+        vec!["action".to_string(), action.to_string()],
+    ];
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tag_rows);
+    let tags_value: Vec<serde_json::Value> =
+        tag_rows.into_iter().map(|r| json!(r)).collect();
+
     let event = json!({
         "kind": 30078,
         "pubkey": sender_pubkey,
         "created_at": now,
-        "tags": [
-            ["d", todo_id],
-            ["list_id", list_id],
-            ["action", action]
-        ],
+        "tags": tags_value,
         "content": todo_json
         // NO "sig" field - unsigned event as per NIP-EE
     });

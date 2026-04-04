@@ -62,6 +62,9 @@ class AppSettings with _$AppSettings {
 
     /// 完了済みタスクを非表示にする
     @Default(false) bool hideCompletedTasks,
+
+    /// NIP-89 `client` タグをイベントに付与する（false = オプトアウト）
+    @Default(true) bool nip89ClientTagEnabled,
     
     /// 最終更新日時
     required DateTime updatedAt,

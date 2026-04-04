@@ -75,6 +75,10 @@
 
   "advancedSectionSubtitle": "開発者向け機能",
 
+  "settingsNip89ClientTagTitle": "NIP-89 の client タグを付ける",
+
+  "settingsNip89ClientTagSubtitle": "リレーがクライアントを識別しやすくなります。メタデータを送りたくない場合はオフにしてください。",
+
   "keyPackagePublishTitle": "Key Packageを公開",
 
   "keyPackagePublishSubtitle": "グループ招待を受けるために必要",

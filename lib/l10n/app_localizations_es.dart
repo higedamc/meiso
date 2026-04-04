@@ -131,6 +131,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get advancedSectionSubtitle => 'Funciones de desarrollador';
 
   @override
+  String get settingsNip89ClientTagTitle => 'Etiqueta client NIP-89 en eventos';
+
+  @override
+  String get settingsNip89ClientTagSubtitle =>
+      'Ayuda a identificar Meiso en relays. Desactívala si no quieres enviar estos metadatos.';
+
+  @override
   String get keyPackagePublishTitle => 'Publicar Key Package';
 
   @override

@@ -8,7 +8,7 @@ import 'group_tasks.dart';
 import 'group_tasks_mls.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `check_connection_status`, `default_proxy_url`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
+// These functions are ignored because they are not marked as `pub`: `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
@@ -66,6 +66,14 @@ Future<List<ReceivedEvent>> fetchMlsGroupTodoEventsSinceWithClientId({
   timeoutSecs: timeoutSecs,
   clientId: clientId,
 );
+
+/// WebSocket `User-Agent` on relay connections (issue #130). Call before any `init_nostr_client*`.
+Future<void> setRelayWebsocketUserAgent({required String userAgent}) =>
+    RustLib.instance.api.crateApiSetRelayWebsocketUserAgent(userAgent: userAgent);
+
+/// Enable/disable NIP-89 `client` tag on published events (issue #131). Default is enabled.
+Future<void> setNip89ClientTagEnabled({required bool enabled}) =>
+    RustLib.instance.api.crateApiSetNip89ClientTagEnabled(enabled: enabled);
 
 /// Nostrクライアントを初期化（hex公開鍵を返す）
 /// client_id を指定しない場合はデフォルトクライアントとして保存
@@ -1125,6 +1133,9 @@ class AppSettings {
   /// 最後に見ていたカスタムリストID
   final String? lastViewedCustomListId;
 
+  /// NIP-89 `client` タグを付与する（false = オプトアウト、既定 true）
+  final bool nip89ClientTagEnabled;
+
   /// 最終更新日時
   final String updatedAt;
 
@@ -1138,6 +1149,7 @@ class AppSettings {
     required this.proxyUrl,
     required this.customListOrder,
     this.lastViewedCustomListId,
+    required this.nip89ClientTagEnabled,
     required this.updatedAt,
   });
 
@@ -1152,6 +1164,7 @@ class AppSettings {
       proxyUrl.hashCode ^
       customListOrder.hashCode ^
       lastViewedCustomListId.hashCode ^
+      nip89ClientTagEnabled.hashCode ^
       updatedAt.hashCode;
 
   @override
@@ -1168,6 +1181,7 @@ class AppSettings {
           proxyUrl == other.proxyUrl &&
           customListOrder == other.customListOrder &&
           lastViewedCustomListId == other.lastViewedCustomListId &&
+          nip89ClientTagEnabled == other.nip89ClientTagEnabled &&
           updatedAt == other.updatedAt;
 }
 

@@ -167,8 +167,15 @@ pub struct AppSettings {
     /// 最後に見ていたカスタムリストID
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_viewed_custom_list_id: Option<String>,
+    /// NIP-89 `client` タグを付与する（false = オプトアウト、既定 true）
+    #[serde(default = "default_nip89_client_tag_enabled")]
+    pub nip89_client_tag_enabled: bool,
     /// 最終更新日時
     pub updated_at: String,
+}
+
+fn default_nip89_client_tag_enabled() -> bool {
+    true
 }
 
 /// デフォルトのプロキシURL
@@ -829,7 +836,7 @@ impl MeisoNostrClient {
             );
 
             let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
-                .tags(vec![d_tag, title_tag])
+                .tags(crate::nostr_client_meta::merge_nip89_into_tags(vec![d_tag, title_tag]))
                 .sign(keys)
                 .await?;
 
@@ -1089,7 +1096,7 @@ impl MeisoNostrClient {
         );
 
         let event = EventBuilder::new(Kind::Custom(30078), encrypted_content)
-            .tags(vec![d_tag])
+            .tags(crate::nostr_client_meta::merge_nip89_into_tags(vec![d_tag]))
             .sign(keys)
             .await?;
 
@@ -1140,6 +1147,9 @@ impl MeisoNostrClient {
             ) {
                 if let Ok(settings) = serde_json::from_str::<AppSettings>(&decrypted) {
                     println!("✅ App settings synced from Nostr");
+                    crate::nostr_client_meta::set_nip89_client_tag_enabled(
+                        settings.nip89_client_tag_enabled,
+                    );
                     return Ok(Some(settings));
                 }
             }
@@ -1172,7 +1182,7 @@ impl MeisoNostrClient {
         
         // Kind 10002イベント作成（contentは空）
         let event = EventBuilder::new(Kind::RelayList, String::new())
-            .tags(tags)
+            .tags(crate::nostr_client_meta::merge_nip89_into_tags(tags))
             .sign(keys)
             .await?;
         
@@ -1463,6 +1473,21 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
     once_cell::sync::Lazy::new(|| {
         tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime")
     });
+
+/// WebSocket `User-Agent` on relay connections (issue #130). Call before any `init_nostr_client*`.
+pub fn set_relay_websocket_user_agent(user_agent: String) {
+    let opt = if user_agent.trim().is_empty() {
+        None
+    } else {
+        Some(user_agent)
+    };
+    async_wsocket::set_optional_websocket_user_agent(opt);
+}
+
+/// Enable/disable NIP-89 `client` tag on published events (issue #131). Default is enabled.
+pub fn set_nip89_client_tag_enabled(enabled: bool) {
+    crate::nostr_client_meta::set_nip89_client_tag_enabled(enabled);
+}
 
 /// Nostrクライアントを初期化（hex公開鍵を返す）
 /// client_id を指定しない場合はデフォルトクライアントとして保存
@@ -1921,6 +1946,13 @@ pub fn sign_event_with_ephemeral_key(
                     .map_err(|e| anyhow::anyhow!("Failed to parse tag: {:?}", e))?);
             }
         }
+
+        // NIP-17 ギフトラップ等: kind 1059 にはクライアント識別タグを付けない（メタデータ最小化）
+        let tags = if kind != 1059 {
+            crate::nostr_client_meta::merge_nip89_into_tags(tags)
+        } else {
+            tags
+        };
         
         // created_atを取得（指定がなければ現在時刻）
         let created_at = if let Some(timestamp) = unsigned_event["created_at"].as_u64() {
@@ -2044,10 +2076,11 @@ pub fn create_unsigned_encrypted_todo_list_event_with_list_id(
     let title_value = list_title.unwrap_or_else(|| "My TODO List".to_string());
     
     // Kind 30001のタグ
-    let tags = vec![
+    let mut tags = vec![
         vec!["d".to_string(), d_tag_value.clone()],
         vec!["title".to_string(), title_value],
     ];
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
     
     // 未署名イベントJSON（Amber用）
     let unsigned_event = json!({
@@ -2097,9 +2130,10 @@ pub fn create_unsigned_encrypted_todo_event(
         .as_secs();
     
     // dタグを追加
-    let tags = vec![
+    let mut tags = vec![
         vec!["d".to_string(), format!("todo-{}", todo_id)]
     ];
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
     
     // 未署名イベントJSON（Amber用）
     let unsigned_event = json!({
@@ -3023,9 +3057,10 @@ pub fn create_unsigned_encrypted_app_settings_event(
         .as_secs();
     
     // Kind 30078のタグ（アプリ設定用）
-    let tags = vec![
+    let mut tags = vec![
         vec!["d".to_string(), "meiso-settings".to_string()],
     ];
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
     
     // 未署名イベントJSON（Amber用）
     let unsigned_event = json!({
@@ -3065,6 +3100,7 @@ pub fn create_unsigned_relay_list_event(
         // "r" タグで各リレーを追加（read/writeの指定も可能だが、今回は両方）
         tags.push(vec!["r".to_string(), relay_url.clone()]);
     }
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
     
     // 未署名イベントJSON（Amber用）
     // contentは空文字列（NIP-65では不要）
@@ -3238,7 +3274,7 @@ pub fn delete_events_with_client_id(
             .collect();
         
         let event = EventBuilder::new(Kind::EventDeletion, content)
-            .tags(tags)
+            .tags(crate::nostr_client_meta::merge_nip89_into_tags(tags))
             .sign(keys)
             .await?;
         
@@ -3706,7 +3742,7 @@ pub fn save_group_task_list_to_nostr(
         }
         
         let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
-            .tags(tags)
+            .tags(crate::nostr_client_meta::merge_nip89_into_tags(tags))
             .sign(keys)
             .await?;
         
@@ -3765,9 +3801,10 @@ pub fn create_unsigned_group_task_list_event(
         .as_secs();
     
     // タグをJSON配列に変換
-    let tags_json: Vec<Vec<String>> = tags.iter().map(|tag| {
+    let mut tags_json: Vec<Vec<String>> = tags.iter().map(|tag| {
         tag.clone().to_vec().iter().map(|s| s.to_string()).collect()
     }).collect();
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags_json);
     
     // 未署名イベントのJSON構造を作成
     let unsigned_event = serde_json::json!({
@@ -4370,6 +4407,7 @@ pub fn create_unsigned_key_package_event(
     for relay_url in &relays {
         tags.push(vec!["relay".to_string(), relay_url.clone()]);
     }
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
     
     // 未署名イベントJSON（Amber用）
     let unsigned_event = json!({
@@ -4606,7 +4644,7 @@ pub fn create_unsigned_group_invitation_event(
     let mut tags = Vec::new();
     tags.push(vec!["d".to_string(), d_tag_value.clone()]);
     tags.push(vec!["p".to_string(), recipient_pubkey.to_hex()]);
-    tags.push(vec!["client".to_string(), "meiso".to_string()]);
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
     
     // 未署名イベントJSON
     // Note: contentは平文で渡す。実際の暗号化はFlutter側（Amber署名時）に実装予定
@@ -4775,7 +4813,7 @@ pub fn sign_blossom_auth_event_with_client_id(
         ];
 
         let event = EventBuilder::new(Kind::Custom(24242), "Upload")
-            .tags(tags)
+            .tags(crate::nostr_client_meta::merge_nip89_into_tags(tags))
             .sign(keys)
             .await
             .context("Failed to sign Blossom auth event")?;
@@ -4807,12 +4845,13 @@ pub fn create_unsigned_blossom_auth_event(
 
     let expiration = created_at + 600;
 
-    let tags = vec![
+    let mut tags = vec![
         vec!["t".to_string(), "upload".to_string()],
         vec!["x".to_string(), sha256_hex],
         vec!["size".to_string(), file_size.to_string()],
         vec!["expiration".to_string(), expiration.to_string()],
     ];
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
 
     let unsigned_event = json!({
         "pubkey": public_key.to_hex(),
@@ -4858,7 +4897,7 @@ pub fn sign_nip98_auth_event_with_client_id(
         ];
 
         let event = EventBuilder::new(Kind::Custom(27235), "")
-            .tags(tags)
+            .tags(crate::nostr_client_meta::merge_nip89_into_tags(tags))
             .sign(keys)
             .await
             .context("Failed to sign NIP-98 auth event")?;
@@ -4888,10 +4927,11 @@ pub fn create_unsigned_nip98_auth_event(
         .unwrap()
         .as_secs();
 
-    let tags = vec![
+    let mut tags = vec![
         vec!["u".to_string(), url],
         vec!["method".to_string(), method.to_uppercase()],
     ];
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
 
     let unsigned_event = json!({
         "pubkey": public_key.to_hex(),

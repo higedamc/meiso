@@ -57,6 +57,9 @@ mixin _$AppSettings {
   /// 完了済みタスクを非表示にする
   bool get hideCompletedTasks => throw _privateConstructorUsedError;
 
+  /// NIP-89 `client` タグをイベントに付与する（false = オプトアウト）
+  bool get nip89ClientTagEnabled => throw _privateConstructorUsedError;
+
   /// 最終更新日時
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -90,6 +93,7 @@ abstract class $AppSettingsCopyWith<$Res> {
     TaskUiMode taskUiMode,
     Map<String, bool> featureFlags,
     bool hideCompletedTasks,
+    bool nip89ClientTagEnabled,
     DateTime updatedAt,
   });
 }
@@ -121,6 +125,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? taskUiMode = null,
     Object? featureFlags = null,
     Object? hideCompletedTasks = null,
+    Object? nip89ClientTagEnabled = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -173,6 +178,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
                 ? _value.hideCompletedTasks
                 : hideCompletedTasks // ignore: cast_nullable_to_non_nullable
                       as bool,
+            nip89ClientTagEnabled: null == nip89ClientTagEnabled
+                ? _value.nip89ClientTagEnabled
+                : nip89ClientTagEnabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
             updatedAt: null == updatedAt
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -205,6 +214,7 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     TaskUiMode taskUiMode,
     Map<String, bool> featureFlags,
     bool hideCompletedTasks,
+    bool nip89ClientTagEnabled,
     DateTime updatedAt,
   });
 }
@@ -235,6 +245,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? taskUiMode = null,
     Object? featureFlags = null,
     Object? hideCompletedTasks = null,
+    Object? nip89ClientTagEnabled = null,
     Object? updatedAt = null,
   }) {
     return _then(
@@ -287,6 +298,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
             ? _value.hideCompletedTasks
             : hideCompletedTasks // ignore: cast_nullable_to_non_nullable
                   as bool,
+        nip89ClientTagEnabled: null == nip89ClientTagEnabled
+            ? _value.nip89ClientTagEnabled
+            : nip89ClientTagEnabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
         updatedAt: null == updatedAt
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -312,6 +327,7 @@ class _$AppSettingsImpl implements _AppSettings {
     this.taskUiMode = TaskUiMode.reminders,
     this.featureFlags = const <String, bool>{},
     this.hideCompletedTasks = false,
+    this.nip89ClientTagEnabled = true,
     required this.updatedAt,
   });
 
@@ -377,13 +393,18 @@ class _$AppSettingsImpl implements _AppSettings {
   @JsonKey()
   final bool hideCompletedTasks;
 
+  /// NIP-89 `client` タグをイベントに付与する（false = オプトアウト）
+  @override
+  @JsonKey()
+  final bool nip89ClientTagEnabled;
+
   /// 最終更新日時
   @override
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, taskUiMode: $taskUiMode, featureFlags: $featureFlags, hideCompletedTasks: $hideCompletedTasks, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, taskUiMode: $taskUiMode, featureFlags: $featureFlags, hideCompletedTasks: $hideCompletedTasks, nip89ClientTagEnabled: $nip89ClientTagEnabled, updatedAt: $updatedAt)';
   }
 
   @override
@@ -417,6 +438,8 @@ class _$AppSettingsImpl implements _AppSettings {
             ) &&
             (identical(other.hideCompletedTasks, hideCompletedTasks) ||
                 other.hideCompletedTasks == hideCompletedTasks) &&
+            (identical(other.nip89ClientTagEnabled, nip89ClientTagEnabled) ||
+                other.nip89ClientTagEnabled == nip89ClientTagEnabled) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt));
   }
@@ -437,6 +460,7 @@ class _$AppSettingsImpl implements _AppSettings {
     taskUiMode,
     const DeepCollectionEquality().hash(featureFlags),
     hideCompletedTasks,
+    nip89ClientTagEnabled,
     updatedAt,
   );
 
@@ -468,6 +492,7 @@ abstract class _AppSettings implements AppSettings {
     final TaskUiMode taskUiMode,
     final Map<String, bool> featureFlags,
     final bool hideCompletedTasks,
+    final bool nip89ClientTagEnabled,
     required final DateTime updatedAt,
   }) = _$AppSettingsImpl;
 
@@ -521,6 +546,10 @@ abstract class _AppSettings implements AppSettings {
   /// 完了済みタスクを非表示にする
   @override
   bool get hideCompletedTasks;
+
+  /// NIP-89 `client` タグをイベントに付与する（false = オプトアウト）
+  @override
+  bool get nip89ClientTagEnabled;
 
   /// 最終更新日時
   @override

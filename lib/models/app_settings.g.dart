@@ -36,6 +36,7 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
           ) ??
           const <String, bool>{},
       hideCompletedTasks: json['hideCompletedTasks'] as bool? ?? false,
+      nip89ClientTagEnabled: json['nip89ClientTagEnabled'] as bool? ?? true,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
 
@@ -53,6 +54,7 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'taskUiMode': _$TaskUiModeEnumMap[instance.taskUiMode]!,
       'featureFlags': instance.featureFlags,
       'hideCompletedTasks': instance.hideCompletedTasks,
+      'nip89ClientTagEnabled': instance.nip89ClientTagEnabled,
       'updatedAt': instance.updatedAt.toIso8601String(),
     };
 

@@ -131,6 +131,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get advancedSectionSubtitle => '開発者向け機能';
 
   @override
+  String get settingsNip89ClientTagTitle => 'NIP-89 の client タグを付ける';
+
+  @override
+  String get settingsNip89ClientTagSubtitle =>
+      'リレーがクライアントを識別しやすくなります。メタデータを送りたくない場合はオフにしてください。';
+
+  @override
   String get keyPackagePublishTitle => 'Key Packageを公開';
 
   @override

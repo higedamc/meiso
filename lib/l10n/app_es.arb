@@ -75,6 +75,10 @@
   
   "advancedSectionSubtitle": "Funciones de desarrollador",
 
+  "settingsNip89ClientTagTitle": "Etiqueta client NIP-89 en eventos",
+
+  "settingsNip89ClientTagSubtitle": "Ayuda a identificar Meiso en relays. Desactívala si no quieres enviar estos metadatos.",
+
   "keyPackagePublishTitle": "Publicar Key Package",
   
   "keyPackagePublishSubtitle": "Requerido para recibir invitaciones de grupo",

@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -323071029;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1729386123;
 
 // Section: executor
 
@@ -4750,6 +4750,76 @@ fn wire__crate__api__send_signed_event_with_client_id_impl(
         },
     )
 }
+fn wire__crate__api__set_nip89_client_tag_enabled_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_nip89_client_tag_enabled",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_enabled = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok({
+                        crate::api::set_nip89_client_tag_enabled(api_enabled);
+                    })?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__set_relay_websocket_user_agent_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_relay_websocket_user_agent",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_user_agent = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok({
+                        crate::api::set_relay_websocket_user_agent(api_user_agent);
+                    })?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__sign_blossom_auth_event_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -5682,6 +5752,7 @@ impl SseDecode for crate::api::AppSettings {
         let mut var_proxyUrl = <String>::sse_decode(deserializer);
         let mut var_customListOrder = <Vec<String>>::sse_decode(deserializer);
         let mut var_lastViewedCustomListId = <Option<String>>::sse_decode(deserializer);
+        let mut var_nip89ClientTagEnabled = <bool>::sse_decode(deserializer);
         let mut var_updatedAt = <String>::sse_decode(deserializer);
         return crate::api::AppSettings {
             dark_mode: var_darkMode,
@@ -5693,6 +5764,7 @@ impl SseDecode for crate::api::AppSettings {
             proxy_url: var_proxyUrl,
             custom_list_order: var_customListOrder,
             last_viewed_custom_list_id: var_lastViewedCustomListId,
+            nip89_client_tag_enabled: var_nip89ClientTagEnabled,
             updated_at: var_updatedAt,
         };
     }
@@ -6823,76 +6895,82 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        119 => wire__crate__api__sign_blossom_auth_event_impl(port, ptr, rust_vec_len, data_len),
-        120 => wire__crate__api__sign_blossom_auth_event_with_client_id_impl(
+        119 => {
+            wire__crate__api__set_nip89_client_tag_enabled_impl(port, ptr, rust_vec_len, data_len)
+        }
+        120 => {
+            wire__crate__api__set_relay_websocket_user_agent_impl(port, ptr, rust_vec_len, data_len)
+        }
+        121 => wire__crate__api__sign_blossom_auth_event_impl(port, ptr, rust_vec_len, data_len),
+        122 => wire__crate__api__sign_blossom_auth_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        121 => {
+        123 => {
             wire__crate__api__sign_event_with_ephemeral_key_impl(port, ptr, rust_vec_len, data_len)
         }
-        122 => wire__crate__api__sign_nip98_auth_event_impl(port, ptr, rust_vec_len, data_len),
-        123 => wire__crate__api__sign_nip98_auth_event_with_client_id_impl(
+        124 => wire__crate__api__sign_nip98_auth_event_impl(port, ptr, rust_vec_len, data_len),
+        125 => wire__crate__api__sign_nip98_auth_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        124 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
-        125 => wire__crate__api__start_subscription_with_client_id_impl(
+        126 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
+        127 => wire__crate__api__start_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        126 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
-        127 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
+        128 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
+        129 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        128 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
-        129 => wire__crate__api__stop_subscription_with_client_id_impl(
+        130 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
+        131 => wire__crate__api__stop_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        130 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        131 => wire__crate__api__sync_app_settings_with_client_id_impl(
+        132 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__sync_app_settings_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        132 => wire__crate__api__sync_group_invitations_impl(port, ptr, rust_vec_len, data_len),
-        133 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        134 => {
+        134 => wire__crate__api__sync_group_invitations_impl(port, ptr, rust_vec_len, data_len),
+        135 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        136 => {
             wire__crate__api__sync_relay_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        135 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
-        136 => wire__crate__api__sync_todo_list_since_impl(port, ptr, rust_vec_len, data_len),
-        137 => wire__crate__api__sync_todo_list_since_with_client_id_impl(
+        137 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
+        138 => wire__crate__api__sync_todo_list_since_impl(port, ptr, rust_vec_len, data_len),
+        139 => wire__crate__api__sync_todo_list_since_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        138 => {
+        140 => {
             wire__crate__api__sync_todo_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        139 => wire__crate__api__tor_mode_default_impl(port, ptr, rust_vec_len, data_len),
-        140 => wire__crate__api__update_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        141 => wire__crate__api__update_relay_list_with_client_id_impl(
+        141 => wire__crate__api__tor_mode_default_impl(port, ptr, rust_vec_len, data_len),
+        142 => wire__crate__api__update_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        143 => wire__crate__api__update_relay_list_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
+        144 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -6939,6 +7017,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::AppSettings {
             self.proxy_url.into_into_dart().into_dart(),
             self.custom_list_order.into_into_dart().into_dart(),
             self.last_viewed_custom_list_id.into_into_dart().into_dart(),
+            self.nip89_client_tag_enabled.into_into_dart().into_dart(),
             self.updated_at.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -7413,6 +7492,7 @@ impl SseEncode for crate::api::AppSettings {
         <String>::sse_encode(self.proxy_url, serializer);
         <Vec<String>>::sse_encode(self.custom_list_order, serializer);
         <Option<String>>::sse_encode(self.last_viewed_custom_list_id, serializer);
+        <bool>::sse_encode(self.nip89_client_tag_enabled, serializer);
         <String>::sse_encode(self.updated_at, serializer);
     }
 }
