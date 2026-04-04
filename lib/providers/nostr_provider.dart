@@ -288,19 +288,14 @@ class NostrService {
     }
 
     _ref.read(publicKeyProvider.notifier).state = publicKey;
-    await localStorageService.setUseAmber(false);
-
-    // 接続が確立するまで待機してからリスナーを起動する
+    _ref.read(nostrInitializedProvider.notifier).state = true;
     _ref.read(relayStatusProvider.notifier).initializeAsConnected(relayList);
-    await _waitForRelayConnections();
-    await refreshRelayStatus();
+
+    await localStorageService.setUseAmber(false);
+    _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
     await _initializeCacheAndSubscription(publicKey);
     unawaited(processGlobalBackfillQueue());
-
-    // 全準備完了後にフラグを立てる — bootstrap / batch sync リスナーはここで初めて発火
-    _ref.read(nostrInitializedProvider.notifier).state = true;
-    _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
     final modeStr = effectiveTorMode == TorMode.disabled
         ? ''
@@ -363,26 +358,22 @@ class NostrService {
     }
 
     _ref.read(publicKeyProvider.notifier).state = publicKey;
-    await localStorageService.setUseAmber(true);
+    _ref.read(nostrInitializedProvider.notifier).state = true;
+    _ref.read(relayStatusProvider.notifier).initializeAsConnected(relayList);
 
     try {
       final npubKey = await rust_api.hexToNpub(hex: publicKey);
       _ref.read(nostrPublicKeyProvider.notifier).state = npubKey;
-      AppLogger.info('npub key set: ${npubKey.substring(0, 16)}...');
+      AppLogger.info('ℹ️ npub公開鍵を設定しました: ${npubKey.substring(0, 16)}...');
     } catch (e) {
-      AppLogger.error('hex->npub conversion error: $e');
+      AppLogger.error('❌ hex→npub変換エラー: $e');
     }
 
-    // 接続が確立するまで待機してからリスナーを起動する
-    _ref.read(relayStatusProvider.notifier).initializeAsConnected(relayList);
-    await _waitForRelayConnections();
-    await refreshRelayStatus();
+    await localStorageService.setUseAmber(true);
 
     await _initializeCacheAndSubscription(publicKey);
     unawaited(processGlobalBackfillQueue());
 
-    // 全準備完了後にフラグを立てる — bootstrap / batch sync リスナーはここで初めて発火
-    _ref.read(nostrInitializedProvider.notifier).state = true;
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
     final modeStr = effectiveTorMode == TorMode.disabled
@@ -1026,30 +1017,6 @@ class NostrService {
       AppLogger.warning(' Failed to check connection status: $e');
       return false;
     }
-  }
-
-  /// リレー接続が確立するまで待機（最大 maxWaitMs ミリ秒）
-  ///
-  /// nostr-sdk の `client.connect()` は WebSocket ハンドシェイクを非同期で開始するため、
-  /// initNostrClient* が返った直後はまだ接続が確立していない場合がある。
-  /// この関数で少なくとも 1 つのリレーが Connected になるまで待つ。
-  Future<void> _waitForRelayConnections({int maxWaitMs = 3000}) async {
-    const pollInterval = Duration(milliseconds: 400);
-    final deadline = DateTime.now().add(Duration(milliseconds: maxWaitMs));
-
-    while (DateTime.now().isBefore(deadline)) {
-      try {
-        final info = await rust_api.getRelayConnectionInfo();
-        if (info.connected > BigInt.zero) {
-          AppLogger.info(
-            'Relay ready: ${info.connected}/${info.total} connected',
-          );
-          return;
-        }
-      } catch (_) {}
-      await Future<void>.delayed(pollInterval);
-    }
-    AppLogger.warning('⚠️ Relay warmup timeout (${maxWaitMs}ms) — proceeding anyway');
   }
 
   /// Rust から実際の WebSocket 接続状態を取得し relayStatusProvider を更新
