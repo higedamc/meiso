@@ -8,9 +8,9 @@ import 'group_tasks.dart';
 import 'group_tasks_mls.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
+// These functions are ignored because they are not marked as `pub`: `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// MLS/NIP-17: listen_key(#p) 宛の sealed event(kind=1059) を差分取得
 ///
@@ -588,6 +588,23 @@ Future<bool> checkConnectionStatus() => RustLib.instance.api.crateApiCheckConnec
 /// リレー接続状態をチェック（client_id指定可能）
 Future<bool> checkConnectionStatusWithClientId({String? clientId}) =>
     RustLib.instance.api.crateApiCheckConnectionStatusWithClientId(clientId: clientId);
+
+/// リレー接続情報を取得（実際のWebSocket接続状態）
+Future<RelayConnectionInfo> getRelayConnectionInfo() => RustLib.instance.api.crateApiGetRelayConnectionInfo();
+
+Future<RelayConnectionInfo> getRelayConnectionInfoWithClientId({String? clientId}) =>
+    RustLib.instance.api.crateApiGetRelayConnectionInfoWithClientId(clientId: clientId);
+
+/// 署名済みイベントを指定リレーに送信（デフォルトクライアント使用）
+Future<EventSendResult> sendSignedEventToRelays({required String eventJson, required List<String> relayUrls}) =>
+    RustLib.instance.api.crateApiSendSignedEventToRelays(eventJson: eventJson, relayUrls: relayUrls);
+
+/// 既存クライアントの存在確認・再利用（Amberモード用）
+///
+/// - client_id が既に NOSTR_CLIENTS にある → リレーリストだけ更新（接続維持）
+/// - client_id が未登録 → 新規 Amber クライアントを生成して接続
+Future<void> ensureClientForRelays({required String clientId, required List<String> relays, String? publicKeyHex}) =>
+    RustLib.instance.api.crateApiEnsureClientForRelays(clientId: clientId, relays: relays, publicKeyHex: publicKeyHex);
 
 /// リレーに再接続
 Future<void> reconnectToRelays() => RustLib.instance.api.crateApiReconnectToRelays();
@@ -1535,6 +1552,50 @@ class ReceivedEvent {
           eventJson == other.eventJson &&
           receivedAt == other.receivedAt &&
           subscriptionId == other.subscriptionId;
+}
+
+/// リレー接続情報
+class RelayConnectionInfo {
+  final BigInt connected;
+  final BigInt total;
+  final List<RelayStatusInfo> relayStatuses;
+
+  const RelayConnectionInfo({
+    required this.connected,
+    required this.total,
+    required this.relayStatuses,
+  });
+
+  @override
+  int get hashCode => connected.hashCode ^ total.hashCode ^ relayStatuses.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelayConnectionInfo &&
+          runtimeType == other.runtimeType &&
+          connected == other.connected &&
+          total == other.total &&
+          relayStatuses == other.relayStatuses;
+}
+
+/// 個別リレーの接続状態
+class RelayStatusInfo {
+  final String url;
+  final bool connected;
+
+  const RelayStatusInfo({
+    required this.url,
+    required this.connected,
+  });
+
+  @override
+  int get hashCode => url.hashCode ^ connected.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelayStatusInfo && runtimeType == other.runtimeType && url == other.url && connected == other.connected;
 }
 
 /// Subscription情報

@@ -1936,6 +1936,36 @@ abstract class AppLocalizations {
   /// **'• Currently connected via Tor (using Orbot proxy)'**
   String get currentlyConnectedViaTor;
 
+  /// Section title for local relay settings
+  ///
+  /// In en, this message translates to:
+  /// **'Local Relay (Citrine)'**
+  String get localRelayCitrine;
+
+  /// Description of local relay functionality
+  ///
+  /// In en, this message translates to:
+  /// **'A local relay running on your device for fast caching and offline support. Events are mirrored here after successful global sync.'**
+  String get localRelayDescription;
+
+  /// Local relay toggle label
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get localRelayEnabled;
+
+  /// Label for local relay URL input
+  ///
+  /// In en, this message translates to:
+  /// **'Local relay URL'**
+  String get localRelayUrl;
+
+  /// Section title for global relay list
+  ///
+  /// In en, this message translates to:
+  /// **'Global Relays'**
+  String get globalRelays;
+
   /// Architecture section paragraph 1
   ///
   /// In en, this message translates to:

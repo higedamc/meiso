@@ -52,6 +52,21 @@ pub struct EventSendResult {
     pub error_message: Option<String>,
 }
 
+/// リレー接続情報
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelayConnectionInfo {
+    pub connected: usize,
+    pub total: usize,
+    pub relay_statuses: Vec<RelayStatusInfo>,
+}
+
+/// 個別リレーの接続状態
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelayStatusInfo {
+    pub url: String,
+    pub connected: bool,
+}
+
 /// Todoデータ構造（Flutter側と同期）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TodoData {
@@ -1419,12 +1434,83 @@ impl MeisoNostrClient {
     
     /// リレー接続状態をチェック
     pub(crate) async fn check_connection_status(&self) -> Result<bool> {
-        // 接続されているリレー数を確認
+        let info = self.check_connection_info().await?;
+        Ok(info.connected > 0)
+    }
+
+    /// リレー接続情報を取得（実際のWebSocket接続状態を返す）
+    pub(crate) async fn check_connection_info(&self) -> Result<RelayConnectionInfo> {
         let relays = self.client.relays().await;
-        let connected_count = relays.len();
-        
-        dev_println!("🔌 Connected relays: {}", connected_count);
-        Ok(connected_count > 0)
+        let mut connected = 0usize;
+        let total = relays.len();
+        let mut statuses = Vec::with_capacity(total);
+
+        for (url, relay) in &relays {
+            let is_connected = relay.status() == nostr_sdk::RelayStatus::Connected;
+            if is_connected {
+                connected += 1;
+            }
+            statuses.push(RelayStatusInfo {
+                url: url.to_string(),
+                connected: is_connected,
+            });
+        }
+
+        dev_println!("🔌 Relay status: {}/{} connected", connected, total);
+        Ok(RelayConnectionInfo {
+            connected,
+            total,
+            relay_statuses: statuses,
+        })
+    }
+
+    /// 署名済みイベントを指定リレーに送信
+    async fn send_event_to_relays(&self, event: Event, relay_urls: Vec<String>) -> Result<EventSendResult> {
+        let event_id = event.id.to_hex();
+
+        let urls: Vec<&str> = relay_urls.iter().map(|s| s.as_str()).collect();
+
+        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event_to(urls, event)).await {
+            Ok(Ok(send_output)) => {
+                let successful = send_output.success.len();
+                let failed = send_output.failed.len();
+                dev_println!("✅ Event sent to specified relays: {} ok, {} failed", successful, failed);
+                Ok(EventSendResult {
+                    event_id,
+                    success: successful > 0,
+                    successful_relays: successful,
+                    failed_relays: failed,
+                    timed_out: false,
+                    error_message: if failed > 0 {
+                        Some(format!("{} relays failed", failed))
+                    } else {
+                        None
+                    },
+                })
+            }
+            Ok(Err(e)) => {
+                dev_eprintln!("❌ Failed to send event to specified relays: {}", e);
+                Ok(EventSendResult {
+                    event_id,
+                    success: false,
+                    successful_relays: 0,
+                    failed_relays: 0,
+                    timed_out: false,
+                    error_message: Some(format!("Send failed: {}", e)),
+                })
+            }
+            Err(_) => {
+                dev_eprintln!("⏱️ Event send timeout (5s) to specified relays");
+                Ok(EventSendResult {
+                    event_id,
+                    success: false,
+                    successful_relays: 0,
+                    failed_relays: 0,
+                    timed_out: true,
+                    error_message: Some("Timeout after 5 seconds".to_string()),
+                })
+            }
+        }
     }
     
     /// リレーに再接続
@@ -3494,6 +3580,65 @@ pub fn check_connection_status_with_client_id(client_id: Option<String>) -> Resu
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.check_connection_status().await
+    })
+}
+
+/// リレー接続情報を取得（実際のWebSocket接続状態）
+pub fn get_relay_connection_info() -> Result<RelayConnectionInfo> {
+    get_relay_connection_info_with_client_id(None)
+}
+
+pub fn get_relay_connection_info_with_client_id(client_id: Option<String>) -> Result<RelayConnectionInfo> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.check_connection_info().await
+    })
+}
+
+/// 署名済みイベントを指定リレーに送信（デフォルトクライアント使用）
+pub fn send_signed_event_to_relays(
+    event_json: String,
+    relay_urls: Vec<String>,
+) -> Result<EventSendResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(None).await?;
+
+        let event: Event = serde_json::from_str(&event_json)
+            .context("Failed to parse signed event JSON")?;
+        event.verify().context("Invalid event signature")?;
+
+        dev_println!("📤 Sending signed event to {} specified relays", relay_urls.len());
+
+        client.send_event_to_relays(event, relay_urls).await
+    })
+}
+
+/// 既存クライアントの存在確認・再利用（Amberモード用）
+///
+/// - client_id が既に NOSTR_CLIENTS にある → リレーリストだけ更新（接続維持）
+/// - client_id が未登録 → 新規 Amber クライアントを生成して接続
+pub fn ensure_client_for_relays(
+    client_id: String,
+    relays: Vec<String>,
+    public_key_hex: Option<String>,
+) -> Result<()> {
+    TOKIO_RUNTIME.block_on(async {
+        {
+            let clients = NOSTR_CLIENTS.lock().await;
+            if clients.contains_key(&client_id) {
+                let client = clients.get(&client_id).unwrap();
+                dev_println!("🔄 Reusing existing client [{}], updating relays", client_id);
+                return client.update_relay_list(relays).await;
+            }
+        }
+
+        let pk = public_key_hex
+            .ok_or_else(|| anyhow::anyhow!("public_key_hex required for new Amber client"))?;
+        dev_println!("🆕 Creating new Amber client [{}]", client_id);
+        let new_client = MeisoNostrClient::new_amber_mode(pk, relays, None).await?;
+        let mut clients = NOSTR_CLIENTS.lock().await;
+        clients.insert(client_id, new_client);
+        Ok(())
     })
 }
 

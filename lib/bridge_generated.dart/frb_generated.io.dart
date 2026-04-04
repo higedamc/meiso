@@ -147,6 +147,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<(String, BigInt)> dco_decode_list_record_string_u_64(dynamic raw);
 
   @protected
+  List<RelayStatusInfo> dco_decode_list_relay_status_info(dynamic raw);
+
+  @protected
   List<TodoData> dco_decode_list_todo_data(dynamic raw);
 
   @protected
@@ -178,6 +181,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (String, BigInt) dco_decode_record_string_u_64(dynamic raw);
+
+  @protected
+  RelayConnectionInfo dco_decode_relay_connection_info(dynamic raw);
+
+  @protected
+  RelayStatusInfo dco_decode_relay_status_info(dynamic raw);
 
   @protected
   SubscriptionInfo dco_decode_subscription_info(dynamic raw);
@@ -330,6 +339,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<(String, BigInt)> sse_decode_list_record_string_u_64(SseDeserializer deserializer);
 
   @protected
+  List<RelayStatusInfo> sse_decode_list_relay_status_info(SseDeserializer deserializer);
+
+  @protected
   List<TodoData> sse_decode_list_todo_data(SseDeserializer deserializer);
 
   @protected
@@ -363,6 +375,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (String, BigInt) sse_decode_record_string_u_64(SseDeserializer deserializer);
+
+  @protected
+  RelayConnectionInfo sse_decode_relay_connection_info(SseDeserializer deserializer);
+
+  @protected
+  RelayStatusInfo sse_decode_relay_status_info(SseDeserializer deserializer);
 
   @protected
   SubscriptionInfo sse_decode_subscription_info(SseDeserializer deserializer);
@@ -521,6 +539,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_record_string_u_64(List<(String, BigInt)> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_relay_status_info(List<RelayStatusInfo> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_todo_data(List<TodoData> self, SseSerializer serializer);
 
   @protected
@@ -558,6 +579,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_record_string_u_64((String, BigInt) self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_relay_connection_info(RelayConnectionInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_relay_status_info(RelayStatusInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_subscription_info(SubscriptionInfo self, SseSerializer serializer);

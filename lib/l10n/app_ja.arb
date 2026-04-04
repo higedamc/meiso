@@ -602,7 +602,13 @@
   "aboutRelaysDescription": "• リレーはNostrネットワーク上のサーバーです\n• 複数のリレーに接続することで冗長性が向上します\n• リレーURLは wss:// または ws:// で始める必要があります\n• リレーを追加・削除すると即座にNostr（Kind 10002）に保存されます\n• リレー変更は即座に反映されます（再起動不要）\n• 「Nostrから同期」ボタンで他のデバイスの設定を取得できます\n• 同期時、リモートとローカルが異なる場合のみ更新されます",
   
   "currentlyConnectedViaTor": "• 現在Tor経由で接続しています（Orbotプロキシ使用）",
-  
+
+  "localRelayCitrine": "ローカルリレー (Citrine)",
+  "localRelayDescription": "デバイス上で動作するローカルリレーです。高速キャッシュとオフライン対応に使用されます。グローバル同期成功後にイベントがミラーリングされます。",
+  "localRelayEnabled": "有効",
+  "localRelayUrl": "ローカルリレーURL",
+  "globalRelays": "グローバルリレー",
+
   "cryptoArchPara1": "Meisoは「Zero-Knowledge Architecture」を採用し、あなたの秘密鍵やタスクデータをサーバーに一切送信しません。全ての暗号化処理はあなたのデバイス上で実行されます。",
   
   "cryptoArchSecurityModel": "セキュリティモデル:\n• エンドツーエンド暗号化 (E2EE)\n• クライアントサイド暗号化\n• サーバーは暗号化済みデータのみを保管\n• 秘密鍵はあなただけが保有",

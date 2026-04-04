@@ -2700,9 +2700,9 @@ class TodosNotifier
 
     if (!hasChanges) return;
 
-    _setTodosStateAsync(updatedTodos);
+    state = AsyncValue.data(updatedTodos);
     await _saveAllTodosToLocal();
-    _updateUnsyncedCount(); // 未同期カウントを更新
+    _updateUnsyncedCount();
     AppLogger.info(' Cleared needsSync flags for non-group todos');
   }
 
@@ -3958,7 +3958,7 @@ class TodosNotifier
           AppLogger.info(
             '🚀 [DEBUG] Calling _updateStateWithSyncedTodos with ${allSyncedTodos.length} todos...',
           );
-          _updateStateWithSyncedTodos(allSyncedTodos);
+          await _updateStateWithSyncedTodos(allSyncedTodos);
           AppLogger.info('✅ [DEBUG] _updateStateWithSyncedTodos returned!');
           AppLogger.info(' [Sync] Todo同期完了');
         } else {
@@ -4055,7 +4055,7 @@ class TodosNotifier
               .toList();
           AppLogger.info(' needsSyncフラグをクリア: ${cleanedTodos.length}件');
 
-          _updateStateWithSyncedTodos(cleanedTodos);
+          await _updateStateWithSyncedTodos(cleanedTodos);
         }
 
         // Phase 8.5.1: Phase 3完了（100%）
@@ -4329,7 +4329,7 @@ class TodosNotifier
   /// 2. updatedAtタイムスタンプを比較 → より新しい方を採用
   /// 3. ローカルのみに存在 → ローカルを保持
   /// 4. リモートのみに存在 → リモートを採用
-  void _updateStateWithSyncedTodos(List<Todo> syncedTodos) {
+  Future<void> _updateStateWithSyncedTodos(List<Todo> syncedTodos) async {
     try {
       AppLogger.warning(
         '🔀 [MERGE] Starting merge: ${syncedTodos.length} remote todos',
@@ -4558,14 +4558,9 @@ class TodosNotifier
         grouped[key]!.sort((a, b) => a.order.compareTo(b.order));
       }
 
-      // 状態を更新
-      _setTodosStateAsync(grouped);
-
-      // ローカルストレージに保存
-      _saveAllTodosToLocal();
-
-      // Widgetを更新
-      _updateWidget();
+      state = AsyncValue.data(grouped);
+      await _saveAllTodosToLocal();
+      await _updateWidget();
 
       // ローカルが新しいタスクがある場合、自動的に再同期
       if (localWinsCount > 0 || localOnlyCount > 0) {

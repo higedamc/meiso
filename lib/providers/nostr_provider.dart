@@ -583,8 +583,9 @@ class NostrService {
     _globalBackfillResultHandler = handler;
   }
 
-  /// Three-tier send: Global relays (primary) -> Local relay (Citrine, backfill)
+  /// Two-tier send: Global (outbox) relays -> Local relay (Citrine, backfill)
   ///
+  /// Uses the default client with relay-targeted send (send_event_to).
   /// Global relays are the source of truth. Local relay is supplementary
   /// for faster reads. If local relay is down, the send still succeeds.
   Future<RelaySendResult> sendSignedEventGlobalFirst(
@@ -598,17 +599,11 @@ class NostrService {
         ? globalRelays
         : defaultRelays;
 
-    // Send to global relays (primary)
-    await _ensureClientForRelays(
-      clientId: _globalRelayClientId,
-      relays: primaryRelays,
-    );
-    final globalSend = await rust_api.sendSignedEventWithClientId(
+    final globalSend = await rust_api.sendSignedEventToRelays(
       eventJson: signedEventJson,
-      clientId: _globalRelayClientId,
+      relayUrls: primaryRelays,
     );
 
-    // Queue local relay backfill (non-blocking, fire-and-forget)
     var localQueued = false;
     if (globalSend.success && localRelays.isNotEmpty) {
       await _enqueueLocalBackfill(
@@ -659,13 +654,9 @@ class NostrService {
         }
 
         try {
-          await _ensureClientForRelays(
-            clientId: _localRelayClientId,
-            relays: relays,
-          );
-          final result = await rust_api.sendSignedEventWithClientId(
+          final result = await rust_api.sendSignedEventToRelays(
             eventJson: eventJson,
-            clientId: _localRelayClientId,
+            relayUrls: relays,
           );
 
           if (result.success) {
@@ -771,10 +762,11 @@ class NostrService {
         publicKeyHex: pubkey,
         relays: uniqueRelays,
       );
-      return;
+    } else {
+      await rust_api.updateRelayList(relays: uniqueRelays);
     }
 
-    await rust_api.updateRelayList(relays: uniqueRelays);
+    _ref.read(relayStatusProvider.notifier).initializeAsConnected(uniqueRelays);
   }
 
   Future<(List<String>, List<String>)> _resolveRelaySplit() async {
@@ -815,16 +807,14 @@ class NostrService {
       if (pubkey == null) {
         throw Exception('Public key is not initialized');
       }
-      await _applyRelayConnectionMetadata();
-      await rust_api.initNostrClientWithPubkeyAndId(
+      await rust_api.ensureClientForRelays(
         clientId: clientId,
-        publicKeyHex: pubkey,
         relays: uniqueRelays,
+        publicKeyHex: pubkey,
       );
       return;
     }
 
-    // Secret-key mode currently keeps using default client for signing flow.
     await rust_api.updateRelayListWithClientId(
       clientId: clientId,
       relays: uniqueRelays,
@@ -1026,6 +1016,23 @@ class NostrService {
     } catch (e) {
       AppLogger.warning(' Failed to check connection status: $e');
       return false;
+    }
+  }
+
+  /// Rust から実際の WebSocket 接続状態を取得し relayStatusProvider を更新
+  Future<void> refreshRelayStatus() async {
+    try {
+      final info = await rust_api.getRelayConnectionInfo();
+      final notifier = _ref.read(relayStatusProvider.notifier);
+      for (final status in info.relayStatuses) {
+        if (status.connected) {
+          notifier.setConnected(status.url);
+        } else {
+          notifier.setDisconnected(status.url);
+        }
+      }
+    } catch (e) {
+      AppLogger.warning('Failed to refresh relay status: $e');
     }
   }
 

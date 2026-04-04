@@ -1008,6 +1008,22 @@ class AppLocalizationsJa extends AppLocalizations {
   String get currentlyConnectedViaTor => '• 現在Tor経由で接続しています（Orbotプロキシ使用）';
 
   @override
+  String get localRelayCitrine => 'ローカルリレー (Citrine)';
+
+  @override
+  String get localRelayDescription =>
+      'デバイス上で動作するローカルリレーです。高速キャッシュとオフライン対応に使用されます。グローバル同期成功後にイベントがミラーリングされます。';
+
+  @override
+  String get localRelayEnabled => '有効';
+
+  @override
+  String get localRelayUrl => 'ローカルリレーURL';
+
+  @override
+  String get globalRelays => 'グローバルリレー';
+
+  @override
   String get cryptoArchPara1 =>
       'Meisoは「Zero-Knowledge Architecture」を採用し、あなたの秘密鍵やタスクデータをサーバーに一切送信しません。全ての暗号化処理はあなたのデバイス上で実行されます。';
 

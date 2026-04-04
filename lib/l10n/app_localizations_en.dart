@@ -1038,6 +1038,22 @@ class AppLocalizationsEn extends AppLocalizations {
       '• Currently connected via Tor (using Orbot proxy)';
 
   @override
+  String get localRelayCitrine => 'Local Relay (Citrine)';
+
+  @override
+  String get localRelayDescription =>
+      'A local relay running on your device for fast caching and offline support. Events are mirrored here after successful global sync.';
+
+  @override
+  String get localRelayEnabled => 'Enabled';
+
+  @override
+  String get localRelayUrl => 'Local relay URL';
+
+  @override
+  String get globalRelays => 'Global Relays';
+
+  @override
   String get cryptoArchPara1 =>
       'Meiso adopts a \"Zero-Knowledge Architecture\" and never sends your secret keys or task data to servers. All encryption processing is performed on your device.';
 

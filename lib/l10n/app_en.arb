@@ -1656,6 +1656,31 @@
   "@currentlyConnectedViaTor": {
     "description": "Message shown when connected via Tor"
   },
+
+  "localRelayCitrine": "Local Relay (Citrine)",
+  "@localRelayCitrine": {
+    "description": "Section title for local relay settings"
+  },
+
+  "localRelayDescription": "A local relay running on your device for fast caching and offline support. Events are mirrored here after successful global sync.",
+  "@localRelayDescription": {
+    "description": "Description of local relay functionality"
+  },
+
+  "localRelayEnabled": "Enabled",
+  "@localRelayEnabled": {
+    "description": "Local relay toggle label"
+  },
+
+  "localRelayUrl": "Local relay URL",
+  "@localRelayUrl": {
+    "description": "Label for local relay URL input"
+  },
+
+  "globalRelays": "Global Relays",
+  "@globalRelays": {
+    "description": "Section title for global relay list"
+  },
   
   "cryptoArchPara1": "Meiso adopts a \"Zero-Knowledge Architecture\" and never sends your secret keys or task data to servers. All encryption processing is performed on your device.",
   "@cryptoArchPara1": {
