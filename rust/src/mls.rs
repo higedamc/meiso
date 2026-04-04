@@ -177,14 +177,14 @@ impl User {
         
         // Check if there's already a pending commit (from add_members, etc.)
         if group.mls_group.pending_commit().is_some() {
-            println!("📝 [MLS] Merging existing pending commit for group {}", group_id);
+            dev_println!("📝 [MLS] Merging existing pending commit for group {}", group_id);
             // Only merge if commit already exists
             group
                 .mls_group
                 .merge_pending_commit(&self.mls_user.provider)
                 .map_err(|e| anyhow::anyhow!("Failed to merge commit: {:?}", e))?;
         } else {
-            println!("📝 [MLS] Creating and merging new commit for group {}", group_id);
+            dev_println!("📝 [MLS] Creating and merging new commit for group {}", group_id);
             // Create new commit if none exists
             group
                 .mls_group
@@ -289,8 +289,8 @@ impl User {
     
     /// Join MLS group
     pub fn join_mls_group(&mut self, group_id: String, welcome: Vec<u8>) -> Result<()> {
-        println!("🚀 [MLS] Starting join_mls_group for: {}", group_id);
-        println!("🔍 [MLS] Welcome message size: {} bytes", welcome.len());
+        dev_println!("🚀 [MLS] Starting join_mls_group for: {}", group_id);
+        dev_println!("🔍 [MLS] Welcome message size: {} bytes", welcome.len());
         
         // Phase D.6: 既にグループに参加済みかチェック
         {
@@ -300,37 +300,37 @@ impl User {
                 .read()
                 .map_err(|_| anyhow::anyhow!("Failed to acquire read lock on groups"))?;
             
-            println!("🔍 [MLS] Current groups in storage: {}", groups.len());
+            dev_println!("🔍 [MLS] Current groups in storage: {}", groups.len());
             
             if groups.contains_key(&group_id) {
-                println!("ℹ️ [MLS] Already joined group: {}, skipping Welcome Message processing", group_id);
+                dev_println!("ℹ️ [MLS] Already joined group: {}, skipping Welcome Message processing", group_id);
                 return Ok(());
             }
         }
         
         // Deserialize welcome
-        println!("📦 [MLS] Deserializing Welcome Message...");
+        dev_println!("📦 [MLS] Deserializing Welcome Message...");
         let welcome_in = MlsMessageIn::tls_deserialize(&mut welcome.as_slice())
             .map_err(|e| {
-                println!("❌ [MLS] Failed to deserialize Welcome Message: {:?}", e);
+                dev_println!("❌ [MLS] Failed to deserialize Welcome Message: {:?}", e);
                 anyhow::anyhow!("Failed to deserialize welcome: {:?}", e)
             })?;
         
-        println!("✅ [MLS] Welcome Message deserialized");
+        dev_println!("✅ [MLS] Welcome Message deserialized");
         
         let welcome_msg = match welcome_in.extract() {
             MlsMessageBodyIn::Welcome(w) => {
-                println!("✅ [MLS] Extracted Welcome body");
+                dev_println!("✅ [MLS] Extracted Welcome body");
                 w
             },
             _ => {
-                println!("❌ [MLS] Message is not a Welcome type");
+                dev_println!("❌ [MLS] Message is not a Welcome type");
                 return Err(anyhow::anyhow!("Not a welcome message"));
             }
         };
         
         // Join group
-        println!("🔐 [MLS] Staging Welcome...");
+        dev_println!("🔐 [MLS] Staging Welcome...");
         let staged_welcome = StagedWelcome::new_from_welcome(
             &self.mls_user.provider,
             &MlsGroupJoinConfig::default(),
@@ -338,30 +338,30 @@ impl User {
             None,
         )
         .map_err(|e| {
-            println!("❌ [MLS] Failed to stage welcome: {:?}", e);
+            dev_println!("❌ [MLS] Failed to stage welcome: {:?}", e);
             anyhow::anyhow!("Failed to stage welcome: {:?}", e)
         })?;
         
-        println!("✅ [MLS] Welcome staged successfully");
+        dev_println!("✅ [MLS] Welcome staged successfully");
         
-        println!("👥 [MLS] Converting staged welcome into group...");
+        dev_println!("👥 [MLS] Converting staged welcome into group...");
         let mls_group = staged_welcome
             .into_group(&self.mls_user.provider)
             .map_err(|e| {
-                println!("❌ [MLS] Failed to convert into group: {:?}", e);
+                dev_println!("❌ [MLS] Failed to convert into group: {:?}", e);
                 anyhow::anyhow!("Failed to join group: {:?}", e)
             })?;
         
-        println!("✅ [MLS] Group created from welcome");
+        dev_println!("✅ [MLS] Group created from welcome");
         
         // Store group
-        println!("💾 [MLS] Storing group in memory...");
+        dev_println!("💾 [MLS] Storing group in memory...");
         let mut groups = self
             .mls_user
             .groups
             .write()
             .map_err(|_| {
-                println!("❌ [MLS] Failed to acquire write lock");
+                dev_println!("❌ [MLS] Failed to acquire write lock");
                 anyhow::anyhow!("Failed to acquire write lock on groups")
             })?;
         
@@ -370,16 +370,16 @@ impl User {
             kc::user::Group { mls_group },
         );
         
-        println!("✅ [MLS] Group stored successfully");
-        println!("✅ [MLS] Successfully joined group: {}", group_id);
-        println!("📊 [MLS] Total groups after join: {}", groups.len());
+        dev_println!("✅ [MLS] Group stored successfully");
+        dev_println!("✅ [MLS] Successfully joined group: {}", group_id);
+        dev_println!("📊 [MLS] Total groups after join: {}", groups.len());
         
         Ok(())
     }
     
     /// Get MLS group info
     pub fn get_group_info(&self, group_id: String) -> Result<super::group_tasks_mls::MlsGroupInfo> {
-        println!("🔍 [MLS] Getting group info for: {}", group_id);
+        dev_println!("🔍 [MLS] Getting group info for: {}", group_id);
         
         let groups = self
             .mls_user
@@ -387,17 +387,17 @@ impl User {
             .read()
             .map_err(|_| anyhow::anyhow!("Failed to acquire read lock on groups"))?;
         
-        println!("🔍 [MLS] Total groups in storage: {}", groups.len());
+        dev_println!("🔍 [MLS] Total groups in storage: {}", groups.len());
         
         let group = groups
             .get(&group_id)
             .ok_or_else(|| {
-                println!("❌ [MLS] Group {} not found in storage", group_id);
-                println!("❌ [MLS] Available groups: {:?}", groups.keys().collect::<Vec<_>>());
+                dev_println!("❌ [MLS] Group {} not found in storage", group_id);
+                dev_println!("❌ [MLS] Available groups: {:?}", groups.keys().collect::<Vec<_>>());
                 anyhow::anyhow!("Group {} not found", group_id)
             })?;
         
-        println!("✅ [MLS] Group found, extracting info...");
+        dev_println!("✅ [MLS] Group found, extracting info...");
         
         // Extract group name from extension
         let group_context_extensions = group.mls_group.export_group_context().extensions();
@@ -408,27 +408,27 @@ impl User {
                 match NostrGroupDataExtension::tls_deserialize(&mut unknown.0.as_slice()) {
                     Ok(data) => {
                         let name = String::from_utf8(data.name).unwrap_or_else(|_| "Unknown Group".to_string());
-                        println!("✅ [MLS] Group name: {}", name);
+                        dev_println!("✅ [MLS] Group name: {}", name);
                         name
                     },
                     Err(e) => {
-                        println!("⚠️ [MLS] Failed to deserialize group data extension: {:?}", e);
+                        dev_println!("⚠️ [MLS] Failed to deserialize group data extension: {:?}", e);
                         "Unknown Group".to_string()
                     }
                 }
             } else {
-                println!("⚠️ [MLS] Extension is not Unknown type");
+                dev_println!("⚠️ [MLS] Extension is not Unknown type");
                 "Unknown Group".to_string()
             }
         } else {
-            println!("⚠️ [MLS] No group data extension found");
+            dev_println!("⚠️ [MLS] No group data extension found");
             "Unknown Group".to_string()
         };
         
         // Get member public keys
         let mut member_pubkeys = Vec::new();
         let members = group.mls_group.members().collect::<Vec<_>>();
-        println!("🔍 [MLS] Total members: {}", members.len());
+        dev_println!("🔍 [MLS] Total members: {}", members.len());
         
         for (idx, member) in members.iter().enumerate() {
             // Extract identity from credential
@@ -436,7 +436,7 @@ impl User {
             let identity_bytes = member.credential.serialized_content();
             let identity_hex = hex::encode(identity_bytes);
             
-            println!("👤 [MLS] Member {}: {} bytes, hex: {}...", 
+            dev_println!("👤 [MLS] Member {}: {} bytes, hex: {}...", 
                 idx + 1, 
                 identity_bytes.len(),
                 if identity_hex.len() > 32 { &identity_hex[..32] } else { &identity_hex }
@@ -447,9 +447,9 @@ impl User {
         
         // Get epoch
         let epoch = group.mls_group.epoch().as_u64();
-        println!("📊 [MLS] Group epoch: {}", epoch);
+        dev_println!("📊 [MLS] Group epoch: {}", epoch);
         
-        println!("✅ [MLS] Group info retrieved successfully");
+        dev_println!("✅ [MLS] Group info retrieved successfully");
         
         Ok(super::group_tasks_mls::MlsGroupInfo {
             group_id: group_id.clone(),
@@ -536,7 +536,7 @@ pub fn init_mls_db(db_path: String, nostr_id: String) -> Result<()> {
         //
         // そのため、同一 `nostr_id` が既に初期化済みなら再初期化をスキップする。
         if map.users.contains_key(&nostr_id) {
-            println!("ℹ️ [MLS] init_mls_db: user already initialized, skipping reload: {}", nostr_id);
+            dev_println!("ℹ️ [MLS] init_mls_db: user already initialized, skipping reload: {}", nostr_id);
             return Ok(());
         }
         

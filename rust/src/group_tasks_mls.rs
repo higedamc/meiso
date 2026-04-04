@@ -69,11 +69,11 @@ fn create_unsigned_event(
         // NO "sig" field - unsigned event as per NIP-EE
     });
     
-    println!("📝 [Phase D.8] Created unsigned Nostr event:");
-    println!("   Kind: 30078");
-    println!("   Action: {}", action);
-    println!("   TODO ID: {}", todo_id);
-    println!("   List ID: {}", list_id);
+    dev_println!("📝 [Phase D.8] Created unsigned Nostr event:");
+    dev_println!("   Kind: 30078");
+    dev_println!("   Action: {}", action);
+    dev_println!("   TODO ID: {}", todo_id);
+    dev_println!("   List ID: {}", list_id);
     
     Ok(serde_json::to_string(&event)?)
 }
@@ -118,12 +118,12 @@ pub fn create_mls_todo_group(
         
         // Phase D.9.1: Key Packagesが空の場合は警告を出すが、テスト目的で許容
         if key_packages.is_empty() {
-            println!("⚠️ [MLS] Creating 1-person group (no other members)");
-            println!("⚠️ [MLS] Note: 1-person groups are only for testing purposes");
-            println!("⚠️ [MLS] In production, group lists require at least 2 people (self + 1 other member)");
+            dev_println!("⚠️ [MLS] Creating 1-person group (no other members)");
+            dev_println!("⚠️ [MLS] Note: 1-person groups are only for testing purposes");
+            dev_println!("⚠️ [MLS] In production, group lists require at least 2 people (self + 1 other member)");
             
             // 1人グループの場合はWelcome Messageは空（メンバー追加なし）
-            println!("✅ [MLS] Welcome message generated: 0 bytes (1-person group)");
+            dev_println!("✅ [MLS] Welcome message generated: 0 bytes (1-person group)");
             return Ok(vec![]); // 空のWelcome Message
         }
         
@@ -133,7 +133,7 @@ pub fn create_mls_todo_group(
         // Commit the changes
         user.self_commit(group_id)?;
         
-        println!("✅ [MLS] Welcome message generated: {} bytes", welcome.len());
+        dev_println!("✅ [MLS] Welcome message generated: {} bytes", welcome.len());
         
         Ok(welcome)
     })
@@ -242,16 +242,16 @@ pub fn decrypt_todo_from_mls_group(
             .as_str()
             .unwrap_or("{}");
         
-        println!("📥 [Phase D.8] Decrypted unsigned Nostr event:");
-        println!("   Kind: {}", event["kind"]);
-        println!("   Action: {}", action);
-        println!("   TODO ID: {}", todo_id);
-        println!("   Sender: {}...", &sender_pubkey[..16.min(sender_pubkey.len())]);
+        dev_println!("📥 [Phase D.8] Decrypted unsigned Nostr event:");
+        dev_println!("   Kind: {}", event["kind"]);
+        dev_println!("   Action: {}", action);
+        dev_println!("   TODO ID: {}", todo_id);
+        dev_println!("   Sender: {}...", &sender_pubkey[..16.min(sender_pubkey.len())]);
         
         // Phase D.8: Backward compatibility - detect old format
         // If action is empty, it's Phase 9.1 format (direct TODO JSON)
         if action.is_empty() {
-            println!("ℹ️  [Phase D.8] Detected Phase 9.1 format (direct TODO JSON)");
+            dev_println!("ℹ️  [Phase D.8] Detected Phase 9.1 format (direct TODO JSON)");
             // Return original decrypted message as todo_content
             Ok((decrypt_msg, String::new(), String::new(), sender, listen_key))
         } else {

@@ -14,7 +14,7 @@ pub struct SecureKeyStore {
 impl SecureKeyStore {
     /// 新しいSecureKeyStoreインスタンスを作成
     pub fn new(storage_path: String) -> Self {
-        println!("🔐 SecureKeyStore initialized at: {}", storage_path);
+        dev_println!("🔐 SecureKeyStore initialized at: {}", storage_path);
         Self { storage_path }
     }
 
@@ -43,7 +43,7 @@ impl SecureKeyStore {
     /// 
     /// フォーマット: [salt(16B)] + [nonce(12B)] + [ciphertext]
     pub async fn save_encrypted_key(&self, secret_key: &str, password: &str) -> Result<()> {
-        println!("🔐 Encrypting and saving secret key...");
+        dev_println!("🔐 Encrypting and saving secret key...");
         
         // 1. ランダムなsaltを生成（16バイト）
         let mut salt = [0u8; 16];
@@ -73,13 +73,13 @@ impl SecureKeyStore {
             .await
             .context("Failed to write encrypted key to file")?;
         
-        println!("✅ Secret key encrypted and saved successfully");
+        dev_println!("✅ Secret key encrypted and saved successfully");
         Ok(())
     }
 
     /// 暗号化された秘密鍵をファイルから読み込んで復号化
     pub async fn load_encrypted_key(&self, password: &str) -> Result<String> {
-        println!("🔐 Loading and decrypting secret key...");
+        dev_println!("🔐 Loading and decrypting secret key...");
         
         // 1. ファイルから読み込み
         let data = tokio::fs::read(&self.storage_path)
@@ -109,20 +109,20 @@ impl SecureKeyStore {
         let secret_key = String::from_utf8(plaintext)
             .context("Decrypted data is not valid UTF-8")?;
         
-        println!("✅ Secret key decrypted successfully");
+        dev_println!("✅ Secret key decrypted successfully");
         Ok(secret_key)
     }
 
     /// Amber使用時: 公開鍵のみ保存（平文でOK）
     pub async fn save_public_key(&self, public_key: &str) -> Result<()> {
         let pub_path = format!("{}.pub", self.storage_path);
-        println!("🔐 Saving public key to: {}", pub_path);
+        dev_println!("🔐 Saving public key to: {}", pub_path);
         
         tokio::fs::write(&pub_path, public_key)
             .await
             .context("Failed to write public key to file")?;
         
-        println!("✅ Public key saved successfully");
+        dev_println!("✅ Public key saved successfully");
         Ok(())
     }
 
@@ -132,11 +132,11 @@ impl SecureKeyStore {
         
         match tokio::fs::read_to_string(&pub_path).await {
             Ok(key) => {
-                println!("✅ Public key loaded from: {}", pub_path);
+                dev_println!("✅ Public key loaded from: {}", pub_path);
                 Ok(Some(key))
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                println!("ℹ️ Public key file not found");
+                dev_println!("ℹ️ Public key file not found");
                 Ok(None)
             }
             Err(e) => Err(e).context("Failed to read public key file"),
@@ -145,27 +145,27 @@ impl SecureKeyStore {
 
     /// 保存された鍵を全て削除
     pub async fn delete_keys(&self) -> Result<()> {
-        println!("🗑️ Deleting stored keys...");
+        dev_println!("🗑️ Deleting stored keys...");
         
         let mut deleted_count = 0;
         
         // 暗号化された秘密鍵を削除
         if tokio::fs::remove_file(&self.storage_path).await.is_ok() {
-            println!("✅ Deleted encrypted secret key");
+            dev_println!("✅ Deleted encrypted secret key");
             deleted_count += 1;
         }
         
         // 公開鍵を削除
         let pub_path = format!("{}.pub", self.storage_path);
         if tokio::fs::remove_file(&pub_path).await.is_ok() {
-            println!("✅ Deleted public key");
+            dev_println!("✅ Deleted public key");
             deleted_count += 1;
         }
         
         if deleted_count > 0 {
-            println!("✅ Deleted {} key file(s)", deleted_count);
+            dev_println!("✅ Deleted {} key file(s)", deleted_count);
         } else {
-            println!("ℹ️ No key files found to delete");
+            dev_println!("ℹ️ No key files found to delete");
         }
         
         Ok(())
