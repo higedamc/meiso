@@ -99,9 +99,7 @@ class TodoItem extends StatelessWidget {
           ),
         ),
         actions: [
-          // 個人Todoは eventId が存在するときのみ「同期済み」とみなす。
-          // （needsSync=false だけでは表示不整合が起こり得るため）
-          if (!todo.needsSync && todo.eventId != null && !todo.globalSyncFailed)
+          if (!todo.needsSync && !todo.globalSyncFailed)
             // 同期済み
             TextButton.icon(
               onPressed: () {

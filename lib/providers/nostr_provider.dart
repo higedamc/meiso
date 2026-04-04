@@ -296,6 +296,7 @@ class NostrService {
 
     await _initializeCacheAndSubscription(publicKey);
     unawaited(processGlobalBackfillQueue());
+    unawaited(Future.delayed(const Duration(seconds: 2), refreshRelayStatus));
 
     final modeStr = effectiveTorMode == TorMode.disabled
         ? ''
@@ -373,6 +374,7 @@ class NostrService {
 
     await _initializeCacheAndSubscription(publicKey);
     unawaited(processGlobalBackfillQueue());
+    unawaited(Future.delayed(const Duration(seconds: 2), refreshRelayStatus));
 
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 

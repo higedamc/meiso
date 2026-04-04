@@ -2492,6 +2492,9 @@ class TodosNotifier
   }
 
   /// バックグラウンドでNostr同期（awaitしない、UIをブロックしない）
+  ///
+  /// コールドスタート時はリレー接続がまだ確立中の場合があるため、
+  /// 初回失敗時に 1 回だけ短い待機後にリトライする。
   void _syncToNostrBackground() {
     AppLogger.debug(' _syncToNostrBackground called (non-blocking)');
 
@@ -2500,29 +2503,34 @@ class TodosNotifier
       return;
     }
 
-    // awaitせずに実行（Fire and forget）
     Future.microtask(() async {
-      try {
-        AppLogger.info(' Starting background sync to Nostr...');
-        await _syncAllTodosToNostr();
+      const maxAttempts = 2;
+      for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          AppLogger.info(' Background sync attempt $attempt/$maxAttempts');
+          await _syncAllTodosToNostr();
+          await _clearNeedsSyncFlagsForNonGroup();
 
-        // 同期成功後、needsSyncフラグをクリア（グループTODOは除外）
-        await _clearNeedsSyncFlagsForNonGroup();
-
-        AppLogger.info(' Background sync completed successfully');
-        _ref.read(syncStatusProvider.notifier).syncSuccess();
-      } catch (e, stackTrace) {
-        AppLogger.error(' Background sync failed: $e');
-        AppLogger.error(
-          'Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}',
-        );
-        // エラーは記録するが、UIには影響しない
-        _ref
-            .read(syncStatusProvider.notifier)
-            .syncError(
-              'バックグラウンド同期エラー: ${e}',
-              shouldRetry: false,
-            );
+          AppLogger.info(' Background sync completed successfully');
+          _ref.read(syncStatusProvider.notifier).syncSuccess();
+          return;
+        } catch (e, stackTrace) {
+          if (attempt < maxAttempts) {
+            AppLogger.warning(' Background sync attempt $attempt failed, retrying in 3s: $e');
+            await Future<void>.delayed(const Duration(seconds: 3));
+            continue;
+          }
+          AppLogger.error(' Background sync failed after $maxAttempts attempts: $e');
+          AppLogger.error(
+            'Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}',
+          );
+          _ref
+              .read(syncStatusProvider.notifier)
+              .syncError(
+                'Background sync error: $e',
+                shouldRetry: false,
+              );
+        }
       }
     });
   }
@@ -2716,8 +2724,8 @@ class TodosNotifier
     // 既存のタイマーをキャンセル
     _batchSyncTimer?.cancel();
 
-    // 3秒後に一度だけ実行（periodicではなくone-shot）
-    _batchSyncTimer = Timer(const Duration(seconds: 3), () {
+    // 5秒後に一度だけ実行（リレー接続確立に余裕を持たせる）
+    _batchSyncTimer = Timer(const Duration(seconds: 5), () {
       _executeBatchSync();
     });
   }
@@ -4407,55 +4415,38 @@ class TodosNotifier
           final remoteUpdated = remoteTodo.updatedAt;
 
           if (remoteUpdated.isAfter(localUpdated)) {
-            // リモートの方が新しい → リモートを採用
-            mergedTodos[remoteTodo.id] = remoteTodo;
+            // リモートの方が新しい → リモートを採用（ローカル eventId を保持）
+            mergedTodos[remoteTodo.id] = remoteTodo.copyWith(
+              eventId: remoteTodo.eventId ?? localTodo.eventId,
+            );
             remoteWinsCount++;
 
-            // タイトルが異なる場合は競合を警告
             if (localTodo.title != remoteTodo.title) {
               AppLogger.debug(
                 '🔀 Conflict resolved: Remote wins - "${remoteTodo.title}"',
               );
-              AppLogger.debug(
-                '   Local: "${localTodo.title}" (${localUpdated.toIso8601String()})',
-              );
-              AppLogger.debug(
-                '   Remote: "${remoteTodo.title}" (${remoteUpdated.toIso8601String()})',
-              );
             }
           } else if (localUpdated.isAfter(remoteUpdated)) {
-            // ローカルの方が新しい → ローカルを採用
-            // ローカルの方が新しい場合、リレーに再送信が必要
+            // ローカルの方が新しい → ローカルを採用（リレーに再送信が必要）
             mergedTodos[remoteTodo.id] = localTodo.copyWith(needsSync: true);
             localWinsCount++;
 
-            // タイトルが異なる場合は競合を警告
             if (localTodo.title != remoteTodo.title) {
               AppLogger.debug(
                 ' Conflict resolved: Local wins - "${localTodo.title}" (will resync)',
               );
-              AppLogger.debug(
-                '   Local: "${localTodo.title}" (${localUpdated.toIso8601String()})',
-              );
-              AppLogger.debug(
-                '   Remote: "${remoteTodo.title}" (${remoteUpdated.toIso8601String()})',
-              );
             }
           } else {
-            // 同じタイムスタンプ → リモートを優先（デフォルト動作）
-            mergedTodos[remoteTodo.id] = remoteTodo;
+            // 同じタイムスタンプ → リモートを優先（ローカル eventId を保持）
+            mergedTodos[remoteTodo.id] = remoteTodo.copyWith(
+              eventId: remoteTodo.eventId ?? localTodo.eventId,
+            );
             remoteWinsCount++;
 
             if (localTodo.title != remoteTodo.title ||
                 localTodo.completed != remoteTodo.completed) {
               AppLogger.warning(
                 ' Same timestamp but different content: Remote wins - "${remoteTodo.title}"',
-              );
-              AppLogger.debug(
-                '   Local: "${localTodo.title}" (completed: ${localTodo.completed})',
-              );
-              AppLogger.debug(
-                '   Remote: "${remoteTodo.title}" (completed: ${remoteTodo.completed})',
               );
             }
           }
