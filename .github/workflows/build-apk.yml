@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -33,7 +33,7 @@ jobs:
           targets: aarch64-linux-android
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -67,7 +67,7 @@ jobs:
         run: flutter build apk --flavor beta --release --dart-define=BUILD_CHANNEL=beta --target-platform android-arm64
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: meiso-beta-apk-${{ github.sha }}
           path: build/app/outputs/flutter-apk/app-beta-release.apk
@@ -81,7 +81,7 @@ jobs:
       contents: write
     steps:
       - name: Download APK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: meiso-beta-apk-${{ github.sha }}
 
