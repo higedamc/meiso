@@ -2610,6 +2610,41 @@
   "upload": "Upload",
   "@upload": {
     "description": "Upload button label"
+  },
+
+  "parentTaskLabel": "PARENT TASK",
+  "@parentTaskLabel": {
+    "description": "Label for parent task section in edit screen"
+  },
+
+  "parentTaskNone": "None",
+  "@parentTaskNone": {
+    "description": "Displayed when a task has no parent"
+  },
+
+  "selectParentTask": "Select parent task",
+  "@selectParentTask": {
+    "description": "Title for parent task selection dialog"
+  },
+
+  "removeParentTask": "Remove parent",
+  "@removeParentTask": {
+    "description": "Button to remove parent task relationship"
+  },
+
+  "convertToSubtaskSuccess": "Converted to subtask",
+  "@convertToSubtaskSuccess": {
+    "description": "Snackbar message after converting to subtask"
+  },
+
+  "promotedToRootSuccess": "Promoted to root task",
+  "@promotedToRootSuccess": {
+    "description": "Snackbar message after promoting to root task"
+  },
+
+  "cannotDemoteHasSubtasks": "Remove subtasks first to convert this task",
+  "@cannotDemoteHasSubtasks": {
+    "description": "Error when trying to demote a task that has subtasks"
   }
 }
 

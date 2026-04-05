@@ -3051,6 +3051,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Upload'**
   String get upload;
+
+  /// Label for parent task section in edit screen
+  ///
+  /// In en, this message translates to:
+  /// **'PARENT TASK'**
+  String get parentTaskLabel;
+
+  /// Displayed when a task has no parent
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get parentTaskNone;
+
+  /// Title for parent task selection dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Select parent task'**
+  String get selectParentTask;
+
+  /// Button to remove parent task relationship
+  ///
+  /// In en, this message translates to:
+  /// **'Remove parent'**
+  String get removeParentTask;
+
+  /// Snackbar message after converting to subtask
+  ///
+  /// In en, this message translates to:
+  /// **'Converted to subtask'**
+  String get convertToSubtaskSuccess;
+
+  /// Snackbar message after promoting to root task
+  ///
+  /// In en, this message translates to:
+  /// **'Promoted to root task'**
+  String get promotedToRootSuccess;
+
+  /// Error when trying to demote a task that has subtasks
+  ///
+  /// In en, this message translates to:
+  /// **'Remove subtasks first to convert this task'**
+  String get cannotDemoteHasSubtasks;
 }
 
 class _AppLocalizationsDelegate

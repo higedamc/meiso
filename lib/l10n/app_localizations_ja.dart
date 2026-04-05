@@ -1620,4 +1620,25 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get upload => 'アップロード';
+
+  @override
+  String get parentTaskLabel => '親タスク';
+
+  @override
+  String get parentTaskNone => 'なし';
+
+  @override
+  String get selectParentTask => '親タスクを選択';
+
+  @override
+  String get removeParentTask => '親タスクを解除';
+
+  @override
+  String get convertToSubtaskSuccess => 'サブタスクに変換しました';
+
+  @override
+  String get promotedToRootSuccess => 'ルートタスクに昇格しました';
+
+  @override
+  String get cannotDemoteHasSubtasks => '先にサブタスクを削除してください';
 }

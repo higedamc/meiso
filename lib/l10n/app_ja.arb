@@ -969,6 +969,20 @@
 
   "customServerUrlHint": "https://example.com",
 
-  "upload": "アップロード"
+  "upload": "アップロード",
+
+  "parentTaskLabel": "親タスク",
+
+  "parentTaskNone": "なし",
+
+  "selectParentTask": "親タスクを選択",
+
+  "removeParentTask": "親タスクを解除",
+
+  "convertToSubtaskSuccess": "サブタスクに変換しました",
+
+  "promotedToRootSuccess": "ルートタスクに昇格しました",
+
+  "cannotDemoteHasSubtasks": "先にサブタスクを削除してください"
 }
 

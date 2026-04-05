@@ -1672,4 +1672,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get upload => 'Upload';
+
+  @override
+  String get parentTaskLabel => 'PARENT TASK';
+
+  @override
+  String get parentTaskNone => 'None';
+
+  @override
+  String get selectParentTask => 'Select parent task';
+
+  @override
+  String get removeParentTask => 'Remove parent';
+
+  @override
+  String get convertToSubtaskSuccess => 'Converted to subtask';
+
+  @override
+  String get promotedToRootSuccess => 'Promoted to root task';
+
+  @override
+  String get cannotDemoteHasSubtasks =>
+      'Remove subtasks first to convert this task';
 }

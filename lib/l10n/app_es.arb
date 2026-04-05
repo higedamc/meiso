@@ -973,6 +973,20 @@
 
   "customServerUrlHint": "https://example.com",
 
-  "upload": "Subir"
+  "upload": "Subir",
+
+  "parentTaskLabel": "TAREA PADRE",
+
+  "parentTaskNone": "Ninguno",
+
+  "selectParentTask": "Seleccionar tarea padre",
+
+  "removeParentTask": "Quitar padre",
+
+  "convertToSubtaskSuccess": "Convertido en subtarea",
+
+  "promotedToRootSuccess": "Promovido a tarea principal",
+
+  "cannotDemoteHasSubtasks": "Elimine las subtareas primero"
 }
 
