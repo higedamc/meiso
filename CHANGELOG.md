@@ -7,14 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- **Nostr relay User-Agent (Issue #130)**: WebSocket handshake sends `meiso/<version> (<os>; <os_version>)` using a vendored `async-wsocket` fork and `setRelayWebsocketUserAgent` before client init.
-- **NIP-89 client tag (Issue #131)**: Published events include a minimal `["client","meiso"]` tag unless disabled under Settings → Advanced (synced in Kind 30078 as `nip89_client_tag_enabled`).
-
-### Changed
-- **Rust**: `async-wsocket` 0.10.1 patched at `rust/vendor/async-wsocket` with `[patch.crates-io]`; direct dependency from the `rust` crate for the setter API.
-
-## [1.3.0] - 2026-03-30
+## [1.3.0] - 2026-04-06
 
 ### Added
 - **Subtask Support (Issue #128)**: Reminders-first subtask mode with parent-child task relationships
@@ -24,16 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Image Attachments**: Blossom / NIP-96 image upload with server picker and full-screen viewer
   - Amber-mode signing support for media uploads
 - **Product Flavors**: `production` (Zapstore) / `beta` (GitHub Actions) build split
+  - `BuildChannel` enum + `buildChannel` constant in `app_config.dart` (Issue #124)
   - `--dart-define=BUILD_CHANNEL` for compile-time channel detection
 - **Feature Gate System**: Beta-only experimental feature toggles (Asana/Wunderlist/Kanban modes, Task Linking)
 - **Hide Completed Tasks**: Toggle in App Settings to hide completed tasks
 - **CI/CD**: GitHub Actions workflow for automated beta APK builds with Telegram notifications
 - **Go CUI**: Bidirectional Nostr sync, custom lists, tree view for terminal-based task management
+- **Nostr relay User-Agent (Issue #130)**: WebSocket handshake sends `meiso/<version> (<os>; <os_version>)` using a vendored `async-wsocket` fork and `setRelayWebsocketUserAgent` before client init
+- **NIP-89 client tag (Issue #131)**: Published events include a minimal `["client","meiso"]` tag unless disabled under Settings -> Advanced (synced in Kind 30078 as `nip89_client_tag_enabled`)
 
 ### Changed
 - **Three-Tier Sync**: Refactored sync flow to Hive -> Global -> Citrine relay architecture
 - **CargoKit**: Vendored cargokit to resolve CI submodule fetch failures; fixed flavor compatibility in plugin.gradle
 - **Rust Bridge**: Regenerated FRB bindings with subtask/task-link fields
+- **Rust**: `async-wsocket` 0.10.1 patched at `rust/vendor/async-wsocket` with `[patch.crates-io]`; direct dependency from the `rust` crate for the setter API
 - **Test Suite**: Fixed 17 broken tests, added tests for recurring instance generation and child instance removal
 
 ### Fixed
