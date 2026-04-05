@@ -308,6 +308,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
       todo.date,
       oldIndex,
       newIndex,
+      todos,
     );
   }
 

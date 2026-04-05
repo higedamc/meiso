@@ -2355,28 +2355,29 @@ class TodosNotifier
 
   /// Todoを並び替え（楽観的UI更新）
   ///
-  /// ReorderableListView の onReorder から rawIndex をそのまま受け取る。
+  /// [displayedList] は UI 上に表示されている順序のリスト。
+  /// ReorderableListView の onReorder インデックスはこのリストに対応する。
   /// サブタスクを親グループ外にドロップした場合、ルートタスクに昇格する。
   Future<void> reorderTodo(
     DateTime? date,
     int oldIndex,
     int newIndex,
+    List<Todo> displayedList,
   ) async {
     await state.whenData((todos) async {
-      final list = List<Todo>.from(todos[date] ?? []);
-
       if (oldIndex < newIndex) {
         newIndex -= 1;
       }
 
-      final item = list.removeAt(oldIndex);
-      list.insert(newIndex, item);
+      final reordered = List<Todo>.from(displayedList);
+      final item = reordered.removeAt(oldIndex);
+      reordered.insert(newIndex, item);
 
       // サブタスク昇格判定: 親グループ外に移動されたら root に昇格
       if (item.parentTaskId != null) {
-        final promoted = _shouldPromoteToRoot(list, newIndex, item);
+        final promoted = _shouldPromoteToRoot(reordered, newIndex, item);
         if (promoted) {
-          list[newIndex] = item.copyWith(
+          reordered[newIndex] = item.copyWith(
             parentTaskId: null,
             depth: 0,
           );
@@ -2384,18 +2385,45 @@ class TodosNotifier
         }
       }
 
+      // 表示リストの新しい順序を ID → order にマッピング
+      final orderMap = <String, int>{};
+      final parentMap = <String, String?>{};
+      final depthMap = <String, int>{};
+      for (var i = 0; i < reordered.length; i++) {
+        final t = reordered[i];
+        orderMap[t.id] = i;
+        parentMap[t.id] = t.parentTaskId;
+        depthMap[t.id] = t.depth;
+      }
+
+      // raw リストを更新（非表示アイテムは末尾に配置）
+      final rawList = List<Todo>.from(todos[date] ?? []);
       final now = DateTime.now();
-      for (var i = 0; i < list.length; i++) {
-        list[i] = list[i].copyWith(
-          order: i,
-          updatedAt: now,
-          needsSync: true,
-        );
+      int nextHiddenOrder = reordered.length;
+      final newList = <Todo>[];
+
+      for (final raw in rawList) {
+        final displayOrder = orderMap[raw.id];
+        if (displayOrder != null) {
+          newList.add(raw.copyWith(
+            order: displayOrder,
+            parentTaskId: parentMap[raw.id],
+            depth: depthMap[raw.id] ?? raw.depth,
+            updatedAt: now,
+            needsSync: true,
+          ));
+        } else {
+          newList.add(raw.copyWith(
+            order: nextHiddenOrder++,
+            updatedAt: now,
+            needsSync: true,
+          ));
+        }
       }
 
       state = AsyncValue.data({
         ...todos,
-        date: list,
+        date: newList,
       });
 
       await _saveAllTodosToLocal();
@@ -2413,6 +2441,106 @@ class TodosNotifier
     if (prev.id == item.parentTaskId) return false;
     if (prev.parentTaskId == item.parentTaskId) return false;
     return true;
+  }
+
+  /// ルートタスクを指定した親のサブタスクに変換する。
+  ///
+  /// 対象タスクが既にサブタスクを持つ場合は、それらを [newParentId] の
+  /// 直接の子（兄弟）に付け替える。グランドチルドは作らない。
+  Future<void> convertToSubtask(String taskId, String newParentId) async {
+    await state.whenData((todos) async {
+      final updated = Map<DateTime?, List<Todo>>.from(
+        todos.map((k, v) => MapEntry(k, List<Todo>.from(v))),
+      );
+
+      Todo? task;
+      DateTime? taskDate;
+      Todo? parent;
+
+      for (final entry in updated.entries) {
+        for (final t in entry.value) {
+          if (t.id == taskId) {
+            task = t;
+            taskDate = entry.key;
+          }
+          if (t.id == newParentId) {
+            parent = t;
+          }
+        }
+      }
+
+      if (task == null || parent == null) return;
+      if (parent.isSubtask) return;
+
+      final existingSubtasks = getSubtasks(taskId);
+      final now = DateTime.now();
+
+      final dateList = updated[taskDate];
+      if (dateList == null) return;
+
+      // 対象タスクを子タスクに変換
+      final taskIdx = dateList.indexWhere((t) => t.id == taskId);
+      if (taskIdx == -1) return;
+      dateList[taskIdx] = task.copyWith(
+        parentTaskId: newParentId,
+        depth: 1,
+        updatedAt: now,
+        needsSync: true,
+      );
+
+      // 既存のサブタスクを新しい親の直接の子に付け替え
+      for (final sub in existingSubtasks) {
+        for (final entry in updated.entries) {
+          final list = entry.value;
+          final subIdx = list.indexWhere((t) => t.id == sub.id);
+          if (subIdx != -1) {
+            list[subIdx] = sub.copyWith(
+              parentTaskId: newParentId,
+              depth: 1,
+              updatedAt: now,
+              needsSync: true,
+            );
+            break;
+          }
+        }
+      }
+
+      state = AsyncValue.data(updated);
+      await _saveAllTodosToLocal();
+      await _updateWidget();
+      _updateUnsyncedCount();
+      _syncToNostrBackground();
+    }).value;
+  }
+
+  /// サブタスクをルートタスクに昇格する。
+  Future<void> promoteToRoot(String taskId) async {
+    await state.whenData((todos) async {
+      final updated = Map<DateTime?, List<Todo>>.from(
+        todos.map((k, v) => MapEntry(k, List<Todo>.from(v))),
+      );
+
+      for (final entry in updated.entries) {
+        final list = entry.value;
+        final idx = list.indexWhere((t) => t.id == taskId);
+        if (idx != -1) {
+          final now = DateTime.now();
+          list[idx] = list[idx].copyWith(
+            parentTaskId: null,
+            depth: 0,
+            updatedAt: now,
+            needsSync: true,
+          );
+
+          state = AsyncValue.data(updated);
+          await _saveAllTodosToLocal();
+          await _updateWidget();
+          _updateUnsyncedCount();
+          _syncToNostrBackground();
+          return;
+        }
+      }
+    }).value;
   }
 
   /// Todoを別の日付に移動（楽観的UI更新）
