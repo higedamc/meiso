@@ -64,10 +64,25 @@ android {
             isShrinkResources = false
         }
     }
+
 }
 
 flutter {
     source = "../.."
+}
+
+// production flavor の APK を app-release.apk としてもコピーする。
+// Flutter プラグインは flutter-apk/ に app-production-release.apk でコピーするが、
+// flutter install (--flavor なし) は app-release.apk を期待するため、両方存在させる。
+afterEvaluate {
+    tasks.findByName("assembleProductionRelease")?.doLast {
+        val flutterApkDir = File(project.layout.buildDirectory.get().asFile, "outputs/flutter-apk")
+        val src = File(flutterApkDir, "app-production-release.apk")
+        val dst = File(flutterApkDir, "app-release.apk")
+        if (src.exists()) {
+            src.copyTo(dst, overwrite = true)
+        }
+    }
 }
 
 // Cargokit設定
