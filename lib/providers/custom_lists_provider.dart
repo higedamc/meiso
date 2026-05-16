@@ -291,41 +291,29 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       return;
     }
 
-    // Issue #101: 削除済みリストの再作成を許可（LWW対応）
-    final creationTime =
-        DateTime.now().millisecondsSinceEpoch ~/ 1000; // Unix timestamp
+    // Issue #101: 削除済みリストの再作成を許可（明示再作成のみ）
     var removedFromMetadata = false;
 
-    // listIdベースの削除メタデータをチェック
+    // listIdベースの削除メタデータをチェックして解除
     if (_deletedListMetadata.containsKey(listId)) {
-      final deletionTime = _deletedListMetadata[listId]!;
-
-      // LWW: 新しい作成は古い削除を上書き
-      if (creationTime > deletionTime) {
-        AppLogger.info(
-          '🔄 [CustomLists] LWW: Re-creating list "$normalizedName" (creation: $creationTime > deletion: $deletionTime)',
-        );
-        _deletedListMetadata.remove(listId);
-        final saveResult = await _repository.saveDeletedListMetadata(
-          _deletedListMetadata,
-        );
-        saveResult.fold(
-          (failure) => AppLogger.warning(
-            '⚠️  [CustomLists] Failed to remove from list metadata: ${failure.message}',
-          ),
-          (_) {
-            AppLogger.info(
-              '✅ [CustomLists] Removed from list deletion metadata (remaining: ${_deletedListMetadata.length})',
-            );
-            removedFromMetadata = true;
-          },
-        );
-      } else {
-        AppLogger.warning(
-          '⚠️  [CustomLists] LWW: Cannot recreate list "$normalizedName" (creation: $creationTime <= deletion: $deletionTime)',
-        );
-        // 理論的には起こらないはずだが、念のため
-      }
+      AppLogger.info(
+        '♻️  [CustomLists] Explicit re-create requested, clearing list tombstone: "$normalizedName"',
+      );
+      _deletedListMetadata.remove(listId);
+      final saveResult = await _repository.saveDeletedListMetadata(
+        _deletedListMetadata,
+      );
+      saveResult.fold(
+        (failure) => AppLogger.warning(
+          '⚠️  [CustomLists] Failed to remove from list metadata: ${failure.message}',
+        ),
+        (_) {
+          AppLogger.info(
+            '✅ [CustomLists] Removed from list deletion metadata (remaining: ${_deletedListMetadata.length})',
+          );
+          removedFromMetadata = true;
+        },
+      );
     }
 
     // event_idベースの削除メタデータもチェック（Nostr上の古いイベントID）
@@ -342,29 +330,24 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
           if (oldEventId != null &&
               _deletedEventMetadata.containsKey(oldEventId)) {
-            final deletionTime = _deletedEventMetadata[oldEventId]!;
-
-            // LWW: 新しい作成は古い削除を上書き
-            if (creationTime > deletionTime) {
-              AppLogger.info(
-                '🔄 [CustomLists] LWW: Removing old event deletion metadata: ${oldEventId.substring(0, 16)}...',
-              );
-              _deletedEventMetadata.remove(oldEventId);
-              final saveResult = await _repository.saveDeletedEventMetadata(
-                _deletedEventMetadata,
-              );
-              saveResult.fold(
-                (failure) => AppLogger.warning(
-                  '⚠️  [CustomLists] Failed to remove from event metadata: ${failure.message}',
-                ),
-                (_) {
-                  AppLogger.info(
-                    '✅ [CustomLists] Removed from event deletion metadata (remaining: ${_deletedEventMetadata.length})',
-                  );
-                  removedFromMetadata = true;
-                },
-              );
-            }
+            AppLogger.info(
+              '♻️  [CustomLists] Explicit re-create requested, clearing event tombstone: ${oldEventId.substring(0, 16)}...',
+            );
+            _deletedEventMetadata.remove(oldEventId);
+            final saveResult = await _repository.saveDeletedEventMetadata(
+              _deletedEventMetadata,
+            );
+            saveResult.fold(
+              (failure) => AppLogger.warning(
+                '⚠️  [CustomLists] Failed to remove from event metadata: ${failure.message}',
+              ),
+              (_) {
+                AppLogger.info(
+                  '✅ [CustomLists] Removed from event deletion metadata (remaining: ${_deletedEventMetadata.length})',
+                );
+                removedFromMetadata = true;
+              },
+            );
           }
         } catch (e) {
           AppLogger.debug(
@@ -542,7 +525,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           );
 
           // Phase E.6: Nostrから動的にeventIdを取得してKind 5削除イベント送信
-          _deletePersonalListFromNostr(targetList, lists);
+          await _deletePersonalListFromNostr(targetList, lists);
         } else {
           // 2-2. MLS Group List: ローカル削除のみ（Nostrには送信しない）
           AppLogger.info(
@@ -559,6 +542,19 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             ),
             (void _) => AppLogger.info(
               '🗑️  [MLS] Added to deleted MLS group list IDs: $id (total: ${_deletedMlsGroupListIds.length})',
+            ),
+          );
+
+          final mlsRepository = _ref.read(mls_repo.mlsGroupRepositoryProvider);
+          final deleteMlsResult = await mlsRepository.deleteMlsGroupFromLocal(
+            groupId: id,
+          );
+          deleteMlsResult.fold(
+            (failure) => AppLogger.warning(
+              '⚠️  [MLS] Failed to remove MLS local state for deleted group: ${failure.message}',
+            ),
+            (_) => AppLogger.info(
+              '🧹 [MLS] Removed MLS local state for deleted group: $id',
             ),
           );
         }
@@ -641,12 +637,14 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
   ///
   /// Kind 30001イベントのd tag（meiso-list-xxx）とtitle tag、created_atを取得
   /// LWW比較用に (listId, listName, eventId, created_at) のタプルを返す
-  Future<List<(String, String, String, int)>>
-  fetchCustomListMetadataFromNostr() async {
+  Future<List<(String, String, String, int)>> fetchCustomListMetadataFromNostr({
+    bool force = false,
+  }) async {
     try {
       // ✅ 復帰/起動直後の体感改善: 短時間での連続取得を間引く
       final last = localStorageService.getLastCustomListsSyncTime();
-      if (last != null &&
+      if (!force &&
+          last != null &&
           DateTime.now().difference(last) < const Duration(minutes: 5)) {
         AppLogger.debug('📋 [CustomLists] Skip fetching list metadata (fresh)');
         return const <(String, String, String, int)>[];
@@ -773,8 +771,8 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     }
   }
 
-  /// 削除済みメタデータをチェックして、リストをフィルタリング（LWW対応）
-  /// Issue #101: LWW比較で削除/復元を判定
+  /// 削除済みメタデータをチェックして、リストをフィルタリング
+  /// Issue #101: tombstone は明示再作成まで保持する
   Future<List<CustomList>> _filterDeletedLists(List<CustomList> lists) async {
     AppLogger.debug(
       '🗑️ [CustomLists] Filtering lists (LWW + MLS key check)...',
@@ -824,24 +822,13 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       }
 
       var isDeleted = false;
-      final listCreatedAt =
-          list.createdAt.millisecondsSinceEpoch ~/ 1000; // Unix timestamp
 
       // 1. list_idベースの削除メタデータをチェック
       if (_deletedListMetadata.containsKey(list.id)) {
-        final deletionTime = _deletedListMetadata[list.id]!;
-
-        // LWW比較
-        if (deletionTime >= listCreatedAt) {
-          isDeleted = true;
-          AppLogger.debug(
-            '🗑️ [CustomLists] LWW: List deleted by listId: "${list.name}" (deletion: $deletionTime >= created: $listCreatedAt)',
-          );
-        } else {
-          AppLogger.debug(
-            '♻️  [CustomLists] LWW: List restored by listId: "${list.name}" (created: $listCreatedAt > deletion: $deletionTime)',
-          );
-        }
+        isDeleted = true;
+        AppLogger.debug(
+          '🗑️ [CustomLists] Tombstone blocked by listId: "${list.name}"',
+        );
       }
 
       // 2. eventIdベースの削除メタデータをチェック
@@ -863,19 +850,10 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         }
 
         if (eventId != null && _deletedEventMetadata.containsKey(eventId)) {
-          final deletionTime = _deletedEventMetadata[eventId]!;
-
-          // LWW比較
-          if (deletionTime >= listCreatedAt) {
-            isDeleted = true;
-            AppLogger.debug(
-              '🗑️ [CustomLists] LWW: List deleted by eventId: "${list.name}" (deletion: $deletionTime >= created: $listCreatedAt)',
-            );
-          } else {
-            AppLogger.debug(
-              '♻️  [CustomLists] LWW: List restored by eventId: "${list.name}" (created: $listCreatedAt > deletion: $deletionTime)',
-            );
-          }
+          isDeleted = true;
+          AppLogger.debug(
+            '🗑️ [CustomLists] Tombstone blocked by eventId: "${list.name}"',
+          );
         }
       }
 
@@ -955,9 +933,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     final updatedLists = List<CustomList>.from(currentLists);
     var hasChanges = false;
 
-    for (final (listId, listName, eventId, createdAt) in nostrListMetadata) {
+    for (final (listId, listName, eventId, createdAtSec) in nostrListMetadata) {
       AppLogger.debug(
-        ' [CustomLists] Processing Nostr list: "$listName" (ID: $listId, created_at: $createdAt)',
+        ' [CustomLists] Processing Nostr list: "$listName" (ID: $listId, created_at: $createdAtSec)',
       );
 
       // LWW比較: 削除イベントをチェック
@@ -966,40 +944,18 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
       // 1. eventIdベースの削除チェック
       if (_deletedEventMetadata.containsKey(eventId)) {
-        final deletionTime = _deletedEventMetadata[eventId]!;
-        if (deletionTime >= createdAt) {
-          // 削除の方が新しいorequal → スキップ
-          AppLogger.info(
-            '🗑️  [CustomLists] LWW: Deletion is newer/equal, skipping list "$listName" (deletion: $deletionTime >= created: $createdAt)',
-          );
-          isDeletedByEvent = true;
-        } else {
-          // 作成の方が新しい → 削除メタデータを無効化
-          AppLogger.info(
-            '♻️  [CustomLists] LWW: Creation is newer, restoring list "$listName" (created: $createdAt > deletion: $deletionTime)',
-          );
-          _deletedEventMetadata.remove(eventId);
-          await _repository.saveDeletedEventMetadata(_deletedEventMetadata);
-        }
+        AppLogger.info(
+          '🗑️  [CustomLists] Tombstone blocked by eventId, skipping list "$listName"',
+        );
+        isDeletedByEvent = true;
       }
 
       // 2. listIdベースの削除チェック
       if (!isDeletedByEvent && _deletedListMetadata.containsKey(listId)) {
-        final deletionTime = _deletedListMetadata[listId]!;
-        if (deletionTime >= createdAt) {
-          // 削除の方が新しいorequal → スキップ
-          AppLogger.info(
-            '🗑️  [CustomLists] [Issue#101] LWW: Deletion is newer/equal, skipping list "$listName" (deletion: $deletionTime >= created: $createdAt)',
-          );
-          isDeletedByListId = true;
-        } else {
-          // 作成の方が新しい → 削除メタデータを無効化
-          AppLogger.info(
-            '♻️  [CustomLists] [Issue#101] LWW: Creation is newer, restoring list "$listName" (created: $createdAt > deletion: $deletionTime)',
-          );
-          _deletedListMetadata.remove(listId);
-          await _repository.saveDeletedListMetadata(_deletedListMetadata);
-        }
+        AppLogger.info(
+          '🗑️  [CustomLists] Tombstone blocked by listId, skipping list "$listName"',
+        );
+        isDeletedByListId = true;
       }
 
       // 削除されている場合はスキップ
@@ -1028,7 +984,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           name: listName.toUpperCase(),
           order: _getNextOrder(updatedLists),
           createdAt: DateTime.fromMillisecondsSinceEpoch(
-            createdAt * 1000,
+            createdAtSec * 1000,
           ), // Nostrのcreated_at
           updatedAt: DateTime.now(),
           eventId: eventId, // eventIdも保存
@@ -1134,6 +1090,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       final result = await syncInvitationsUseCase(
         SyncGroupInvitationsParams(
           recipientPublicKey: userPubkey,
+          deletedGroupIds: _deletedMlsGroupListIds,
         ),
       );
 
@@ -2194,25 +2151,8 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         '❌ [CustomLists] Unexpected error during Nostr deletion: $e',
       );
       AppLogger.error('Stack trace: $stack');
-
-      // ローカルに復元
-      final restoreResult = await _repository.saveCustomListToLocal(targetList);
-      await restoreResult.fold(
-        (failure) {
-          AppLogger.error(
-            '❌ [CustomLists] Failed to restore list: ${failure.message}',
-          );
-        },
-        (_) {
-          final currentState = state.valueOrNull ?? [];
-          final restoredLists = [...currentState, targetList]
-            ..sort((a, b) => a.order.compareTo(b.order));
-          state = AsyncValue.data(restoredLists);
-
-          AppLogger.info(
-            '♻️  [CustomLists] List restored after unexpected error: ${targetList.name}',
-          );
-        },
+      AppLogger.warning(
+        '⚠️  [CustomLists] Keeping local deletion and tombstone despite unexpected remote error',
       );
     }
   }

@@ -63,7 +63,9 @@ final todosProvider =
     );
 
 /// 親タスクごとのサブタスク展開状態（メモリ保持）
-final subtaskExpansionProvider = StateProvider<Set<String>>((ref) => <String>{});
+final subtaskExpansionProvider = StateProvider<Set<String>>(
+  (ref) => <String>{},
+);
 
 class TodosNotifier
     extends StateNotifier<AsyncValue<Map<DateTime?, List<Todo>>>> {
@@ -1075,8 +1077,12 @@ class TodosNotifier
       var updated = Map<DateTime?, List<Todo>>.from(todos);
 
       updated = _removeLinkFromTodo(updated, sourceId, targetId, linkType);
-      updated =
-          _removeLinkFromTodo(updated, targetId, sourceId, linkType.inverse);
+      updated = _removeLinkFromTodo(
+        updated,
+        targetId,
+        sourceId,
+        linkType.inverse,
+      );
 
       state = AsyncValue.data(updated);
       await _saveAllTodosToLocal();
@@ -2405,19 +2411,23 @@ class TodosNotifier
       for (final raw in rawList) {
         final displayOrder = orderMap[raw.id];
         if (displayOrder != null) {
-          newList.add(raw.copyWith(
-            order: displayOrder,
-            parentTaskId: parentMap[raw.id],
-            depth: depthMap[raw.id] ?? raw.depth,
-            updatedAt: now,
-            needsSync: true,
-          ));
+          newList.add(
+            raw.copyWith(
+              order: displayOrder,
+              parentTaskId: parentMap[raw.id],
+              depth: depthMap[raw.id] ?? raw.depth,
+              updatedAt: now,
+              needsSync: true,
+            ),
+          );
         } else {
-          newList.add(raw.copyWith(
-            order: nextHiddenOrder++,
-            updatedAt: now,
-            needsSync: true,
-          ));
+          newList.add(
+            raw.copyWith(
+              order: nextHiddenOrder++,
+              updatedAt: now,
+              needsSync: true,
+            ),
+          );
         }
       }
 
@@ -2592,11 +2602,13 @@ class TodosNotifier
           for (final child in children) {
             childIds.add(child.id);
             group.remove(child);
-            toList.add(child.copyWith(
-              date: toDate,
-              updatedAt: now,
-              needsSync: true,
-            ));
+            toList.add(
+              child.copyWith(
+                date: toDate,
+                updatedAt: now,
+                needsSync: true,
+              ),
+            );
           }
         }
       }
@@ -2644,11 +2656,15 @@ class TodosNotifier
           return;
         } catch (e, stackTrace) {
           if (attempt < maxAttempts) {
-            AppLogger.warning(' Background sync attempt $attempt failed, retrying in 3s: $e');
+            AppLogger.warning(
+              ' Background sync attempt $attempt failed, retrying in 3s: $e',
+            );
             await Future<void>.delayed(const Duration(seconds: 3));
             continue;
           }
-          AppLogger.error(' Background sync failed after $maxAttempts attempts: $e');
+          AppLogger.error(
+            ' Background sync failed after $maxAttempts attempts: $e',
+          );
           AppLogger.error(
             'Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}',
           );
@@ -4253,6 +4269,12 @@ class TodosNotifier
         );
 
     try {
+      final customListsNotifier = _ref.read(customListsProvider.notifier);
+      // 復帰時の差分同期でも、削除メタデータ/リスト状態を先に整合させる
+      final customListMetadata = await customListsNotifier
+          .fetchCustomListMetadataFromNostr(force: true);
+      await customListsNotifier.syncListsFromNostr(customListMetadata);
+
       final localFlat = await localStorageService.loadTodos();
       final updatedFlat = List<Todo>.from(localFlat);
 

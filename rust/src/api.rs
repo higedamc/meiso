@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime as ChronoDateTime, NaiveDate, NaiveDateTime};
-use nostr_sdk::prelude::*;
 use nostr_sdk::nips::nip44; // NIP-44暗号化を明示的にインポート
+use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::{NOSTR_CLIENTS, DEFAULT_CLIENT_ID};
 use crate::group_tasks;
+use crate::{DEFAULT_CLIENT_ID, NOSTR_CLIENTS};
 
 /// クライアントモード
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -224,7 +224,7 @@ impl CachedEventInfo {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-        
+
         now - self.cached_at < self.ttl_seconds as i64
     }
 }
@@ -273,9 +273,9 @@ pub fn fetch_mls_group_todo_events_since(
 }
 
 /// Phase 8.3: kind:445 + #h フィルタで MLS Group Events を取得（one-shot fetch）
-/// 
+///
 /// subscription方式ではなく、直接fetch_events()を使用してより確実に取得する
-/// 
+///
 /// - `group_id`: グループID（#h タグの値）
 /// - `since`: UNIX秒（0なら全件取得）
 /// - `timeout_secs`: タイムアウト秒
@@ -310,12 +310,27 @@ pub fn fetch_mls_group_events_by_group_id_with_client_id(
         }
 
         dev_println!("📡 [Rust] Fetching kind:445 events with #h={}", group_id);
-        dev_println!("📡 [Rust] since: {} ({})", since, if since == 0 { "all events" } else { "after timestamp" });
+        dev_println!(
+            "📡 [Rust] since: {} ({})",
+            since,
+            if since == 0 {
+                "all events"
+            } else {
+                "after timestamp"
+            }
+        );
 
         let timeout = Duration::from_secs(timeout_secs.max(1));
-        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(timeout))
+            .await?;
 
-        dev_println!("📨 [Rust] Fetched {} kind:445 events for group {}", events.len(), &group_id[..16]);
+        dev_println!(
+            "📨 [Rust] Fetched {} kind:445 events for group {}",
+            events.len(),
+            &group_id[..16]
+        );
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -349,10 +364,7 @@ pub fn fetch_mls_group_todo_events_since_with_client_id(
 
         let mut filter = Filter::new()
             .kind(Kind::Custom(1059)) // NIP-17 Seal
-            .custom_tag(
-                SingleLetterTag::lowercase(Alphabet::P),
-                vec![listen_key],
-            );
+            .custom_tag(SingleLetterTag::lowercase(Alphabet::P), vec![listen_key]);
 
         if since > 0 {
             let since_u64 = since.max(0) as u64;
@@ -360,7 +372,10 @@ pub fn fetch_mls_group_todo_events_since_with_client_id(
         }
 
         let timeout = Duration::from_secs(timeout_secs.max(1));
-        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(timeout))
+            .await?;
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -406,12 +421,26 @@ impl MeisoNostrClient {
         tor_mode: TorMode,
         proxy_url: Option<String>,
     ) -> Result<Self> {
-        dev_println!("Parsing secret key (format: {})", 
-            if secret_key_hex.starts_with("nsec") { "nsec" } else { "hex" });
-        
-        let keys = Keys::parse(secret_key_hex)
-            .map_err(|e| anyhow::anyhow!("秘密鍵のパースに失敗 ({}): {}. フォーマットを確認してください (hex or nsec1...)", 
-                if secret_key_hex.starts_with("nsec") { "nsec形式" } else { "hex形式" }, e))?;
+        dev_println!(
+            "Parsing secret key (format: {})",
+            if secret_key_hex.starts_with("nsec") {
+                "nsec"
+            } else {
+                "hex"
+            }
+        );
+
+        let keys = Keys::parse(secret_key_hex).map_err(|e| {
+            anyhow::anyhow!(
+                "秘密鍵のパースに失敗 ({}): {}. フォーマットを確認してください (hex or nsec1...)",
+                if secret_key_hex.starts_with("nsec") {
+                    "nsec形式"
+                } else {
+                    "hex形式"
+                },
+                e
+            )
+        })?;
 
         // Torモードに応じてクライアントを作成
         let client = match tor_mode {
@@ -426,17 +455,18 @@ impl MeisoNostrClient {
             }
             TorMode::Orbot => {
                 // Orbotモード: SOCKS5プロキシ経由（環境変数で設定）
-                let proxy = proxy_url.as_ref()
+                let proxy = proxy_url
+                    .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("Proxy URL is required for Orbot mode"))?;
-                    
+
                 dev_println!("🔐 Connecting via Orbot proxy: {}", proxy);
-                
+
                 // SOCKS5プロキシを環境変数に設定
                 std::env::set_var("all_proxy", proxy);
                 std::env::set_var("ALL_PROXY", proxy);
                 std::env::set_var("socks_proxy", proxy);
                 std::env::set_var("SOCKS_PROXY", proxy);
-                
+
                 dev_println!("✅ Proxy environment variables set: {}", proxy);
                 Client::new(keys.clone())
             }
@@ -458,26 +488,33 @@ impl MeisoNostrClient {
             TorMode::Disabled => 5,
             TorMode::Internal | TorMode::Orbot => 15, // Tor経由は時間がかかる
         };
-        
-        dev_println!("🔌 Connecting to relays{}...", 
+
+        dev_println!(
+            "🔌 Connecting to relays{}...",
             match tor_mode {
                 TorMode::Disabled => "",
                 TorMode::Internal => " (via embedded Tor)",
                 TorMode::Orbot => " (via Orbot proxy)",
-            });
-        
+            }
+        );
+
         match tokio::time::timeout(
-            std::time::Duration::from_secs(timeout_sec), 
-            client.connect()
-        ).await {
+            std::time::Duration::from_secs(timeout_sec),
+            client.connect(),
+        )
+        .await
+        {
             Ok(_) => dev_println!("✅ Connected to relays"),
             Err(_) => {
-                dev_eprintln!("⚠️ Relay connection timeout ({}s) - continuing offline mode", timeout_sec);
+                dev_eprintln!(
+                    "⚠️ Relay connection timeout ({}s) - continuing offline mode",
+                    timeout_sec
+                );
             }
         }
 
-        Ok(Self { 
-            keys: Some(keys), 
+        Ok(Self {
+            keys: Some(keys),
             client,
             mode: ClientMode::SecretKey,
         })
@@ -486,28 +523,42 @@ impl MeisoNostrClient {
     /// 新しいクライアントを作成（秘密鍵 + プロキシオプション）
     /// 後方互換性のため残す
     pub async fn new_with_proxy(
-        secret_key_hex: &str, 
+        secret_key_hex: &str,
         relays: Vec<String>,
         proxy_url: Option<String>,
     ) -> Result<Self> {
-        dev_println!("Parsing secret key (format: {})", 
-            if secret_key_hex.starts_with("nsec") { "nsec" } else { "hex" });
-        
-        let keys = Keys::parse(secret_key_hex)
-            .map_err(|e| anyhow::anyhow!("秘密鍵のパースに失敗 ({}): {}. フォーマットを確認してください (hex or nsec1...)", 
-                if secret_key_hex.starts_with("nsec") { "nsec形式" } else { "hex形式" }, e))?;
+        dev_println!(
+            "Parsing secret key (format: {})",
+            if secret_key_hex.starts_with("nsec") {
+                "nsec"
+            } else {
+                "hex"
+            }
+        );
+
+        let keys = Keys::parse(secret_key_hex).map_err(|e| {
+            anyhow::anyhow!(
+                "秘密鍵のパースに失敗 ({}): {}. フォーマットを確認してください (hex or nsec1...)",
+                if secret_key_hex.starts_with("nsec") {
+                    "nsec形式"
+                } else {
+                    "hex形式"
+                },
+                e
+            )
+        })?;
 
         // プロキシ設定（環境変数経由）
         if let Some(ref proxy) = proxy_url {
             dev_println!("🔐 Tor/Proxy経由で接続します: {}", proxy);
-            
+
             // SOCKS5プロキシを環境変数に設定
             // nostr-sdkは内部でこれらの環境変数を使用する可能性がある
             std::env::set_var("all_proxy", proxy);
             std::env::set_var("ALL_PROXY", proxy);
             std::env::set_var("socks_proxy", proxy);
             std::env::set_var("SOCKS_PROXY", proxy);
-            
+
             dev_println!("✅ プロキシ環境変数を設定: {}", proxy);
         }
 
@@ -527,27 +578,38 @@ impl MeisoNostrClient {
 
         // リレーに接続（タイムアウト付きで待機）
         let timeout_sec = if proxy_url.is_some() { 15 } else { 5 }; // Tor経由は時間がかかる
-        dev_println!("Connecting to relays{}...", 
-            if proxy_url.is_some() { " (via proxy)" } else { "" });
-        
+        dev_println!(
+            "Connecting to relays{}...",
+            if proxy_url.is_some() {
+                " (via proxy)"
+            } else {
+                ""
+            }
+        );
+
         match tokio::time::timeout(
-            std::time::Duration::from_secs(timeout_sec), 
-            client.connect()
-        ).await {
+            std::time::Duration::from_secs(timeout_sec),
+            client.connect(),
+        )
+        .await
+        {
             Ok(_) => dev_println!("✅ Connected to relays"),
             Err(_) => {
-                dev_eprintln!("⚠️ Relay connection timeout ({}s) - continuing offline mode", timeout_sec);
+                dev_eprintln!(
+                    "⚠️ Relay connection timeout ({}s) - continuing offline mode",
+                    timeout_sec
+                );
                 // タイムアウトしても続行（オフライン対応）
             }
         }
 
-        Ok(Self { 
-            keys: Some(keys), 
+        Ok(Self {
+            keys: Some(keys),
             client,
             mode: ClientMode::SecretKey,
         })
     }
-    
+
     /// 新しいクライアントを作成（Amberモード - 公開鍵のみ、Torモード指定）
     pub async fn new_amber_mode_with_tor(
         public_key_hex: String,
@@ -556,13 +618,13 @@ impl MeisoNostrClient {
         proxy_url: Option<String>,
     ) -> Result<Self> {
         dev_println!("🟡 Creating Amber mode client (no secret key)");
-        
-        let _public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
+
+        let _public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
         // ダミーの秘密鍵を生成（署名はAmber経由で行うため使用しない）
         let dummy_keys = Keys::generate();
-        
+
         // Torモードに応じてクライアントを作成
         let client = match tor_mode {
             TorMode::Disabled => {
@@ -575,22 +637,23 @@ impl MeisoNostrClient {
                 Client::new(dummy_keys)
             }
             TorMode::Orbot => {
-                let proxy = proxy_url.as_ref()
+                let proxy = proxy_url
+                    .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("Proxy URL is required for Orbot mode"))?;
-                    
+
                 dev_println!("🔐 Connecting via Orbot proxy (Amber mode): {}", proxy);
-                
+
                 // SOCKS5プロキシを環境変数に設定
                 std::env::set_var("all_proxy", proxy);
                 std::env::set_var("ALL_PROXY", proxy);
                 std::env::set_var("socks_proxy", proxy);
                 std::env::set_var("SOCKS_PROXY", proxy);
-                
+
                 dev_println!("✅ Proxy environment variables set (Amber mode): {}", proxy);
                 Client::new(dummy_keys)
             }
         };
-        
+
         // リレー追加
         for relay_url in &relays {
             dev_println!("Adding relay: {}", relay_url);
@@ -601,37 +664,44 @@ impl MeisoNostrClient {
                 }
             }
         }
-        
+
         // リレーに接続（タイムアウト付き）
         let timeout_sec = match tor_mode {
             TorMode::Disabled => 10,
             TorMode::Internal | TorMode::Orbot => 20, // Tor経由は時間がかかる
         };
-        
-        dev_println!("🔌 Connecting to relays (Amber mode){}...",
+
+        dev_println!(
+            "🔌 Connecting to relays (Amber mode){}...",
             match tor_mode {
                 TorMode::Disabled => "",
                 TorMode::Internal => " (via embedded Tor)",
                 TorMode::Orbot => " (via Orbot proxy)",
-            });
-        
+            }
+        );
+
         match tokio::time::timeout(
             std::time::Duration::from_secs(timeout_sec),
-            client.connect()
-        ).await {
+            client.connect(),
+        )
+        .await
+        {
             Ok(_) => dev_println!("✅ Connected to relays (Amber mode)"),
             Err(_) => {
-                dev_eprintln!("⚠️ Relay connection timeout ({}s, Amber mode) - continuing offline mode", timeout_sec);
+                dev_eprintln!(
+                    "⚠️ Relay connection timeout ({}s, Amber mode) - continuing offline mode",
+                    timeout_sec
+                );
             }
         }
-        
+
         Ok(Self {
             keys: None,
             client,
             mode: ClientMode::Amber { public_key_hex },
         })
     }
-    
+
     /// 新しいクライアントを作成（Amberモード - 公開鍵のみ）
     /// 後方互換性のため残す
     pub async fn new_amber_mode(
@@ -640,29 +710,29 @@ impl MeisoNostrClient {
         proxy_url: Option<String>,
     ) -> Result<Self> {
         dev_println!("🟡 Creating Amber mode client (no secret key)");
-        
+
         // プロキシ設定（環境変数経由）
         if let Some(ref proxy) = proxy_url {
             dev_println!("🔐 Tor/Proxy経由で接続します (Amber mode): {}", proxy);
-            
+
             std::env::set_var("all_proxy", proxy);
             std::env::set_var("ALL_PROXY", proxy);
             std::env::set_var("socks_proxy", proxy);
             std::env::set_var("SOCKS_PROXY", proxy);
-            
+
             dev_println!("✅ プロキシ環境変数を設定 (Amber mode): {}", proxy);
         }
-        
+
         // Amberモードでは秘密鍵なしでクライアントを作成
         // nostr-sdk 0.30以降はPublicKeyだけでClientを作成可能
-        let _public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
+        let _public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
         // Keysをpublic keyだけから作成する方法がないため、
         // ダミーの秘密鍵を生成するが、使わないことを明示
         let dummy_keys = Keys::generate();
         let client = Client::new(dummy_keys);
-        
+
         // リレー追加
         for relay_url in &relays {
             dev_println!("Adding relay: {}", relay_url);
@@ -673,22 +743,33 @@ impl MeisoNostrClient {
                 }
             }
         }
-        
+
         // リレーに接続（タイムアウト付き）
         let timeout_sec = if proxy_url.is_some() { 20 } else { 10 };
-        dev_println!("🔌 Connecting to relays (Amber mode){}...",
-            if proxy_url.is_some() { " (via proxy)" } else { "" });
-        
+        dev_println!(
+            "🔌 Connecting to relays (Amber mode){}...",
+            if proxy_url.is_some() {
+                " (via proxy)"
+            } else {
+                ""
+            }
+        );
+
         match tokio::time::timeout(
-            std::time::Duration::from_secs(timeout_sec), 
-            client.connect()
-        ).await {
+            std::time::Duration::from_secs(timeout_sec),
+            client.connect(),
+        )
+        .await
+        {
             Ok(_) => dev_println!("✅ Connected to relays (Amber mode)"),
             Err(_) => {
-                dev_eprintln!("⚠️ Relay connection timeout ({}s) in Amber mode - continuing anyway", timeout_sec);
+                dev_eprintln!(
+                    "⚠️ Relay connection timeout ({}s) in Amber mode - continuing anyway",
+                    timeout_sec
+                );
             }
         }
-        
+
         Ok(Self {
             keys: None, // Amberモードでは秘密鍵なし
             client,
@@ -699,12 +780,12 @@ impl MeisoNostrClient {
     /// 公開鍵を取得（hex形式）
     pub fn public_key_hex(&self) -> String {
         match &self.mode {
-            ClientMode::SecretKey => {
-                self.keys.as_ref()
-                    .expect("SecretKey mode must have keys")
-                    .public_key()
-                    .to_hex()
-            }
+            ClientMode::SecretKey => self
+                .keys
+                .as_ref()
+                .expect("SecretKey mode must have keys")
+                .public_key()
+                .to_hex(),
             ClientMode::Amber { public_key_hex } => public_key_hex.clone(),
         }
     }
@@ -713,7 +794,9 @@ impl MeisoNostrClient {
     pub fn public_key_npub(&self) -> String {
         match &self.mode {
             ClientMode::SecretKey => {
-                let pubkey = self.keys.as_ref()
+                let pubkey = self
+                    .keys
+                    .as_ref()
                     .expect("SecretKey mode must have keys")
                     .public_key();
                 pubkey.to_bech32().unwrap_or_else(|_| pubkey.to_hex())
@@ -727,12 +810,12 @@ impl MeisoNostrClient {
             }
         }
     }
-    
+
     /// クライアントモードを取得
     pub fn mode(&self) -> &ClientMode {
         &self.mode
     }
-    
+
     /// 秘密鍵が利用可能かチェック
     pub fn has_secret_key(&self) -> bool {
         self.keys.is_some()
@@ -741,15 +824,19 @@ impl MeisoNostrClient {
     /// イベントをリレーに送信（改善されたエラーハンドリング）
     async fn send_event_with_result(&self, event: Event) -> Result<EventSendResult> {
         let event_id = event.id.to_hex();
-        
+
         match tokio::time::timeout(Duration::from_secs(3), self.client.send_event(event)).await {
             Ok(Ok(send_output)) => {
                 // 成功: nostr-sdkのSendEventOutputから情報を取得
                 let successful = send_output.success.len();
                 let failed = send_output.failed.len();
-                
-                dev_println!("✅ Event sent: {} successful, {} failed", successful, failed);
-                
+
+                dev_println!(
+                    "✅ Event sent: {} successful, {} failed",
+                    successful,
+                    failed
+                );
+
                 Ok(EventSendResult {
                     event_id,
                     success: successful > 0, // 少なくとも1つ成功したら成功扱い
@@ -799,20 +886,22 @@ impl MeisoNostrClient {
                 "Cannot create TODO list in Amber mode. Use create_unsigned_encrypted_todo_list_event + Amber signing instead."
             ));
         }
-        
-        let keys = self.keys.as_ref()
+
+        let keys = self
+            .keys
+            .as_ref()
             .context("Secret key required for TODO list creation")?;
-        
+
         // Todoをリストごとにグループ化
         let grouped_todos = self.group_todos_by_list(&todos);
-        
+
         dev_println!("📦 Grouped todos into {} lists", grouped_todos.len());
         for (list_id, list_todos) in &grouped_todos {
             dev_println!("  - List '{}': {} todos", list_id, list_todos.len());
         }
-        
+
         let mut last_result: Option<EventSendResult> = None;
-        
+
         // 各リストごとにイベントを作成・送信
         for (list_id, list_todos) in grouped_todos {
             let todos_json = serde_json::to_string(&list_todos)?;
@@ -832,54 +921,69 @@ impl MeisoNostrClient {
             } else {
                 format!("meiso-list-{}", list_id)
             };
-            
+
             // title tag（リスト名）
             let title_value = if list_id == "default" {
                 "My TODO List".to_string()
             } else {
                 format!("Custom List {}", list_id)
             };
-            
+
             let d_tag = Tag::custom(
                 TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
                 vec![d_tag_value.clone()],
             );
-            
+
             let title_tag = Tag::custom(
                 TagKind::Custom(std::borrow::Cow::Borrowed("title")),
                 vec![title_value],
             );
 
             let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
-                .tags(crate::nostr_client_meta::merge_nip89_into_tags(vec![d_tag, title_tag]))
+                .tags(crate::nostr_client_meta::merge_nip89_into_tags(vec![
+                    d_tag, title_tag,
+                ]))
                 .sign(keys)
                 .await?;
 
-            dev_println!("📤 Sending TODO list event (d='{}', {} todos)", d_tag_value, list_todos.len());
-            
+            dev_println!(
+                "📤 Sending TODO list event (d='{}', {} todos)",
+                d_tag_value,
+                list_todos.len()
+            );
+
             // リレーに送信
             let result = self.send_event_with_result(event).await?;
             last_result = Some(result);
         }
-        
+
         // 最後のイベントの結果を返す（複数リストの場合）
         last_result.ok_or_else(|| anyhow::anyhow!("No lists to send"))
     }
-    
+
     /// Todoをリストごとにグループ化
-    fn group_todos_by_list(&self, todos: &[TodoData]) -> std::collections::HashMap<String, Vec<TodoData>> {
+    fn group_todos_by_list(
+        &self,
+        todos: &[TodoData],
+    ) -> std::collections::HashMap<String, Vec<TodoData>> {
         use std::collections::HashMap;
-        
+
         let mut grouped: HashMap<String, Vec<TodoData>> = HashMap::new();
-        
+
         for todo in todos {
-            let list_key = todo.custom_list_id.as_deref().unwrap_or("default").to_string();
-            grouped.entry(list_key).or_insert_with(Vec::new).push(todo.clone());
+            let list_key = todo
+                .custom_list_id
+                .as_deref()
+                .unwrap_or("default")
+                .to_string();
+            grouped
+                .entry(list_key)
+                .or_insert_with(Vec::new)
+                .push(todo.clone());
         }
-        
+
         grouped
     }
-
 
     /// TodoリストをNostrから同期（Kind 30001）
     /// すべてのリスト（デフォルト + カスタムリスト）から取得
@@ -889,10 +993,12 @@ impl MeisoNostrClient {
                 "Cannot sync TODO list in Amber mode. Use fetch_encrypted_todo_list_for_pubkey + Amber decryption instead."
             ));
         }
-        
-        let keys = self.keys.as_ref()
+
+        let keys = self
+            .keys
+            .as_ref()
             .context("Secret key required for syncing")?;
-        
+
         // すべてのリスト（meiso-todos および meiso-list-*）を取得
         let filter = Filter::new()
             .kind(Kind::Custom(30001))
@@ -912,37 +1018,56 @@ impl MeisoNostrClient {
         }
 
         dev_println!("📥 Found {} TODO list events", events_vec.len());
-        
+
         // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
         use std::collections::HashMap;
         let mut latest_events: HashMap<String, Event> = HashMap::new();
-        
+
         for event in events_vec {
             // d タグを取得してリスト名を確認
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
-            
-            dev_println!("🔍 Found event: d_tag={:?}, event_id={}, created_at={}", 
-                d_tag, event.id.to_hex(), event.created_at.as_u64());
-            
+
+            dev_println!(
+                "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
+                d_tag,
+                event.id.to_hex(),
+                event.created_at.as_u64()
+            );
+
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
             if let Some(ref d_value) = d_tag {
                 if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
                     // 既存のイベントと比較して、新しい方を保持
                     if let Some(existing_event) = latest_events.get(d_value) {
                         if event.created_at > existing_event.created_at {
-                            dev_println!("🔄 Replacing older event for d='{}' (old: {}, new: {})", 
-                                d_value, existing_event.created_at.as_u64(), event.created_at.as_u64());
+                            dev_println!(
+                                "🔄 Replacing older event for d='{}' (old: {}, new: {})",
+                                d_value,
+                                existing_event.created_at.as_u64(),
+                                event.created_at.as_u64()
+                            );
                             latest_events.insert(d_value.clone(), event);
                         } else {
-                            dev_println!("⏭️  Skipping older event for d='{}' (keeping: {})", 
-                                d_value, existing_event.created_at.as_u64());
+                            dev_println!(
+                                "⏭️  Skipping older event for d='{}' (keeping: {})",
+                                d_value,
+                                existing_event.created_at.as_u64()
+                            );
                         }
                     } else {
-                        dev_println!("✅ Adding TODO list event: d='{}', event_id={}, created_at={}", 
-                            d_value, event.id.to_hex(), event.created_at.as_u64());
+                        dev_println!(
+                            "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
+                            d_value,
+                            event.id.to_hex(),
+                            event.created_at.as_u64()
+                        );
                         latest_events.insert(d_value.clone(), event);
                     }
                 } else {
@@ -952,32 +1077,43 @@ impl MeisoNostrClient {
                 dev_println!("⏭️  Skipping event with no d tag");
             }
         }
-        
-        dev_println!("📋 After deduplication: {} unique TODO lists", latest_events.len());
-        
+
+        dev_println!(
+            "📋 After deduplication: {} unique TODO lists",
+            latest_events.len()
+        );
+
         let mut all_todos = Vec::new();
-        
+
         // 各リストイベントを復号化してTodoを取得
         for (d_tag, event) in latest_events {
-            dev_println!("✅ Processing TODO list event: d='{}', event_id={}, created_at={}", 
-                d_tag, event.id.to_hex(), event.created_at.as_u64());
+            dev_println!(
+                "✅ Processing TODO list event: d='{}', event_id={}, created_at={}",
+                d_tag,
+                event.id.to_hex(),
+                event.created_at.as_u64()
+            );
 
             // NIP-44で復号化
-            match nip44::decrypt(
-                keys.secret_key(),
-                &keys.public_key(),
-                &event.content,
-            ) {
+            match nip44::decrypt(keys.secret_key(), &keys.public_key(), &event.content) {
                 Ok(decrypted) => {
                     match serde_json::from_str::<Vec<TodoData>>(&decrypted) {
                         Ok(todos) => {
                             let list_key = list_key_from_d_tag(&d_tag);
                             let todos = normalize_synced_todos(todos, list_key.as_deref());
-                            dev_println!("✅ Decrypted {} todos from list {:?}", todos.len(), d_tag);
+                            dev_println!(
+                                "✅ Decrypted {} todos from list {:?}",
+                                todos.len(),
+                                d_tag
+                            );
                             all_todos.extend(todos);
                         }
                         Err(e) => {
-                            dev_eprintln!("❌ Failed to parse TODO list JSON from {:?}: {}", d_tag, e);
+                            dev_eprintln!(
+                                "❌ Failed to parse TODO list JSON from {:?}: {}",
+                                d_tag,
+                                e
+                            );
                             // エラーは無視して次のリストを処理
                         }
                     }
@@ -988,7 +1124,7 @@ impl MeisoNostrClient {
                 }
             }
         }
-        
+
         dev_println!("✅ Total todos synced from all lists: {}", all_todos.len());
         Ok(all_todos)
     }
@@ -1001,14 +1137,20 @@ impl MeisoNostrClient {
     /// Note:
     /// - replaceable event の特性上、差分でも「変更のあったリストの全内容」は取得される。
     /// - `since` 以降にイベントが無い場合は空Vecを返す（= 変更なし）。
-    pub async fn sync_todo_list_since(&self, since: i64, timeout_secs: u64) -> Result<Vec<TodoData>> {
+    pub async fn sync_todo_list_since(
+        &self,
+        since: i64,
+        timeout_secs: u64,
+    ) -> Result<Vec<TodoData>> {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!(
                 "Cannot sync TODO list in Amber mode. Use fetch_all_encrypted_todo_lists_for_pubkey_since + Amber decryption instead."
             ));
         }
 
-        let keys = self.keys.as_ref()
+        let keys = self
+            .keys
+            .as_ref()
             .context("Secret key required for syncing")?;
 
         let mut filter = Filter::new()
@@ -1038,8 +1180,12 @@ impl MeisoNostrClient {
         let mut latest_events: HashMap<String, Event> = HashMap::new();
 
         for event in events_vec {
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
 
@@ -1058,11 +1204,7 @@ impl MeisoNostrClient {
 
         let mut all_todos = Vec::new();
         for (d_tag, event) in latest_events {
-            match nip44::decrypt(
-                keys.secret_key(),
-                &keys.public_key(),
-                &event.content,
-            ) {
+            match nip44::decrypt(keys.secret_key(), &keys.public_key(), &event.content) {
                 Ok(decrypted) => {
                     if let Ok(todos) = serde_json::from_str::<Vec<TodoData>>(&decrypted) {
                         let list_key = list_key_from_d_tag(&d_tag);
@@ -1079,7 +1221,6 @@ impl MeisoNostrClient {
         Ok(all_todos)
     }
 
-
     // ========================================
     // アプリ設定管理（NIP-78 Application-specific data）
     // ========================================
@@ -1089,10 +1230,9 @@ impl MeisoNostrClient {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!("Cannot create app settings in Amber mode"));
         }
-        
-        let keys = self.keys.as_ref()
-            .context("Secret key required")?;
-        
+
+        let keys = self.keys.as_ref().context("Secret key required")?;
+
         let settings_json = serde_json::to_string(&settings)?;
 
         // NIP-44で自己暗号化
@@ -1135,10 +1275,9 @@ impl MeisoNostrClient {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!("Cannot sync app settings in Amber mode"));
         }
-        
-        let keys = self.keys.as_ref()
-            .context("Secret key required")?;
-        
+
+        let keys = self.keys.as_ref().context("Secret key required")?;
+
         let filter = Filter::new()
             .kind(Kind::Custom(30078))
             .author(keys.public_key())
@@ -1155,11 +1294,9 @@ impl MeisoNostrClient {
         // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
         if let Some(event) = events.first() {
             // NIP-44で復号化
-            if let Ok(decrypted) = nip44::decrypt(
-                keys.secret_key(),
-                &keys.public_key(),
-                &event.content,
-            ) {
+            if let Ok(decrypted) =
+                nip44::decrypt(keys.secret_key(), &keys.public_key(), &event.content)
+            {
                 if let Ok(settings) = serde_json::from_str::<AppSettings>(&decrypted) {
                     dev_println!("✅ App settings synced from Nostr");
                     crate::nostr_client_meta::set_nip89_client_tag_enabled(
@@ -1179,12 +1316,11 @@ impl MeisoNostrClient {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!("Cannot save relay list in Amber mode"));
         }
-        
-        let keys = self.keys.as_ref()
-            .context("Secret key required")?;
-        
+
+        let keys = self.keys.as_ref().context("Secret key required")?;
+
         dev_println!("💾 Saving relay list to Nostr (Kind 10002)...");
-        
+
         // NIP-65: リレーをタグとして追加
         let mut tags = Vec::new();
         for relay_url in &relays {
@@ -1194,13 +1330,13 @@ impl MeisoNostrClient {
                 vec![relay_url.clone()],
             ));
         }
-        
+
         // Kind 10002イベント作成（contentは空）
         let event = EventBuilder::new(Kind::RelayList, String::new())
             .tags(crate::nostr_client_meta::merge_nip89_into_tags(tags))
             .sign(keys)
             .await?;
-        
+
         // リレーに送信するイベントをJSONとしてログ出力
         match serde_json::to_string_pretty(&event.as_json()) {
             Ok(event_json) => {
@@ -1211,7 +1347,7 @@ impl MeisoNostrClient {
                 dev_eprintln!("⚠️ Failed to serialize event to JSON: {}", e);
             }
         }
-        
+
         // リレーに送信（改善されたエラーハンドリング）
         self.send_event_with_result(event).await
     }
@@ -1219,16 +1355,16 @@ impl MeisoNostrClient {
     /// リレーリストをNostrから同期（NIP-65 Kind 10002）
     pub async fn sync_relay_list(&self) -> Result<Vec<String>> {
         dev_println!("🔄 Syncing relay list from Nostr (Kind 10002)...");
-        
+
         // 公開鍵を取得（モードに応じて）
         let pubkey_hex = self.public_key_hex();
-        dev_println!("📋 Looking for relay list from pubkey: {}", &pubkey_hex[..16]);
-        let pubkey = PublicKey::from_hex(&pubkey_hex)
-            .context("Failed to parse public key")?;
-        
-        let filter = Filter::new()
-            .kind(Kind::RelayList)
-            .author(pubkey);
+        dev_println!(
+            "📋 Looking for relay list from pubkey: {}",
+            &pubkey_hex[..16]
+        );
+        let pubkey = PublicKey::from_hex(&pubkey_hex).context("Failed to parse public key")?;
+
+        let filter = Filter::new().kind(Kind::RelayList).author(pubkey);
 
         dev_println!("🔍 Fetching Kind 10002 events from relays...");
         let events = self
@@ -1242,13 +1378,18 @@ impl MeisoNostrClient {
         if let Some(event) = events.first() {
             dev_println!("📝 Processing relay list event ID: {}", event.id.to_hex());
             dev_println!("📋 Event has {} tags", event.tags.len());
-            
+
             let mut relays = Vec::new();
-            
+
             // "r" タグからリレーURLを抽出
             for (i, tag) in event.tags.iter().enumerate() {
-                dev_println!("  Tag {}: kind={:?}, content={:?}", i, tag.kind(), tag.content());
-                
+                dev_println!(
+                    "  Tag {}: kind={:?}, content={:?}",
+                    i,
+                    tag.kind(),
+                    tag.content()
+                );
+
                 // 複数の方法でタグをチェック
                 // 方法1: 標準化されたタグとして解析（以前の実装）
                 if let Some(tag_std) = tag.as_standardized() {
@@ -1261,9 +1402,9 @@ impl MeisoNostrClient {
                         }
                     }
                 }
-                
+
                 // 方法2: SingleLetterタグとして解析（"r"タグ）
-                use nostr_sdk::prelude::{SingleLetterTag, Alphabet};
+                use nostr_sdk::prelude::{Alphabet, SingleLetterTag};
                 if tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::R)) {
                     if let Some(relay_url) = tag.content() {
                         dev_println!("    ✅ Found relay (single letter): {}", relay_url);
@@ -1271,7 +1412,7 @@ impl MeisoNostrClient {
                     }
                 }
             }
-            
+
             dev_println!("✅ Relay list synced: {} relays", relays.len());
             return Ok(relays);
         }
@@ -1283,18 +1424,19 @@ impl MeisoNostrClient {
     /// リレーリストを動的に更新（既存の接続を維持しつつ追加・削除）
     pub async fn update_relay_list(&self, new_relays: Vec<String>) -> Result<()> {
         dev_println!("🔄 Updating relay list dynamically...");
-        
+
         // 現在のリレーリストを取得
-        let current_relays: Vec<String> = self.client
+        let current_relays: Vec<String> = self
+            .client
             .relays()
             .await
             .keys()
             .map(|url| url.to_string())
             .collect();
-        
+
         dev_println!("📋 Current relays: {:?}", current_relays);
         dev_println!("📋 New relays: {:?}", new_relays);
-        
+
         // 削除するリレー（現在のリレーで新しいリストに含まれないもの）
         for relay_url in &current_relays {
             if !new_relays.contains(relay_url) {
@@ -1305,7 +1447,7 @@ impl MeisoNostrClient {
                 }
             }
         }
-        
+
         // 追加するリレー（新しいリストで現在のリレーに含まれないもの）
         for relay_url in &new_relays {
             if !current_relays.contains(relay_url) {
@@ -1317,53 +1459,53 @@ impl MeisoNostrClient {
                         if let Err(e) = self.client.connect_relay(relay_url).await {
                             dev_eprintln!("⚠️ Failed to connect to relay {}: {}", relay_url, e);
                         }
-                    },
+                    }
                     Err(e) => dev_eprintln!("⚠️ Failed to add relay {}: {}", relay_url, e),
                 }
             }
         }
-        
+
         dev_println!("✅ Relay list updated successfully");
         Ok(())
     }
-    
+
     // ========================================
     // Subscription管理機能
     // ========================================
-    
+
     /// Subscriptionを開始（リアルタイム更新を受信）
     pub(crate) async fn subscribe(&self, filters: Vec<Filter>) -> Result<SubscriptionInfo> {
         dev_println!("📡 Starting subscription with {} filters", filters.len());
-        
+
         // Subscriptionを開始
         let subscription_id = self.client.subscribe(filters.clone(), None).await?;
-        
+
         let filters_json = serde_json::to_string(&filters)?;
         let created_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-        
+
         dev_println!("✅ Subscription started: {}", subscription_id.to_string());
-        
+
         Ok(SubscriptionInfo {
             subscription_id: subscription_id.to_string(),
             filters_json,
             created_at,
         })
     }
-    
+
     /// Subscriptionを停止
     pub(crate) async fn unsubscribe(&self, subscription_id: String) -> Result<()> {
         dev_println!("🛑 Stopping subscription: {}", subscription_id);
-        
+
         let sub_id = SubscriptionId::new(subscription_id);
         self.client.unsubscribe(sub_id).await;
-        
+
         dev_println!("✅ Subscription stopped");
         Ok(())
     }
-    
+
     /// すべてのSubscriptionを停止
     pub(crate) async fn unsubscribe_all(&self) -> Result<()> {
         dev_println!("🛑 Stopping all subscriptions");
@@ -1371,35 +1513,43 @@ impl MeisoNostrClient {
         dev_println!("✅ All subscriptions stopped");
         Ok(())
     }
-    
+
     /// Subscription経由でイベントを受信（1回のポーリング）
     /// タイムアウト付きで新しいイベントを取得
-    pub(crate) async fn receive_subscription_events(&self, timeout_ms: u64) -> Result<Vec<ReceivedEvent>> {
+    pub(crate) async fn receive_subscription_events(
+        &self,
+        timeout_ms: u64,
+    ) -> Result<Vec<ReceivedEvent>> {
         let timeout = Duration::from_millis(timeout_ms);
-        
+
         // Notification channelから受信
         let mut events = Vec::new();
         let mut notifications = self.client.notifications();
         let deadline = tokio::time::Instant::now() + timeout;
-        
+
         loop {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             if remaining.is_zero() {
                 break;
             }
-            
+
             // 通知を受信（タイムアウト付き）
             match tokio::time::timeout(remaining, notifications.recv()).await {
                 Ok(Ok(notification)) => {
                     // イベント通知のみ処理
-                    if let RelayPoolNotification::Event { event, subscription_id, .. } = notification {
+                    if let RelayPoolNotification::Event {
+                        event,
+                        subscription_id,
+                        ..
+                    } = notification
+                    {
                         let received_at = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
                             .as_secs() as i64;
-                        
+
                         let event_json = serde_json::to_string(&event.as_json())?;
-                        
+
                         events.push(ReceivedEvent {
                             event_id: event.id.to_hex(),
                             kind: event.kind.as_u16() as u64,
@@ -1408,7 +1558,7 @@ impl MeisoNostrClient {
                             received_at,
                             subscription_id: subscription_id.to_string(),
                         });
-                        
+
                         // イベントを1つ受信したら即座に返す
                         break;
                     }
@@ -1424,14 +1574,14 @@ impl MeisoNostrClient {
                 }
             }
         }
-        
+
         if !events.is_empty() {
             dev_println!("📥 Received {} events via subscription", events.len());
         }
-        
+
         Ok(events)
     }
-    
+
     /// リレー接続状態をチェック
     pub(crate) async fn check_connection_status(&self) -> Result<bool> {
         let info = self.check_connection_info().await?;
@@ -1465,16 +1615,29 @@ impl MeisoNostrClient {
     }
 
     /// 署名済みイベントを指定リレーに送信
-    async fn send_event_to_relays(&self, event: Event, relay_urls: Vec<String>) -> Result<EventSendResult> {
+    async fn send_event_to_relays(
+        &self,
+        event: Event,
+        relay_urls: Vec<String>,
+    ) -> Result<EventSendResult> {
         let event_id = event.id.to_hex();
 
         let urls: Vec<&str> = relay_urls.iter().map(|s| s.as_str()).collect();
 
-        match tokio::time::timeout(Duration::from_secs(5), self.client.send_event_to(urls, event)).await {
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            self.client.send_event_to(urls, event),
+        )
+        .await
+        {
             Ok(Ok(send_output)) => {
                 let successful = send_output.success.len();
                 let failed = send_output.failed.len();
-                dev_println!("✅ Event sent to specified relays: {} ok, {} failed", successful, failed);
+                dev_println!(
+                    "✅ Event sent to specified relays: {} ok, {} failed",
+                    successful,
+                    failed
+                );
                 Ok(EventSendResult {
                     event_id,
                     success: successful > 0,
@@ -1512,14 +1675,14 @@ impl MeisoNostrClient {
             }
         }
     }
-    
+
     /// リレーに再接続
     pub(crate) async fn reconnect(&self) -> Result<()> {
         dev_println!("🔄 Reconnecting to relays...");
-        
+
         // 一度切断
         self.client.disconnect().await?;
-        
+
         // 再接続（タイムアウト付き）
         match tokio::time::timeout(Duration::from_secs(10), self.client.connect()).await {
             Ok(_) => {
@@ -1535,7 +1698,10 @@ impl MeisoNostrClient {
 
     /// リレーに再接続（タイムアウト秒を指定）
     pub(crate) async fn reconnect_with_timeout(&self, timeout_secs: u64) -> Result<()> {
-        dev_println!("🔄 Reconnecting to relays with timeout: {}s...", timeout_secs);
+        dev_println!(
+            "🔄 Reconnecting to relays with timeout: {}s...",
+            timeout_secs
+        );
 
         self.client.disconnect().await?;
 
@@ -1584,11 +1750,16 @@ pub fn init_nostr_client(secret_key_hex: String, relays: Vec<String>) -> Result<
 /// Nostrクライアントを初期化（プロキシオプション付き）
 /// 後方互換性のため残す
 pub fn init_nostr_client_with_proxy(
-    secret_key_hex: String, 
+    secret_key_hex: String,
     relays: Vec<String>,
     proxy_url: Option<String>,
 ) -> Result<String> {
-    init_nostr_client_with_id(DEFAULT_CLIENT_ID.to_string(), secret_key_hex, relays, proxy_url)
+    init_nostr_client_with_id(
+        DEFAULT_CLIENT_ID.to_string(),
+        secret_key_hex,
+        relays,
+        proxy_url,
+    )
 }
 
 /// Nostrクライアントを初期化（Torモード指定）
@@ -1605,10 +1776,15 @@ pub fn init_nostr_client_with_tor_mode(
     }
 
     TOKIO_RUNTIME.block_on(async {
-        match MeisoNostrClient::new_with_tor_mode(&secret_key_hex, relays, tor_mode, proxy_url).await {
+        match MeisoNostrClient::new_with_tor_mode(&secret_key_hex, relays, tor_mode, proxy_url)
+            .await
+        {
             Ok(client) => {
                 let public_key = client.public_key_hex();
-                dev_println!("✅ Nostr client initialized with Tor mode. Public key: {}", &public_key[..16]);
+                dev_println!(
+                    "✅ Nostr client initialized with Tor mode. Public key: {}",
+                    &public_key[..16]
+                );
 
                 let mut clients = NOSTR_CLIENTS.lock().await;
                 clients.insert(DEFAULT_CLIENT_ID.to_string(), client);
@@ -1626,13 +1802,19 @@ pub fn init_nostr_client_with_tor_mode(
 /// Nostrクライアントを初期化（client_id指定可能）
 pub fn init_nostr_client_with_id(
     client_id: String,
-    secret_key_hex: String, 
+    secret_key_hex: String,
     relays: Vec<String>,
     proxy_url: Option<String>,
 ) -> Result<String> {
-    dev_println!("🔧 Initializing Nostr client [{}]{}...", 
+    dev_println!(
+        "🔧 Initializing Nostr client [{}]{}...",
         client_id,
-        if proxy_url.is_some() { " with proxy" } else { "" });
+        if proxy_url.is_some() {
+            " with proxy"
+        } else {
+            ""
+        }
+    );
     dev_println!("Relays: {:?}", relays);
     if let Some(ref proxy) = proxy_url {
         dev_println!("Proxy: {}", proxy);
@@ -1642,7 +1824,11 @@ pub fn init_nostr_client_with_id(
         match MeisoNostrClient::new_with_proxy(&secret_key_hex, relays, proxy_url).await {
             Ok(client) => {
                 let public_key = client.public_key_hex();
-                dev_println!("✅ Nostr client [{}] initialized. Public key: {}", client_id, &public_key[..16]);
+                dev_println!(
+                    "✅ Nostr client [{}] initialized. Public key: {}",
+                    client_id,
+                    &public_key[..16]
+                );
 
                 let mut clients = NOSTR_CLIENTS.lock().await;
                 clients.insert(client_id, client);
@@ -1650,7 +1836,11 @@ pub fn init_nostr_client_with_id(
                 Ok(public_key)
             }
             Err(e) => {
-                dev_eprintln!("❌ Failed to initialize Nostr client [{}]: {}", client_id, e);
+                dev_eprintln!(
+                    "❌ Failed to initialize Nostr client [{}]: {}",
+                    client_id,
+                    e
+                );
                 Err(e)
             }
         }
@@ -1696,20 +1886,27 @@ pub struct KeyPair {
 
 pub fn generate_keypair() -> Result<KeyPair> {
     let keys = Keys::generate();
-    
+
     let private_key_hex = keys.secret_key().to_secret_hex();
     let public_key_hex = keys.public_key().to_hex();
-    
+
     // nsec形式
-    let private_key_nsec = keys.secret_key().to_bech32()
+    let private_key_nsec = keys
+        .secret_key()
+        .to_bech32()
         .map_err(|e| anyhow::anyhow!("Failed to convert private key to nsec format: {}", e))?;
-    
+
     // npub形式
-    let public_key_npub = keys.public_key().to_bech32()
+    let public_key_npub = keys
+        .public_key()
+        .to_bech32()
         .map_err(|e| anyhow::anyhow!("Failed to convert public key to npub format: {}", e))?;
-    
-    dev_println!("🔑 Generated new keypair; public (npub): {}", &public_key_npub);
-    
+
+    dev_println!(
+        "🔑 Generated new keypair; public (npub): {}",
+        &public_key_npub
+    );
+
     Ok(KeyPair {
         private_key_nsec,
         public_key_npub,
@@ -1717,7 +1914,6 @@ pub fn generate_keypair() -> Result<KeyPair> {
         public_key_hex,
     })
 }
-
 
 /// 全Todoを同期（Kind 30001 - 新実装）
 pub fn sync_todo_list() -> Result<Vec<TodoData>> {
@@ -1757,13 +1953,15 @@ pub fn create_todo_list(todos: Vec<TodoData>) -> Result<EventSendResult> {
 }
 
 /// Todoリストを作成（client_id指定可能）
-pub fn create_todo_list_with_client_id(todos: Vec<TodoData>, client_id: Option<String>) -> Result<EventSendResult> {
+pub fn create_todo_list_with_client_id(
+    todos: Vec<TodoData>,
+    client_id: Option<String>,
+) -> Result<EventSendResult> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.create_todo_list(todos).await
     })
 }
-
 
 // ========================================
 // 鍵管理API (SecureKeyStore)
@@ -1784,10 +1982,7 @@ pub fn save_encrypted_secret_key(
 }
 
 /// 暗号化された秘密鍵を読み込み
-pub fn load_encrypted_secret_key(
-    storage_path: String,
-    password: String,
-) -> Result<String> {
+pub fn load_encrypted_secret_key(storage_path: String, password: String) -> Result<String> {
     TOKIO_RUNTIME.block_on(async {
         let store = SecureKeyStore::new(storage_path);
         store.load_encrypted_key(&password).await
@@ -1795,10 +1990,7 @@ pub fn load_encrypted_secret_key(
 }
 
 /// 公開鍵を保存（Amber使用時）
-pub fn save_public_key(
-    storage_path: String,
-    public_key: String,
-) -> Result<()> {
+pub fn save_public_key(storage_path: String, public_key: String) -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
         let store = SecureKeyStore::new(storage_path);
         store.save_public_key(&public_key).await
@@ -1806,9 +1998,7 @@ pub fn save_public_key(
 }
 
 /// 公開鍵を読み込み
-pub fn load_public_key(
-    storage_path: String,
-) -> Result<Option<String>> {
+pub fn load_public_key(storage_path: String) -> Result<Option<String>> {
     TOKIO_RUNTIME.block_on(async {
         let store = SecureKeyStore::new(storage_path);
         store.load_public_key().await
@@ -1816,9 +2006,7 @@ pub fn load_public_key(
 }
 
 /// 保存された鍵を削除
-pub fn delete_stored_keys(
-    storage_path: String,
-) -> Result<()> {
+pub fn delete_stored_keys(storage_path: String) -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
         let store = SecureKeyStore::new(storage_path);
         store.delete_keys().await
@@ -1826,9 +2014,7 @@ pub fn delete_stored_keys(
 }
 
 /// 暗号化された秘密鍵が存在するか確認
-pub fn has_encrypted_key(
-    storage_path: String,
-) -> bool {
+pub fn has_encrypted_key(storage_path: String) -> bool {
     TOKIO_RUNTIME.block_on(async {
         let store = SecureKeyStore::new(storage_path);
         store.has_encrypted_key().await
@@ -1836,9 +2022,7 @@ pub fn has_encrypted_key(
 }
 
 /// 公開鍵が存在するか確認
-pub fn has_public_key(
-    storage_path: String,
-) -> bool {
+pub fn has_public_key(storage_path: String) -> bool {
     TOKIO_RUNTIME.block_on(async {
         let store = SecureKeyStore::new(storage_path);
         store.has_public_key().await
@@ -1851,9 +2035,8 @@ pub fn has_public_key(
 
 /// Amberから受け取った署名済みイベントを検証
 pub fn verify_amber_signature(event_json: String) -> Result<bool> {
-    let event: Event = serde_json::from_str(&event_json)
-        .context("Failed to parse event JSON")?;
-    
+    let event: Event = serde_json::from_str(&event_json).context("Failed to parse event JSON")?;
+
     match event.verify() {
         Ok(_) => {
             dev_println!("✅ Amber signature verified successfully");
@@ -1872,7 +2055,12 @@ pub fn init_nostr_client_with_pubkey(
     public_key_hex: String,
     relays: Vec<String>,
 ) -> Result<String> {
-    init_nostr_client_with_pubkey_and_id(DEFAULT_CLIENT_ID.to_string(), public_key_hex, relays, None)
+    init_nostr_client_with_pubkey_and_id(
+        DEFAULT_CLIENT_ID.to_string(),
+        public_key_hex,
+        relays,
+        None,
+    )
 }
 
 /// Amberモードで初期化（プロキシオプション付き）
@@ -1882,7 +2070,12 @@ pub fn init_nostr_client_with_pubkey_and_proxy(
     relays: Vec<String>,
     proxy_url: Option<String>,
 ) -> Result<String> {
-    init_nostr_client_with_pubkey_and_id(DEFAULT_CLIENT_ID.to_string(), public_key_hex, relays, proxy_url)
+    init_nostr_client_with_pubkey_and_id(
+        DEFAULT_CLIENT_ID.to_string(),
+        public_key_hex,
+        relays,
+        proxy_url,
+    )
 }
 
 /// Amberモードで初期化（Torモード指定）
@@ -1892,25 +2085,41 @@ pub fn init_nostr_client_with_pubkey_and_tor_mode(
     tor_mode: TorMode,
     proxy_url: Option<String>,
 ) -> Result<String> {
-    dev_println!("🔧 Initializing Nostr client (Amber mode) with Tor mode: {:?}", tor_mode);
-    dev_println!("Public key: {}...", &public_key_hex[..16.min(public_key_hex.len())]);
+    dev_println!(
+        "🔧 Initializing Nostr client (Amber mode) with Tor mode: {:?}",
+        tor_mode
+    );
+    dev_println!(
+        "Public key: {}...",
+        &public_key_hex[..16.min(public_key_hex.len())]
+    );
     dev_println!("Relays: {:?}", relays);
     if let Some(ref proxy) = proxy_url {
         dev_println!("Proxy: {}", proxy);
     }
-    
+
     TOKIO_RUNTIME.block_on(async {
-        match MeisoNostrClient::new_amber_mode_with_tor(public_key_hex.clone(), relays, tor_mode, proxy_url).await {
+        match MeisoNostrClient::new_amber_mode_with_tor(
+            public_key_hex.clone(),
+            relays,
+            tor_mode,
+            proxy_url,
+        )
+        .await
+        {
             Ok(client) => {
                 dev_println!("✅ Nostr client (Amber mode) initialized with Tor mode");
-                
+
                 let mut clients = NOSTR_CLIENTS.lock().await;
                 clients.insert(DEFAULT_CLIENT_ID.to_string(), client);
-                
+
                 Ok(public_key_hex)
             }
             Err(e) => {
-                dev_eprintln!("❌ Failed to initialize Nostr client (Amber mode) with Tor mode: {}", e);
+                dev_eprintln!(
+                    "❌ Failed to initialize Nostr client (Amber mode) with Tor mode: {}",
+                    e
+                );
                 Err(e)
             }
         }
@@ -1924,27 +2133,40 @@ pub fn init_nostr_client_with_pubkey_and_id(
     relays: Vec<String>,
     proxy_url: Option<String>,
 ) -> Result<String> {
-    dev_println!("🔧 Initializing Nostr client [{}] with public key only (Amber mode){}...",
+    dev_println!(
+        "🔧 Initializing Nostr client [{}] with public key only (Amber mode){}...",
         client_id,
-        if proxy_url.is_some() { " with proxy" } else { "" });
-    dev_println!("Public key: {}...", &public_key_hex[..16.min(public_key_hex.len())]);
+        if proxy_url.is_some() {
+            " with proxy"
+        } else {
+            ""
+        }
+    );
+    dev_println!(
+        "Public key: {}...",
+        &public_key_hex[..16.min(public_key_hex.len())]
+    );
     dev_println!("Relays: {:?}", relays);
     if let Some(ref proxy) = proxy_url {
         dev_println!("Proxy: {}", proxy);
     }
-    
+
     TOKIO_RUNTIME.block_on(async {
         match MeisoNostrClient::new_amber_mode(public_key_hex.clone(), relays, proxy_url).await {
             Ok(client) => {
                 dev_println!("✅ Nostr client [{}] initialized in Amber mode", client_id);
-                
+
                 let mut clients = NOSTR_CLIENTS.lock().await;
                 clients.insert(client_id, client);
-                
+
                 Ok(public_key_hex)
             }
             Err(e) => {
-                dev_eprintln!("❌ Failed to initialize Nostr client [{}] in Amber mode: {}", client_id, e);
+                dev_eprintln!(
+                    "❌ Failed to initialize Nostr client [{}] in Amber mode: {}",
+                    client_id,
+                    e
+                );
                 Err(e)
             }
         }
@@ -1952,18 +2174,18 @@ pub fn init_nostr_client_with_pubkey_and_id(
 }
 
 /// Phase 9.1: NIP-17エフェメラル鍵でイベントに署名（秘密鍵はRust内のみ）
-/// 
+///
 /// # Parameters
 /// - `unsigned_event_json`: 未署名イベントJSON文字列
-/// 
+///
 /// # Returns
 /// - 署名済みイベントJSON文字列
-/// 
+///
 /// # Security
 /// - エフェメラル鍵はRust側のスコープ内のみに存在
 /// - 署名後に自動的にdrop（メモリクリア）
 /// - Flutter側に秘密鍵は一切渡さない
-/// 
+///
 /// # Example
 /// ```json
 /// // Input (unsigned event):
@@ -1973,7 +2195,7 @@ pub fn init_nostr_client_with_pubkey_and_id(
 ///   "tags": [["p", "listen_key"]],
 ///   "created_at": 1700000000
 /// }
-/// 
+///
 /// // Output (signed event):
 /// {
 ///   "id": "event_id",
@@ -1985,35 +2207,36 @@ pub fn init_nostr_client_with_pubkey_and_id(
 ///   "sig": "signature"
 /// }
 /// ```
-pub fn sign_event_with_ephemeral_key(
-    unsigned_event_json: String,
-) -> Result<String> {
+pub fn sign_event_with_ephemeral_key(unsigned_event_json: String) -> Result<String> {
     TOKIO_RUNTIME.block_on(async {
         // 1. 未署名イベントJSONをパース
         let unsigned_event: serde_json::Value = serde_json::from_str(&unsigned_event_json)
             .context("Failed to parse unsigned event JSON")?;
-        
+
         // 2. エフェメラル鍵を生成（OsRng使用）
         let ephemeral_keys = Keys::generate();
-        
+
         dev_println!("🔐 [NIP-17] Generated ephemeral keypair");
-        dev_println!("   Ephemeral pubkey: {}...", &ephemeral_keys.public_key().to_hex()[..16]);
-        
+        dev_println!(
+            "   Ephemeral pubkey: {}...",
+            &ephemeral_keys.public_key().to_hex()[..16]
+        );
+
         // 3. イベントフィールドを取得
         let content = unsigned_event["content"]
             .as_str()
             .context("Missing or invalid 'content' field")?
             .to_string();
-        
+
         let kind = unsigned_event["kind"]
             .as_u64()
             .context("Missing or invalid 'kind' field")?;
-        
+
         // tagsをパース
         let tags_array = unsigned_event["tags"]
             .as_array()
             .context("Missing or invalid 'tags' field")?;
-        
+
         let mut tags = Vec::new();
         for tag in tags_array {
             let tag_vec: Vec<String> = tag
@@ -2022,10 +2245,12 @@ pub fn sign_event_with_ephemeral_key(
                 .iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect();
-            
+
             if !tag_vec.is_empty() {
-                tags.push(Tag::parse(&tag_vec)
-                    .map_err(|e| anyhow::anyhow!("Failed to parse tag: {:?}", e))?);
+                tags.push(
+                    Tag::parse(&tag_vec)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse tag: {:?}", e))?,
+                );
             }
         }
 
@@ -2035,27 +2260,27 @@ pub fn sign_event_with_ephemeral_key(
         } else {
             tags
         };
-        
+
         // created_atを取得（指定がなければ現在時刻）
         let created_at = if let Some(timestamp) = unsigned_event["created_at"].as_u64() {
             Timestamp::from(timestamp)
         } else {
             Timestamp::now()
         };
-        
+
         dev_println!("📝 [NIP-17] Signing event with ephemeral key");
         dev_println!("   Kind: {}", kind);
         dev_println!("   Tags: {}", tags.len());
         dev_println!("   Created at: {}", created_at.as_u64());
-        
+
         // 4. イベントを構築して署名（エフェメラル鍵使用）
         let event = EventBuilder::new(Kind::from(kind as u16), content)
             .tags(tags)
             .custom_created_at(created_at)
-            .sign(&ephemeral_keys)  // ← エフェメラル鍵で署名
+            .sign(&ephemeral_keys) // ← エフェメラル鍵で署名
             .await
             .context("Failed to sign event with ephemeral key")?;
-        
+
         // 5. 署名済みイベントをJSON化
         //
         // IMPORTANT:
@@ -2064,17 +2289,16 @@ pub fn sign_event_with_ephemeral_key(
         // send_signed_event 側で `serde_json::from_str::<Event>` が
         // `invalid type: string` で失敗する（今回のNIP-17エラーの原因）。
         let signed_event_json = event.as_json();
-        
+
         dev_println!("✅ [NIP-17] Event signed with ephemeral key");
         dev_println!("   Event ID: {}", event.id.to_hex());
         dev_println!("   Ephemeral pubkey: {}...", &event.pubkey.to_hex()[..16]);
-        
+
         // 6. ephemeral_keysはここでdrop（自動メモリクリア）
-        
+
         Ok(signed_event_json)
     })
 }
-
 
 /// 署名済みイベントをリレーに送信
 pub fn send_signed_event(event_json: String) -> Result<EventSendResult> {
@@ -2082,17 +2306,20 @@ pub fn send_signed_event(event_json: String) -> Result<EventSendResult> {
 }
 
 /// 署名済みイベントをリレーに送信（client_id指定可能）
-pub fn send_signed_event_with_client_id(event_json: String, client_id: Option<String>) -> Result<EventSendResult> {
+pub fn send_signed_event_with_client_id(
+    event_json: String,
+    client_id: Option<String>,
+) -> Result<EventSendResult> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // イベントをパース
-        let event: Event = serde_json::from_str(&event_json)
-            .context("Failed to parse signed event JSON")?;
-        
+        let event: Event =
+            serde_json::from_str(&event_json).context("Failed to parse signed event JSON")?;
+
         // 署名を検証
         event.verify().context("Invalid event signature")?;
-        
+
         dev_println!("📤 Sending signed event to relays...");
         dev_println!("🔍 Event kind: {}", event.kind);
         dev_println!("🔍 Event ID: {}", event.id.to_hex());
@@ -2104,10 +2331,10 @@ pub fn send_signed_event_with_client_id(event_json: String, client_id: Option<St
                 dev_println!("      - {}: {:?}", tag_name, tag_vec.get(1));
             }
         }
-        
+
         // リレーに送信（改善されたエラーハンドリング）
         let result = client.send_event_with_result(event.clone()).await?;
-        
+
         dev_println!("✅ Event sent successfully");
         dev_println!("   Success: {}", result.success);
         dev_println!("   Successful relays: {}", result.successful_relays);
@@ -2117,13 +2344,13 @@ pub fn send_signed_event_with_client_id(event_json: String, client_id: Option<St
         if result.timed_out {
             dev_println!("⚠️ Some relays timed out");
         }
-        
+
         Ok(result)
     })
 }
 
 /// 暗号化済みcontentで未署名Todoリストイベントを作成（Kind 30001 - Amber暗号化済み用）
-/// 
+///
 /// # Parameters
 /// - `encrypted_content`: Amber暗号化済みのTodoリストJSON
 /// - `public_key_hex`: 公開鍵（hex形式）
@@ -2136,34 +2363,33 @@ pub fn create_unsigned_encrypted_todo_list_event_with_list_id(
     list_title: Option<String>,
 ) -> Result<String> {
     use serde_json::json;
-    
+
     // 公開鍵をパース
-    let public_key = PublicKey::from_hex(&public_key_hex)
-        .context("Failed to parse public key")?;
-    
+    let public_key = PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
     // 現在のタイムスタンプ
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     // d tag（リスト識別子）
     let d_tag_value = if let Some(id) = list_id {
         format!("meiso-list-{}", id)
     } else {
         "meiso-todos".to_string()
     };
-    
+
     // title tag（リスト名）
     let title_value = list_title.unwrap_or_else(|| "My TODO List".to_string());
-    
+
     // Kind 30001のタグ
     let mut tags = vec![
         vec!["d".to_string(), d_tag_value.clone()],
         vec!["title".to_string(), title_value],
     ];
     crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
-    
+
     // 未署名イベントJSON（Amber用）
     let unsigned_event = json!({
         "pubkey": public_key.to_hex(),
@@ -2172,10 +2398,13 @@ pub fn create_unsigned_encrypted_todo_list_event_with_list_id(
         "tags": tags,
         "content": encrypted_content,
     });
-    
+
     let event_json = serde_json::to_string(&unsigned_event)?;
-    
-    dev_println!("📝 Created unsigned encrypted TODO list event (d='{}') for Amber signing", d_tag_value);
+
+    dev_println!(
+        "📝 Created unsigned encrypted TODO list event (d='{}') for Amber signing",
+        d_tag_value
+    );
     Ok(event_json)
 }
 
@@ -2188,8 +2417,8 @@ pub fn create_unsigned_encrypted_todo_list_event(
     create_unsigned_encrypted_todo_list_event_with_list_id(
         encrypted_content,
         public_key_hex,
-        None,  // デフォルトリスト
-        None,  // デフォルトタイトル
+        None, // デフォルトリスト
+        None, // デフォルトタイトル
     )
 }
 
@@ -2200,23 +2429,20 @@ pub fn create_unsigned_encrypted_todo_event(
     public_key_hex: String,
 ) -> Result<String> {
     use serde_json::json;
-    
+
     // 公開鍵をパース
-    let public_key = PublicKey::from_hex(&public_key_hex)
-        .context("Failed to parse public key")?;
-    
+    let public_key = PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
     // 現在のタイムスタンプ
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     // dタグを追加
-    let mut tags = vec![
-        vec!["d".to_string(), format!("todo-{}", todo_id)]
-    ];
+    let mut tags = vec![vec!["d".to_string(), format!("todo-{}", todo_id)]];
     crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
-    
+
     // 未署名イベントJSON（Amber用）
     let unsigned_event = json!({
         "pubkey": public_key.to_hex(),
@@ -2225,9 +2451,9 @@ pub fn create_unsigned_encrypted_todo_event(
         "tags": tags,
         "content": encrypted_content,
     });
-    
+
     let event_json = serde_json::to_string(&unsigned_event)?;
-    
+
     dev_println!("📝 Created unsigned encrypted event for Amber signing");
     Ok(event_json)
 }
@@ -2261,7 +2487,7 @@ pub struct TodoListMetadata {
 
 /// すべてのTodoリスト（デフォルト + カスタムリスト）を取得
 /// Phase 8.5.2: カスタムリスト名のみを取得（軽量版）
-/// 
+///
 /// contentを解析せず、タグ（d, title）のみを返すため高速
 /// Issue #101: event_idを追加して削除済みイベントのフィルタリングを可能にする
 /// Zombie List Fix: created_atを追加してLWW比較を可能にする
@@ -2273,9 +2499,7 @@ pub struct TodoListName {
     pub created_at: u64,
 }
 
-pub fn fetch_todo_list_names_only(
-    public_key_hex: String,
-) -> Result<Vec<TodoListName>> {
+pub fn fetch_todo_list_names_only(public_key_hex: String) -> Result<Vec<TodoListName>> {
     fetch_todo_list_names_only_with_client_id(public_key_hex, None)
 }
 
@@ -2303,12 +2527,66 @@ pub fn fetch_todo_list_names_only_with_client_id(
         if events.is_empty() {
             return Ok(Vec::new());
         }
+
+        // Kind 5削除イベントを併読して、墓石化されたイベント/座標を候補から除外する
+        let deletion_filter = Filter::new()
+            .kind(Kind::EventDeletion)
+            .author(public_key);
+        let deletion_events = client
+            .client
+            .fetch_events(vec![deletion_filter], Some(Duration::from_secs(10)))
+            .await;
+
+        use std::collections::HashMap;
+        let mut deleted_event_timestamps: HashMap<String, u64> = HashMap::new();
+        let mut deleted_coordinate_timestamps: HashMap<String, u64> = HashMap::new();
+        match deletion_events {
+            Ok(events) => {
+                for deletion_event in events {
+                    let deleted_at = deletion_event.created_at.as_u64();
+                    for tag in deletion_event.tags.iter() {
+                        if let Some(TagStandard::Event { event_id, .. }) = tag.as_standardized() {
+                            let event_id_hex = event_id.to_hex();
+                            let should_update = deleted_event_timestamps
+                                .get(&event_id_hex)
+                                .map(|current| deleted_at > *current)
+                                .unwrap_or(true);
+                            if should_update {
+                                deleted_event_timestamps.insert(event_id_hex, deleted_at);
+                            }
+                            continue;
+                        }
+
+                        let tag_vec = tag.clone().to_vec();
+                        if tag_vec.first().map(|value| value.as_str()) == Some("a") {
+                            if let Some(coordinate_value) = tag_vec.get(1) {
+                                let should_update = deleted_coordinate_timestamps
+                                    .get(coordinate_value)
+                                    .map(|current| deleted_at > *current)
+                                    .unwrap_or(true);
+                                if should_update {
+                                    deleted_coordinate_timestamps
+                                        .insert(coordinate_value.clone(), deleted_at);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                dev_eprintln!(
+                    "⚠️ [Rust] Failed to fetch kind:5 deletions for list metadata: {}",
+                    error
+                );
+            }
+        }
         
         // 重複除去: 同じd tagで最新のもののみ保持
-        use std::collections::HashMap;
         let mut latest_events: HashMap<String, Event> = HashMap::new();
         
         for event in events {
+            let event_created_at = event.created_at.as_u64();
+            let event_id_hex = event.id.to_hex();
             let d_tag = event.tags.iter()
                 .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
                 .and_then(|tag| tag.content())
@@ -2322,6 +2600,29 @@ pub fn fetch_todo_list_names_only_with_client_id(
                 
                 // meiso-list-* のみを処理（カスタムリスト）
                 if d_value.starts_with("meiso-list-") {
+                    let coordinate = format!(
+                        "30001:{}:{}",
+                        public_key.to_hex(),
+                        d_value,
+                    );
+                    let deleted_by_event = deleted_event_timestamps
+                        .get(&event_id_hex)
+                        .map(|deleted_at| *deleted_at >= event_created_at)
+                        .unwrap_or(false);
+                    let deleted_by_coordinate = deleted_coordinate_timestamps
+                        .get(&coordinate)
+                        .map(|deleted_at| *deleted_at >= event_created_at)
+                        .unwrap_or(false);
+                    if deleted_by_event || deleted_by_coordinate {
+                        dev_println!(
+                            "🗑️ [Rust] Skipping tombstoned list event: {} (event_deleted={}, coordinate_deleted={})",
+                            d_value,
+                            deleted_by_event,
+                            deleted_by_coordinate
+                        );
+                        continue;
+                    }
+
                     if let Some(existing_event) = latest_events.get(d_value) {
                         if event.created_at > existing_event.created_at {
                             latest_events.insert(d_value.clone(), event);
@@ -2362,12 +2663,12 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey(
 }
 
 /// Phase 2: Subscribe版 - EOSE活用による早期終了
-/// 
+///
 /// jokyoプロジェクトで実証された最適化手法:
 /// - subscribe()でストリーミング受信
 /// - EOSE（End of Stored Events）で即座に終了
 /// - タイムアウト: 2.5秒（jokyoの最適値）
-/// 
+///
 /// 期待効果: 10秒 → 2-3秒（70-80%短縮）
 pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
     public_key_hex: String,
@@ -2375,63 +2676,76 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
 ) -> Result<Vec<EncryptedTodoListEvent>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
         // Kind 30001イベントのフィルター
-        let filter = Filter::new()
-            .kind(Kind::Custom(30001))
-            .author(public_key);
-        
+        let filter = Filter::new().kind(Kind::Custom(30001)).author(public_key);
+
         dev_println!("📡 [Phase 2] Starting subscription for TODO lists (Kind 30001)");
-        
+
         // Phase 2: subscribe()でストリーミング受信開始
         let output = client.client.subscribe(vec![filter], None).await?;
         let sub_id = output.id();
         let mut notifications = client.client.notifications();
-        
+
         // jokyoの最適値: 2.5秒タイムアウト
         let timeout = tokio::time::Duration::from_millis(2500);
         let deadline = tokio::time::Instant::now() + timeout;
-        
+
         let mut events = Vec::new();
         let mut eose_count = 0;
-        
+
         loop {
             // タイムアウトチェック
             if tokio::time::Instant::now() >= deadline {
                 dev_println!("⏱️ [Phase 2] Timeout reached (2.5s)");
                 break;
             }
-            
+
             // 通知受信（500msタイムアウト）
             match tokio::time::timeout(
                 tokio::time::Duration::from_millis(500),
-                notifications.recv()
-            ).await {
+                notifications.recv(),
+            )
+            .await
+            {
                 Ok(Ok(notification)) => {
                     match notification {
                         RelayPoolNotification::Event { event, .. } => {
                             if event.kind == Kind::Custom(30001) {
-                                dev_println!("📥 [Phase 2] Received event: d={:?}, created_at={}", 
-                                    event.tags.iter()
-                                        .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                                dev_println!(
+                                    "📥 [Phase 2] Received event: d={:?}, created_at={}",
+                                    event
+                                        .tags
+                                        .iter()
+                                        .find(|tag| tag.kind()
+                                            == TagKind::SingleLetter(SingleLetterTag::lowercase(
+                                                Alphabet::D
+                                            )))
                                         .and_then(|tag| tag.content()),
-                                    event.created_at.as_u64());
+                                    event.created_at.as_u64()
+                                );
                                 events.push(*event);
                             }
                         }
                         RelayPoolNotification::Message { message, .. } => {
                             if matches!(message, RelayMessage::EndOfStoredEvents(_)) {
                                 eose_count += 1;
-                                dev_println!("✅ [Phase 2] EOSE received from relay (count: {})", eose_count);
-                                
+                                dev_println!(
+                                    "✅ [Phase 2] EOSE received from relay (count: {})",
+                                    eose_count
+                                );
+
                                 // Phase 2最適化: 最初のEOSEで即座に終了
                                 // Replaceable Eventなので、1つのリレーからのEOSEで十分
                                 if eose_count >= 1 {
-                                    dev_println!("⚡ [Phase 2] Early exit: {} events collected", events.len());
+                                    dev_println!(
+                                        "⚡ [Phase 2] Early exit: {} events collected",
+                                        events.len()
+                                    );
                                     break;
                                 }
                             }
@@ -2446,34 +2760,44 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
                 Err(_) => {
                     // 500ms間何も来ない場合、イベントがあれば終了
                     if !events.is_empty() {
-                        dev_println!("⚡ [Phase 2] No more events, exiting with {} events", events.len());
+                        dev_println!(
+                            "⚡ [Phase 2] No more events, exiting with {} events",
+                            events.len()
+                        );
                         break;
                     }
                 }
             }
         }
-        
+
         // クリーンアップ
         client.client.unsubscribe(sub_id.clone()).await;
-        
+
         if events.is_empty() {
             dev_println!("⚠️ [Phase 2] No encrypted TODO list events found");
             return Ok(Vec::new());
         }
-        
-        dev_println!("📥 [Phase 2] Found {} encrypted TODO list events (before deduplication)", events.len());
-        
+
+        dev_println!(
+            "📥 [Phase 2] Found {} encrypted TODO list events (before deduplication)",
+            events.len()
+        );
+
         // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
         use std::collections::HashMap;
         let mut latest_events: HashMap<String, Event> = HashMap::new();
-        
+
         for event in events {
             // d タグを取得
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
-            
+
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
             if let Some(ref d_value) = d_tag {
                 if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
@@ -2488,18 +2812,24 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
                 }
             }
         }
-        
-        dev_println!("📋 [Phase 2] After deduplication: {} unique TODO lists", latest_events.len());
-        
+
+        dev_println!(
+            "📋 [Phase 2] After deduplication: {} unique TODO lists",
+            latest_events.len()
+        );
+
         // 最新のイベントのみを返す
-        let list_events: Vec<EncryptedTodoListEvent> = latest_events.into_iter()
+        let list_events: Vec<EncryptedTodoListEvent> = latest_events
+            .into_iter()
             .map(|(d_tag, event)| {
                 // title タグを取得
-                let title = event.tags.iter()
+                let title = event
+                    .tags
+                    .iter()
                     .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
                     .and_then(|tag| tag.content())
                     .map(|s| s.to_string());
-                    
+
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
@@ -2509,8 +2839,11 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
                 }
             })
             .collect();
-        
-        dev_println!("✅ [Phase 2] Fetched {} TODO list events for decryption", list_events.len());
+
+        dev_println!(
+            "✅ [Phase 2] Fetched {} TODO list events for decryption",
+            list_events.len()
+        );
         Ok(list_events)
     })
 }
@@ -2527,11 +2860,16 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since(
     timeout_secs: u64,
 ) -> Result<Vec<EncryptedTodoListEvent>> {
     // Phase 2: subscribe版を使用（差分取得版）
-    fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(public_key_hex, since, timeout_secs, None)
+    fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
+        public_key_hex,
+        since,
+        timeout_secs,
+        None,
+    )
 }
 
 /// Phase 2: Subscribe版（差分取得） - EOSE活用による早期終了
-/// 
+///
 /// バックグラウンド復帰時の体感改善用
 /// タイムアウト短縮: 3秒 → 1.5秒（50%短縮）
 pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
@@ -2544,12 +2882,10 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
         let client = get_client(client_id).await?;
 
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
 
-        let mut filter = Filter::new()
-            .kind(Kind::Custom(30001))
-            .author(public_key);
+        let mut filter = Filter::new().kind(Kind::Custom(30001)).author(public_key);
 
         // since が有効な場合のみ差分取得
         if since > 0 {
@@ -2557,33 +2893,42 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
             filter = filter.since(Timestamp::from(since_u64));
         }
 
-        dev_println!("📡 [Phase 2] Starting subscription for TODO lists (since: {})", since);
-        
+        dev_println!(
+            "📡 [Phase 2] Starting subscription for TODO lists (since: {})",
+            since
+        );
+
         // Phase 2: subscribe()でストリーミング受信開始
         let output = client.client.subscribe(vec![filter], None).await?;
         let sub_id = output.id();
         let mut notifications = client.client.notifications();
-        
+
         // タイムアウトをさらに短縮（差分取得は高速化が重要）
-        let timeout_ms = if timeout_secs >= 3 { 1500 } else { timeout_secs * 1000 };
+        let timeout_ms = if timeout_secs >= 3 {
+            1500
+        } else {
+            timeout_secs * 1000
+        };
         let timeout = tokio::time::Duration::from_millis(timeout_ms);
         let deadline = tokio::time::Instant::now() + timeout;
-        
+
         let mut events = Vec::new();
         let mut eose_count = 0;
-        
+
         loop {
             // タイムアウトチェック
             if tokio::time::Instant::now() >= deadline {
                 dev_println!("⏱️ [Phase 2] Timeout reached ({}ms)", timeout_ms);
                 break;
             }
-            
+
             // 通知受信（300msタイムアウト）
             match tokio::time::timeout(
                 tokio::time::Duration::from_millis(300),
-                notifications.recv()
-            ).await {
+                notifications.recv(),
+            )
+            .await
+            {
                 Ok(Ok(notification)) => {
                     match notification {
                         RelayPoolNotification::Event { event, .. } => {
@@ -2595,10 +2940,13 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
                             if matches!(message, RelayMessage::EndOfStoredEvents(_)) {
                                 eose_count += 1;
                                 dev_println!("✅ [Phase 2] EOSE received (count: {})", eose_count);
-                                
+
                                 // 最初のEOSEで即座に終了
                                 if eose_count >= 1 {
-                                    dev_println!("⚡ [Phase 2] Early exit: {} events", events.len());
+                                    dev_println!(
+                                        "⚡ [Phase 2] Early exit: {} events",
+                                        events.len()
+                                    );
                                     break;
                                 }
                             }
@@ -2616,26 +2964,33 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
                 }
             }
         }
-        
+
         // クリーンアップ
         client.client.unsubscribe(sub_id.clone()).await;
-        
+
         if events.is_empty() {
             return Ok(Vec::new());
         }
-        
-        dev_println!("📥 [Phase 2] Found {} events (before deduplication)", events.len());
-        
+
+        dev_println!(
+            "📥 [Phase 2] Found {} events (before deduplication)",
+            events.len()
+        );
+
         // 重複除去処理
         use std::collections::HashMap;
         let mut latest_events: HashMap<String, Event> = HashMap::new();
-        
+
         for event in events {
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
-            
+
             if let Some(ref d_value) = d_tag {
                 if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
                     if let Some(existing_event) = latest_events.get(d_value) {
@@ -2648,14 +3003,17 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
                 }
             }
         }
-        
-        let list_events: Vec<EncryptedTodoListEvent> = latest_events.into_iter()
+
+        let list_events: Vec<EncryptedTodoListEvent> = latest_events
+            .into_iter()
             .map(|(d_tag, event)| {
-                let title = event.tags.iter()
+                let title = event
+                    .tags
+                    .iter()
                     .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
                     .and_then(|tag| tag.content())
                     .map(|s| s.to_string());
-                    
+
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
@@ -2665,8 +3023,11 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
                 }
             })
             .collect();
-        
-        dev_println!("✅ [Phase 2] Fetched {} TODO list events", list_events.len());
+
+        dev_println!(
+            "✅ [Phase 2] Fetched {} TODO list events",
+            list_events.len()
+        );
         Ok(list_events)
     })
 }
@@ -2681,12 +3042,10 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
 
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
 
-        let mut filter = Filter::new()
-            .kind(Kind::Custom(30001))
-            .author(public_key);
+        let mut filter = Filter::new().kind(Kind::Custom(30001)).author(public_key);
 
         // since が有効な場合のみ差分取得
         if since > 0 {
@@ -2710,8 +3069,12 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
         let mut latest_events: HashMap<String, Event> = HashMap::new();
 
         for event in events {
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
 
@@ -2728,9 +3091,12 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
             }
         }
 
-        let list_events: Vec<EncryptedTodoListEvent> = latest_events.into_iter()
+        let list_events: Vec<EncryptedTodoListEvent> = latest_events
+            .into_iter()
             .map(|(d_tag, event)| {
-                let title = event.tags.iter()
+                let title = event
+                    .tags
+                    .iter()
                     .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
                     .and_then(|tag| tag.content())
                     .map(|s| s.to_string());
@@ -2755,58 +3121,75 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
 ) -> Result<Vec<EncryptedTodoListEvent>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
         // すべてのKind 30001イベントを取得（meiso-todos + meiso-list-*）
-        let filter = Filter::new()
-            .kind(Kind::Custom(30001))
-            .author(public_key);
-        
+        let filter = Filter::new().kind(Kind::Custom(30001)).author(public_key);
+
         let events = client
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
-        
+
         if events.is_empty() {
             dev_println!("⚠️ No encrypted TODO list events found");
             return Ok(Vec::new());
         }
-        
+
         dev_println!("📥 Found {} encrypted TODO list events", events.len());
-        
+
         // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
         use std::collections::HashMap;
         let mut latest_events: HashMap<String, Event> = HashMap::new();
-        
+
         for event in events {
             // d タグを取得
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
-            
-            dev_println!("🔍 Found event: d_tag={:?}, event_id={}, created_at={}", 
-                d_tag, event.id.to_hex(), event.created_at.as_u64());
-            
+
+            dev_println!(
+                "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
+                d_tag,
+                event.id.to_hex(),
+                event.created_at.as_u64()
+            );
+
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
             if let Some(ref d_value) = d_tag {
                 if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
                     // 既存のイベントと比較して、新しい方を保持
                     if let Some(existing_event) = latest_events.get(d_value) {
                         if event.created_at > existing_event.created_at {
-                            dev_println!("🔄 Replacing older event for d='{}' (old: {}, new: {})", 
-                                d_value, existing_event.created_at.as_u64(), event.created_at.as_u64());
+                            dev_println!(
+                                "🔄 Replacing older event for d='{}' (old: {}, new: {})",
+                                d_value,
+                                existing_event.created_at.as_u64(),
+                                event.created_at.as_u64()
+                            );
                             latest_events.insert(d_value.clone(), event);
                         } else {
-                            dev_println!("⏭️  Skipping older event for d='{}' (keeping: {})", 
-                                d_value, existing_event.created_at.as_u64());
+                            dev_println!(
+                                "⏭️  Skipping older event for d='{}' (keeping: {})",
+                                d_value,
+                                existing_event.created_at.as_u64()
+                            );
                         }
                     } else {
-                        dev_println!("✅ Adding TODO list event: d='{}', event_id={}, created_at={}", 
-                            d_value, event.id.to_hex(), event.created_at.as_u64());
+                        dev_println!(
+                            "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
+                            d_value,
+                            event.id.to_hex(),
+                            event.created_at.as_u64()
+                        );
                         latest_events.insert(d_value.clone(), event);
                     }
                 } else {
@@ -2816,21 +3199,32 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                 dev_println!("⏭️  Skipping event with no d tag");
             }
         }
-        
-        dev_println!("📋 After deduplication: {} unique TODO lists", latest_events.len());
-        
+
+        dev_println!(
+            "📋 After deduplication: {} unique TODO lists",
+            latest_events.len()
+        );
+
         // 最新のイベントのみを返す
-        let list_events: Vec<EncryptedTodoListEvent> = latest_events.into_iter()
+        let list_events: Vec<EncryptedTodoListEvent> = latest_events
+            .into_iter()
             .map(|(d_tag, event)| {
                 // title タグを取得
-                let title = event.tags.iter()
+                let title = event
+                    .tags
+                    .iter()
                     .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
                     .and_then(|tag| tag.content())
                     .map(|s| s.to_string());
-                
-                dev_println!("📤 Final event: d='{}', title={:?}, event_id={}, created_at={}", 
-                    d_tag, title, event.id.to_hex(), event.created_at.as_u64());
-                    
+
+                dev_println!(
+                    "📤 Final event: d='{}', title={:?}, event_id={}, created_at={}",
+                    d_tag,
+                    title,
+                    event.id.to_hex(),
+                    event.created_at.as_u64()
+                );
+
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
@@ -2840,8 +3234,11 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                 }
             })
             .collect();
-        
-        dev_println!("✅ Fetched {} TODO list events for decryption", list_events.len());
+
+        dev_println!(
+            "✅ Fetched {} TODO list events for decryption",
+            list_events.len()
+        );
         Ok(list_events)
     })
 }
@@ -2856,58 +3253,79 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
 ) -> Result<Vec<TodoListMetadata>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 秘密鍵モードのみサポート（Amberモードでは使用しない）
-        let keys = client.keys.as_ref()
+        let keys = client
+            .keys
+            .as_ref()
             .context("Secret key required for fetching metadata")?;
-        
+
         // すべてのKind 30001イベントを取得（meiso-todos + meiso-list-*）
         let filter = Filter::new()
             .kind(Kind::Custom(30001))
             .author(keys.public_key());
-        
+
         let events = client
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
-        
+
         if events.is_empty() {
             dev_println!("⚠️ No TODO list events found");
             return Ok(Vec::new());
         }
-        
+
         dev_println!("📥 Found {} TODO list events", events.len());
-        
+
         // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
         use std::collections::HashMap;
         let mut latest_events: HashMap<String, Event> = HashMap::new();
-        
+
         for event in events {
             // d タグを取得
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
-            
-            dev_println!("🔍 Found event: d_tag={:?}, event_id={}, created_at={}", 
-                d_tag, event.id.to_hex(), event.created_at.as_u64());
-            
+
+            dev_println!(
+                "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
+                d_tag,
+                event.id.to_hex(),
+                event.created_at.as_u64()
+            );
+
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
             if let Some(ref d_value) = d_tag {
                 if d_value.starts_with("meiso-todos") || d_value.starts_with("meiso-list-") {
                     // 既存のイベントと比較して、新しい方を保持
                     if let Some(existing_event) = latest_events.get(d_value) {
                         if event.created_at > existing_event.created_at {
-                            dev_println!("🔄 Replacing older event for d='{}' (old: {}, new: {})", 
-                                d_value, existing_event.created_at.as_u64(), event.created_at.as_u64());
+                            dev_println!(
+                                "🔄 Replacing older event for d='{}' (old: {}, new: {})",
+                                d_value,
+                                existing_event.created_at.as_u64(),
+                                event.created_at.as_u64()
+                            );
                             latest_events.insert(d_value.clone(), event);
                         } else {
-                            dev_println!("⏭️  Skipping older event for d='{}' (keeping: {})", 
-                                d_value, existing_event.created_at.as_u64());
+                            dev_println!(
+                                "⏭️  Skipping older event for d='{}' (keeping: {})",
+                                d_value,
+                                existing_event.created_at.as_u64()
+                            );
                         }
                     } else {
-                        dev_println!("✅ Adding TODO list event: d='{}', event_id={}, created_at={}", 
-                            d_value, event.id.to_hex(), event.created_at.as_u64());
+                        dev_println!(
+                            "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
+                            d_value,
+                            event.id.to_hex(),
+                            event.created_at.as_u64()
+                        );
                         latest_events.insert(d_value.clone(), event);
                     }
                 } else {
@@ -2917,21 +3335,32 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                 dev_println!("⏭️  Skipping event with no d tag");
             }
         }
-        
-        dev_println!("📋 After deduplication: {} unique TODO lists", latest_events.len());
-        
+
+        dev_println!(
+            "📋 After deduplication: {} unique TODO lists",
+            latest_events.len()
+        );
+
         // メタデータのみを返す
-        let metadata_list: Vec<TodoListMetadata> = latest_events.into_iter()
+        let metadata_list: Vec<TodoListMetadata> = latest_events
+            .into_iter()
             .map(|(d_tag, event)| {
                 // title タグを取得
-                let title = event.tags.iter()
+                let title = event
+                    .tags
+                    .iter()
                     .find(|tag| tag.kind() == TagKind::Custom(std::borrow::Cow::Borrowed("title")))
                     .and_then(|tag| tag.content())
                     .map(|s| s.to_string());
-                
-                dev_println!("📤 Metadata: d='{}', title={:?}, event_id={}, created_at={}", 
-                    d_tag, title, event.id.to_hex(), event.created_at.as_u64());
-                    
+
+                dev_println!(
+                    "📤 Metadata: d='{}', title={:?}, event_id={}, created_at={}",
+                    d_tag,
+                    title,
+                    event.id.to_hex(),
+                    event.created_at.as_u64()
+                );
+
                 TodoListMetadata {
                     event_id: event.id.to_hex(),
                     created_at: event.created_at.as_u64() as i64,
@@ -2940,7 +3369,7 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                 }
             })
             .collect();
-        
+
         dev_println!("✅ Fetched {} TODO list metadata", metadata_list.len());
         Ok(metadata_list)
     })
@@ -2959,11 +3388,11 @@ pub fn fetch_encrypted_todo_list_for_pubkey_with_client_id(
 ) -> Result<Option<EncryptedTodoListEvent>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
         let filter = Filter::new()
             .kind(Kind::Custom(30001))
             .author(public_key)
@@ -2971,12 +3400,12 @@ pub fn fetch_encrypted_todo_list_for_pubkey_with_client_id(
                 SingleLetterTag::lowercase(Alphabet::D),
                 vec!["meiso-todos".to_string()],
             );
-        
+
         let events = client
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
-        
+
         // 最新のイベント（Replaceable eventなので1つだけのはず）
         if let Some(event) = events.first() {
             dev_println!("📥 Fetched encrypted TODO list event (default list only)");
@@ -3004,9 +3433,7 @@ pub struct EncryptedTodoEvent {
     pub d_tag: String,
 }
 
-pub fn fetch_encrypted_todos_for_pubkey(
-    public_key_hex: String,
-) -> Result<Vec<EncryptedTodoEvent>> {
+pub fn fetch_encrypted_todos_for_pubkey(public_key_hex: String) -> Result<Vec<EncryptedTodoEvent>> {
     fetch_encrypted_todos_for_pubkey_with_client_id(public_key_hex, None)
 }
 
@@ -3016,38 +3443,41 @@ pub fn fetch_encrypted_todos_for_pubkey_with_client_id(
 ) -> Result<Vec<EncryptedTodoEvent>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
-        let filter = Filter::new()
-            .kind(Kind::Custom(30078))
-            .author(public_key);
-        
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
+        let filter = Filter::new().kind(Kind::Custom(30078)).author(public_key);
+
         let events = client
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
-        
+
         let mut encrypted_todos = Vec::new();
-        
+
         for event in events {
             // dタグを取得
             let d_tag = event
                 .tags
                 .iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .unwrap_or("")
                 .to_string();
-            
+
             // `todo-`で始まるdタグのイベントはスキップ
             if d_tag.starts_with("todo-") {
-                dev_println!("⏭️  Skipping Kind 30078 event with d tag starting with 'todo-': {}", event.id.to_hex());
+                dev_println!(
+                    "⏭️  Skipping Kind 30078 event with d tag starting with 'todo-': {}",
+                    event.id.to_hex()
+                );
                 continue;
             }
-            
+
             encrypted_todos.push(EncryptedTodoEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
@@ -3055,8 +3485,11 @@ pub fn fetch_encrypted_todos_for_pubkey_with_client_id(
                 d_tag,
             });
         }
-        
-        dev_println!("📥 Fetched {} encrypted todo events (after filtering)", encrypted_todos.len());
+
+        dev_println!(
+            "📥 Fetched {} encrypted todo events (after filtering)",
+            encrypted_todos.len()
+        );
         Ok(encrypted_todos)
     })
 }
@@ -3069,12 +3502,14 @@ pub fn npub_to_hex(npub: String) -> Result<String> {
         if npub.len() == 64 && npub.chars().all(|c| c.is_ascii_hexdigit()) {
             return Ok(npub); // すでにhex形式
         }
-        return Err(anyhow::anyhow!("Invalid public key format: expected npub1... or 64-char hex, got: {}", &npub[..10.min(npub.len())]));
+        return Err(anyhow::anyhow!(
+            "Invalid public key format: expected npub1... or 64-char hex, got: {}",
+            &npub[..10.min(npub.len())]
+        ));
     }
-    
-    let public_key = PublicKey::parse(&npub)
-        .context("Failed to parse npub format public key")?;
-    
+
+    let public_key = PublicKey::parse(&npub).context("Failed to parse npub format public key")?;
+
     Ok(public_key.to_hex())
 }
 
@@ -3084,10 +3519,9 @@ pub fn hex_to_npub(hex: String) -> Result<String> {
     if hex.starts_with("npub1") {
         return Ok(hex);
     }
-    
-    let public_key = PublicKey::from_hex(&hex)
-        .context("Failed to parse hex format public key")?;
-    
+
+    let public_key = PublicKey::from_hex(&hex).context("Failed to parse hex format public key")?;
+
     Ok(public_key.to_bech32()?)
 }
 
@@ -3101,7 +3535,10 @@ pub fn save_app_settings(settings: AppSettings) -> Result<EventSendResult> {
 }
 
 /// アプリ設定を保存（client_id指定可能）
-pub fn save_app_settings_with_client_id(settings: AppSettings, client_id: Option<String>) -> Result<EventSendResult> {
+pub fn save_app_settings_with_client_id(
+    settings: AppSettings,
+    client_id: Option<String>,
+) -> Result<EventSendResult> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.create_app_settings(settings).await
@@ -3127,23 +3564,20 @@ pub fn create_unsigned_encrypted_app_settings_event(
     public_key_hex: String,
 ) -> Result<String> {
     use serde_json::json;
-    
+
     // 公開鍵をパース
-    let public_key = PublicKey::from_hex(&public_key_hex)
-        .context("Failed to parse public key")?;
-    
+    let public_key = PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
     // 現在のタイムスタンプ
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     // Kind 30078のタグ（アプリ設定用）
-    let mut tags = vec![
-        vec!["d".to_string(), "meiso-settings".to_string()],
-    ];
+    let mut tags = vec![vec!["d".to_string(), "meiso-settings".to_string()]];
     crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
-    
+
     // 未署名イベントJSON（Amber用）
     let unsigned_event = json!({
         "pubkey": public_key.to_hex(),
@@ -3152,9 +3586,9 @@ pub fn create_unsigned_encrypted_app_settings_event(
         "tags": tags,
         "content": encrypted_content,
     });
-    
+
     let event_json = serde_json::to_string(&unsigned_event)?;
-    
+
     dev_println!("📝 Created unsigned encrypted app settings event (Kind 30078) for Amber signing");
     Ok(event_json)
 }
@@ -3165,17 +3599,16 @@ pub fn create_unsigned_relay_list_event(
     public_key_hex: String,
 ) -> Result<String> {
     use serde_json::json;
-    
+
     // 公開鍵をパース
-    let public_key = PublicKey::from_hex(&public_key_hex)
-        .context("Failed to parse public key")?;
-    
+    let public_key = PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
     // 現在のタイムスタンプ
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     // NIP-65: リレーをタグとして追加
     let mut tags = Vec::new();
     for relay_url in &relays {
@@ -3183,7 +3616,7 @@ pub fn create_unsigned_relay_list_event(
         tags.push(vec!["r".to_string(), relay_url.clone()]);
     }
     crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
-    
+
     // 未署名イベントJSON（Amber用）
     // contentは空文字列（NIP-65では不要）
     let unsigned_event = json!({
@@ -3193,9 +3626,9 @@ pub fn create_unsigned_relay_list_event(
         "tags": tags,
         "content": "",
     });
-    
+
     let event_json = serde_json::to_string(&unsigned_event)?;
-    
+
     dev_println!("📝 Created unsigned relay list event (Kind 10002) for Amber signing");
     Ok(event_json)
 }
@@ -3220,11 +3653,11 @@ pub fn fetch_encrypted_app_settings_for_pubkey_with_client_id(
 ) -> Result<Option<EncryptedAppSettingsEvent>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
         let filter = Filter::new()
             .kind(Kind::Custom(30078))
             .author(public_key)
@@ -3232,12 +3665,12 @@ pub fn fetch_encrypted_app_settings_for_pubkey_with_client_id(
                 SingleLetterTag::lowercase(Alphabet::D),
                 vec!["meiso-settings".to_string()],
             );
-        
+
         let events = client
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
-        
+
         // 最新のイベント（Replaceable eventなので1つだけのはず）
         if let Some(event) = events.first() {
             dev_println!("📥 Fetched encrypted app settings event");
@@ -3263,7 +3696,10 @@ pub fn save_relay_list(relays: Vec<String>) -> Result<EventSendResult> {
 }
 
 /// リレーリストをNostrに保存（client_id指定可能）
-pub fn save_relay_list_with_client_id(relays: Vec<String>, client_id: Option<String>) -> Result<EventSendResult> {
+pub fn save_relay_list_with_client_id(
+    relays: Vec<String>,
+    client_id: Option<String>,
+) -> Result<EventSendResult> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.save_relay_list(relays).await
@@ -3289,7 +3725,10 @@ pub fn update_relay_list(relays: Vec<String>) -> Result<()> {
 }
 
 /// リレーリストを動的に更新（client_id指定可能）
-pub fn update_relay_list_with_client_id(relays: Vec<String>, client_id: Option<String>) -> Result<()> {
+pub fn update_relay_list_with_client_id(
+    relays: Vec<String>,
+    client_id: Option<String>,
+) -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.update_relay_list(relays).await
@@ -3301,10 +3740,7 @@ pub fn update_relay_list_with_client_id(relays: Vec<String>, client_id: Option<S
 // ========================================
 
 /// 指定したイベントIDのリストを削除（Kind 5削除イベントを送信）
-pub fn delete_events(
-    event_ids: Vec<String>,
-    reason: Option<String>,
-) -> Result<EventSendResult> {
+pub fn delete_events(event_ids: Vec<String>, reason: Option<String>) -> Result<EventSendResult> {
     delete_events_with_client_id(event_ids, reason, None)
 }
 
@@ -3316,13 +3752,13 @@ pub fn delete_events_with_client_id(
 ) -> Result<EventSendResult> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         if event_ids.is_empty() {
             return Err(anyhow::anyhow!("削除するイベントIDが指定されていません"));
         }
-        
+
         dev_println!("🗑️ Deleting {} events...", event_ids.len());
-        
+
         // イベントIDをEventIdに変換
         let mut event_id_objects = Vec::new();
         for id_str in &event_ids {
@@ -3334,47 +3770,44 @@ pub fn delete_events_with_client_id(
                 }
             }
         }
-        
+
         if event_id_objects.is_empty() {
             return Err(anyhow::anyhow!("有効なイベントIDがありません"));
         }
-        
+
         if let ClientMode::Amber { .. } = client.mode {
             return Err(anyhow::anyhow!("Cannot delete events in Amber mode"));
         }
-        
-        let keys = client.keys.as_ref()
+
+        let keys = client
+            .keys
+            .as_ref()
             .context("Secret key required for deletion")?;
-        
+
         // Kind 5削除イベントを作成
         let content = reason.unwrap_or_default();
-        
+
         // イベントIDを'e'タグとして追加
-        let tags: Vec<Tag> = event_id_objects
-            .iter()
-            .map(|id| Tag::event(*id))
-            .collect();
-        
+        let tags: Vec<Tag> = event_id_objects.iter().map(|id| Tag::event(*id)).collect();
+
         let event = EventBuilder::new(Kind::EventDeletion, content)
             .tags(crate::nostr_client_meta::merge_nip89_into_tags(tags))
             .sign(keys)
             .await?;
-        
+
         dev_println!("📤 Sending Kind 5 deletion event...");
-        
+
         // リレーに送信（改善されたエラーハンドリング）
         client.send_event_with_result(event).await
     })
 }
 
 /// 削除イベント（Kind 5）を取得し、削除対象のイベントIDとタイムスタンプのリストを返す
-/// 
+///
 /// 戻り値: Vec<(event_id, deletion_created_at)>
 /// - event_id: 削除対象のイベントID（eタグ）
 /// - deletion_created_at: 削除イベント自体のcreated_at（LWW比較用）
-pub fn fetch_deletion_events_for_pubkey(
-    public_key_hex: String,
-) -> Result<Vec<(String, u64)>> {
+pub fn fetch_deletion_events_for_pubkey(public_key_hex: String) -> Result<Vec<(String, u64)>> {
     fetch_deletion_events_for_pubkey_with_client_id(public_key_hex, None)
 }
 
@@ -3384,60 +3817,67 @@ pub fn fetch_deletion_events_for_pubkey_with_client_id(
 ) -> Result<Vec<(String, u64)>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
-        dev_println!("🗑️ Fetching deletion events (Kind 5) for pubkey: {}...", &public_key_hex[..16]);
-        
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
+        dev_println!(
+            "🗑️ Fetching deletion events (Kind 5) for pubkey: {}...",
+            &public_key_hex[..16]
+        );
+
         // Kind 5（EventDeletion）イベントを取得
-        let filter = Filter::new()
-            .kind(Kind::EventDeletion)
-            .author(public_key);
-        
+        let filter = Filter::new().kind(Kind::EventDeletion).author(public_key);
+
         let events = client
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
-        
+
         dev_println!("📥 Found {} deletion events", events.len());
-        
+
         if events.is_empty() {
             return Ok(Vec::new());
         }
-        
+
         // 削除対象のイベントIDとタイムスタンプを抽出（eタグから）
         let mut deleted_events = Vec::new();
-        
+
         for event in events {
             let deletion_created_at = event.created_at.as_u64();
-            
+
             // eタグを探す
             for tag in event.tags.iter() {
                 if let Some(TagStandard::Event { event_id, .. }) = tag.as_standardized() {
                     let event_id_hex = event_id.to_hex();
                     deleted_events.push((event_id_hex.clone(), deletion_created_at));
-                    dev_println!("  🗑️ Deleted event ID: {} (deleted_at: {})", 
-                        &event_id_hex[..16], deletion_created_at);
+                    dev_println!(
+                        "  🗑️ Deleted event ID: {} (deleted_at: {})",
+                        &event_id_hex[..16],
+                        deletion_created_at
+                    );
                 }
             }
         }
-        
-        dev_println!("✅ Total {} event IDs marked as deleted", deleted_events.len());
-        
+
+        dev_println!(
+            "✅ Total {} event IDs marked as deleted",
+            deleted_events.len()
+        );
+
         Ok(deleted_events)
     })
 }
 
 /// Personal ListのeventIDを検索（d tagから）
-/// 
+///
 /// Phase E.6: リスト削除時にeventIDを動的に取得
-/// 
+///
 /// 引数:
 /// - list_id: カスタムリストのID (例: "abc123")
 /// - public_key_hex: ユーザーの公開鍵（hex形式）
-/// 
+///
 /// 戻り値:
 /// - Ok(Some(event_id)): イベントが見つかった場合
 /// - Ok(None): イベントが見つからない場合
@@ -3456,42 +3896,44 @@ pub fn find_personal_list_event_id_with_client_id(
 ) -> Result<Option<String>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
         // d tag = "meiso-list-{list_id}"
         let d_tag = format!("meiso-list-{}", list_id);
-        
+
         dev_println!("🔍 [Rust] Searching for Personal List event: d={}", d_tag);
-        
+
         // Kind 30001でd tagが一致するイベントを検索
         let filter = Filter::new()
-            .kind(Kind::ParameterizedReplaceable(30001))
+            .kind(Kind::Custom(30001))
             .author(public_key)
             .identifier(d_tag.clone());
-        
+
         let events = client
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
-        
+
         dev_println!("📥 [Rust] Found {} events for d={}", events.len(), d_tag);
-        
+
         if events.is_empty() {
             dev_println!("⚠️  [Rust] No event found for list_id={}", list_id);
             return Ok(None);
         }
-        
+
         // 最新のイベント（created_atが最大）を取得
-        let latest_event = events
-            .iter()
-            .max_by_key(|e| e.created_at);
-        
+        let latest_event = events.iter().max_by_key(|e| e.created_at);
+
         if let Some(event) = latest_event {
             let event_id = event.id.to_hex();
-            dev_println!("✅ [Rust] Found event ID: {} (created_at: {})", &event_id[..16], event.created_at);
+            dev_println!(
+                "✅ [Rust] Found event ID: {} (created_at: {})",
+                &event_id[..16],
+                event.created_at
+            );
             Ok(Some(event_id))
         } else {
             Ok(None)
@@ -3515,11 +3957,11 @@ pub fn start_subscription_with_client_id(
 ) -> Result<SubscriptionInfo> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // JSON文字列からFilterのリストをパース
-        let filters: Vec<Filter> = serde_json::from_str(&filters_json)
-            .context("Failed to parse filters JSON")?;
-        
+        let filters: Vec<Filter> =
+            serde_json::from_str(&filters_json).context("Failed to parse filters JSON")?;
+
         client.subscribe(filters).await
     })
 }
@@ -3588,7 +4030,9 @@ pub fn get_relay_connection_info() -> Result<RelayConnectionInfo> {
     get_relay_connection_info_with_client_id(None)
 }
 
-pub fn get_relay_connection_info_with_client_id(client_id: Option<String>) -> Result<RelayConnectionInfo> {
+pub fn get_relay_connection_info_with_client_id(
+    client_id: Option<String>,
+) -> Result<RelayConnectionInfo> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.check_connection_info().await
@@ -3603,11 +4047,14 @@ pub fn send_signed_event_to_relays(
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(None).await?;
 
-        let event: Event = serde_json::from_str(&event_json)
-            .context("Failed to parse signed event JSON")?;
+        let event: Event =
+            serde_json::from_str(&event_json).context("Failed to parse signed event JSON")?;
         event.verify().context("Invalid event signature")?;
 
-        dev_println!("📤 Sending signed event to {} specified relays", relay_urls.len());
+        dev_println!(
+            "📤 Sending signed event to {} specified relays",
+            relay_urls.len()
+        );
 
         client.send_event_to_relays(event, relay_urls).await
     })
@@ -3627,7 +4074,10 @@ pub fn ensure_client_for_relays(
             let clients = NOSTR_CLIENTS.lock().await;
             if clients.contains_key(&client_id) {
                 let client = clients.get(&client_id).unwrap();
-                dev_println!("🔄 Reusing existing client [{}], updating relays", client_id);
+                dev_println!(
+                    "🔄 Reusing existing client [{}], updating relays",
+                    client_id
+                );
                 return client.update_relay_list(relays).await;
             }
         }
@@ -3671,46 +4121,41 @@ pub fn reconnect_to_relays_with_timeout_and_client_id(
 }
 
 /// イベントJSONからキャッシュ情報を作成（Event型を使わずに）
-pub fn create_cache_info(
-    event_json: String,
-    ttl_seconds: u64,
-) -> Result<CachedEventInfo> {
+pub fn create_cache_info(event_json: String, ttl_seconds: u64) -> Result<CachedEventInfo> {
     // JSONからイベント情報を抽出（nostr-sdkの Event型を経由せずに）
-    let json_value: serde_json::Value = serde_json::from_str(&event_json)
-        .context("Failed to parse event JSON")?;
-    
+    let json_value: serde_json::Value =
+        serde_json::from_str(&event_json).context("Failed to parse event JSON")?;
+
     let event_id = json_value["id"]
         .as_str()
         .context("Missing or invalid event id")?
         .to_string();
-    
+
     let kind = json_value["kind"]
         .as_u64()
         .context("Missing or invalid event kind")?;
-    
+
     let created_at = json_value["created_at"]
         .as_i64()
         .context("Missing or invalid created_at")?;
-    
+
     // d-tagを取得（あれば）
-    let d_tag = json_value["tags"]
-        .as_array()
-        .and_then(|tags| {
-            tags.iter().find_map(|tag| {
-                let tag_array = tag.as_array()?;
-                if tag_array.len() >= 2 && tag_array[0].as_str()? == "d" {
-                    Some(tag_array[1].as_str()?.to_string())
-                } else {
-                    None
-                }
-            })
-        });
-    
+    let d_tag = json_value["tags"].as_array().and_then(|tags| {
+        tags.iter().find_map(|tag| {
+            let tag_array = tag.as_array()?;
+            if tag_array.len() >= 2 && tag_array[0].as_str()? == "d" {
+                Some(tag_array[1].as_str()?.to_string())
+            } else {
+                None
+            }
+        })
+    });
+
     let cached_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    
+
     Ok(CachedEventInfo {
         event_id,
         kind,
@@ -3731,10 +4176,10 @@ pub fn is_cache_valid(cache_info: CachedEventInfo) -> bool {
 // グループタスク管理API（マルチパーティ暗号化）
 // ========================================
 
-use crate::group_tasks::{GroupTodoList, GroupTodoData};
+use crate::group_tasks::{GroupTodoData, GroupTodoList};
 
 /// グループタスクリストを暗号化（マルチパーティ暗号化）
-/// 
+///
 /// # Parameters
 /// - `tasks`: グループタスクのリスト
 /// - `group_id`: グループID（UUID）
@@ -3748,44 +4193,37 @@ pub fn encrypt_group_task_list(
 ) -> Result<GroupTodoList> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(None).await?;
-        
+
         // 秘密鍵モードのみサポート（Amberモードでは未対応）
-        let keys = client.keys.as_ref()
+        let keys = client
+            .keys
+            .as_ref()
             .context("Secret key required for group task encryption")?;
-        
-        crate::group_tasks::encrypt_group_tasks(
-            tasks,
-            group_id,
-            group_name,
-            member_pubkeys,
-            keys,
-        )
+
+        crate::group_tasks::encrypt_group_tasks(tasks, group_id, group_name, member_pubkeys, keys)
     })
 }
 
 /// グループタスクリストを復号化
-/// 
+///
 /// # Parameters
 /// - `group_list`: 暗号化されたグループタスクリスト
-pub fn decrypt_group_task_list(
-    group_list: GroupTodoList,
-) -> Result<Vec<GroupTodoData>> {
+pub fn decrypt_group_task_list(group_list: GroupTodoList) -> Result<Vec<GroupTodoData>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(None).await?;
-        
+
         // 秘密鍵モードのみサポート（Amberモードでは未対応）
-        let keys = client.keys.as_ref()
+        let keys = client
+            .keys
+            .as_ref()
             .context("Secret key required for group task decryption")?;
-        
-        crate::group_tasks::decrypt_group_tasks(
-            &group_list,
-            keys,
-        )
+
+        crate::group_tasks::decrypt_group_tasks(&group_list, keys)
     })
 }
 
 /// グループにメンバーを追加
-/// 
+///
 /// # Parameters
 /// - `group_list`: 既存のグループタスクリスト
 /// - `new_member_pubkey`: 追加するメンバーの公開鍵（hex形式）
@@ -3795,23 +4233,21 @@ pub fn add_member_to_group_task_list(
 ) -> Result<GroupTodoList> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(None).await?;
-        
+
         // 秘密鍵モードのみサポート
-        let keys = client.keys.as_ref()
+        let keys = client
+            .keys
+            .as_ref()
             .context("Secret key required for adding member")?;
-        
-        crate::group_tasks::add_member_to_group(
-            &mut group_list,
-            new_member_pubkey,
-            keys,
-        )?;
-        
+
+        crate::group_tasks::add_member_to_group(&mut group_list, new_member_pubkey, keys)?;
+
         Ok(group_list)
     })
 }
 
 /// グループからメンバーを削除（Forward Secrecy: 全体を再暗号化）
-/// 
+///
 /// # Parameters
 /// - `group_list`: 既存のグループタスクリスト
 /// - `member_to_remove`: 削除するメンバーの公開鍵（hex形式）
@@ -3821,36 +4257,34 @@ pub fn remove_member_from_group_task_list(
 ) -> Result<GroupTodoList> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(None).await?;
-        
+
         // 秘密鍵モードのみサポート
-        let keys = client.keys.as_ref()
+        let keys = client
+            .keys
+            .as_ref()
             .context("Secret key required for removing member")?;
-        
-        crate::group_tasks::remove_member_from_group(
-            &group_list,
-            member_to_remove,
-            keys,
-        )
+
+        crate::group_tasks::remove_member_from_group(&group_list, member_to_remove, keys)
     })
 }
 
 /// グループタスクリストをNostrに保存（Kind 30001 - NIP-51）
-/// 
+///
 /// # Parameters
 /// - `group_list`: 暗号化されたグループタスクリスト
-pub fn save_group_task_list_to_nostr(
-    group_list: GroupTodoList,
-) -> Result<EventSendResult> {
+pub fn save_group_task_list_to_nostr(group_list: GroupTodoList) -> Result<EventSendResult> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(None).await?;
-        
+
         // 秘密鍵モードのみサポート
-        let keys = client.keys.as_ref()
+        let keys = client
+            .keys
+            .as_ref()
             .context("Secret key required for saving group task list")?;
-        
+
         // GroupTodoListをJSON文字列に変換
         let group_list_json = serde_json::to_string(&group_list)?;
-        
+
         // NIP-44で自己暗号化（グループメタデータのみ）
         let public_key = keys.public_key();
         let encrypted_content = nip44::encrypt(
@@ -3859,20 +4293,20 @@ pub fn save_group_task_list_to_nostr(
             &group_list_json,
             nip44::Version::V2,
         )?;
-        
+
         // d tag（グループ識別子）
         let d_tag_value = format!("meiso-group-{}", group_list.group_id);
-        
+
         let d_tag = Tag::custom(
             TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
             vec![d_tag_value.clone()],
         );
-        
+
         let title_tag = Tag::custom(
             TagKind::Custom(std::borrow::Cow::Borrowed("title")),
             vec![group_list.group_name.clone()],
         );
-        
+
         // メンバーをpタグで追加（検索可能にする - NIP-01標準）
         let mut tags = vec![d_tag, title_tag];
         for member_pubkey in &group_list.members {
@@ -3881,28 +4315,32 @@ pub fn save_group_task_list_to_nostr(
                     .map_err(|e| anyhow::anyhow!("Invalid member pubkey: {}", e))?,
             ));
         }
-        
+
         let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
             .tags(crate::nostr_client_meta::merge_nip89_into_tags(tags))
             .sign(keys)
             .await?;
-        
-        dev_println!("📤 Sending group task list event (d='{}', {} members)", d_tag_value, group_list.members.len());
-        
+
+        dev_println!(
+            "📤 Sending group task list event (d='{}', {} members)",
+            d_tag_value,
+            group_list.members.len()
+        );
+
         // リレーに送信
         client.send_event_with_result(event).await
     })
 }
 
 /// グループタスクリストの未署名イベントを作成（Amberモード用）
-/// 
+///
 /// GroupTodoListを受け取り、暗号化済みcontentで未署名イベントJSONを作成
-/// 
+///
 /// # Arguments
 /// * `group_list_json` - GroupTodoListのJSON文字列（暗号化前）
 /// * `encrypted_content` - Amberで暗号化済みのcontent
 /// * `public_key_hex` - 作成者の公開鍵（hex）
-/// 
+///
 /// # Returns
 /// 未署名イベントのJSON文字列
 pub fn create_unsigned_group_task_list_event(
@@ -3911,22 +4349,22 @@ pub fn create_unsigned_group_task_list_event(
     public_key_hex: String,
 ) -> Result<String> {
     // GroupTodoListをパース
-    let group_list: GroupTodoList = serde_json::from_str(&group_list_json)
-        .context("Failed to parse GroupTodoList JSON")?;
-    
+    let group_list: GroupTodoList =
+        serde_json::from_str(&group_list_json).context("Failed to parse GroupTodoList JSON")?;
+
     // d tag（グループ識別子）
     let d_tag_value = format!("meiso-group-{}", group_list.group_id);
-    
+
     let d_tag = Tag::custom(
         TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
         vec![d_tag_value.clone()],
     );
-    
+
     let title_tag = Tag::custom(
         TagKind::Custom(std::borrow::Cow::Borrowed("title")),
         vec![group_list.group_name.clone()],
     );
-    
+
     // メンバーをpタグで追加（検索可能にする）
     let mut tags = vec![d_tag, title_tag];
     for member_pubkey in &group_list.members {
@@ -3935,18 +4373,19 @@ pub fn create_unsigned_group_task_list_event(
                 .map_err(|e| anyhow::anyhow!("Invalid member pubkey: {}", e))?,
         ));
     }
-    
+
     // 未署名イベントを手動構築
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
-    
+
     // タグをJSON配列に変換
-    let mut tags_json: Vec<Vec<String>> = tags.iter().map(|tag| {
-        tag.clone().to_vec().iter().map(|s| s.to_string()).collect()
-    }).collect();
+    let mut tags_json: Vec<Vec<String>> = tags
+        .iter()
+        .map(|tag| tag.clone().to_vec().iter().map(|s| s.to_string()).collect())
+        .collect();
     crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags_json);
-    
+
     // 未署名イベントのJSON構造を作成
     let unsigned_event = serde_json::json!({
         "pubkey": public_key_hex,
@@ -3955,14 +4394,17 @@ pub fn create_unsigned_group_task_list_event(
         "tags": tags_json,
         "content": encrypted_content,
     });
-    
+
     // JSON文字列に変換
-    let unsigned_event_json = serde_json::to_string(&unsigned_event)
-        .context("Failed to serialize unsigned event")?;
-    
-    dev_println!("📝 Created unsigned group task list event (d='{}', {} members)", 
-        d_tag_value, group_list.members.len());
-    
+    let unsigned_event_json =
+        serde_json::to_string(&unsigned_event).context("Failed to serialize unsigned event")?;
+
+    dev_println!(
+        "📝 Created unsigned group task list event (d='{}', {} members)",
+        d_tag_value,
+        group_list.members.len()
+    );
+
     Ok(unsigned_event_json)
 }
 
@@ -3970,12 +4412,12 @@ pub fn create_unsigned_group_task_list_event(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedGroupTodoListEvent {
     pub event_id: String,
-    pub encrypted_content: String,  // イベント全体のcontent（JSON文字列）
+    pub encrypted_content: String, // イベント全体のcontent（JSON文字列）
     pub created_at: i64,
-    pub list_id: String,          // d tag (例: "meiso-group-family")
-    pub group_name: Option<String>,  // title tag (オプション)
-    pub encrypted_data: String,    // 暗号化されたタスクデータ（base64）
-    pub members: Vec<String>,      // メンバーの公開鍵リスト（hex）
+    pub list_id: String,                       // d tag (例: "meiso-group-family")
+    pub group_name: Option<String>,            // title tag (オプション)
+    pub encrypted_data: String,                // 暗号化されたタスクデータ（base64）
+    pub members: Vec<String>,                  // メンバーの公開鍵リスト（hex）
     pub encrypted_keys: Vec<EncryptedKeyData>, // 各メンバー用の暗号化AES鍵
 }
 
@@ -4000,54 +4442,57 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
 ) -> Result<Vec<EncryptedGroupTodoListEvent>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // 公開鍵をパース
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
-        
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
         // pタグで自分がメンバーとして含まれるKind 30001イベントを検索
-        let filter_p = Filter::new()
-            .kind(Kind::Custom(30001))
-            .custom_tag(
-                SingleLetterTag::lowercase(Alphabet::P),
-                vec![public_key_hex.clone()]
-            );
-        
+        let filter_p = Filter::new().kind(Kind::Custom(30001)).custom_tag(
+            SingleLetterTag::lowercase(Alphabet::P),
+            vec![public_key_hex.clone()],
+        );
+
         // 全てのKind 30001を取得（旧形式のmemberタグ対応）
-        let filter_all = Filter::new()
-            .kind(Kind::Custom(30001))
-            .author(public_key);
-        
+        let filter_all = Filter::new().kind(Kind::Custom(30001)).author(public_key);
+
         let events = client
             .client
             .fetch_events(vec![filter_p, filter_all], Some(Duration::from_secs(10)))
             .await?;
-        
+
         if events.is_empty() {
             dev_println!("⚠️ No encrypted group task list events found");
             return Ok(Vec::new());
         }
-        
+
         dev_println!("📥 Found {} encrypted group task list events", events.len());
-        
+
         // 同じd tagを持つイベントが複数ある場合、最新のもの（created_atが最大）のみを保持
         use std::collections::HashMap;
         let mut latest_events: HashMap<String, Event> = HashMap::new();
-        
+
         for event in events {
             // d タグを取得
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
-            
+
             if let Some(d_value) = d_tag {
                 // meiso-group-* のみを処理
                 if d_value.starts_with("meiso-group-") {
                     // 既存のイベントと比較して、より新しい場合のみ保持
                     if let Some(existing_event) = latest_events.get(&d_value) {
                         if event.created_at.as_u64() > existing_event.created_at.as_u64() {
-                            dev_println!("🔄 Updating latest event for d='{}' (newer timestamp)", d_value);
+                            dev_println!(
+                                "🔄 Updating latest event for d='{}' (newer timestamp)",
+                                d_value
+                            );
                             latest_events.insert(d_value, event);
                         } else {
                             dev_println!("⏭️  Skipping older event for d='{}'", d_value);
@@ -4058,33 +4503,45 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
                 }
             }
         }
-        
-        dev_println!("📋 After deduplication: {} unique group task lists", latest_events.len());
-        
+
+        dev_println!(
+            "📋 After deduplication: {} unique group task lists",
+            latest_events.len()
+        );
+
         let mut encrypted_lists = Vec::new();
-        
+
         for (d_tag, event) in latest_events {
             // title タグを取得（オプション）
-            let group_name = event.tags.iter()
+            let group_name = event
+                .tags
+                .iter()
                 .find(|tag| tag.kind() == TagKind::Title)
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
-            
+
             // p タグからメンバー一覧を取得
             // 注意: contentは暗号化されているため、pタグから取得する必要がある
-            let members: Vec<String> = event.tags.iter()
+            let members: Vec<String> = event
+                .tags
+                .iter()
                 .filter_map(|tag| {
-                    if tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::P)) {
+                    if tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::P))
+                    {
                         tag.content().map(|s| s.to_string())
                     } else {
                         None
                     }
                 })
                 .collect();
-            
+
             let members_count = members.len();
-            dev_println!("📋 Group '{}' has {} members from p tags", d_tag, members_count);
-            
+            dev_println!(
+                "📋 Group '{}' has {} members from p tags",
+                d_tag,
+                members_count
+            );
+
             // encrypted_content をそのまま保存（後でFlutter側でAmber復号化）
             encrypted_lists.push(EncryptedGroupTodoListEvent {
                 event_id: event.id.to_hex(),
@@ -4096,22 +4553,29 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
                 members,
                 encrypted_keys: Vec::new(), // 後でcontentを復号化してから取得
             });
-            
-            dev_println!("📦 Added encrypted group event: d='{}', event_id={}, members={}", 
-                d_tag, event.id.to_hex(), members_count);
+
+            dev_println!(
+                "📦 Added encrypted group event: d='{}', event_id={}, members={}",
+                d_tag,
+                event.id.to_hex(),
+                members_count
+            );
         }
-        
-        dev_println!("✅ Total encrypted group task lists: {}", encrypted_lists.len());
+
+        dev_println!(
+            "✅ Total encrypted group task lists: {}",
+            encrypted_lists.len()
+        );
         Ok(encrypted_lists)
     })
 }
 
 /// タスクデータをAES-256-GCMで暗号化（Amberモード用）
-/// 
+///
 /// # Arguments
 /// * `tasks_json` - タスクデータのJSON文字列
 /// * `aes_key_base64` - base64エンコードされたAES-256鍵（32バイト）
-/// 
+///
 /// # Returns
 /// base64エンコードされた暗号化データ（ノンス12バイト + 暗号文）
 pub fn encrypt_group_data_with_aes_key(
@@ -4122,13 +4586,13 @@ pub fn encrypt_group_data_with_aes_key(
 }
 
 /// AES鍵を使ってグループタスクデータを復号化（Amberモード用）
-/// 
+///
 /// Amberで復号化済みのAES鍵を使ってデータを復号化する
-/// 
+///
 /// # Arguments
 /// * `encrypted_data_base64` - base64エンコードされた暗号化データ
 /// * `aes_key_base64` - base64エンコードされたAES鍵（すでに復号化済み）
-/// 
+///
 /// # Returns
 /// 復号化されたJSON文字列
 pub fn decrypt_group_data_with_aes_key(
@@ -4144,70 +4608,79 @@ pub fn decrypt_group_data_with_aes_key(
 pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(None).await?;
-        
+
         // 秘密鍵モードのみサポート
-        let keys = client.keys.as_ref()
+        let keys = client
+            .keys
+            .as_ref()
             .context("Secret key required for fetching group task lists")?;
-        
+
         // 自分がメンバーとして含まれるKind 30001イベントを検索
         // 戦略: pタグで検索できない場合、全てのKind 30001を取得してフィルタリング
         let my_pubkey = keys.public_key().to_hex();
-        
+
         // まずpタグで検索（新形式）
-        let filter_p = Filter::new()
-            .kind(Kind::Custom(30001))
-            .custom_tag(
-                nostr_sdk::SingleLetterTag::lowercase(nostr_sdk::Alphabet::P),
-                vec![my_pubkey.clone()]
-            );
-        
+        let filter_p = Filter::new().kind(Kind::Custom(30001)).custom_tag(
+            nostr_sdk::SingleLetterTag::lowercase(nostr_sdk::Alphabet::P),
+            vec![my_pubkey.clone()],
+        );
+
         // 次に全てのKind 30001を取得（旧形式のmemberタグ対応）
-        let filter_all = Filter::new()
-            .kind(Kind::Custom(30001));
-        
+        let filter_all = Filter::new().kind(Kind::Custom(30001));
+
         let events = client
             .client
             .fetch_events(vec![filter_p, filter_all], Some(Duration::from_secs(10)))
             .await?;
-        
+
         if events.is_empty() {
             dev_println!("⚠️ No group task lists found");
             return Ok(Vec::new());
         }
-        
+
         dev_println!("📥 Found {} group task list events", events.len());
-        
+
         let mut group_lists = Vec::new();
-        
+
         for event in events {
             // d タグを取得してグループリストか確認
-            let d_tag = event.tags.iter()
-                .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D))
+                })
                 .and_then(|tag| tag.content())
                 .map(|s| s.to_string());
-            
+
             // meiso-group-* のみを処理
             if let Some(ref d_value) = d_tag {
                 if d_value.starts_with("meiso-group-") {
                     // NIP-44で復号化
-                    match nip44::decrypt(
-                        keys.secret_key(),
-                        &keys.public_key(),
-                        &event.content,
-                    ) {
+                    match nip44::decrypt(keys.secret_key(), &keys.public_key(), &event.content) {
                         Ok(decrypted) => {
                             match serde_json::from_str::<GroupTodoList>(&decrypted) {
                                 Ok(group_list) => {
                                     // 自分がメンバーに含まれているか確認
                                     if group_list.members.contains(&my_pubkey) {
-                                        dev_println!("✅ Decrypted group: {} (member check: ✓)", group_list.group_name);
+                                        dev_println!(
+                                            "✅ Decrypted group: {} (member check: ✓)",
+                                            group_list.group_name
+                                        );
                                         group_lists.push(group_list);
                                     } else {
-                                        dev_println!("⚠️ Skipping group {} (not a member)", group_list.group_name);
+                                        dev_println!(
+                                            "⚠️ Skipping group {} (not a member)",
+                                            group_list.group_name
+                                        );
                                     }
                                 }
                                 Err(e) => {
-                                    dev_eprintln!("❌ Failed to parse group task list JSON from {:?}: {}", d_tag, e);
+                                    dev_eprintln!(
+                                        "❌ Failed to parse group task list JSON from {:?}: {}",
+                                        d_tag,
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -4219,7 +4692,7 @@ pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
                 }
             }
         }
-        
+
         dev_println!("✅ Total group task lists fetched: {}", group_lists.len());
         Ok(group_lists)
     })
@@ -4279,14 +4752,14 @@ pub fn mls_create_todo_group(
 }
 
 /// Phase D.8: MLS TODOをグループに追加（暗号化、NIP-EE完全準拠）
-/// 
+///
 /// # Arguments
 /// * `nostr_id` - ユーザーのNostr公開鍵
 /// * `group_id` - グループID
 /// * `todo_json` - TODO項目のJSON文字列
 /// * `action` - アクション種別 (add | update | delete | toggle | reorder | move)
 /// * `todo_id` - TODO固有識別子
-/// 
+///
 /// # Returns
 /// * 暗号化されたメッセージ（hex）
 pub fn mls_add_todo(
@@ -4300,12 +4773,12 @@ pub fn mls_add_todo(
 }
 
 /// Phase D.8: MLS TODOを復号化（NIP-EE完全準拠）
-/// 
+///
 /// # Arguments
 /// * `nostr_id` - ユーザーのNostr公開鍵
 /// * `group_id` - グループID
 /// * `encrypted_msg` - Nostrイベントからの暗号化メッセージ（hex）
-/// 
+///
 /// # Returns
 /// * Tuple (todo_content, action, todo_id, sender_pubkey, listen_key)
 ///   - Phase 9.1形式: actionとtodo_idは空文字列
@@ -4332,11 +4805,7 @@ pub fn mls_decrypt_todo(
     let export_secret = crate::mls::get_export_secret(nostr_id.clone(), group_id.clone())?;
     let keys = crate::mls::nostr_keys_from_export_secret(&export_secret)?;
 
-    if let Ok(decrypted) = nip44::decrypt(
-        keys.secret_key(),
-        &keys.public_key(),
-        &encrypted_msg,
-    ) {
+    if let Ok(decrypted) = nip44::decrypt(keys.secret_key(), &keys.public_key(), &encrypted_msg) {
         return crate::group_tasks_mls::decrypt_todo_from_mls_group(nostr_id, group_id, decrypted);
     }
 
@@ -4354,16 +4823,14 @@ pub fn mls_decrypt_todo(
 }
 
 /// MLS: Key Package作成
-pub fn mls_create_key_package(nostr_id: String) -> Result<crate::group_tasks_mls::KeyPackageResult> {
+pub fn mls_create_key_package(
+    nostr_id: String,
+) -> Result<crate::group_tasks_mls::KeyPackageResult> {
     crate::group_tasks_mls::create_key_package(nostr_id)
 }
 
 /// MLS: グループに参加（Welcome Message使用）
-pub fn mls_join_group(
-    nostr_id: String,
-    group_id: String,
-    welcome_msg: Vec<u8>,
-) -> Result<()> {
+pub fn mls_join_group(nostr_id: String, group_id: String, welcome_msg: Vec<u8>) -> Result<()> {
     crate::group_tasks_mls::join_mls_group(nostr_id, group_id, welcome_msg)
 }
 
@@ -4372,68 +4839,71 @@ pub fn mls_join_group(
 // ========================================
 
 /// MLS SQLite DBをBase64エンコード形式でエクスポート
-/// 
+///
 /// Phase 2.5A: Key Package手動バックアップ機能
-/// 
+///
 /// ユーザーがアプリ削除前にバックアップを取得できるようにする。
 /// エクスポートしたBase64文字列をファイルまたはクリップボードに保存することで、
 /// アプリ再インストール後も既存のMLSグループに再参加可能になる。
-/// 
+///
 /// # Arguments
 /// * `db_path` - MLS SQLite DBのファイルパス
-/// 
+///
 /// # Returns
 /// * Base64エンコードされたDB内容
-/// 
+///
 /// # Error
 /// * DBファイルが存在しない場合
 /// * ファイル読み込みに失敗した場合
 pub fn export_mls_database_as_base64(db_path: String) -> Result<String> {
     use std::path::Path;
-    
+
     let path = Path::new(&db_path);
-    
+
     if !path.exists() {
         return Err(anyhow::anyhow!(
             "MLS database not found at: {}. Please create a group first.",
             db_path
         ));
     }
-    
+
     // ファイルを読み込み
     let db_bytes = std::fs::read(path)
         .with_context(|| format!("Failed to read MLS database from: {}", db_path))?;
-    
+
     if db_bytes.is_empty() {
         return Err(anyhow::anyhow!(
             "MLS database is empty (0 bytes). Nothing to export."
         ));
     }
-    
+
     // Base64エンコード
     let base64_encoded = base64::encode(&db_bytes);
-    
-    dev_println!("✅ [Phase 2.5A] MLS DB exported: {} bytes → {} base64 chars", 
-        db_bytes.len(), base64_encoded.len());
-    
+
+    dev_println!(
+        "✅ [Phase 2.5A] MLS DB exported: {} bytes → {} base64 chars",
+        db_bytes.len(),
+        base64_encoded.len()
+    );
+
     Ok(base64_encoded)
 }
 
 /// Base64エンコードされたMLS SQLite DBをインポート
-/// 
+///
 /// Phase 2.5A: Key Package手動リストア機能
-/// 
+///
 /// バックアップからMLS DBを復元する。
 /// 既存のDBがある場合は`.bak`拡張子でバックアップを作成してから上書きする。
-/// 
+///
 /// # Arguments
 /// * `db_path` - MLS SQLite DBのファイルパス
 /// * `base64_data` - Base64エンコードされたDB内容
 /// * `nostr_id` - ユーザーの公開鍵（DBリロード用）
-/// 
+///
 /// # Returns
 /// * 成功時は空文字列
-/// 
+///
 /// # Error
 /// * Base64デコードに失敗した場合
 /// * ファイル書き込みに失敗した場合
@@ -4444,51 +4914,56 @@ pub fn import_mls_database_from_base64(
     nostr_id: String,
 ) -> Result<String> {
     use std::path::Path;
-    
+
     // Base64デコード
-    let db_bytes = base64::decode(&base64_data)
-        .context("Invalid base64 data. Please check your backup.")?;
-    
+    let db_bytes =
+        base64::decode(&base64_data).context("Invalid base64 data. Please check your backup.")?;
+
     if db_bytes.is_empty() {
         return Err(anyhow::anyhow!(
             "Decoded database is empty (0 bytes). Invalid backup."
         ));
     }
-    
+
     dev_println!("📥 [Phase 2.5A] Importing MLS DB: {} bytes", db_bytes.len());
-    
+
     let path = Path::new(&db_path);
-    
+
     // 既存のDBがある場合はバックアップを作成
     if path.exists() {
         let backup_path = path.with_extension("bak");
         std::fs::copy(path, &backup_path)
             .context("Failed to create backup of existing database")?;
-        dev_println!("⚠️ [Phase 2.5A] Existing DB backed up to: {}", backup_path.display());
+        dev_println!(
+            "⚠️ [Phase 2.5A] Existing DB backed up to: {}",
+            backup_path.display()
+        );
     }
-    
+
     // 親ディレクトリを作成
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .context("Failed to create parent directory")?;
+        std::fs::create_dir_all(parent).context("Failed to create parent directory")?;
     }
-    
+
     // 新しいDBを書き込み
     std::fs::write(path, &db_bytes)
         .with_context(|| format!("Failed to write MLS database to: {}", db_path))?;
-    
+
     dev_println!("✅ [Phase 2.5A] MLS DB imported: {} bytes", db_bytes.len());
-    
+
     // MLS DBをメモリにリロード
     // 注意: ここでinit_mls_dbを呼ぶと、既存のグループ状態が失われる可能性があるため、
     // Flutter側でアプリ再起動を促す方が安全
     dev_println!("ℹ️ [Phase 2.5A] Please restart the app to load the restored database.");
-    
-    Ok(format!("Imported {} bytes. Please restart the app.", db_bytes.len()))
+
+    Ok(format!(
+        "Imported {} bytes. Please restart the app.",
+        db_bytes.len()
+    ))
 }
 
 /// MLS: グループ情報を取得
-/// 
+///
 /// グループ名、メンバーリスト、エポックを取得する。
 /// Welcome Message処理後、実際のグループ状態をFlutter側に伝搬するために使用。
 pub fn mls_get_group_info(
@@ -4499,15 +4974,15 @@ pub fn mls_get_group_info(
 }
 
 /// MLS: Key Package公開イベント作成（Kind 10443 - NIP-EE）
-/// 
+///
 /// Key PackageをKind 10443イベントとして公開することで、
 /// 他のユーザーがnpubから自動的にKey Packageを取得できるようになる
-/// 
+///
 /// # Arguments
 /// * `key_package_result` - mlsCreateKeyPackageの結果
 /// * `public_key_hex` - ユーザーの公開鍵（hex）
 /// * `relays` - Key Packageを公開するリレーのリスト
-/// 
+///
 /// # Returns
 /// * 未署名イベントJSON（Amber署名用）
 pub fn create_unsigned_key_package_event(
@@ -4516,40 +4991,48 @@ pub fn create_unsigned_key_package_event(
     relays: Vec<String>,
 ) -> Result<String> {
     use serde_json::json;
-    
+
     // 公開鍵をパース
-    let public_key = PublicKey::from_hex(&public_key_hex)
-        .context("Failed to parse public key")?;
-    
+    let public_key = PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+
     // 現在のタイムスタンプ
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     // NIP-EE（Kind 10443）のタグ構成
     let mut tags = Vec::new();
-    
+
     // MLS Protocol Version
-    tags.push(vec!["mls_protocol_version".to_string(), key_package_result.mls_protocol_version]);
-    
+    tags.push(vec![
+        "mls_protocol_version".to_string(),
+        key_package_result.mls_protocol_version,
+    ]);
+
     // Ciphersuite
-    tags.push(vec!["ciphersuite".to_string(), key_package_result.ciphersuite]);
-    
+    tags.push(vec![
+        "ciphersuite".to_string(),
+        key_package_result.ciphersuite,
+    ]);
+
     // Extensions (if any)
     if !key_package_result.extensions.is_empty() {
-        tags.push(vec!["extensions".to_string(), key_package_result.extensions]);
+        tags.push(vec![
+            "extensions".to_string(),
+            key_package_result.extensions,
+        ]);
     }
-    
+
     // Client識別
     tags.push(vec!["client".to_string(), "meiso".to_string()]);
-    
+
     // リレーリスト
     for relay_url in &relays {
         tags.push(vec!["relay".to_string(), relay_url.clone()]);
     }
     crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
-    
+
     // 未署名イベントJSON（Amber用）
     let unsigned_event = json!({
         "pubkey": public_key.to_hex(),
@@ -4558,21 +5041,21 @@ pub fn create_unsigned_key_package_event(
         "tags": tags,
         "content": key_package_result.key_package,
     });
-    
+
     let event_json = serde_json::to_string(&unsigned_event)?;
-    
+
     dev_println!("📦 Created unsigned key package event (Kind 10443) for Amber signing");
     Ok(event_json)
 }
 
 /// MLS: グループ招待を同期（Kind 30078から取得）
-/// 
+///
 /// 自分宛のグループ招待イベントを取得する
-/// 
+///
 /// # Arguments
 /// * `recipient_public_key_hex` - 受信者の公開鍵（hex）
 /// * `client_id` - NostrクライアントID（オプション）
-/// 
+///
 /// # Returns
 /// * グループ招待のJSON配列
 pub fn sync_group_invitations(
@@ -4580,7 +5063,7 @@ pub fn sync_group_invitations(
     client_id: Option<String>,
 ) -> Result<String> {
     use serde_json::json;
-    
+
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         let recipient_pubkey = PublicKey::from_hex(&recipient_public_key_hex)
@@ -4718,10 +5201,10 @@ pub fn sync_group_invitations(
 }
 
 /// MLS: グループ招待イベント作成（Kind 30078 + NIP-44）
-/// 
+///
 /// グループ招待通知をKind 30078イベントとして作成（未署名）
 /// 受信者の公開鍵でNIP-44暗号化される
-/// 
+///
 /// # Arguments
 /// * `sender_public_key_hex` - 送信者の公開鍵（hex）
 /// * `recipient_npub` - 受信者のnpub
@@ -4729,7 +5212,7 @@ pub fn sync_group_invitations(
 /// * `group_name` - グループ名
 /// * `welcome_msg_base64` - Welcome Message（base64エンコード済み）
 /// * `inviter_name` - 招待者の名前（オプション）
-/// 
+///
 /// # Returns
 /// * 未署名イベントJSON（Amber署名用）
 pub fn create_unsigned_group_invitation_event(
@@ -4741,13 +5224,13 @@ pub fn create_unsigned_group_invitation_event(
     inviter_name: Option<String>,
 ) -> Result<String> {
     use serde_json::json;
-    
+
     // 公開鍵をパース
-    let sender_pubkey = PublicKey::from_hex(&sender_public_key_hex)
-        .context("Failed to parse sender public key")?;
-    let recipient_pubkey = PublicKey::from_bech32(&recipient_npub)
-        .context("Failed to parse recipient npub")?;
-    
+    let sender_pubkey =
+        PublicKey::from_hex(&sender_public_key_hex).context("Failed to parse sender public key")?;
+    let recipient_pubkey =
+        PublicKey::from_bech32(&recipient_npub).context("Failed to parse recipient npub")?;
+
     // 招待データを作成
     let invitation_data = json!({
         "type": "group_invitation",
@@ -4760,33 +5243,37 @@ pub fn create_unsigned_group_invitation_event(
             .unwrap()
             .as_secs(),
     });
-    
+
     let content_json = serde_json::to_string(&invitation_data)?;
-    
+
     dev_println!("📤 Creating group invitation event");
     dev_println!("   Group: {}", group_name);
     dev_println!("   Recipient: {}", recipient_pubkey.to_hex());
-    
+
     // NIP-44で暗号化（注意: Amber署名前なので、ここでは暗号化できない）
     // → Amber署名版では、contentを平文で渡し、Flutter側で暗号化する必要がある
     // → または、秘密鍵モードでは署名前に暗号化する
-    
+
     // 簡略化のため、ここでは平文をそのまま渡す（実際の実装ではFlutter側で暗号化）
     // Amber対応のため、未署名イベントとして返す
-    
+
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     // d tag: group-invitation-{groupId}-{recipientPubkey}
-    let d_tag_value = format!("group-invitation-{}-{}", group_id, recipient_pubkey.to_hex());
-    
+    let d_tag_value = format!(
+        "group-invitation-{}-{}",
+        group_id,
+        recipient_pubkey.to_hex()
+    );
+
     let mut tags = Vec::new();
     tags.push(vec!["d".to_string(), d_tag_value.clone()]);
     tags.push(vec!["p".to_string(), recipient_pubkey.to_hex()]);
     crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
-    
+
     // 未署名イベントJSON
     // Note: contentは平文で渡す。実際の暗号化はFlutter側（Amber署名時）に実装予定
     let unsigned_event = json!({
@@ -4796,24 +5283,27 @@ pub fn create_unsigned_group_invitation_event(
         "tags": tags,
         "content": content_json,  // 平文（TODO: NIP-44暗号化）
     });
-    
+
     let event_json = serde_json::to_string(&unsigned_event)?;
-    
+
     dev_println!("✅ Created unsigned group invitation event");
     dev_println!("   Kind: 30078");
     dev_println!("   Recipient pubkey (hex): {}", recipient_pubkey.to_hex());
     dev_println!("   #p tag: {}", recipient_pubkey.to_hex());
-    dev_println!("   #d tag: {}", d_tag_value.chars().take(50).collect::<String>());
+    dev_println!(
+        "   #d tag: {}",
+        d_tag_value.chars().take(50).collect::<String>()
+    );
     Ok(event_json)
 }
 
 /// MLS: npubからKey Packageを取得（Kind 10443）
-/// 
+///
 /// 指定したnpubのユーザーが公開しているKey Packageを取得する
-/// 
+///
 /// # Arguments
 /// * `npub` - 取得対象ユーザーのnpub（bech32形式）
-/// 
+///
 /// # Returns
 /// * Key Package（hex文字列）
 pub fn fetch_key_package_by_npub(npub: String) -> Result<String> {
@@ -4827,29 +5317,28 @@ pub fn fetch_key_package_by_npub_with_client_id(
 ) -> Result<String> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        
+
         // npubを公開鍵（hex）に変換
-        let public_key = PublicKey::from_bech32(&npub)
-            .context("Failed to parse npub")?;
-        
+        let public_key = PublicKey::from_bech32(&npub).context("Failed to parse npub")?;
+
         dev_println!("🔍 Fetching Key Package for: {}", public_key.to_hex());
-        
+
         // Kind 10443イベントをクエリ
         let filter = Filter::new()
             .kind(Kind::Custom(10443))
             .author(public_key)
-            .limit(1);  // 最新のKey Packageのみ
-        
+            .limit(1); // 最新のKey Packageのみ
+
         let events = client
             .client
             .fetch_events(vec![filter], Some(Duration::from_secs(10)))
             .await?;
-        
+
         // 最新のKey Packageを取得
         if let Some(event) = events.first() {
             dev_println!("✅ Found Key Package event: {}", event.id.to_hex());
             dev_println!("   Created at: {}", event.created_at);
-            
+
             // タグから情報を取得（デバッグ用）
             for tag in event.tags.iter() {
                 let tag_vec = tag.clone().to_vec();
@@ -4859,7 +5348,7 @@ pub fn fetch_key_package_by_npub_with_client_id(
                     }
                 }
             }
-            
+
             // contentがKey Package本体
             Ok(event.content.clone())
         } else {
@@ -4877,18 +5366,14 @@ pub fn fetch_blossom_server_list() -> Result<Vec<String>> {
     fetch_blossom_server_list_with_client_id(None)
 }
 
-pub fn fetch_blossom_server_list_with_client_id(
-    client_id: Option<String>,
-) -> Result<Vec<String>> {
+pub fn fetch_blossom_server_list_with_client_id(client_id: Option<String>) -> Result<Vec<String>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         let public_key_hex = client.public_key_hex();
-        let public_key = PublicKey::from_hex(&public_key_hex)
-            .context("Failed to parse public key")?;
+        let public_key =
+            PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
 
-        let filter = Filter::new()
-            .kind(Kind::Custom(10063))
-            .author(public_key);
+        let filter = Filter::new().kind(Kind::Custom(10063)).author(public_key);
 
         let events = client
             .client
@@ -4919,10 +5404,7 @@ pub fn fetch_blossom_server_list_with_client_id(
 ///
 /// Amber モードでは `create_unsigned_blossom_auth_event` で未署名JSONを取得し、
 /// Amber 側で署名後に base64 エンコードして Authorization ヘッダーに使用する。
-pub fn sign_blossom_auth_event(
-    sha256_hex: String,
-    file_size: i64,
-) -> Result<String> {
+pub fn sign_blossom_auth_event(sha256_hex: String, file_size: i64) -> Result<String> {
     sign_blossom_auth_event_with_client_id(sha256_hex, file_size, None)
 }
 
@@ -4943,8 +5425,7 @@ pub fn sign_blossom_auth_event_with_client_id(
         let exp_str = expiration.to_string();
 
         let tags = vec![
-            Tag::parse(["t", "upload"])
-                .map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
+            Tag::parse(["t", "upload"]).map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
             Tag::parse(["x", sha256_hex.as_str()])
                 .map_err(|e| anyhow::anyhow!("tag parse error: {:?}", e))?,
             Tag::parse(["size", size_str.as_str()])
@@ -4976,8 +5457,7 @@ pub fn create_unsigned_blossom_auth_event(
 ) -> Result<String> {
     use serde_json::json;
 
-    let public_key =
-        PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+    let public_key = PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
 
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -5010,10 +5490,7 @@ pub fn create_unsigned_blossom_auth_event(
 /// Kind 27235 NIP-98 HTTP auth event を作成・署名して返す（秘密鍵モード）
 ///
 /// Amber モードでは `create_unsigned_nip98_auth_event` で未署名JSONを取得する。
-pub fn sign_nip98_auth_event(
-    url: String,
-    method: String,
-) -> Result<String> {
+pub fn sign_nip98_auth_event(url: String, method: String) -> Result<String> {
     sign_nip98_auth_event_with_client_id(url, method, None)
 }
 
@@ -5060,8 +5537,7 @@ pub fn create_unsigned_nip98_auth_event(
 ) -> Result<String> {
     use serde_json::json;
 
-    let public_key =
-        PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
+    let public_key = PublicKey::from_hex(&public_key_hex).context("Failed to parse public key")?;
 
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -5086,4 +5562,3 @@ pub fn create_unsigned_nip98_auth_event(
     dev_println!("📝 [NIP-98] Created unsigned Kind 27235 auth event for Amber signing");
     Ok(event_json)
 }
-

@@ -5,35 +5,34 @@ import '../../domain/entities/mls_group.dart';
 import '../../domain/entities/group_invitation.dart';
 
 /// MLS Group Local DataSource
-/// 
+///
 /// LocalStorageService（Hive）を使用してMLSグループと招待を管理する。
 /// CustomListモデルを使用してHiveに保存される。
 class MlsGroupLocalDataSource {
-  
   const MlsGroupLocalDataSource(this._localStorage);
   final LocalStorageService _localStorage;
-  
+
   // ========================================
   // MLSグループ操作
   // ========================================
-  
+
   /// MLSグループをローカルストレージから読み込み
-  /// 
+  ///
   /// [groupId]: グループID
   /// Returns: MLSグループ（存在しない場合はnull）
   Future<MlsGroup?> loadMlsGroup({required String groupId}) async {
     try {
       final lists = await _localStorage.loadCustomLists();
-      
+
       // isGroup=true かつ指定IDのCustomListを検索
       final customList = lists.firstWhere(
         (list) => list.id == groupId && list.isGroup,
         orElse: () => throw Exception('Group not found'),
       );
-      
+
       // CustomList → MlsGroupに変換
       final mlsGroup = _customListToMlsGroup(customList);
-      
+
       AppLogger.debug('[MlsGroupDataSource] Loaded MLS group: $groupId');
       return mlsGroup;
     } catch (e) {
@@ -41,40 +40,50 @@ class MlsGroupLocalDataSource {
         AppLogger.debug('[MlsGroupDataSource] MLS group not found: $groupId');
         return null;
       }
-      AppLogger.error('[MlsGroupDataSource] Failed to load MLS group', error: e);
+      AppLogger.error(
+        '[MlsGroupDataSource] Failed to load MLS group',
+        error: e,
+      );
       rethrow;
     }
   }
-  
+
   /// 全てのMLSグループをローカルストレージから読み込み
   Future<List<MlsGroup>> loadAllMlsGroups() async {
     try {
       final lists = await _localStorage.loadCustomLists();
-      
+
       // isGroup=true のCustomListのみフィルタ
-      final groupLists = lists.where((list) => list.isGroup && !list.isPendingInvitation);
-      
+      final groupLists = lists.where(
+        (list) => list.isGroup && !list.isPendingInvitation,
+      );
+
       // CustomList → MlsGroupに変換
       final mlsGroups = groupLists.map(_customListToMlsGroup).toList();
-      
-      AppLogger.debug('[MlsGroupDataSource] Loaded ${mlsGroups.length} MLS groups');
+
+      AppLogger.debug(
+        '[MlsGroupDataSource] Loaded ${mlsGroups.length} MLS groups',
+      );
       return mlsGroups;
     } catch (e) {
-      AppLogger.error('[MlsGroupDataSource] Failed to load all MLS groups', error: e);
+      AppLogger.error(
+        '[MlsGroupDataSource] Failed to load all MLS groups',
+        error: e,
+      );
       rethrow;
     }
   }
-  
+
   /// MLSグループをローカルストレージに保存
-  /// 
+  ///
   /// [group]: 保存するMLSグループ
   Future<void> saveMlsGroup(MlsGroup group) async {
     try {
       final lists = await _localStorage.loadCustomLists();
-      
+
       // MlsGroup → CustomListに変換
       final customList = _mlsGroupToCustomList(group);
-      
+
       // 既存のグループを更新 or 新規追加
       final index = lists.indexWhere((list) => list.id == group.groupId);
       if (index >= 0) {
@@ -82,53 +91,59 @@ class MlsGroupLocalDataSource {
       } else {
         lists.add(customList);
       }
-      
+
       await _localStorage.saveCustomLists(lists);
       AppLogger.debug('[MlsGroupDataSource] Saved MLS group: ${group.groupId}');
     } catch (e) {
-      AppLogger.error('[MlsGroupDataSource] Failed to save MLS group', error: e);
+      AppLogger.error(
+        '[MlsGroupDataSource] Failed to save MLS group',
+        error: e,
+      );
       rethrow;
     }
   }
-  
+
   /// MLSグループをローカルストレージから削除
-  /// 
+  ///
   /// [groupId]: グループID
   Future<void> deleteMlsGroup({required String groupId}) async {
     try {
       final lists = await _localStorage.loadCustomLists();
-      
+
       // 指定IDのグループを削除
       final updatedLists = lists.where((list) => list.id != groupId).toList();
-      
+
       await _localStorage.saveCustomLists(updatedLists);
       AppLogger.debug('[MlsGroupDataSource] Deleted MLS group: $groupId');
     } catch (e) {
-      AppLogger.error('[MlsGroupDataSource] Failed to delete MLS group', error: e);
+      AppLogger.error(
+        '[MlsGroupDataSource] Failed to delete MLS group',
+        error: e,
+      );
       rethrow;
     }
   }
-  
+
   // ========================================
   // グループ招待操作
   // ========================================
-  
+
   /// グループ招待をローカルストレージから読み込み
-  /// 
+  ///
   /// [groupId]: グループID
   Future<GroupInvitation?> loadInvitation({required String groupId}) async {
     try {
       final lists = await _localStorage.loadCustomLists();
-      
+
       // isPendingInvitation=true かつ指定IDのCustomListを検索
       final customList = lists.firstWhere(
         (list) => list.id == groupId && list.isPendingInvitation,
         orElse: () => throw Exception('Invitation not found'),
       );
-      
+
       // CustomList → GroupInvitationに変換
       final invitation = _customListToGroupInvitation(customList);
-      
+
       AppLogger.debug('[MlsGroupDataSource] Loaded invitation: $groupId');
       return invitation;
     } catch (e) {
@@ -136,40 +151,60 @@ class MlsGroupLocalDataSource {
         AppLogger.debug('[MlsGroupDataSource] Invitation not found: $groupId');
         return null;
       }
-      AppLogger.error('[MlsGroupDataSource] Failed to load invitation', error: e);
+      AppLogger.error(
+        '[MlsGroupDataSource] Failed to load invitation',
+        error: e,
+      );
       rethrow;
     }
   }
-  
+
   /// 全てのグループ招待をローカルストレージから読み込み
   Future<List<GroupInvitation>> loadAllInvitations() async {
     try {
       final lists = await _localStorage.loadCustomLists();
-      
+
       // isPendingInvitation=true のCustomListのみフィルタ
       final invitationLists = lists.where((list) => list.isPendingInvitation);
-      
+
       // CustomList → GroupInvitationに変換
-      final invitations = invitationLists.map(_customListToGroupInvitation).toList();
-      
-      AppLogger.debug('[MlsGroupDataSource] Loaded ${invitations.length} invitations');
+      final invitations = invitationLists
+          .map(_customListToGroupInvitation)
+          .toList();
+
+      AppLogger.debug(
+        '[MlsGroupDataSource] Loaded ${invitations.length} invitations',
+      );
       return invitations;
     } catch (e) {
-      AppLogger.error('[MlsGroupDataSource] Failed to load all invitations', error: e);
+      AppLogger.error(
+        '[MlsGroupDataSource] Failed to load all invitations',
+        error: e,
+      );
       rethrow;
     }
   }
-  
+
   /// グループ招待をローカルストレージに保存
-  /// 
+  ///
   /// [invitation]: 保存する招待
-  Future<void> saveInvitation(GroupInvitation invitation) async {
+  Future<void> saveInvitation(
+    GroupInvitation invitation, {
+    Set<String> blockedGroupIds = const <String>{},
+  }) async {
     try {
+      if (blockedGroupIds.contains(invitation.groupId)) {
+        AppLogger.info(
+          '[MlsGroupDataSource] Skip saving blocked invitation: ${invitation.groupId}',
+        );
+        return;
+      }
+
       final lists = await _localStorage.loadCustomLists();
-      
+
       // GroupInvitation → CustomListに変換
       final customList = _groupInvitationToCustomList(invitation);
-      
+
       // 既存の招待を更新 or 新規追加
       final index = lists.indexWhere((list) => list.id == invitation.groupId);
       if (index >= 0) {
@@ -177,37 +212,47 @@ class MlsGroupLocalDataSource {
       } else {
         lists.add(customList);
       }
-      
+
       await _localStorage.saveCustomLists(lists);
-      AppLogger.debug('[MlsGroupDataSource] Saved invitation: ${invitation.groupId}');
+      AppLogger.debug(
+        '[MlsGroupDataSource] Saved invitation: ${invitation.groupId}',
+      );
     } catch (e) {
-      AppLogger.error('[MlsGroupDataSource] Failed to save invitation', error: e);
+      AppLogger.error(
+        '[MlsGroupDataSource] Failed to save invitation',
+        error: e,
+      );
       rethrow;
     }
   }
-  
+
   /// グループ招待をローカルストレージから削除
-  /// 
+  ///
   /// [groupId]: グループID
   Future<void> deleteInvitation({required String groupId}) async {
     try {
       final lists = await _localStorage.loadCustomLists();
-      
+
       // 指定IDの招待を削除
-      final updatedLists = lists.where((list) => list.id != groupId || !list.isPendingInvitation).toList();
-      
+      final updatedLists = lists
+          .where((list) => list.id != groupId || !list.isPendingInvitation)
+          .toList();
+
       await _localStorage.saveCustomLists(updatedLists);
       AppLogger.debug('[MlsGroupDataSource] Deleted invitation: $groupId');
     } catch (e) {
-      AppLogger.error('[MlsGroupDataSource] Failed to delete invitation', error: e);
+      AppLogger.error(
+        '[MlsGroupDataSource] Failed to delete invitation',
+        error: e,
+      );
       rethrow;
     }
   }
-  
+
   // ========================================
   // 内部ヘルパーメソッド
   // ========================================
-  
+
   /// CustomList → MlsGroupに変換
   MlsGroup _customListToMlsGroup(CustomList customList) {
     return MlsGroup(
@@ -219,7 +264,7 @@ class MlsGroupLocalDataSource {
       updatedAt: customList.updatedAt,
     );
   }
-  
+
   /// MlsGroup → CustomListに変換
   CustomList _mlsGroupToCustomList(MlsGroup group) {
     return CustomList(
@@ -229,10 +274,13 @@ class MlsGroupLocalDataSource {
       updatedAt: group.updatedAt,
       isGroup: true,
       groupMembers: group.memberPubkeys,
-      welcomeMsg: (group.welcomeMessage != null && group.welcomeMessage!.isNotEmpty) ? group.welcomeMessage : null,
+      welcomeMsg:
+          (group.welcomeMessage != null && group.welcomeMessage!.isNotEmpty)
+          ? group.welcomeMessage
+          : null,
     );
   }
-  
+
   /// CustomList → GroupInvitationに変換
   GroupInvitation _customListToGroupInvitation(CustomList customList) {
     return GroupInvitation(
@@ -241,18 +289,18 @@ class MlsGroupLocalDataSource {
       inviterPubkey: customList.inviterNpub ?? '',
       inviterName: customList.inviterName,
       welcomeMessage: customList.welcomeMsg ?? '',
-      createdAt: customList.createdAt,  // Phase 1: receivedAt → createdAt
+      createdAt: customList.createdAt, // Phase 1: receivedAt → createdAt
       isPending: customList.isPendingInvitation,
     );
   }
-  
+
   /// GroupInvitation → CustomListに変換
   CustomList _groupInvitationToCustomList(GroupInvitation invitation) {
     return CustomList(
       id: invitation.groupId,
       name: invitation.groupName,
-      createdAt: invitation.createdAt,  // Phase 1: receivedAt → createdAt
-      updatedAt: invitation.createdAt,  // Phase 1: receivedAt → createdAt
+      createdAt: invitation.createdAt, // Phase 1: receivedAt → createdAt
+      updatedAt: invitation.createdAt, // Phase 1: receivedAt → createdAt
       // 招待はグループリストの一種なので isGroup=true を保持する
       // これがfalseだとUIや後続のローカル参照で「個人リスト」と誤認され、フォークの温床になる
       isGroup: true,
@@ -263,4 +311,3 @@ class MlsGroupLocalDataSource {
     );
   }
 }
-
