@@ -143,7 +143,10 @@ class _MediaServerSettingsScreenState
               onPressed: () {
                 final url = urlController.text.trim();
                 final parsed = Uri.tryParse(url);
-                if (url.isEmpty || parsed == null || !parsed.hasScheme) {
+                // 署名済みアップロードトークンを平文で送らないため、httpsのみ許可。
+                if (url.isEmpty ||
+                    parsed == null ||
+                    parsed.scheme.toLowerCase() != 'https') {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(l10n.invalidUrl)),
                   );

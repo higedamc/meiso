@@ -37,10 +37,22 @@ class MediaServerDiscoveryService {
     return merged;
   }
 
+  /// URLがHTTPSかどうか。署名済みアップロードトークンを平文で送らないため、
+  /// 取得元(kind:10063)/手動登録の双方で非HTTPSを除外する。
+  static bool _isHttps(String url) =>
+      Uri.tryParse(url)?.scheme.toLowerCase() == 'https';
+
   Future<List<MediaServer>> _fetchKind10063Servers() async {
     try {
       final urls = await fetchKind10063ServerUrls();
       return urls
+          .where((url) {
+            if (_isHttps(url)) return true;
+            AppLogger.warning(
+              '[MediaServerDiscovery] Skipping non-HTTPS kind:10063 server: $url',
+            );
+            return false;
+          })
           .map((url) => MediaServer(url: url, type: MediaServerType.blossom))
           .toList();
     } catch (e) {
@@ -55,16 +67,19 @@ class MediaServerDiscoveryService {
       final entries = prefs.getStringList(_storageKey);
       if (entries == null || entries.isEmpty) return [];
 
-      return entries.map((line) {
-        final parts = line.split('|');
-        return MediaServer(
-          url: parts[0],
-          type: parts.length > 1 && parts[1] == 'nip96'
-              ? MediaServerType.nip96
-              : MediaServerType.blossom,
-          isManual: true,
-        );
-      }).toList();
+      return entries
+          .map((line) {
+            final parts = line.split('|');
+            return MediaServer(
+              url: parts[0],
+              type: parts.length > 1 && parts[1] == 'nip96'
+                  ? MediaServerType.nip96
+                  : MediaServerType.blossom,
+              isManual: true,
+            );
+          })
+          .where((s) => _isHttps(s.url))
+          .toList();
     } catch (e) {
       AppLogger.warning(
         '[MediaServerDiscovery] Failed to load manual servers: $e',
@@ -75,6 +90,12 @@ class MediaServerDiscoveryService {
 
   /// Save a manually configured server.
   Future<void> addManualServer(MediaServer server) async {
+    if (!_isHttps(server.url)) {
+      AppLogger.warning(
+        '[MediaServerDiscovery] Rejected non-HTTPS manual server: ${server.url}',
+      );
+      return;
+    }
     final current = await _loadManualServers();
     if (current.any((s) => s.url == server.url)) return;
     current.add(server.copyWith(isManual: true));

@@ -47,6 +47,10 @@ class BlossomUploadService {
     final authBase64 = base64.encode(utf8.encode(authEventJson));
     final uploadUrl = _normalizeUrl(server.url, '/upload');
 
+    // 署名済みの Kind 24242 認証イベント(ベアラ相当)を平文で送らない。
+    // http:// だと MITM でトークンを盗まれ有効期限内にリプレイされうる。
+    _requireHttps(uploadUrl);
+
     final response = await _httpClient
         .put(
           Uri.parse(uploadUrl),
@@ -86,6 +90,15 @@ class BlossomUploadService {
   String _normalizeUrl(String baseUrl, String path) {
     final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
     return '$base$path';
+  }
+
+  void _requireHttps(String url) {
+    final scheme = Uri.tryParse(url)?.scheme.toLowerCase();
+    if (scheme != 'https') {
+      throw MediaFailure.uploadFailed(
+        'Insecure (non-HTTPS) server URL rejected: $url',
+      );
+    }
   }
 
   String _guessMimeType(String path) {

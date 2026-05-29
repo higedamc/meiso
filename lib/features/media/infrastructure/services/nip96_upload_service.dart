@@ -21,6 +21,7 @@ class Nip96UploadService {
 
   /// Fetch the NIP-96 server configuration.
   Future<_Nip96ServerInfo> _fetchServerInfo(String serverUrl) async {
+    _requireHttps(serverUrl);
     final wellKnownUrl = _normalizeUrl(serverUrl, '/.well-known/nostr/nip96.json');
     AppLogger.debug('[NIP-96] Fetching server info from $wellKnownUrl');
 
@@ -57,6 +58,10 @@ class Nip96UploadService {
     }) signNip98Event,
   }) async {
     final serverInfo = await _fetchServerInfo(server.url);
+
+    // サーバ応答の api_url が http:// にダウングレードされていないか検証する。
+    // 署名済み NIP-98 トークンを平文で送るとリプレイされうる。
+    _requireHttps(serverInfo.apiUrl);
 
     AppLogger.info('[NIP-96] Uploading to ${serverInfo.apiUrl}');
 
@@ -131,6 +136,15 @@ class Nip96UploadService {
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
     return '$base$path';
+  }
+
+  void _requireHttps(String url) {
+    final scheme = Uri.tryParse(url)?.scheme.toLowerCase();
+    if (scheme != 'https') {
+      throw MediaFailure.uploadFailed(
+        'Insecure (non-HTTPS) server URL rejected: $url',
+      );
+    }
   }
 }
 
