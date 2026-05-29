@@ -51,19 +51,19 @@ class BlossomUploadService {
     // http:// だと MITM でトークンを盗まれ有効期限内にリプレイされうる。
     _requireHttps(uploadUrl);
 
-    final response = await _httpClient
-        .put(
-          Uri.parse(uploadUrl),
-          headers: {
-            'Authorization': 'Nostr $authBase64',
-            'Content-Type': _guessMimeType(file.path),
-          },
-          body: bytes,
-        )
-        .timeout(
+    // followRedirects=false: サーバが http:// へリダイレクトしても追従せず、
+    // 署名済みトークンが平文経路に乗るのを防ぐ（3xxは失敗として扱う）。
+    final request = http.Request('PUT', Uri.parse(uploadUrl))
+      ..followRedirects = false
+      ..headers['Authorization'] = 'Nostr $authBase64'
+      ..headers['Content-Type'] = _guessMimeType(file.path)
+      ..bodyBytes = bytes;
+
+    final streamed = await _httpClient.send(request).timeout(
           const Duration(minutes: 2),
           onTimeout: () => throw MediaFailure.timeout(),
         );
+    final response = await http.Response.fromStream(streamed);
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       AppLogger.error(

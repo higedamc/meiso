@@ -73,6 +73,8 @@ class Nip96UploadService {
     final authBase64 = base64.encode(utf8.encode(authEventJson));
 
     final request = http.MultipartRequest('POST', Uri.parse(serverInfo.apiUrl));
+    // http:// へのリダイレクトに追従して署名済みトークンを平文送信しない。
+    request.followRedirects = false;
     request.headers['Authorization'] = 'Nostr $authBase64';
     request.files.add(
       await http.MultipartFile.fromPath('file', file.path),
