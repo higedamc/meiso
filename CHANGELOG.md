@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-05-29
+
+### Fixed
+- **Calendar crash when opening via TODAY**: `table_calendar`'s internal `late final _pageController` could be initialized twice on subtree re-inflation, throwing `LateInitializationError: Field '_pageController@...' has already been initialized` and leaving the screen stuck until the app was killed. `ExpandableCalendar` now mounts the calendar only while visible (plus the closing animation), so a fresh state is created on every open and the double-init cannot occur. Added regression tests in `test/calendar_pagecontroller_repro_test.dart`. (relates to Issue #132)
+- **Custom list deletion zombie resurrection**: switched from last-writer-wins recreation to permanent tombstones so deleted lists no longer reappear after a sync.
+
 ## [1.3.0] - 2026-04-07
 
 ### Added
