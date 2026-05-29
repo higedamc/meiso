@@ -1125,7 +1125,13 @@ class TodosNotifier
           )) {
             links.add(TaskLink(targetTaskId: targetId, linkType: linkType));
           }
-          return t.copyWith(taskLinks: links, needsSync: true);
+          // updatedAtを更新しないと、syncのLWWマージ(remoteUpdated.isAfter)で
+          // リンク変更が他端末に伝播しないことがある。
+          return t.copyWith(
+            taskLinks: links,
+            needsSync: true,
+            updatedAt: DateTime.now(),
+          );
         }
         return t;
       }).toList();
@@ -1147,7 +1153,13 @@ class TodosNotifier
           links.removeWhere(
             (l) => l.targetTaskId == targetId && l.linkType == linkType,
           );
-          return t.copyWith(taskLinks: links, needsSync: true);
+          // updatedAtを更新しないと、syncのLWWマージでリンク削除が他端末に
+          // 伝播せず、削除済みリンクが復活することがある。
+          return t.copyWith(
+            taskLinks: links,
+            needsSync: true,
+            updatedAt: DateTime.now(),
+          );
         }
         return t;
       }).toList();
