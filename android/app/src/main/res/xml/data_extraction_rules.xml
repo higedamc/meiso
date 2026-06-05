@@ -5,19 +5,32 @@
   meiso はローカルに次のような機微データを保持する:
     - <doc>/mls.db (MLS グループ秘密)
     - <doc>/nostr_key.enc (AES-256-GCM 暗号化済みではあるが、攻撃面を増やしたくない)
-    - Hive boxes: todos / settings / custom_lists
-    - SharedPreferences: manual_media_servers
+    - Hive boxes: todos / settings / custom_lists / nostr_event_cache
+    - SharedPreferences: manual_media_servers, language, etc.
 
   これらは絶対にユーザー間でデバイス転送されたり、Google Drive などの
-  クラウドバックアップに含まれてはいけない。`include` 要素を一切書かず
-  `disableIfNoEncryptionCapabilities="true"` を付けることで、
-  Android が「デフォルトで全てを除外」する。
+  クラウドバックアップに含まれてはいけない。
+
+  注意: Android は <include> も <exclude> も無い場合「全てを含める」を
+  デフォルトとするため、空セクションは "全部許可" と解釈される。
+  AndroidManifest 側の `android:allowBackup="false"` がマスターキルスイッチ
+  ではあるが、この XML 単体でも安全になるよう、ルートを明示的に exclude する。
+  もし将来 allowBackup を再度 true に切り替えるユースケースが出てきても、
+  この XML を「include を追加して必要分だけ許可する allowlist」として運用できる。
 -->
 <data-extraction-rules>
     <cloud-backup disableIfNoEncryptionCapabilities="true">
-        <!-- 何も include しないので Cloud Backup には何も含まれない -->
+        <exclude domain="root" path="."/>
+        <exclude domain="file" path="."/>
+        <exclude domain="database" path="."/>
+        <exclude domain="sharedpref" path="."/>
+        <exclude domain="external" path="."/>
     </cloud-backup>
     <device-transfer>
-        <!-- 何も include しないので D2D 移行でも転送されない -->
+        <exclude domain="root" path="."/>
+        <exclude domain="file" path="."/>
+        <exclude domain="database" path="."/>
+        <exclude domain="sharedpref" path="."/>
+        <exclude domain="external" path="."/>
     </device-transfer>
 </data-extraction-rules>
