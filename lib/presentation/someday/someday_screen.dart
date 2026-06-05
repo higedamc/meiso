@@ -19,6 +19,11 @@ import '../planning_detail/planning_detail_screen.dart';
 // Phase D.5: MLS UseCase統合
 import '../../features/mls/application/providers/usecase_providers.dart';
 import '../../features/mls/application/usecases/accept_group_invitation_usecase.dart';
+// shared-v1: 共有鍵リストの招待受諾
+import '../../features/shared_list/application/providers/usecase_providers.dart'
+    as shared_usecase;
+import '../../features/shared_list/application/usecases/accept_shared_invitation_usecase.dart';
+import '../../features/shared_list/domain/entities/shared_invitation.dart';
 
 /// SOMEDAYページ（リスト管理画面）- モーダル版
 class SomedayScreen extends ConsumerStatefulWidget {
@@ -1060,6 +1065,83 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           );
         }
         AppLogger.info('✅ [GroupInvitation] GW17 invitation accepted');
+        return;
+      }
+
+      if (list.protocolVersion == CustomListHelpers.protocolSharedV1) {
+        if (list.welcomeMsg == null || list.inviterNpub == null) {
+          throw Exception('Shared invitation content not found');
+        }
+
+        final nostrService = ref.read(nostrServiceProvider);
+        final userPubkey = await nostrService.getPublicKey();
+        if (userPubkey == null) {
+          throw Exception('User public key not available');
+        }
+
+        final invitation = SharedInvitation(
+          groupId: list.id,
+          groupName: list.name,
+          encryptedContent: list.welcomeMsg!,
+          inviterPubkey: list.inviterNpub!,
+          inviterName: list.inviterName,
+          createdAt: list.updatedAt,
+        );
+
+        final acceptUseCase = ref.read(
+          shared_usecase.acceptSharedInvitationUseCaseProvider,
+        );
+        final result = await ErrorHandler.withTimeout(
+          operation: () => acceptUseCase(
+            AcceptSharedInvitationParams(
+              invitation: invitation,
+              recipientPublicKeyHex: userPubkey,
+            ),
+          ),
+          operationName: 'acceptSharedInvitation',
+          timeout: const Duration(minutes: 2),
+        );
+
+        await result.fold(
+          (failure) async {
+            AppLogger.error(
+              '❌ [SharedInvitation] Failed: ${failure.message}',
+            );
+            throw Exception(failure.message);
+          },
+          (_) async {
+            final updatedList = list.copyWith(
+              isGroup: true,
+              isPendingInvitation: false,
+              inviterNpub: null,
+              inviterName: null,
+              welcomeMsg: null,
+              acceptedAt: DateTime.now(),
+              protocolVersion: CustomListHelpers.protocolSharedV1,
+            );
+            await ref
+                .read(customListsProvider.notifier)
+                .updateList(updatedList);
+            try {
+              await ref.read(todosProvider.notifier).syncGroupTodos(list.id);
+            } catch (e) {
+              AppLogger.warning(
+                '⚠️ [SharedInvitation] Failed to sync group todos: $e',
+              );
+            }
+
+            if (context.mounted) {
+              Navigator.of(context, rootNavigator: true).pop();
+              isLoadingDialogShown = false;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('✅ ${list.name}に参加しました（共有鍵）'),
+                ),
+              );
+            }
+          },
+        );
+        AppLogger.info('✅ [SharedInvitation] shared-v1 invitation accepted');
         return;
       }
 

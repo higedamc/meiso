@@ -21,6 +21,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   final TextEditingController _memberNpubController = TextEditingController();
   final List<Map<String, dynamic>> _mlsMembers =
       []; // {npub, keyPackage, hasWarning}
+  /// true = legacy MLS, false = shared-v1 (default)
   bool _useMls = false;
   bool _isLoading = false;
   bool _isFetchingKeyPackage = false;
@@ -605,29 +606,25 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       final memberNpubs = _mlsMembers.map((m) => m['npub'] as String).toList();
 
       AppLogger.info(
-        '📤 [AddGroupListDialog] Creating group: mode=${_useMls ? "mls-v1" : "gw17-v1"}, members=${memberNpubs.length}',
+        '📤 [AddGroupListDialog] Creating group: mode=${_useMls ? "mls-v1" : "shared-v1"}, members=${memberNpubs.length}',
       );
 
       final groupList = _useMls
-          ? await ref
-                .read(customListsProvider.notifier)
-                .createMlsGroupList(
-                  name: _groupNameController.text.trim(),
-                  keyPackages: _mlsMembers
-                      .where((m) => m['keyPackage'] != null)
-                      .map((m) => m['keyPackage'] as String)
-                      .toList(),
-                  memberNpubs: _mlsMembers
-                      .where((m) => m['keyPackage'] != null)
-                      .map((m) => m['npub'] as String)
-                      .toList(),
-                )
-          : await ref
-                .read(customListsProvider.notifier)
-                .createGw17GroupList(
-                  name: _groupNameController.text.trim(),
-                  memberNpubs: memberNpubs,
-                );
+          ? await ref.read(customListsProvider.notifier).createMlsGroupList(
+                name: _groupNameController.text.trim(),
+                keyPackages: _mlsMembers
+                    .where((m) => m['keyPackage'] != null)
+                    .map((m) => m['keyPackage'] as String)
+                    .toList(),
+                memberNpubs: _mlsMembers
+                    .where((m) => m['keyPackage'] != null)
+                    .map((m) => m['npub'] as String)
+                    .toList(),
+              )
+          : await ref.read(customListsProvider.notifier).createSharedGroupList(
+                name: _groupNameController.text.trim(),
+                memberNpubs: memberNpubs,
+              );
 
       AppLogger.info(
         '🔍 [AddGroupListDialog] Debug: createMlsGroupList returned: ${groupList != null ? "SUCCESS" : "NULL"}',
@@ -653,7 +650,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       if (mounted) {
         final errorHint = _useMls
             ? 'MLS: Key Package取得状況を確認して再試行してください。'
-            : 'NIP-17: npubとリレー接続を確認して再試行してください。';
+            : '共有鍵: npubとリレー接続を確認して再試行してください。';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ グループ作成失敗: $errorHint'),
