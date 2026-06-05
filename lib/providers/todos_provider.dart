@@ -32,6 +32,9 @@ import '../features/todo/infrastructure/providers/repository_providers.dart';
 // MLS: グループ管理用Repositoryのインポート
 import '../features/mls/infrastructure/providers/repository_providers.dart'
     as mls_providers;
+import '../features/shared_list/infrastructure/providers/repository_providers.dart'
+    as shared_providers;
+import '../utils/fractional_index.dart';
 
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
@@ -4969,6 +4972,14 @@ class TodosNotifier
         return;
       }
 
+      if (groupList.isSharedProtocol) {
+        await _syncSharedGroupTodos(groupId: groupId);
+        AppLogger.info(
+          '✅ [syncGroupTodos] Completed shared-v1 group todos sync for: $groupId',
+        );
+        return;
+      }
+
       // 1. ローカルからMLSグループを読み込む（存在確認）
       final mlsGroupRepo = _ref.read(mls_providers.mlsGroupRepositoryProvider);
       final loadResult = await mlsGroupRepo.loadMlsGroupFromLocal(
@@ -5238,6 +5249,177 @@ class TodosNotifier
         stackTrace: st,
       );
     }
+  }
+
+  /// shared-v1: kind:35000 タスクイベントを購読して LWW 適用
+  Future<void> _syncSharedGroupTodos({required String groupId}) async {
+    try {
+      final repo = _ref.read(shared_providers.sharedListRepositoryProvider);
+      final credsResult = await repo.loadCredentials(groupId: groupId);
+      final credentials = credsResult.fold((_) => null, (c) => c);
+      if (credentials == null) {
+        AppLogger.warning(
+          '⚠️ [shared-v1] No group credentials for $groupId',
+        );
+        return;
+      }
+
+      final last = localStorageService.getLastSharedGroupTodosSyncTime(groupId);
+      final effectiveSince = last != null
+          ? last.subtract(const Duration(minutes: 2))
+          : DateTime.fromMillisecondsSinceEpoch(0);
+
+      final eventsResult = await repo.fetchTaskEvents(
+        groupNpubHex: credentials.groupNpubHex,
+        since: effectiveSince,
+      );
+
+      final events = eventsResult.fold((_) => <Map<String, dynamic>>[], (e) => e);
+      if (events.isEmpty) {
+        await localStorageService.setLastSharedGroupTodosSyncTime(
+          groupId,
+          DateTime.now(),
+        );
+        return;
+      }
+
+      final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
+      final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
+      final byId = <String, Todo>{};
+      for (final entry in updated.entries) {
+        for (final t in entry.value) {
+          if (t.customListId == groupId) {
+            byId[t.id] = t;
+          }
+        }
+      }
+
+      final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
+
+      for (final eventData in events) {
+        try {
+          final kind = eventData['kind'] as int?;
+          if (kind != 35000) continue;
+
+          final signedJson = jsonEncode(eventData);
+          final decrypted = await rust_api.sharedDecryptTaskEvent(
+            groupNsecHex: credentials.groupNsecHex,
+            eventJson: signedJson,
+          );
+          final data = jsonDecode(decrypted) as Map<String, dynamic>;
+          final parsed = _parseSharedTaskPayload(
+            data: data,
+            groupId: groupId,
+            editorPubkey: publicKey,
+          );
+          if (parsed == null) continue;
+
+          if (data['deleted'] == true) {
+            byId.remove(parsed.id);
+            for (final dateKey in updated.keys) {
+              updated[dateKey] = updated[dateKey]!
+                  .where((t) => t.id != parsed.id)
+                  .toList();
+            }
+            continue;
+          }
+
+          final prev = byId[parsed.id];
+          if (prev != null && prev.date != parsed.date) {
+            updated[prev.date] = (updated[prev.date] ?? [])
+                .where((t) => t.id != parsed.id)
+                .toList();
+          } else {
+            updated[parsed.date] = (updated[parsed.date] ?? [])
+                .where((t) => t.id != parsed.id)
+                .toList();
+          }
+          byId[parsed.id] = parsed;
+          updated[parsed.date] ??= [];
+          updated[parsed.date]!.add(parsed);
+        } catch (e) {
+          AppLogger.error('❌ [shared-v1] Failed to apply event: $e', error: e);
+        }
+      }
+
+      final allTodos = <Todo>[];
+      for (final dateGroup in updated.values) {
+        allTodos.addAll(dateGroup);
+      }
+      await localStorageService.saveTodos(allTodos);
+      state = AsyncValue.data(updated);
+      await localStorageService.setLastSharedGroupTodosSyncTime(
+        groupId,
+        DateTime.now(),
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [shared-v1] sync failed',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
+  Todo? _parseSharedTaskPayload({
+    required Map<String, dynamic> data,
+    required String groupId,
+    String? editorPubkey,
+  }) {
+    final id = data['id'] as String?;
+    if (id == null || id.isEmpty) return null;
+    final status = data['status'] as String? ?? 'open';
+    final completed = status == 'done' || data['completed'] == true;
+    DateTime? date;
+    final dateRaw = data['date'];
+    if (dateRaw is String && dateRaw.isNotEmpty) {
+      date = DateTime.tryParse(dateRaw);
+    }
+    return Todo(
+      id: id,
+      title: data['title'] as String? ?? '',
+      completed: completed,
+      date: date,
+      order: (data['order'] as num?)?.toInt() ?? 0,
+      createdAt: DateTime.tryParse(data['created_at'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(data['updated_at'] as String? ?? '') ??
+          DateTime.now(),
+      customListId: groupId,
+      needsSync: false,
+    );
+  }
+
+  Future<String?> _sendSharedGroupTodoAction({
+    required String groupId,
+    required String action,
+    required String payload,
+    Todo? todo,
+    String? todoIdOverride,
+    String? editorPubkey,
+  }) async {
+    final repo = _ref.read(shared_providers.sharedListRepositoryProvider);
+    final credsResult = await repo.loadCredentials(groupId: groupId);
+    final credentials = credsResult.fold((_) => null, (c) => c);
+    if (credentials == null) {
+      throw Exception('shared-v1 credentials not found: $groupId');
+    }
+
+    final data = jsonDecode(payload) as Map<String, dynamic>;
+    data['status'] = (todo?.completed ?? false) ? 'done' : 'open';
+    data['order'] = data['order'] ?? FractionalIndex.initial;
+    data['list_id'] = groupId;
+    data['deleted'] = action == 'delete';
+    data['updated_at'] = DateTime.now().toIso8601String();
+    if (editorPubkey != null) {
+      data['editor_pubkey'] = editorPubkey;
+    }
+
+    final result = await repo.publishSignedTaskEvent(
+      groupNsecHex: credentials.groupNsecHex,
+      taskJson: jsonEncode(data),
+    );
+    return result.fold((_) => null, (id) => id);
   }
 
   Future<void> _syncGw17GroupTodos({
@@ -5857,6 +6039,14 @@ class TodosNotifier
         );
         eventId = sentId ?? eventId;
       }
+    } else if (groupList.isSharedProtocol) {
+      eventId = await _sendSharedGroupTodoAction(
+        groupId: groupId,
+        action: action,
+        todo: todo,
+        payload: payload,
+        editorPubkey: publicKey,
+      );
     } else {
       await _initMlsIfNeeded();
       // MLS暗号化（NIP-EE）

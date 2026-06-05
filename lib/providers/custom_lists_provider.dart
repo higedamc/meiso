@@ -21,6 +21,11 @@ import '../features/mls/application/providers/usecase_providers.dart'
 import '../features/mls/application/usecases/create_mls_group_usecase.dart';
 import '../features/mls/application/usecases/send_group_invitation_usecase.dart';
 import '../features/mls/application/usecases/sync_group_invitations_usecase.dart';
+import '../features/shared_list/application/providers/usecase_providers.dart'
+    as shared_usecase;
+import '../features/shared_list/application/usecases/create_shared_group_usecase.dart';
+import '../features/shared_list/application/usecases/send_shared_invitation_usecase.dart';
+import '../features/shared_list/application/usecases/sync_shared_invitations_usecase.dart';
 // Issue #102: MLS Repository統合（グループ復元用）
 import '../features/mls/infrastructure/providers/repository_providers.dart'
     as mls_repo;
@@ -1081,6 +1086,8 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       // NIP-17最小構成の招待を先に同期（MLSと併存）
       await _syncGw17Invitations(recipientPublicKey: userPubkey);
 
+      await _syncSharedInvitations(recipientPublicKey: userPubkey);
+
       AppLogger.info('📥 [GroupInvitations] Syncing group invitations...');
 
       // Phase D.5: SyncGroupInvitationsUseCaseを使用
@@ -1626,6 +1633,172 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         stackTrace: st,
       );
       return null;
+    }
+  }
+
+  /// shared-v1: 共有鍵グループリスト作成 + 招待送信
+  Future<CustomList?> createSharedGroupList({
+    required String name,
+    required List<String> memberNpubs,
+  }) async {
+    if (name.trim().isEmpty) return null;
+
+    try {
+      final lists = state.whenData((lists) => lists).value ?? [];
+      final now = DateTime.now();
+      final normalizedName = name.trim().toUpperCase();
+      const uuid = Uuid();
+      final groupId = uuid.v4();
+
+      AppLogger.info('🔐 [CustomLists] Creating shared-v1 group: "$normalizedName"');
+
+      final createUseCase = _ref.read(
+        shared_usecase.createSharedGroupUseCaseProvider,
+      );
+      final credentialsResult = await createUseCase(
+        CreateSharedGroupParams(groupName: normalizedName, groupId: groupId),
+      );
+
+      final credentials = credentialsResult.fold(
+        (failure) => throw Exception(failure.message),
+        (c) => c,
+      );
+
+      final sendInvitationUseCase = _ref.read(
+        shared_usecase.sendSharedInvitationUseCaseProvider,
+      );
+
+      var successCount = 0;
+      for (final npub in memberNpubs) {
+        final sent = await sendInvitationUseCase(
+          SendSharedInvitationParams(
+            recipientNpub: npub,
+            groupId: groupId,
+            groupName: normalizedName,
+            groupNsecHex: credentials.groupNsecHex,
+          ),
+        );
+        sent.fold(
+          (_) {},
+          (_) => successCount++,
+        );
+      }
+
+      if (successCount == 0 && memberNpubs.isNotEmpty) {
+        throw Exception('招待送信が全て失敗しました');
+      }
+
+      final newGroupList = CustomList(
+        id: groupId,
+        name: normalizedName,
+        order: _getNextOrder(lists),
+        createdAt: now,
+        updatedAt: now,
+        isGroup: true,
+        protocolVersion: CustomListHelpers.protocolSharedV1,
+      );
+
+      final updatedLists = [...lists, newGroupList];
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
+      return result.fold(
+        (failure) {
+          AppLogger.error(
+            '❌ [CustomLists] Failed to save shared group: ${failure.message}',
+          );
+          return null;
+        },
+        (_) {
+          state = AsyncValue.data(updatedLists);
+          _updateCustomListOrderInSettings(updatedLists);
+          return newGroupList;
+        },
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [CustomLists] Failed to create shared group',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
+
+  Future<void> _syncSharedInvitations({
+    required String recipientPublicKey,
+  }) async {
+    try {
+      final syncUseCase = _ref.read(
+        shared_usecase.syncSharedInvitationsUseCaseProvider,
+      );
+      final result = await syncUseCase(
+        SyncSharedInvitationsParams(recipientPublicKeyHex: recipientPublicKey),
+      );
+
+      await result.fold(
+        (failure) async {
+          AppLogger.error(
+            '❌ [SharedInvitations] Sync failed: ${failure.message}',
+          );
+        },
+        (invitations) async {
+          if (invitations.isEmpty) return;
+
+          final currentLists = state.valueOrNull ?? <CustomList>[];
+          final updatedLists = List<CustomList>.from(currentLists);
+          var hasChanges = false;
+
+          for (final invitation in invitations) {
+            final existingIndex = updatedLists.indexWhere(
+              (list) => list.id == invitation.groupId,
+            );
+
+            if (existingIndex == -1) {
+              updatedLists.add(
+                CustomList(
+                  id: invitation.groupId,
+                  name: invitation.groupName.toUpperCase(),
+                  order: _getNextOrder(updatedLists),
+                  createdAt: invitation.createdAt,
+                  updatedAt: invitation.createdAt,
+                  isGroup: true,
+                  isPendingInvitation: true,
+                  inviterNpub: invitation.inviterPubkey,
+                  inviterName: invitation.inviterName,
+                  welcomeMsg: invitation.encryptedContent,
+                  protocolVersion: CustomListHelpers.protocolSharedV1,
+                ),
+              );
+              hasChanges = true;
+            } else {
+              final existing = updatedLists[existingIndex];
+              if (existing.acceptedAt != null) continue;
+              updatedLists[existingIndex] = existing.copyWith(
+                name: invitation.groupName.toUpperCase(),
+                updatedAt: invitation.createdAt,
+                isGroup: true,
+                inviterNpub: invitation.inviterPubkey,
+                inviterName: invitation.inviterName,
+                welcomeMsg: invitation.encryptedContent,
+                protocolVersion: CustomListHelpers.protocolSharedV1,
+              );
+              hasChanges = true;
+            }
+          }
+
+          if (hasChanges) {
+            await _repository.saveCustomListsToLocal(updatedLists);
+            state = AsyncValue.data(updatedLists);
+          }
+        },
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [SharedInvitations] Failed to sync',
+        error: e,
+        stackTrace: st,
+      );
+      final currentLists = state.valueOrNull ?? <CustomList>[];
+      state = AsyncValue.data(currentLists);
     }
   }
 
