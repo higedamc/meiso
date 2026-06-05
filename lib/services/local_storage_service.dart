@@ -39,6 +39,9 @@ class LocalStorageService {
       'last_custom_lists_sync_time';
   static const String _lastMlsGroupTodosSyncTimesKey =
       'last_mls_group_todos_sync_times';
+  static const String _lastSharedGroupTodosSyncTimesKey =
+      'last_shared_group_todos_sync_times';
+  static const String _sharedGroupCredentialsKey = 'shared_group_credentials';
   static const String _relayRolesKey = 'relay_roles';
   static const String _globalBackfillQueueKey = 'global_backfill_queue';
 
@@ -735,6 +738,65 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.delete(_lastMlsGroupTodosSyncTimesKey);
+  }
+
+  // === shared-v1 group keys (nsec_G / npub_G) ===
+
+  Map<String, dynamic> loadSharedGroupCredentials() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final raw = _settingsBox!.get(_sharedGroupCredentialsKey);
+    if (raw is! Map) {
+      return {};
+    }
+    return raw.map((k, v) => MapEntry(k.toString(), v));
+  }
+
+  Future<void> saveSharedGroupCredentials(
+    Map<String, dynamic> credentialsByGroupId,
+  ) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_sharedGroupCredentialsKey, credentialsByGroupId);
+  }
+
+  DateTime? getLastSharedGroupTodosSyncTime(String groupId) {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final raw = _settingsBox!.get(_lastSharedGroupTodosSyncTimesKey);
+    if (raw is! Map) return null;
+
+    final timeString = raw[groupId]?.toString();
+    if (timeString == null || timeString.isEmpty) return null;
+    try {
+      return DateTime.parse(timeString);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setLastSharedGroupTodosSyncTime(
+    String groupId,
+    DateTime? dateTime,
+  ) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+
+    final dynamic raw = _settingsBox!.get(_lastSharedGroupTodosSyncTimesKey);
+    final map = raw is Map
+        ? raw.map((k, v) => MapEntry(k.toString(), v))
+        : <String, dynamic>{};
+
+    if (dateTime == null) {
+      map.remove(groupId);
+    } else {
+      map[groupId] = dateTime.toIso8601String();
+    }
+    await _settingsBox!.put(_lastSharedGroupTodosSyncTimesKey, map);
   }
 
   // === Relay roles + global backfill queue ===
