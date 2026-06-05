@@ -4835,6 +4835,307 @@ pub fn mls_join_group(nostr_id: String, group_id: String, welcome_msg: Vec<u8>) 
 }
 
 // ========================================
+// Shared-Key Collaborative Lists (shared-v1)
+//
+// MLS を用いない軽量な共同編集方式。共有リストごとに専用の Nostr 鍵 G を
+// 生成し、メンバー間で nsec_G を共有する。タスクは kind:35000 の addressable
+// event として G 署名・NIP-44 自己暗号化で発行する。詳細は
+// docs/SHARED_LIST_STRATEGY.md を参照。
+// ========================================
+
+/// shared-v1: グループ鍵 G(nsec_G/npub_G)を新規生成する。
+pub fn shared_generate_group_key() -> crate::group_tasks_shared::GroupKey {
+    crate::group_tasks_shared::generate_group_key()
+}
+
+/// shared-v1: nsec_G から npub_G を導出する。
+pub fn shared_npub_from_nsec(group_nsec_hex: String) -> Result<String> {
+    crate::group_tasks_shared::npub_from_nsec(&group_nsec_hex)
+}
+
+/// shared-v1: task JSON を NIP-44 暗号化し、kind:35000 の署名済みイベント JSON を返す。
+pub fn shared_build_signed_task_event(
+    group_nsec_hex: String,
+    task_json: String,
+) -> Result<String> {
+    crate::group_tasks_shared::build_signed_task_event(group_nsec_hex, task_json)
+}
+
+/// shared-v1: kind:35000 イベント JSON を復号し、平文 task JSON を返す。
+pub fn shared_decrypt_task_event(group_nsec_hex: String, event_json: String) -> Result<String> {
+    crate::group_tasks_shared::decrypt_task_event(group_nsec_hex, event_json)
+}
+
+/// shared-v1: meta JSON を NIP-44 暗号化し、kind:35001(d="meta")の署名済みイベント JSON を返す。
+pub fn shared_build_signed_meta_event(
+    group_nsec_hex: String,
+    meta_json: String,
+) -> Result<String> {
+    crate::group_tasks_shared::build_signed_meta_event(group_nsec_hex, meta_json)
+}
+
+/// shared-v1: kind:35001 イベント JSON を復号し、平文 meta JSON を返す。
+pub fn shared_decrypt_meta_event(group_nsec_hex: String, event_json: String) -> Result<String> {
+    crate::group_tasks_shared::decrypt_meta_event(group_nsec_hex, event_json)
+}
+
+/// shared-v1: 招待 payload の平文 JSON を構築する。
+pub fn shared_build_invitation_payload(
+    group_id: String,
+    group_nsec: String,
+    group_npub: String,
+    group_name: String,
+    key_epoch: u64,
+) -> Result<String> {
+    crate::group_tasks_shared::build_invitation_payload(
+        group_id, group_nsec, group_npub, group_name, key_epoch,
+    )
+}
+
+/// shared-v1: 招待 payload の平文 JSON を解析する。
+pub fn shared_parse_invitation_payload(
+    payload_json: String,
+) -> Result<crate::group_tasks_shared::InvitationPayload> {
+    crate::group_tasks_shared::parse_invitation_payload(payload_json)
+}
+
+/// shared-v1(秘密鍵モード): 招待 payload を受信者宛に NIP-44 封緘する。
+pub fn shared_encrypt_invitation_for_recipient(
+    inviter_nsec_hex: String,
+    recipient_pubkey_hex: String,
+    payload_json: String,
+) -> Result<String> {
+    crate::group_tasks_shared::encrypt_invitation_for_recipient(
+        inviter_nsec_hex,
+        recipient_pubkey_hex,
+        payload_json,
+    )
+}
+
+/// shared-v1(秘密鍵モード): 受信した招待を復号して payload を取り出す。
+pub fn shared_decrypt_invitation_from_sender(
+    recipient_nsec_hex: String,
+    sender_pubkey_hex: String,
+    ciphertext: String,
+) -> Result<crate::group_tasks_shared::InvitationPayload> {
+    crate::group_tasks_shared::decrypt_invitation_from_sender(
+        recipient_nsec_hex,
+        sender_pubkey_hex,
+        ciphertext,
+    )
+}
+
+/// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
+///
+/// kinds: 35000(タスク), 35001(メタデータ)
+pub fn fetch_shared_events_by_author(
+    group_npub_hex: String,
+    since: i64,
+    timeout_secs: u64,
+) -> Result<Vec<ReceivedEvent>> {
+    fetch_shared_events_by_author_with_client_id(group_npub_hex, since, timeout_secs, None)
+}
+
+pub fn fetch_shared_events_by_author_with_client_id(
+    group_npub_hex: String,
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<ReceivedEvent>> {
+    use crate::group_tasks_shared::SHARED_TASK_KIND;
+
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let author = PublicKey::from_hex(&group_npub_hex)
+            .context("Failed to parse group author public key")?;
+
+        let mut filter = Filter::new()
+            .author(author)
+            .kind(Kind::Custom(SHARED_TASK_KIND));
+
+        if since > 0 {
+            filter = filter.since(Timestamp::from(since.max(0) as u64));
+        }
+
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+
+        dev_println!(
+            "📨 [shared-v1] Fetched {} events for author {}",
+            events.len(),
+            &group_npub_hex[..16.min(group_npub_hex.len())]
+        );
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        Ok(events
+            .into_iter()
+            .map(|event| ReceivedEvent {
+                event_id: event.id.to_hex(),
+                kind: event.kind.as_u16() as u64,
+                created_at: event.created_at.as_u64() as i64,
+                event_json: event.as_json(),
+                received_at: now,
+                subscription_id: String::new(),
+            })
+            .collect())
+    })
+}
+
+/// shared-v1: NIP-44 暗号化済み content を載せた未署名招待イベント JSON を返す。
+pub fn create_unsigned_shared_invitation_event(
+    sender_public_key_hex: String,
+    recipient_npub: String,
+    group_id: String,
+    group_name: String,
+    encrypted_content: String,
+    inviter_name: Option<String>,
+) -> Result<String> {
+    use serde_json::json;
+
+    let sender_pubkey =
+        PublicKey::from_hex(&sender_public_key_hex).context("Failed to parse sender public key")?;
+    let recipient_pubkey =
+        PublicKey::from_bech32(&recipient_npub).context("Failed to parse recipient npub")?;
+
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let d_tag_value = format!(
+        "shared-invite-{}-{}",
+        group_id,
+        recipient_pubkey.to_hex()
+    );
+
+    let mut tags = Vec::new();
+    tags.push(vec!["d".to_string(), d_tag_value]);
+    tags.push(vec!["p".to_string(), recipient_pubkey.to_hex()]);
+    tags.push(vec!["protocol".to_string(), "shared-v1".to_string()]);
+    tags.push(vec!["name".to_string(), group_name]);
+    if let Some(name) = inviter_name {
+        tags.push(vec!["inviter_name".to_string(), name]);
+    }
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
+
+    let unsigned_event = json!({
+        "pubkey": sender_pubkey.to_hex(),
+        "created_at": created_at,
+        "kind": 30078,
+        "tags": tags,
+        "content": encrypted_content,
+    });
+
+    Ok(serde_json::to_string(&unsigned_event)?)
+}
+
+/// shared-v1: 受信者宛の招待イベント(kind:30078, d=shared-invite-*)を JSON 配列で返す。
+pub fn sync_shared_invitations(
+    recipient_public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    use serde_json::json;
+
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let recipient_pubkey = PublicKey::from_hex(&recipient_public_key_hex)
+            .context("Failed to parse recipient public key")?;
+
+        let filter = Filter::new()
+            .kind(Kind::Custom(30078))
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::P),
+                vec![recipient_pubkey.to_hex()],
+            )
+            .limit(50);
+
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        let mut invitations = Vec::new();
+
+        for event in events {
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.first().map(|s| s.as_str()) == Some("d")
+                })
+                .and_then(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.get(1).cloned()
+                });
+
+            let Some(d_tag_value) = d_tag else {
+                continue;
+            };
+
+            let Some(rest) = d_tag_value.strip_prefix("shared-invite-") else {
+                continue;
+            };
+
+            let group_id = rest
+                .split('-')
+                .next()
+                .unwrap_or(rest)
+                .to_string();
+
+            let group_name = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.first().map(|s| s.as_str()) == Some("name")
+                })
+                .and_then(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.get(1).cloned()
+                })
+                .unwrap_or_else(|| "Shared List".to_string());
+
+            let inviter_name = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.first().map(|s| s.as_str()) == Some("inviter_name")
+                })
+                .and_then(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.get(1).cloned()
+                });
+
+            if event.content.is_empty() {
+                dev_println!(
+                    "⚠️ [shared-v1] Skipping invitation with empty content: {}",
+                    event.id.to_hex().chars().take(16).collect::<String>()
+                );
+                continue;
+            }
+
+            invitations.push(json!({
+                "event_id": event.id.to_hex(),
+                "inviter_pubkey": event.pubkey.to_hex(),
+                "group_id": group_id,
+                "group_name": group_name,
+                "encrypted_content": event.content,
+                "inviter_name": inviter_name,
+                "created_at": event.created_at.as_u64(),
+            }));
+        }
+
+        Ok(serde_json::to_string(&invitations)?)
+    })
+}
+
+// ========================================
 // Phase 2.5A: MLS Database Backup/Restore
 // ========================================
 

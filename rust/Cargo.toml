@@ -12,7 +12,7 @@ tor = []
 
 [dependencies]
 # Flutter Rust Bridge
-flutter_rust_bridge = "=2.11.1"
+flutter_rust_bridge = "=2.12.0"
 
 # Patched fork (see [patch.crates-io]): WebSocket User-Agent for relays (#130)
 async-wsocket = { version = "0.10.1", features = ["socks", "tor"] }
