@@ -145,14 +145,23 @@ class LocalStorageService {
   }
 
   /// アプリ内の全データを完全に削除（ログアウト用）
+  ///
+  /// ログアウト後にローカルキャッシュから古いユーザーのデータが
+  /// 再表示・再同期されないよう、すべての永続ストレージを消去する。
   Future<void> clearAllData() async {
-    if (_todosBox == null || _settingsBox == null) {
+    if (_todosBox == null ||
+        _settingsBox == null ||
+        _customListsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
 
     // Todoデータをクリア
     await _todosBox!.clear();
     AppLogger.info(' Todoデータを削除しました');
+
+    // カスタムリストデータをクリア（バグ: 以前は残存していた）
+    await _customListsBox!.clear();
+    AppLogger.info(' カスタムリストデータを削除しました');
 
     // 設定データをクリア（オンボーディング完了フラグ含む）
     await _settingsBox!.clear();

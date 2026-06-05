@@ -112,6 +112,24 @@ class MediaServerDiscoveryService {
   /// Get all manually configured servers.
   Future<List<MediaServer>> getManualServers() => _loadManualServers();
 
+  /// Remove every manually configured server entry from local storage.
+  ///
+  /// Used by logout/account-reset paths so that a previous user's media
+  /// server list does not survive the data wipe.
+  Future<void> clearManualServers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_storageKey);
+      AppLogger.info(
+        '[MediaServerDiscovery] Cleared manual media server entries',
+      );
+    } catch (e) {
+      AppLogger.warning(
+        '[MediaServerDiscovery] Failed to clear manual servers: $e',
+      );
+    }
+  }
+
   Future<void> _saveManualServers(List<MediaServer> servers) async {
     final prefs = await SharedPreferences.getInstance();
     final entries = servers
