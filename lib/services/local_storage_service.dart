@@ -148,6 +148,11 @@ class LocalStorageService {
   ///
   /// ログアウト後にローカルキャッシュから古いユーザーのデータが
   /// 再表示・再同期されないよう、すべての永続ストレージを消去する。
+  ///
+  /// 注意: 単純な `Box.clear()` は append-only な Hive のフレームを論理的に
+  /// クリアするだけで、`.hive` ファイル上には旧データのバイト列が残る
+  /// （forensic ツールで復元可能）。よって `close()` → `deleteBoxFromDisk()`
+  /// → 同名で `openBox()` し直す手順で物理的にファイルを再生成する。
   Future<void> clearAllData() async {
     if (_todosBox == null ||
         _settingsBox == null ||
@@ -155,17 +160,26 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
 
-    // Todoデータをクリア
-    await _todosBox!.clear();
-    AppLogger.info(' Todoデータを削除しました');
+    // close() しないと `deleteBoxFromDisk` が同期失敗する場合があるため、
+    // 既に保持している Box ハンドル経由で確実に閉じてから物理削除する。
+    // Hive はジェネリクス引数まで含めて Box を識別するので、開いた時と同じ
+    // 型引数で `box(name)` を呼ばないと `HiveError` が出る。よってフィールド
+    // 経由でクローズする。
+    await _todosBox!.close();
+    await Hive.deleteBoxFromDisk(_todosBoxName);
+    _todosBox = await Hive.openBox<Map<dynamic, dynamic>>(_todosBoxName);
+    AppLogger.info(' Todoデータを物理削除しました');
 
-    // カスタムリストデータをクリア（バグ: 以前は残存していた）
-    await _customListsBox!.clear();
-    AppLogger.info(' カスタムリストデータを削除しました');
+    await _customListsBox!.close();
+    await Hive.deleteBoxFromDisk(_customListsBoxName);
+    _customListsBox =
+        await Hive.openBox<Map<dynamic, dynamic>>(_customListsBoxName);
+    AppLogger.info(' カスタムリストデータを物理削除しました');
 
-    // 設定データをクリア（オンボーディング完了フラグ含む）
-    await _settingsBox!.clear();
-    AppLogger.info(' 設定データを削除しました');
+    await _settingsBox!.close();
+    await Hive.deleteBoxFromDisk(_settingsBoxName);
+    _settingsBox = await Hive.openBox<dynamic>(_settingsBoxName);
+    AppLogger.info(' 設定データを物理削除しました');
   }
 
   /// ボックスを閉じる

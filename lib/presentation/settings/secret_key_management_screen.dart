@@ -573,38 +573,50 @@ class _SecretKeyManagementScreenState
     try {
       AppLogger.debug('🗑️ Starting complete data deletion...');
 
-      // STEP 1: 先に進行中の同期/購読/ポーリングを止める。
+      // STEP 1: 先に進行中の同期/購読/ポーリングを止め、書き戻しゲートを閉じる。
       // クリア処理中に新しいイベントが書き戻されると残存データが復活するため、
-      // 削除より前に必ず停止する。
+      // 削除より前に必ず停止する。`nostrInitializedProvider = false` は
+      // todosProvider 等のバックフィル/書き込みパスのゲートを閉じる役割。
       await _stopBackgroundActivity();
+      _resetAllProviders();
+      AppLogger.debug('✅ Background activity stopped & providers reset');
 
-      // STEP 2: Rust 側の暗号化された秘密鍵 / 公開鍵ファイルを削除。
+      // STEP 2: Rust プロセス上に常駐している機微情報を破棄する。
+      // - NOSTR_CLIENTS (各クライアントが保持する Keys/SecretKey, ws 接続)
+      // - mls::STORE (MlsUser のグループ秘密 + SQLite Connection)
+      // mls::STORE が保持する Connection を解放してから物理ファイル削除する
+      // ことで、unlink 中も書き込みが続いて secret が増殖する状態を避ける。
+      await _clearRustSessionState();
+
+      // STEP 3: Rust 側の暗号化された秘密鍵 / 公開鍵ファイルを削除。
       final nostrService = ref.read(nostrServiceProvider);
       await nostrService.deleteSecretKey();
       AppLogger.debug('✅ Secret key deleted (Rust)');
 
-      // STEP 3: Hive 全ボックス（todos / settings / custom_lists）を削除。
+      // STEP 4: Hive 全ボックス（todos / settings / custom_lists）を削除。
+      // .clear() ではなく box ファイルそのものを削除して、append-only な
+      // 旧フレームから機微データが復元できないようにする。
       await localStorageService.clearAllData();
-      AppLogger.debug('✅ Hive boxes cleared (todos / settings / custom_lists)');
+      AppLogger.debug(
+        '✅ Hive boxes deleted (todos / settings / custom_lists)',
+      );
 
-      // STEP 4: Nostr イベントキャッシュをクリア。
+      // STEP 5: Nostr イベントキャッシュをクリア。
       await _clearNostrEventCache();
 
-      // STEP 5: SharedPreferences の手動メディアサーバ一覧を削除。
+      // STEP 6: SharedPreferences の手動メディアサーバ一覧を削除。
       await _clearManualMediaServers();
 
-      // STEP 6: アプリドキュメント領域に残っている MLS データベースを削除。
+      // STEP 7: アプリドキュメント領域に残っている MLS データベースを削除。
       await _deleteMlsDatabase();
-
-      // STEP 7: メモリ上の Riverpod 状態を全てリセット。
-      _resetAllProviders();
-      AppLogger.debug('✅ Providers reset');
 
       // STEP 8: 入力フィールドをクリアし、暗号化フラグをリセット
       _secretKeyController.clear();
-      setState(() {
-        _hasEncryptedKey = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hasEncryptedKey = false;
+        });
+      }
 
       AppLogger.debug('✅ Logout and data deletion completed');
 
@@ -647,6 +659,21 @@ class _SecretKeyManagementScreenState
     }
   }
 
+  /// Rust プロセス上の常駐機微情報（NOSTR_CLIENTS / mls::STORE）を破棄する。
+  ///
+  /// 失敗しても Hive / ファイル削除のステップは続行する（部分的なクリアでも
+  /// やらないより安全)。
+  Future<void> _clearRustSessionState() async {
+    try {
+      await rust_api.clearAllSessionState();
+      AppLogger.debug('✅ Rust session state cleared (NOSTR_CLIENTS, MLS STORE)');
+    } catch (e) {
+      AppLogger.warning(
+        '⚠️ Failed to clear Rust session state during logout: $e',
+      );
+    }
+  }
+
   /// Nostr イベントキャッシュ（Hive box: nostr_event_cache）をクリアする。
   Future<void> _clearNostrEventCache() async {
     try {
@@ -671,26 +698,32 @@ class _SecretKeyManagementScreenState
     }
   }
 
-  /// アプリドキュメント領域の MLS SQLite データベースを削除する。
+  /// アプリドキュメント領域の MLS SQLite データベース（および付帯ファイル）を削除する。
   ///
   /// MLS のグループ状態は Hive ではなく `<app_doc_dir>/mls.db` にあるため、
   /// `clearAllData()` では消えない。再ログイン時に旧 user の招待状態などが
   /// 再表示されないよう、ここで明示的に削除する。
+  ///
+  /// 付帯ファイル (`-journal` / `-wal` / `-shm`) に加えて `.bak` も対象。
+  /// `.bak` は MLS バックアップ復元 (`api.rs::import_mls_database_*`) が
+  /// インポート前の旧 DB を退避するために生成するもので、削除し忘れると
+  /// 旧 user の MLS グループ秘密がそのまま残る。
   Future<void> _deleteMlsDatabase() async {
     try {
       final appDocDir = await getApplicationDocumentsDirectory();
-      final dbFile = File('${appDocDir.path}/mls.db');
-      if (await dbFile.exists()) {
-        await dbFile.delete();
-        AppLogger.debug('✅ MLS database deleted (${dbFile.path})');
-      } else {
-        AppLogger.debug('ℹ️ MLS database not present, skip deletion');
-      }
-      // SQLite が同階層に作る付帯ファイルも忘れずに削除する。
-      for (final suffix in const ['-journal', '-wal', '-shm']) {
-        final auxFile = File('${appDocDir.path}/mls.db$suffix');
-        if (await auxFile.exists()) {
-          await auxFile.delete();
+      // ベースファイル + 付帯ファイル + 退避ファイルをまとめて消す。
+      const targets = [
+        '', // mls.db 本体
+        '-journal',
+        '-wal',
+        '-shm',
+        '.bak', // import_mls_database_* が生成する退避ファイル
+      ];
+      for (final suffix in targets) {
+        final f = File('${appDocDir.path}/mls.db$suffix');
+        if (await f.exists()) {
+          await f.delete();
+          AppLogger.debug('✅ Deleted MLS file: ${f.path}');
         }
       }
     } catch (e) {

@@ -7,15 +7,16 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub mod api;
-pub mod nostr_client_meta;
-pub mod key_store;
 pub mod group_tasks;
-pub mod mls;
 pub mod group_tasks_mls;
+pub mod key_store;
+pub mod mls;
+pub mod nostr_client_meta;
 
 /// 複数のNostrクライアントを管理（client_id -> MeisoNostrClient）
-pub static NOSTR_CLIENTS: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, api::MeisoNostrClient>>>> =
-    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+pub static NOSTR_CLIENTS: once_cell::sync::Lazy<
+    Arc<Mutex<HashMap<String, api::MeisoNostrClient>>>,
+> = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
 /// デフォルトクライアントのID（後方互換性のため）
 pub const DEFAULT_CLIENT_ID: &str = "default";

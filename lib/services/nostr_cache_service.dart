@@ -107,10 +107,18 @@ class NostrCacheService {
     }
   }
   
-  /// キャッシュをクリア
+  /// キャッシュを物理削除
+  ///
+  /// 単純な `Box.clear()` は append-only な Hive のフレームを論理的に
+  /// クリアするだけで、`.hive` ファイル上には旧データのバイト列が残る
+  /// (ログアウト後に forensic 復元される可能性がある)。
+  /// よって close → deleteBoxFromDisk → 同名で再 open することでファイル
+  /// 自体を作り直す。
   Future<void> clearCache() async {
-    await _cacheBox.clear();
-    AppLogger.debug(' Cache cleared');
+    await _cacheBox.close();
+    await Hive.deleteBoxFromDisk(_boxName);
+    _cacheBox = await Hive.openBox<String>(_boxName);
+    AppLogger.debug(' Cache box deleted from disk and reopened');
   }
   
   /// 期限切れのキャッシュを削除

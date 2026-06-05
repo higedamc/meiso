@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 (API 31) 以降向けの自動バックアップ/転送ポリシー。
+
+  meiso はローカルに次のような機微データを保持する:
+    - <doc>/mls.db (MLS グループ秘密)
+    - <doc>/nostr_key.enc (AES-256-GCM 暗号化済みではあるが、攻撃面を増やしたくない)
+    - Hive boxes: todos / settings / custom_lists
+    - SharedPreferences: manual_media_servers
+
+  これらは絶対にユーザー間でデバイス転送されたり、Google Drive などの
+  クラウドバックアップに含まれてはいけない。`include` 要素を一切書かず
+  `disableIfNoEncryptionCapabilities="true"` を付けることで、
+  Android が「デフォルトで全てを除外」する。
+-->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <!-- 何も include しないので Cloud Backup には何も含まれない -->
+    </cloud-backup>
+    <device-transfer>
+        <!-- 何も include しないので D2D 移行でも転送されない -->
+    </device-transfer>
+</data-extraction-rules>
