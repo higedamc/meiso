@@ -684,6 +684,24 @@ class TodoItem extends StatelessWidget {
                               if (todo.imageUrl != null)
                                 ImageThumbnail(imageUrl: todo.imageUrl!),
 
+                              // 共有リストで自分以外が追加/編集したタスクを示すアイコン
+                              if (todo.editorPubkey != null &&
+                                  todo.editorPubkey !=
+                                      ref.watch(publicKeyProvider))
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 6),
+                                  child: Tooltip(
+                                    message: AppLocalizations.of(context)
+                                        .addedByCollaborator,
+                                    child: Icon(
+                                      Icons.person_outline,
+                                      size: 16,
+                                      color: AppTheme.primaryColor
+                                          .withOpacity(0.75),
+                                    ),
+                                  ),
+                                ),
+
                               if (!todo.isSubtask)
                                 Consumer(
                                   builder: (context, ref, _) {

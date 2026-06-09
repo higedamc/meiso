@@ -152,6 +152,105 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           } else {
             // AppSettingsから保存された順番を適用
             await _applySavedListOrder(localLists);
+
+            // Migration: 旧バグで `_deletedMlsGroupListIds` に shared-v1 / gw17-v1
+            // グループ ID が誤って追加されているケースを救済する。
+            // hive にまだ残っている (= まだ filter で消されていない) シェアード系
+            // グループ ID は、削除済みリストから取り除いてから filter にかける。
+            final salvagedIds = localLists
+                .where(
+                  (l) =>
+                      l.isGroup &&
+                      (l.isSharedProtocol || l.isGw17Protocol) &&
+                      _deletedMlsGroupListIds.contains(l.id),
+                )
+                .map((l) => l.id)
+                .toList();
+            if (salvagedIds.isNotEmpty) {
+              _deletedMlsGroupListIds.removeAll(salvagedIds);
+              await _repository.saveDeletedMlsGroupListIds(
+                _deletedMlsGroupListIds,
+              );
+              AppLogger.info(
+                '♻️ [CustomLists] Salvaged ${salvagedIds.length} shared/gw17 group IDs '
+                'from deletedMlsGroupListIds: $salvagedIds',
+              );
+            }
+
+            // Migration: 旧 Rust バグで shared-v1 招待の d タグから抽出した group_id が
+            // UUID の最初のセグメント(8文字)に切り詰められていたケースの救済。
+            // 既に存在する Full UUID エントリとの重複も同時に解消する。
+            try {
+              final credsMap = localStorageService.loadSharedGroupCredentials();
+              final fullIds = credsMap.keys.toSet();
+              // hive 上に存在する全 list.id の集合 (重複検出用)
+              final allCurrentIds = localLists.map((l) => l.id).toSet();
+
+              final toRemoveIds = <String>{};
+              var migratedCount = 0;
+              var dedupedCount = 0;
+
+              for (var i = 0; i < localLists.length; i++) {
+                final list = localLists[i];
+                if (!list.isSharedProtocol && !list.isGw17Protocol) continue;
+                if (fullIds.contains(list.id)) continue; // 既に正しい full UUID
+                // list.id が hex 8 chars(UUID prefix)で、対応する full UUID が
+                // credentials map もしくは別の hive エントリに存在する場合に救済。
+                final matchedFromCreds = fullIds.firstWhere(
+                  (fid) => fid.startsWith('${list.id}-'),
+                  orElse: () => '',
+                );
+                final matchedFromHive = allCurrentIds.firstWhere(
+                  (id) =>
+                      id != list.id &&
+                      id.startsWith('${list.id}-') &&
+                      id.length > list.id.length,
+                  orElse: () => '',
+                );
+                final matched =
+                    matchedFromCreds.isNotEmpty ? matchedFromCreds : matchedFromHive;
+                if (matched.isEmpty) continue;
+
+                if (allCurrentIds.contains(matched)) {
+                  // 既に full UUID エントリが別途存在する場合は、short 側を破棄する。
+                  toRemoveIds.add(list.id);
+                  dedupedCount++;
+                  AppLogger.info(
+                    '🧹 [CustomLists] Removed duplicate truncated shared-v1 list: '
+                    '"${list.name}" ${list.id} (full=$matched already present)',
+                  );
+                } else {
+                  // full UUID エントリが存在しない場合は ID 差し替えで救済。
+                  localLists[i] = list.copyWith(id: matched);
+                  allCurrentIds
+                    ..remove(list.id)
+                    ..add(matched);
+                  migratedCount++;
+                  AppLogger.info(
+                    '♻️ [CustomLists] Migrated truncated shared-v1 list ID: '
+                    '"${list.name}" ${list.id} -> $matched',
+                  );
+                }
+              }
+
+              if (toRemoveIds.isNotEmpty) {
+                localLists.removeWhere((l) => toRemoveIds.contains(l.id));
+              }
+              if (migratedCount > 0 || dedupedCount > 0) {
+                await _repository.saveCustomListsToLocal(localLists);
+                AppLogger.info(
+                  '✅ [CustomLists] Truncated-ID migration done: '
+                  'migrated=$migratedCount, deduped=$dedupedCount',
+                );
+              }
+            } catch (e, st) {
+              AppLogger.warning(
+                '⚠️ [CustomLists] Truncated-ID migration skipped: $e',
+                error: e,
+                stackTrace: st,
+              );
+            }
+
             final filteredLists = await _filterDeletedLists(localLists);
             final normalizedLists = filteredLists.map((list) {
               if (list.protocolVersion != CustomListHelpers.protocolNone) {
@@ -778,70 +877,56 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
   /// 削除済みメタデータをチェックして、リストをフィルタリング
   /// Issue #101: tombstone は明示再作成まで保持する
+  ///
+  /// Performance: Rust FFI 呼び出し(`mlsGetGroupInfo` / `findPersonalListEventId`)
+  /// は各リレー I/O で 2〜3 秒掛かるため、 直列 `await` だと N 件で N×3 秒分
+  /// UI フレームが詰まり ANR を誘発する。 各リストの解決は `Future.wait` で
+  /// 並列実行し、 サイドエフェクト(state 書き込み)はその後で一括処理する。
   Future<List<CustomList>> _filterDeletedLists(List<CustomList> lists) async {
     AppLogger.debug(
       '🗑️ [CustomLists] Filtering lists (LWW + MLS key check)...',
     );
 
-    // eventIdがない場合、Rustから検索して設定する
     final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
 
-    final filtered = <CustomList>[];
-    for (final list in lists) {
-      // MLSグループリストの特別処理
-      if (list.isGroup) {
-        // 1. ローカル削除フラグをチェック
-        if (_deletedMlsGroupListIds.contains(list.id)) {
-          AppLogger.debug(
-            '🚫 [MLS] Filtered out locally deleted MLS group: "${list.name}"',
-          );
-          continue;
-        }
+    // 削除メタデータが無ければ tombstone 解決用の Rust 呼び出しは不要。
+    // `findPersonalListEventId` は `TOKIO_RUNTIME.block_on` + 10 秒タイムアウト
+    // でワーカースレッドを長時間占有し、N 件並列化してもワーカー枯渇で全 sync
+    // が詰まる(wipe-data 直後の初回起動でホワイトアウト + ANR を誘発)。
+    // 削除イベントが local cache にロード済みのときだけ event id 解決を行う。
+    final shouldResolveEventIds = _deletedEventMetadata.isNotEmpty;
 
-        // 2. MLS鍵の有効性をチェック
-        if (publicKey != null) {
+    final resolutions = await Future.wait(
+      lists.map((list) async {
+        if (list.isGroup) {
+          if (_deletedMlsGroupListIds.contains(list.id)) {
+            return _FilterResolution.locallyDeletedGroup();
+          }
+          // shared-v1 / gw17-v1 グループは MLS group store を持たないため、
+          // mlsGetGroupInfo の整合性チェックは適用しない。
+          // (旧バグ: 失敗時に `_deletedMlsGroupListIds` へ自動追加されてしまい、
+          //  自分が作ったグループや受信した招待が即座に UI から消えていた)
+          if (list.isSharedProtocol || list.isGw17Protocol) {
+            return _FilterResolution.keepAsIs();
+          }
+          if (publicKey == null) {
+            return _FilterResolution.keepAsIs();
+          }
           try {
             await rust_api.mlsGetGroupInfo(
               nostrId: publicKey,
               groupId: list.id,
             );
-            // 成功 = 鍵が有効
-            AppLogger.debug('✅ [MLS] Valid key for group: "${list.name}"');
-            filtered.add(list);
-          } catch (e) {
-            // 失敗 = 鍵が無効（再インストール後など）
-            AppLogger.warning(
-              '🔑 [MLS] Invalid key for group: "${list.name}" (auto-removing)',
-            );
-            // 自動的に削除フラグに追加
-            _deletedMlsGroupListIds.add(list.id);
-            await _repository.saveDeletedMlsGroupListIds(
-              _deletedMlsGroupListIds,
-            );
+            return _FilterResolution.validMlsGroup();
+          } catch (_) {
+            return _FilterResolution.invalidMlsGroup();
           }
-        } else {
-          // publicKeyがない場合は保持
-          filtered.add(list);
         }
-        continue;
-      }
 
-      var isDeleted = false;
-
-      // 1. list_idベースの削除メタデータをチェック
-      if (_deletedListMetadata.containsKey(list.id)) {
-        isDeleted = true;
-        AppLogger.debug(
-          '🗑️ [CustomLists] Tombstone blocked by listId: "${list.name}"',
-        );
-      }
-
-      // 2. eventIdベースの削除メタデータをチェック
-      if (!isDeleted) {
         String? eventId = list.eventId;
-
-        // eventIdがない場合、Rustから検索
-        if (eventId == null && publicKey != null) {
+        if (eventId == null &&
+            publicKey != null &&
+            shouldResolveEventIds) {
           try {
             eventId = await rust_api.findPersonalListEventId(
               listId: list.id,
@@ -853,18 +938,65 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             );
           }
         }
+        return _FilterResolution.personalList(eventId: eventId);
+      }),
+    );
 
-        if (eventId != null && _deletedEventMetadata.containsKey(eventId)) {
-          isDeleted = true;
-          AppLogger.debug(
-            '🗑️ [CustomLists] Tombstone blocked by eventId: "${list.name}"',
-          );
+    final filtered = <CustomList>[];
+    var mlsDeletionPersisted = false;
+
+    for (var i = 0; i < lists.length; i++) {
+      final list = lists[i];
+      final r = resolutions[i];
+
+      if (list.isGroup) {
+        switch (r.kind) {
+          case _FilterResolutionKind.locallyDeletedGroup:
+            AppLogger.debug(
+              '🚫 [MLS] Filtered out locally deleted MLS group: "${list.name}"',
+            );
+            break;
+          case _FilterResolutionKind.invalidMlsGroup:
+            AppLogger.warning(
+              '🔑 [MLS] Invalid key for group: "${list.name}" (auto-removing)',
+            );
+            _deletedMlsGroupListIds.add(list.id);
+            mlsDeletionPersisted = true;
+            break;
+          case _FilterResolutionKind.validMlsGroup:
+            AppLogger.debug('✅ [MLS] Valid key for group: "${list.name}"');
+            filtered.add(list);
+            break;
+          case _FilterResolutionKind.keepAsIs:
+          case _FilterResolutionKind.personalList:
+            filtered.add(list);
+            break;
         }
+        continue;
       }
 
+      var isDeleted = false;
+      if (_deletedListMetadata.containsKey(list.id)) {
+        isDeleted = true;
+        AppLogger.debug(
+          '🗑️ [CustomLists] Tombstone blocked by listId: "${list.name}"',
+        );
+      }
+      if (!isDeleted &&
+          r.eventId != null &&
+          _deletedEventMetadata.containsKey(r.eventId)) {
+        isDeleted = true;
+        AppLogger.debug(
+          '🗑️ [CustomLists] Tombstone blocked by eventId: "${list.name}"',
+        );
+      }
       if (!isDeleted) {
         filtered.add(list);
       }
+    }
+
+    if (mlsDeletionPersisted) {
+      await _repository.saveDeletedMlsGroupListIds(_deletedMlsGroupListIds);
     }
 
     if (filtered.length < lists.length) {
@@ -1652,6 +1784,16 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
       AppLogger.info('🔐 [CustomLists] Creating shared-v1 group: "$normalizedName"');
 
+      // 旧バグで `_deletedMlsGroupListIds` に誤って shared-v1 グループ ID が
+      // 含まれていることがある。今回作るグループ ID と同じものが残っていた場合は
+      // 救済(再有効化)する。
+      if (_deletedMlsGroupListIds.remove(groupId)) {
+        await _repository.saveDeletedMlsGroupListIds(_deletedMlsGroupListIds);
+        AppLogger.info(
+          '♻️ [CustomLists] Removed groupId=$groupId from deletedMlsGroupListIds (re-enable)',
+        );
+      }
+
       final createUseCase = _ref.read(
         shared_usecase.createSharedGroupUseCaseProvider,
       );
@@ -1746,8 +1888,21 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           final currentLists = state.valueOrNull ?? <CustomList>[];
           final updatedLists = List<CustomList>.from(currentLists);
           var hasChanges = false;
+          var deletedIdsChanged = false;
 
           for (final invitation in invitations) {
+            // 旧バグで `_deletedMlsGroupListIds` に shared-v1 グループ ID が
+            // 含まれていると、ここで追加した招待が `_filterDeletedLists` で
+            // 「locallyDeletedGroup」判定されて即時除外されてしまう。
+            // 招待を再受信したタイミングで削除済みリストから救済する。
+            if (_deletedMlsGroupListIds.remove(invitation.groupId)) {
+              deletedIdsChanged = true;
+              AppLogger.info(
+                '♻️ [SharedInvitations] Removed groupId=${invitation.groupId} '
+                'from deletedMlsGroupListIds (re-enable)',
+              );
+            }
+
             final existingIndex = updatedLists.indexWhere(
               (list) => list.id == invitation.groupId,
             );
@@ -1783,6 +1938,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
               );
               hasChanges = true;
             }
+          }
+
+          if (deletedIdsChanged) {
+            await _repository.saveDeletedMlsGroupListIds(
+              _deletedMlsGroupListIds,
+            );
           }
 
           if (hasChanges) {
@@ -2480,4 +2641,36 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       // 復元失敗してもアプリは継続（ユーザーは手動で再招待可能）
     }
   }
+}
+
+/// `_filterDeletedLists` の並列解決結果を表す内部 helper。
+/// Network I/O を `Future.wait` で並列化しつつ、 後段のシーケンシャル
+/// フィルタ判定に必要な情報だけを伝搬する。
+enum _FilterResolutionKind {
+  keepAsIs,
+  locallyDeletedGroup,
+  validMlsGroup,
+  invalidMlsGroup,
+  personalList,
+}
+
+class _FilterResolution {
+  const _FilterResolution._({required this.kind, this.eventId});
+
+  factory _FilterResolution.keepAsIs() =>
+      const _FilterResolution._(kind: _FilterResolutionKind.keepAsIs);
+  factory _FilterResolution.locallyDeletedGroup() =>
+      const _FilterResolution._(kind: _FilterResolutionKind.locallyDeletedGroup);
+  factory _FilterResolution.validMlsGroup() =>
+      const _FilterResolution._(kind: _FilterResolutionKind.validMlsGroup);
+  factory _FilterResolution.invalidMlsGroup() =>
+      const _FilterResolution._(kind: _FilterResolutionKind.invalidMlsGroup);
+  factory _FilterResolution.personalList({String? eventId}) =>
+      _FilterResolution._(
+        kind: _FilterResolutionKind.personalList,
+        eventId: eventId,
+      );
+
+  final _FilterResolutionKind kind;
+  final String? eventId;
 }

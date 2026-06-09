@@ -3093,6 +3093,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove subtasks first to convert this task'**
   String get cannotDemoteHasSubtasks;
+
+  /// Tooltip for tasks added by another member in a shared list
+  ///
+  /// In en, this message translates to:
+  /// **'Added by a collaborator'**
+  String get addedByCollaborator;
+
+  /// Label shown before the collaborator's npub in task detail
+  ///
+  /// In en, this message translates to:
+  /// **'Added by'**
+  String get addedBy;
 }
 
 class _AppLocalizationsDelegate

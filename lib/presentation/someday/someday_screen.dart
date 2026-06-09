@@ -40,6 +40,7 @@ class SomedayScreen extends ConsumerStatefulWidget {
 
 class _SomedayScreenState extends ConsumerState<SomedayScreen> {
   ProviderSubscription<AsyncValue<List<CustomList>>>? _customListsSub;
+  ProviderSubscription<bool>? _nostrInitializedSub;
   Set<String> _realtimeGroupIds = <String>{};
   int _reconcileGeneration = 0;
   TodosNotifier? _todosNotifier;
@@ -61,6 +62,22 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
       },
     );
 
+    // Nostr 初期化完了時に reconcile を再走らせる。
+    // 起動直後に relay 未接続で subscribe が失敗したケースを救済する。
+    _nostrInitializedSub = ref.listenManual<bool>(
+      nostrInitializedProvider,
+      (prev, next) {
+        if (prev == next) return;
+        if (!next) return;
+        final lists = ref.read(customListsProvider).valueOrNull;
+        if (lists == null) return;
+        AppLogger.info(
+          '🔁 [SomedayScreen] Nostr initialized, re-reconciling realtime subs',
+        );
+        _reconcileRealtimeGroupSubscriptions(lists);
+      },
+    );
+
     // 初回も反映
     final initial = ref.read(customListsProvider).valueOrNull;
     if (initial != null) {
@@ -78,6 +95,8 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
 
     _customListsSub?.close();
     _customListsSub = null;
+    _nostrInitializedSub?.close();
+    _nostrInitializedSub = null;
 
     // close後に購読解除（dispose中にrefを触らない）
     final todoNotifier = _todosNotifier;
@@ -112,6 +131,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
       '📡 [SomedayScreen] Reconcile realtime group subs: desired=${desired.length}, toStart=${toStart.length}, toStop=${toStop.length}',
     );
 
+    final failedToStart = <String>{};
     for (final gid in toStart) {
       try {
         if (!mounted || generation != _reconcileGeneration) return;
@@ -120,7 +140,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
         );
         await todoNotifier.startRealtimeGroupTodos(gid);
       } catch (e) {
-        // 購読失敗してもSomedayは表示し続ける（pull-to-refresh運用可能）
+        // 起動直後の relay 未接続などで失敗した購読は、次回 reconcile で
+        // 再試行できるよう `_realtimeGroupIds` に記録しない。
+        failedToStart.add(gid);
         AppLogger.warning(
           '⚠️ [SomedayScreen] Failed to start realtime group subscription: $gid ($e)',
         );
@@ -133,7 +155,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     }
 
     if (!mounted || generation != _reconcileGeneration) return;
-    _realtimeGroupIds = desired;
+    _realtimeGroupIds = desired.difference(failedToStart);
   }
 
   /// Pull-to-refreshで同期を実行
@@ -236,7 +258,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     );
     for (final list in customLists) {
       AppLogger.debug(
-        ' [SomedayScreen]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})',
+        ' [SomedayScreen]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup}, '
+        'protocol: ${list.protocolVersion}, pending: ${list.isPendingInvitation}, '
+        'accepted: ${list.acceptedAt != null})',
       );
     }
 
@@ -566,9 +590,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  list.protocolVersion == CustomListHelpers.protocolGw17V1
-                      ? 'NIP-17'
-                      : 'MLS',
+                  switch (list.protocolVersion) {
+                    CustomListHelpers.protocolGw17V1 => 'NIP-17',
+                    CustomListHelpers.protocolSharedV1 => 'SHARED',
+                    CustomListHelpers.protocolMlsV1 => 'MLS',
+                    _ => 'MLS', // legacy fallback (旧スキーマ)
+                  },
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -905,9 +932,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  list.protocolVersion == CustomListHelpers.protocolGw17V1
-                      ? 'NIP-17'
-                      : 'MLS legacy',
+                  switch (list.protocolVersion) {
+                    CustomListHelpers.protocolGw17V1 => 'NIP-17',
+                    CustomListHelpers.protocolSharedV1 => 'SHARED',
+                    CustomListHelpers.protocolMlsV1 => 'MLS legacy',
+                    _ => 'MLS legacy', // legacy fallback (旧スキーマ)
+                  },
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,

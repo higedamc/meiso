@@ -230,7 +230,16 @@ class SharedListRepositoryImpl implements SharedListRepository {
         groupNsecHex: groupNsecHex,
         taskJson: taskJson,
       );
+      AppLogger.debug(
+        '[SharedList] signed task event built (${signed.length} chars)',
+      );
       final result = await _nostrService.sendSignedEvent(signed);
+      AppLogger.info(
+        '[SharedList] publishSignedTaskEvent -> eventId=${result.eventId.substring(0, 16)}..., '
+        'success=${result.success}, successfulRelays=${result.successfulRelays}, '
+        'failedRelays=${result.failedRelays}, timedOut=${result.timedOut}'
+        '${result.errorMessage != null ? ", err=${result.errorMessage}" : ""}',
+      );
       return Right(result.eventId);
     } catch (e, st) {
       AppLogger.error('[SharedList] publishSignedTaskEvent failed', error: e, stackTrace: st);
@@ -245,10 +254,16 @@ class SharedListRepositoryImpl implements SharedListRepository {
   }) async {
     try {
       final sinceSec = since.millisecondsSinceEpoch ~/ 1000;
+      AppLogger.debug(
+        '[SharedList] fetchSharedEventsByAuthor: npub=${groupNpubHex.substring(0, 16)}..., sinceSec=$sinceSec',
+      );
       final events = await rust_api.fetchSharedEventsByAuthor(
         groupNpubHex: groupNpubHex,
         since: sinceSec,
         timeoutSecs: BigInt.from(10),
+      );
+      AppLogger.info(
+        '[SharedList] fetchSharedEventsByAuthor -> ${events.length} events',
       );
       return Right(
         events

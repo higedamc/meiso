@@ -983,6 +983,10 @@
 
   "promotedToRootSuccess": "ルートタスクに昇格しました",
 
-  "cannotDemoteHasSubtasks": "先にサブタスクを削除してください"
+  "cannotDemoteHasSubtasks": "先にサブタスクを削除してください",
+
+  "addedByCollaborator": "他のメンバーが追加したタスク",
+
+  "addedBy": "追加者"
 }
 

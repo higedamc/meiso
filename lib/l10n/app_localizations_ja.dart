@@ -1641,4 +1641,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get cannotDemoteHasSubtasks => '先にサブタスクを削除してください';
+
+  @override
+  String get addedByCollaborator => '他のメンバーが追加したタスク';
+
+  @override
+  String get addedBy => '追加者';
 }

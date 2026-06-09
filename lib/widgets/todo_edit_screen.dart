@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +12,7 @@ import '../models/app_settings.dart';
 import '../providers/todos_provider.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/custom_lists_provider.dart';
+import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
 import '../features/feature_gate/feature_gate_service.dart';
@@ -217,6 +219,15 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                       canUseTaskLinking)
                     TaskLinkSection(
                       todo: widget.todo!,
+                    ),
+
+                  // 共有リストで自分以外が追加/編集したタスクの追加者 npub を表示
+                  if (isEditing &&
+                      widget.todo!.editorPubkey != null &&
+                      widget.todo!.editorPubkey !=
+                          ref.watch(publicKeyProvider))
+                    _EditorInfoSection(
+                      editorPubkeyHex: widget.todo!.editorPubkey!,
                     ),
 
                 ],
@@ -1209,6 +1220,89 @@ class _ParentTaskSection extends ConsumerWidget {
       );
       Navigator.pop(context);
     }
+  }
+}
+
+/// 共有リストで、自分以外がそのタスクを追加/編集した場合に
+/// 追加者の npub を表示するセクション。
+class _EditorInfoSection extends ConsumerWidget {
+  const _EditorInfoSection({required this.editorPubkeyHex});
+
+  final String editorPubkeyHex;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
+
+    return FutureBuilder<String>(
+      future: ref.read(nostrServiceProvider).hexToNpub(editorPubkeyHex),
+      builder: (context, snapshot) {
+        final npub = snapshot.data ?? editorPubkeyHex;
+        final shortened = npub.length > 20
+            ? '${npub.substring(0, 12)}…${npub.substring(npub.length - 6)}'
+            : npub;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: npub));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('npub'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.person_outline,
+                    size: 18,
+                    color: AppTheme.primaryColor.withOpacity(0.8),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${l10n.addedBy}:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppTheme.darkTextSecondary
+                          : AppTheme.lightTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      shortened,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'monospace',
+                        color: isDark
+                            ? AppTheme.darkTextPrimary
+                            : AppTheme.lightTextPrimary,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.copy,
+                    size: 14,
+                    color: isDark
+                        ? AppTheme.darkTextSecondary
+                        : AppTheme.lightTextSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

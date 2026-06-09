@@ -5252,8 +5252,30 @@ class TodosNotifier
   }
 
   /// shared-v1: kind:35000 タスクイベントを購読して LWW 適用
+  /// 受諾済みの全 shared-v1 グループをフルフェッチ同期する。
+  Future<void> _syncAllSharedGroupTodos() async {
+    final customListsAsync = _ref.read(customListsProvider);
+    final customLists =
+        customListsAsync.whenOrNull(data: (lists) => lists) ?? [];
+    final sharedGroups = customLists
+        .where(
+          (l) => l.isGroup && l.isSharedProtocol && !l.isPendingInvitation,
+        )
+        .toList();
+    if (sharedGroups.isEmpty) return;
+    AppLogger.info(
+      '🔄 [shared-v1] Syncing ${sharedGroups.length} shared group(s)',
+    );
+    for (final group in sharedGroups) {
+      await _syncSharedGroupTodos(groupId: group.id);
+    }
+  }
+
   Future<void> _syncSharedGroupTodos({required String groupId}) async {
     try {
+      AppLogger.info(
+        '🔄 [shared-v1] _syncSharedGroupTodos start: groupId=$groupId',
+      );
       final repo = _ref.read(shared_providers.sharedListRepositoryProvider);
       final credsResult = await repo.loadCredentials(groupId: groupId);
       final credentials = credsResult.fold((_) => null, (c) => c);
@@ -5264,17 +5286,37 @@ class TodosNotifier
         return;
       }
 
-      final last = localStorageService.getLastSharedGroupTodosSyncTime(groupId);
-      final effectiveSince = last != null
-          ? last.subtract(const Duration(minutes: 2))
-          : DateTime.fromMillisecondsSinceEpoch(0);
+      // shared-v1 タスクは 1 タスク = 1 addressable event(kind:35000)であり、
+      // relay 側で (kind, author=G, d=task-id) ごとに LWW 上書きされる。
+      // つまり relay が保持するのは「各タスクの最新版のみ」= タスク数で上限が
+      // 決まる有界な集合。よって `since` で増分取得する必要はなく、毎回フル
+      // フェッチ(since=0)するのが最も堅牢かつ安価。
+      //
+      // 増分(since=lastSync)方式はピア間のクロックずれに脆弱で、相手端末の
+      // created_at が自端末の lastSync より過去になると relay の since フィルタで
+      // 恒久的に除外され、「最初の共有時のみ採用」というバグを生む。
+      final effectiveSince = DateTime.fromMillisecondsSinceEpoch(0);
+
+      AppLogger.info(
+        '📥 [shared-v1] fetchTaskEvents (full): npub=${credentials.groupNpubHex.substring(0, 16)}...',
+      );
 
       final eventsResult = await repo.fetchTaskEvents(
         groupNpubHex: credentials.groupNpubHex,
         since: effectiveSince,
       );
 
-      final events = eventsResult.fold((_) => <Map<String, dynamic>>[], (e) => e);
+      final events = eventsResult.fold((failure) {
+        AppLogger.error(
+          '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
+        );
+        return <Map<String, dynamic>>[];
+      }, (e) {
+        AppLogger.info(
+          '📦 [shared-v1] fetched ${e.length} events from relays',
+        );
+        return e;
+      });
       if (events.isEmpty) {
         await localStorageService.setLastSharedGroupTodosSyncTime(
           groupId,
@@ -5314,6 +5356,16 @@ class TodosNotifier
           );
           if (parsed == null) continue;
 
+          final prev = byId[parsed.id];
+
+          // LWW: フルフェッチでは過去イベントも返るため、ローカルに未同期
+          // (needsSync=true) のより新しい編集がある場合は relay 版で上書きしない。
+          if (prev != null &&
+              prev.needsSync &&
+              prev.updatedAt.isAfter(parsed.updatedAt)) {
+            continue;
+          }
+
           if (data['deleted'] == true) {
             byId.remove(parsed.id);
             for (final dateKey in updated.keys) {
@@ -5324,7 +5376,6 @@ class TodosNotifier
             continue;
           }
 
-          final prev = byId[parsed.id];
           if (prev != null && prev.date != parsed.date) {
             updated[prev.date] = (updated[prev.date] ?? [])
                 .where((t) => t.id != parsed.id)
@@ -5375,6 +5426,8 @@ class TodosNotifier
     if (dateRaw is String && dateRaw.isNotEmpty) {
       date = DateTime.tryParse(dateRaw);
     }
+    // payload に含まれる editor_pubkey(最後に編集した実 npub hex)を優先採用。
+    final payloadEditor = (data['editor_pubkey'] as String?)?.trim();
     return Todo(
       id: id,
       title: data['title'] as String? ?? '',
@@ -5387,6 +5440,9 @@ class TodosNotifier
           DateTime.now(),
       customListId: groupId,
       needsSync: false,
+      editorPubkey: (payloadEditor != null && payloadEditor.isNotEmpty)
+          ? payloadEditor
+          : editorPubkey,
     );
   }
 
@@ -5398,12 +5454,21 @@ class TodosNotifier
     String? todoIdOverride,
     String? editorPubkey,
   }) async {
+    AppLogger.info(
+      '📤 [shared-v1] _sendSharedGroupTodoAction start: groupId=$groupId, action=$action',
+    );
     final repo = _ref.read(shared_providers.sharedListRepositoryProvider);
     final credsResult = await repo.loadCredentials(groupId: groupId);
     final credentials = credsResult.fold((_) => null, (c) => c);
     if (credentials == null) {
+      AppLogger.error(
+        '❌ [shared-v1] credentials not found for groupId=$groupId',
+      );
       throw Exception('shared-v1 credentials not found: $groupId');
     }
+    AppLogger.debug(
+      '🔑 [shared-v1] credentials loaded: npub=${credentials.groupNpubHex.substring(0, 16)}..., epoch=${credentials.keyEpoch}',
+    );
 
     final data = jsonDecode(payload) as Map<String, dynamic>;
     data['status'] = (todo?.completed ?? false) ? 'done' : 'open';
@@ -5419,7 +5484,20 @@ class TodosNotifier
       groupNsecHex: credentials.groupNsecHex,
       taskJson: jsonEncode(data),
     );
-    return result.fold((_) => null, (id) => id);
+    return result.fold(
+      (failure) {
+        AppLogger.error(
+          '❌ [shared-v1] publishSignedTaskEvent failed: ${failure.message}',
+        );
+        return null;
+      },
+      (id) {
+        AppLogger.info(
+          '✅ [shared-v1] task event published: eventId=${id.substring(0, 16)}..., taskId=${data['id']}',
+        );
+        return id;
+      },
+    );
   }
 
   Future<void> _syncGw17GroupTodos({
@@ -5776,8 +5854,52 @@ class TodosNotifier
     if (existing != null) {
       existing.refCount++;
       AppLogger.debug(
-        '📡 [MLS] Reusing realtime subscription: $groupId (refCount=${existing.refCount})',
+        '📡 [Group] Reusing realtime subscription: $groupId (refCount=${existing.refCount})',
       );
+      return;
+    }
+
+    // shared-v1: kind:35000/35001 を npub_G で購読する。
+    // MLS とフィルタが異なるため別経路に分岐する。
+    if (groupList != null && groupList.isSharedProtocol) {
+      final repo = _ref.read(shared_providers.sharedListRepositoryProvider);
+      final credsResult = await repo.loadCredentials(groupId: groupId);
+      final credentials = credsResult.fold((_) => null, (c) => c);
+      if (credentials == null) {
+        AppLogger.warning(
+          '⚠️ [shared-v1] No credentials for $groupId; skipping realtime sub',
+        );
+        return;
+      }
+
+      final nostrService = _ref.read(nostrServiceProvider);
+      AppLogger.info(
+        '📡 [shared-v1] Starting realtime group task subscription: $groupId',
+      );
+
+      final subId = await nostrService.subscribeSharedGroupTasks(
+        groupNpubHex: credentials.groupNpubHex,
+        onEventsReceived: (events) {
+          _handleRealtimeSharedGroupTaskEvents(
+            groupId: groupId,
+            groupNsecHex: credentials.groupNsecHex,
+            events: events,
+          );
+        },
+      );
+
+      _mlsGroupTodoSubscriptions[groupId] = _MlsGroupRealtimeSubscription(
+        subscriptionId: subId,
+        refCount: 1,
+      );
+      _mlsGroupTodoSeenEventIds.putIfAbsent(groupId, () => <String>{});
+
+      // 購読確立直後に明示的なフルフェッチを行う。
+      // ポーリング型購読(receive_subscription_events)は毎回 broadcast receiver を
+      // 新規生成するため、購読時点で relay が返す既存イベント(バックログ)を
+      // 取りこぼす。fetch_events は REQ+EOSE で確定的に現在状態を返すので、
+      // バックログ取得はこちらに委ねる。
+      unawaited(_syncSharedGroupTodos(groupId: groupId));
       return;
     }
 
@@ -5882,6 +6004,110 @@ class TodosNotifier
             stackTrace: st,
           );
         }
+      }
+    });
+  }
+
+  /// shared-v1: リアルタイム受信した kind:35000 (task) を復号して状態に反映する。
+  /// kind:35001 (meta) は現状 group メタ更新のみで、todo state には影響しないため
+  /// ここではスキップする。
+  void _handleRealtimeSharedGroupTaskEvents({
+    required String groupId,
+    required String groupNsecHex,
+    required List<rust_api.ReceivedEvent> events,
+  }) {
+    Future<void>(() async {
+      final seen = _mlsGroupTodoSeenEventIds.putIfAbsent(
+        groupId,
+        () => <String>{},
+      );
+      final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
+
+      var changed = false;
+      final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
+      final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
+      final byId = <String, Todo>{};
+      for (final entry in updated.entries) {
+        for (final t in entry.value) {
+          if (t.customListId == groupId) {
+            byId[t.id] = t;
+          }
+        }
+      }
+
+      for (final event in events) {
+        try {
+          if (seen.contains(event.eventId)) continue;
+          seen.add(event.eventId);
+
+          final eventData =
+              jsonDecode(event.eventJson) as Map<String, dynamic>;
+          final kind = eventData['kind'] as int?;
+          if (kind != 35000) continue; // meta(35001) はここでは無視
+
+          final decrypted = await rust_api.sharedDecryptTaskEvent(
+            groupNsecHex: groupNsecHex,
+            eventJson: event.eventJson,
+          );
+          final data = jsonDecode(decrypted) as Map<String, dynamic>;
+          final parsed = _parseSharedTaskPayload(
+            data: data,
+            groupId: groupId,
+            editorPubkey: publicKey,
+          );
+          if (parsed == null) continue;
+
+          final prev = byId[parsed.id];
+
+          // LWW: ローカルに未同期のより新しい編集があれば上書きしない。
+          if (prev != null &&
+              prev.needsSync &&
+              prev.updatedAt.isAfter(parsed.updatedAt)) {
+            continue;
+          }
+
+          if (data['deleted'] == true) {
+            byId.remove(parsed.id);
+            for (final dateKey in updated.keys.toList()) {
+              updated[dateKey] =
+                  updated[dateKey]!.where((t) => t.id != parsed.id).toList();
+            }
+            changed = true;
+            continue;
+          }
+
+          if (prev != null && prev.date != parsed.date) {
+            updated[prev.date] = (updated[prev.date] ?? [])
+                .where((t) => t.id != parsed.id)
+                .toList();
+          } else {
+            updated[parsed.date] = (updated[parsed.date] ?? [])
+                .where((t) => t.id != parsed.id)
+                .toList();
+          }
+          byId[parsed.id] = parsed;
+          updated[parsed.date] ??= [];
+          updated[parsed.date]!.add(parsed);
+          changed = true;
+        } catch (e, st) {
+          AppLogger.error(
+            '❌ [shared-v1] Failed to apply realtime task event: $e',
+            error: e,
+            stackTrace: st,
+          );
+        }
+      }
+
+      if (changed) {
+        final allTodos = <Todo>[];
+        for (final dateGroup in updated.values) {
+          allTodos.addAll(dateGroup);
+        }
+        await localStorageService.saveTodos(allTodos);
+        state = AsyncValue.data(updated);
+        AppLogger.info(
+          '✅ [shared-v1] Applied realtime task delta for $groupId',
+        );
       }
     });
   }
@@ -6345,6 +6571,11 @@ class TodosNotifier
 
   /// 全グループのタスクを一括同期（復号化してローカルに追加）
   Future<void> syncAllGroupTodos() async {
+    // shared-v1 グループは MLS の fetchMyGroupTaskLists(kind:445)経路に
+    // 含まれないため、別途フルフェッチで同期する。バックグラウンド/起動時
+    // 同期でも shared-v1 タスクが確実に取り込まれるようにする。
+    await _syncAllSharedGroupTodos();
+
     try {
       AppLogger.info('🔄 [Batch] Syncing all group todos...');
 

@@ -2645,6 +2645,16 @@
   "cannotDemoteHasSubtasks": "Remove subtasks first to convert this task",
   "@cannotDemoteHasSubtasks": {
     "description": "Error when trying to demote a task that has subtasks"
+  },
+
+  "addedByCollaborator": "Added by a collaborator",
+  "@addedByCollaborator": {
+    "description": "Tooltip for tasks added by another member in a shared list"
+  },
+
+  "addedBy": "Added by",
+  "@addedBy": {
+    "description": "Label shown before the collaborator's npub in task detail"
   }
 }
 

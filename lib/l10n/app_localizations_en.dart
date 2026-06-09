@@ -1694,4 +1694,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cannotDemoteHasSubtasks =>
       'Remove subtasks first to convert this task';
+
+  @override
+  String get addedByCollaborator => 'Added by a collaborator';
+
+  @override
+  String get addedBy => 'Added by';
 }

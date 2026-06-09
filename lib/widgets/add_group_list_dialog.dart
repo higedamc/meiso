@@ -43,6 +43,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
 
   void _addMemberWithoutKeyPackage() {
     final npub = _memberNpubController.text.trim();
+    AppLogger.debug(
+      '👤 [AddGroupListDialog] _addMemberWithoutKeyPackage called with npub.length=${npub.length}',
+    );
     if (npub.isEmpty || !npub.startsWith('npub')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('有効なnpubを入力してください')),
@@ -63,6 +66,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       });
       _memberNpubController.clear();
     });
+    AppLogger.debug(
+      '👤 [AddGroupListDialog] member added, total=${_mlsMembers.length}',
+    );
   }
 
   /// Phase 8.1: Key Package取得
@@ -671,6 +677,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
+    AppLogger.debug(
+      '🏗️ [AddGroupListDialog] build: members=${_mlsMembers.length}, useMls=$_useMls, nostrInit=$isNostrInitialized',
+    );
 
     return AlertDialog(
       backgroundColor: isDark
@@ -914,8 +923,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                   ),
                 ),
                 const SizedBox(height: 4),
+                // NOTE: 親が SingleChildScrollView なので、ここでは ListView を使わず
+                // Column で展開する(ネストしたスクロールビューでホワイトアウトを誘発するため)
                 Container(
-                  constraints: const BoxConstraints(maxHeight: 120),
                   decoration: BoxDecoration(
                     border: Border.all(
                       color: isDark
@@ -924,10 +934,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                     ),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _mlsMembers.length,
-                    itemBuilder: (context, index) {
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(_mlsMembers.length, (index) {
                       final member = _mlsMembers[index];
                       final npub = member['npub'] as String;
                       final hasWarning = member['hasWarning'] == true;
@@ -993,7 +1002,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                           ],
                         ),
                       );
-                    },
+                    }),
                   ),
                 ),
               ],

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-10
+
+### Added
+- **Shared-Key Collaborative Lists (`shared-v1`)**: New E2E collaborative list model that replaces MLS for task sharing. A dedicated Nostr key `G` is generated per list, distributed to members, and signs all task events. Tasks are addressable events (`kind:35000`, `d=task-id`) with NIP-44 self-encrypted content, giving relay-level Last-Write-Wins per task without MLS state management. See `docs/SHARED_LIST_STRATEGY.md`.
+- **Real-time shared task sync**: Live subscription to `kind:35000` / `kind:35001` for shared lists, with an immediate full fetch on subscribe to deliver backlog.
+- **Collaborator attribution**: `editor_pubkey` is carried on shared tasks and stored as `Todo.editorPubkey`. Tasks added/edited by another member show a person icon, and the task detail screen displays the editor's npub.
+
+### Fixed
+- **`NotSubscribed` on startup**: `client.connect()` does not block until relays are connected; added short-retry to the Rust subscribe path and reconciliation that retries failed subscriptions once Nostr is initialized.
+- **Lossy real-time backlog**: poll-based subscription delivery dropped events that arrived before the receiver was attached; an explicit `REQ+EOSE` full fetch now runs on subscribe.
+- **Clock-skew sync gaps**: shared-v1 tasks now full-fetch (`since=0`) instead of incremental `since`, which is robust for addressable LWW events.
+- **Truncated group ID parsing**: invitation `d`-tag parsing no longer truncates the UUID; a startup migration repairs and de-duplicates affected lists.
+- **Group creation whiteout / ANR**: removed nested scrollable widgets in the group creation dialog.
+- **Ghost lists**: the MLS "deleted" filter no longer removes shared-v1 lists from the creator's view.
+
 ## [1.3.1] - 2026-05-29
 
 ### Fixed

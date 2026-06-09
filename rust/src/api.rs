@@ -1477,22 +1477,48 @@ impl MeisoNostrClient {
     pub(crate) async fn subscribe(&self, filters: Vec<Filter>) -> Result<SubscriptionInfo> {
         dev_println!("📡 Starting subscription with {} filters", filters.len());
 
-        // Subscriptionを開始
-        let subscription_id = self.client.subscribe(filters.clone(), None).await?;
-
-        let filters_json = serde_json::to_string(&filters)?;
-        let created_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
-
-        dev_println!("✅ Subscription started: {}", subscription_id.to_string());
-
-        Ok(SubscriptionInfo {
-            subscription_id: subscription_id.to_string(),
-            filters_json,
-            created_at,
-        })
+        // 起動直後 (リレー接続前) は全 relay subscribe が失敗して
+        // nostr-relay-pool が `NotSubscribed` を返す。リレーが接続を確立するまで
+        // 短期リトライ (最大 ~3s) する。
+        const MAX_ATTEMPTS: u32 = 6;
+        const BACKOFF_MS: u64 = 500;
+        let mut last_error: Option<anyhow::Error> = None;
+        for attempt in 1..=MAX_ATTEMPTS {
+            match self.client.subscribe(filters.clone(), None).await {
+                Ok(output) => {
+                    let subscription_id = output;
+                    let filters_json = serde_json::to_string(&filters)?;
+                    let created_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() as i64;
+                    dev_println!(
+                        "✅ Subscription started: {} (attempt {}/{})",
+                        subscription_id.to_string(),
+                        attempt,
+                        MAX_ATTEMPTS
+                    );
+                    return Ok(SubscriptionInfo {
+                        subscription_id: subscription_id.to_string(),
+                        filters_json,
+                        created_at,
+                    });
+                }
+                Err(e) => {
+                    dev_eprintln!(
+                        "⚠️ subscribe attempt {}/{} failed: {}",
+                        attempt,
+                        MAX_ATTEMPTS,
+                        e
+                    );
+                    last_error = Some(anyhow::anyhow!(e.to_string()));
+                    if attempt < MAX_ATTEMPTS {
+                        tokio::time::sleep(Duration::from_millis(BACKOFF_MS)).await;
+                    }
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("subscribe failed without error")))
     }
 
     /// Subscriptionを停止
@@ -5123,11 +5149,28 @@ pub fn sync_shared_invitations(
                 continue;
             };
 
-            let group_id = rest
-                .split('-')
-                .next()
-                .unwrap_or(rest)
-                .to_string();
+            // d_tag フォーマット: "shared-invite-{group_id}-{recipient_pubkey_hex}"
+            // group_id は UUID v4(ハイフンを含む)である可能性が高いため、
+            // 末尾の 64 hex 文字を recipient_pubkey と見なして剥がす。
+            // 互換性: 旧式の "{prefix}" 分割スタイルでもパース可能なように fallback を残す。
+            let group_id = {
+                let bytes = rest.as_bytes();
+                let pivot = bytes.len().checked_sub(65);
+                let trimmed = pivot.and_then(|p| {
+                    if bytes[p] == b'-'
+                        && rest[p + 1..]
+                            .chars()
+                            .all(|c| c.is_ascii_hexdigit())
+                    {
+                        Some(rest[..p].to_string())
+                    } else {
+                        None
+                    }
+                });
+                trimmed.unwrap_or_else(|| {
+                    rest.split('-').next().unwrap_or(rest).to_string()
+                })
+            };
 
             let group_name = event
                 .tags

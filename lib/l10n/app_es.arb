@@ -987,6 +987,10 @@
 
   "promotedToRootSuccess": "Promovido a tarea principal",
 
-  "cannotDemoteHasSubtasks": "Elimine las subtareas primero"
+  "cannotDemoteHasSubtasks": "Elimine las subtareas primero",
+
+  "addedByCollaborator": "Añadida por un colaborador",
+
+  "addedBy": "Añadida por"
 }
 

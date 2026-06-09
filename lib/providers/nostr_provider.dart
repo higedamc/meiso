@@ -1853,4 +1853,54 @@ class NostrService {
       rethrow;
     }
   }
+
+  /// shared-v1 グループのリアルタイム購読を開始する。
+  ///
+  /// kind:35000 (Task) と kind:35001 (Meta) の両方を、author=npub_G で絞り込み
+  /// 購読する。これによりメンバーの誰かが投稿したタスクイベントが即座に
+  /// クライアントへ流れる。
+  Future<String> subscribeSharedGroupTasks({
+    required String groupNpubHex,
+    required void Function(List<rust_api.ReceivedEvent> events)
+        onEventsReceived,
+  }) async {
+    try {
+      AppLogger.info(
+        '📡 [shared-v1] Starting subscription for group: ${groupNpubHex.substring(0, 16)}...',
+      );
+
+      if (_subscriptionService == null) {
+        throw Exception('Subscription service not initialized');
+      }
+
+      final filters = [
+        {
+          'kinds': [35000, 35001], // shared-v1 Task / Meta
+          'authors': [groupNpubHex],
+        },
+      ];
+
+      final subscriptionId = await _subscriptionService!.startSubscription(
+        filters: filters,
+        onEventsReceived: (events) {
+          AppLogger.debug(
+            '📥 [shared-v1] Received ${events.length} group events',
+          );
+          onEventsReceived(events);
+        },
+      );
+
+      AppLogger.info(
+        '✅ [shared-v1] Subscription started for group: ${groupNpubHex.substring(0, 16)}...',
+      );
+      return subscriptionId;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [shared-v1] Failed to subscribe to group tasks',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
 }
