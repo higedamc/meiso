@@ -574,6 +574,23 @@ Future<void> stopAllSubscriptions() => RustLib.instance.api.crateApiStopAllSubsc
 Future<void> stopAllSubscriptionsWithClientId({String? clientId}) =>
     RustLib.instance.api.crateApiStopAllSubscriptionsWithClientId(clientId: clientId);
 
+/// ログアウト時に呼ばれる、プロセスメモリ常駐の機微情報を全て破棄する。
+///
+/// 対象:
+///   - `NOSTR_CLIENTS`: クライアント毎に保持している `Keys`(秘密鍵), 署名済みイベント,
+///     購読ハンドル, リレー接続。
+///   - `mls::STORE`: 全 `MlsUser` (ratchet tree, exporter secret, signing key 等の
+///     MLS グループ秘密) と SQLite `Connection`。
+///
+/// これらは `once_cell::Lazy` / `lazy_static!` で確保された process-global な
+/// 静的変数であり、`stop_all_subscriptions()` ではメモリから取り除かれない。
+/// 同一プロセスで別アカウントに切り替える場合や、ログアウト後にデバッガ/コアダンプ
+/// に旧ユーザーの nsec / MLS secret が露出するリスクを潰すため、明示的にクリアする。
+///
+/// 失敗時もログアウト全体を止めないよう、内部のロック取得失敗等は最大限呑み込み、
+/// 致命的な状況のみ Err を返す。
+Future<void> clearAllSessionState() => RustLib.instance.api.crateApiClearAllSessionState();
+
 /// Subscription経由でイベントを受信
 /// timeout_ms: タイムアウト（ミリ秒）
 Future<List<ReceivedEvent>> receiveSubscriptionEvents({required BigInt timeoutMs}) =>

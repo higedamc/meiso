@@ -3995,6 +3995,48 @@ pub fn stop_all_subscriptions_with_client_id(client_id: Option<String>) -> Resul
     })
 }
 
+/// ログアウト時に呼ばれる、プロセスメモリ常駐の機微情報を全て破棄する。
+///
+/// 対象:
+///   - `NOSTR_CLIENTS`: クライアント毎に保持している `Keys`(秘密鍵), 署名済みイベント,
+///     購読ハンドル, リレー接続。
+///   - `mls::STORE`: 全 `MlsUser` (ratchet tree, exporter secret, signing key 等の
+///     MLS グループ秘密) と SQLite `Connection`。
+///
+/// これらは `once_cell::Lazy` / `lazy_static!` で確保された process-global な
+/// 静的変数であり、`stop_all_subscriptions()` ではメモリから取り除かれない。
+/// 同一プロセスで別アカウントに切り替える場合や、ログアウト後にデバッガ/コアダンプ
+/// に旧ユーザーの nsec / MLS secret が露出するリスクを潰すため、明示的にクリアする。
+///
+/// 失敗時もログアウト全体を止めないよう、内部のロック取得失敗等は最大限呑み込み、
+/// 致命的な状況のみ Err を返す。
+pub fn clear_all_session_state() -> Result<()> {
+    TOKIO_RUNTIME.block_on(async {
+        // NOSTR_CLIENTS をクリア。各 MeisoNostrClient の Drop 実装で
+        // 内部の nostr-sdk Client が落ちるため、リレー接続も解放される。
+        {
+            let mut clients = NOSTR_CLIENTS.lock().await;
+            let count = clients.len();
+            clients.clear();
+            dev_println!("🧹 Cleared {} NOSTR_CLIENTS entries", count);
+        }
+
+        // MLS STORE をクリア (Connection が drop されるため SQLite ファイルの
+        // ハンドルも解放され、その後の `mls.db` 物理削除が確実に効く)。
+        {
+            let mut store = crate::mls::STORE.lock().await;
+            let was_some = store.is_some();
+            *store = None;
+            dev_println!(
+                "🧹 Cleared MLS STORE (was_initialized={})",
+                was_some
+            );
+        }
+
+        Ok(())
+    })
+}
+
 /// Subscription経由でイベントを受信
 /// timeout_ms: タイムアウト（ミリ秒）
 pub fn receive_subscription_events(timeout_ms: u64) -> Result<Vec<ReceivedEvent>> {

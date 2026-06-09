@@ -1,17 +1,16 @@
+use ::base64::{engine::general_purpose, Engine as _};
 /// グループタスク管理（マルチパーティ暗号化）
-/// 
+///
 /// fiatjaf's NIP-72 proposal に基づいた実装:
 /// 1. ランダムなAES-256鍵でタスクリストを暗号化
 /// 2. 各メンバーの公開鍵でAES鍵をNIP-44暗号化
 /// 3. メンバー追加時は新メンバー用に鍵を暗号化
 /// 4. メンバー削除時は新しいAES鍵で再暗号化（Forward Secrecy）
-
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
 use anyhow::{Context, Result};
-use ::base64::{engine::general_purpose, Engine as _};
 use nostr_sdk::prelude::*;
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -33,20 +32,20 @@ pub struct GroupTodoData {
 pub struct GroupTodoList {
     pub group_id: String,
     pub group_name: String,
-    pub encrypted_data: String,         // base64エンコードされた暗号化タスクデータ
-    pub members: Vec<String>,           // メンバーの公開鍵リスト（hex）
+    pub encrypted_data: String, // base64エンコードされた暗号化タスクデータ
+    pub members: Vec<String>,   // メンバーの公開鍵リスト（hex）
     pub encrypted_keys: Vec<EncryptedKey>, // 各メンバー用に暗号化されたAES鍵
 }
 
 /// メンバー用に暗号化されたAES鍵
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedKey {
-    pub member_pubkey: String,          // メンバーの公開鍵（hex）
-    pub encrypted_aes_key: String,      // NIP-44で暗号化されたAES鍵（base64）
+    pub member_pubkey: String,     // メンバーの公開鍵（hex）
+    pub encrypted_aes_key: String, // NIP-44で暗号化されたAES鍵（base64）
 }
 
 /// グループタスクを暗号化
-/// 
+///
 /// 1. ランダムなAES-256鍵を生成
 /// 2. タスクデータをAES-256-GCMで暗号化
 /// 3. 各メンバーの公開鍵でAES鍵をNIP-44暗号化
@@ -112,7 +111,7 @@ pub fn encrypt_group_tasks(
 }
 
 /// グループタスクを復号化
-/// 
+///
 /// 1. 自分の秘密鍵でAES鍵をNIP-44復号化
 /// 2. AES鍵でタスクデータを復号化
 pub fn decrypt_group_tasks(
@@ -178,17 +177,14 @@ pub fn decrypt_group_tasks(
 }
 
 /// タスクデータをAES-256-GCMで暗号化（Amberモード用）
-/// 
+///
 /// # Arguments
 /// * `tasks_json` - タスクデータのJSON文字列
 /// * `aes_key_base64` - base64エンコードされたAES-256鍵（32バイト）
-/// 
+///
 /// # Returns
 /// base64エンコードされた暗号化データ（ノンス12バイト + 暗号文）
-pub fn encrypt_data_with_aes_key(
-    tasks_json: String,
-    aes_key_base64: String,
-) -> Result<String> {
+pub fn encrypt_data_with_aes_key(tasks_json: String, aes_key_base64: String) -> Result<String> {
     // 1. AES鍵をデコード
     let aes_key_bytes = general_purpose::STANDARD
         .decode(&aes_key_base64)
@@ -225,13 +221,13 @@ pub fn encrypt_data_with_aes_key(
 }
 
 /// AES鍵を使ってグループタスクデータを復号化（Amberモード用）
-/// 
+///
 /// Amberで復号化済みのAES鍵を使ってデータを復号化する
-/// 
+///
 /// # Arguments
 /// * `encrypted_data_base64` - base64エンコードされた暗号化データ
 /// * `aes_key_base64` - base64エンコードされたAES鍵（すでに復号化済み）
-/// 
+///
 /// # Returns
 /// 復号化されたJSON文字列
 pub fn decrypt_data_with_aes_key(
@@ -257,7 +253,9 @@ pub fn decrypt_data_with_aes_key(
 
     // ノンス（最初の12バイト）と暗号文を分離
     if encrypted_data_bytes.len() < 12 {
-        return Err(anyhow::anyhow!("Encrypted data too short (minimum 12 bytes for nonce)"));
+        return Err(anyhow::anyhow!(
+            "Encrypted data too short (minimum 12 bytes for nonce)"
+        ));
     }
 
     let (nonce_bytes, ciphertext) = encrypted_data_bytes.split_at(12);
@@ -282,7 +280,7 @@ pub fn decrypt_data_with_aes_key(
 }
 
 /// グループにメンバーを追加
-/// 
+///
 /// 新しいメンバー用にAES鍵を暗号化して追加
 pub fn add_member_to_group(
     group_list: &mut GroupTodoList,
@@ -333,7 +331,7 @@ pub fn add_member_to_group(
 }
 
 /// グループからメンバーを削除（Forward Secrecy）
-/// 
+///
 /// メンバー削除後は新しいAES鍵で全体を再暗号化し、
 /// 削除されたメンバーが今後のアップデートを復号できないようにする
 pub fn remove_member_from_group(

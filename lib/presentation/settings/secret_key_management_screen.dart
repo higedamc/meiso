@@ -1,14 +1,22 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meiso/l10n/app_localizations.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../app_theme.dart';
+import '../../bridge_generated.dart/api.dart' as rust_api;
+import '../../features/media/application/providers/media_providers.dart';
 import '../../models/app_settings.dart';
+import '../../providers/app_settings_provider.dart' hide amberServiceProvider;
+import '../../providers/bootstrap_sync_provider.dart';
+import '../../providers/custom_lists_provider.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
+import '../../providers/sync_status_provider.dart';
 import '../../providers/todos_provider.dart';
-import '../../providers/app_settings_provider.dart';
 
 import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
@@ -565,32 +573,54 @@ class _SecretKeyManagementScreenState
     try {
       AppLogger.debug('🗑️ Starting complete data deletion...');
 
+      // STEP 1: 先に進行中の同期/購読/ポーリングを止め、書き戻しゲートを閉じる。
+      // クリア処理中に新しいイベントが書き戻されると残存データが復活するため、
+      // 削除より前に必ず停止する。`nostrInitializedProvider = false` は
+      // todosProvider 等のバックフィル/書き込みパスのゲートを閉じる役割。
+      await _stopBackgroundActivity();
+      _resetAllProviders();
+      AppLogger.debug('✅ Background activity stopped & providers reset');
+
+      // STEP 2: Rust プロセス上に常駐している機微情報を破棄する。
+      // - NOSTR_CLIENTS (各クライアントが保持する Keys/SecretKey, ws 接続)
+      // - mls::STORE (MlsUser のグループ秘密 + SQLite Connection)
+      // mls::STORE が保持する Connection を解放してから物理ファイル削除する
+      // ことで、unlink 中も書き込みが続いて secret が増殖する状態を避ける。
+      await _clearRustSessionState();
+
+      // STEP 3: Rust 側の暗号化された秘密鍵 / 公開鍵ファイルを削除。
       final nostrService = ref.read(nostrServiceProvider);
-
-      // 1. Rust側の暗号化された鍵を削除
       await nostrService.deleteSecretKey();
-      AppLogger.debug('✅ Secret key deleted');
+      AppLogger.debug('✅ Secret key deleted (Rust)');
 
-      // 2. アプリ内の全データを削除（Todo + 設定）
+      // STEP 4: Hive 全ボックス（todos / settings / custom_lists）を削除。
+      // .clear() ではなく box ファイルそのものを削除して、append-only な
+      // 旧フレームから機微データが復元できないようにする。
       await localStorageService.clearAllData();
-      AppLogger.debug('✅ All local data deleted');
+      AppLogger.debug(
+        '✅ Hive boxes deleted (todos / settings / custom_lists)',
+      );
 
-      // 3. すべてのProviderをリセット
-      ref.invalidate(todosProvider);
-      ref.read(nostrInitializedProvider.notifier).state = false;
-      ref.read(publicKeyProvider.notifier).state = null;
-      ref.invalidate(relayStatusProvider);
-      AppLogger.debug('✅ All providers reset');
+      // STEP 5: Nostr イベントキャッシュをクリア。
+      await _clearNostrEventCache();
 
-      // 4. 入力フィールドをクリアし、暗号化フラグをリセット
+      // STEP 6: SharedPreferences の手動メディアサーバ一覧を削除。
+      await _clearManualMediaServers();
+
+      // STEP 7: アプリドキュメント領域に残っている MLS データベースを削除。
+      await _deleteMlsDatabase();
+
+      // STEP 8: 入力フィールドをクリアし、暗号化フラグをリセット
       _secretKeyController.clear();
-      setState(() {
-        _hasEncryptedKey = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hasEncryptedKey = false;
+        });
+      }
 
       AppLogger.debug('✅ Logout and data deletion completed');
 
-      // 5. オンボーディング画面に遷移（mounted チェック）
+      // STEP 9: オンボーディング画面に遷移（mounted チェック）
       if (!mounted) return;
 
       // GoRouterでオンボーディング画面に遷移
@@ -605,6 +635,122 @@ class _SecretKeyManagementScreenState
         _isLoading = false;
       });
     }
+  }
+
+  /// 同期/購読/ポーリングを停止する。
+  ///
+  /// ログアウト中にバックグラウンド同期が走ると、せっかくクリアしたボックスに
+  /// 古い user 由来のイベントが書き戻され「再同期される」と感じる原因になるため、
+  /// データ削除の前に必ず止める。失敗してもログアウト全体は継続する。
+  Future<void> _stopBackgroundActivity() async {
+    try {
+      await rust_api.stopAllSubscriptions();
+      AppLogger.debug('✅ Stopped all Nostr subscriptions');
+    } catch (e) {
+      AppLogger.warning('⚠️ Failed to stop subscriptions during logout: $e');
+    }
+
+    try {
+      final amber = ref.read(amberServiceProvider);
+      amber.stopListening();
+      AppLogger.debug('✅ Stopped Amber EventChannel listening');
+    } catch (e) {
+      AppLogger.warning('⚠️ Failed to stop Amber listener during logout: $e');
+    }
+  }
+
+  /// Rust プロセス上の常駐機微情報（NOSTR_CLIENTS / mls::STORE）を破棄する。
+  ///
+  /// 失敗しても Hive / ファイル削除のステップは続行する（部分的なクリアでも
+  /// やらないより安全)。
+  Future<void> _clearRustSessionState() async {
+    try {
+      await rust_api.clearAllSessionState();
+      AppLogger.debug('✅ Rust session state cleared (NOSTR_CLIENTS, MLS STORE)');
+    } catch (e) {
+      AppLogger.warning(
+        '⚠️ Failed to clear Rust session state during logout: $e',
+      );
+    }
+  }
+
+  /// Nostr イベントキャッシュ（Hive box: nostr_event_cache）をクリアする。
+  Future<void> _clearNostrEventCache() async {
+    try {
+      final cacheService = ref.read(nostrCacheServiceProvider);
+      // init は前のセッションで完了している前提だが、念のため await。
+      await cacheService.init();
+      await cacheService.clearCache();
+      AppLogger.debug('✅ Nostr event cache cleared');
+    } catch (e) {
+      AppLogger.warning('⚠️ Failed to clear Nostr cache during logout: $e');
+    }
+  }
+
+  /// 手動登録のメディアサーバ一覧（SharedPreferences: manual_media_servers）を削除する。
+  Future<void> _clearManualMediaServers() async {
+    try {
+      final discovery = ref.read(mediaServerDiscoveryServiceProvider);
+      await discovery.clearManualServers();
+      AppLogger.debug('✅ Manual media servers cleared');
+    } catch (e) {
+      AppLogger.warning('⚠️ Failed to clear manual media servers: $e');
+    }
+  }
+
+  /// アプリドキュメント領域の MLS SQLite データベース（および付帯ファイル）を削除する。
+  ///
+  /// MLS のグループ状態は Hive ではなく `<app_doc_dir>/mls.db` にあるため、
+  /// `clearAllData()` では消えない。再ログイン時に旧 user の招待状態などが
+  /// 再表示されないよう、ここで明示的に削除する。
+  ///
+  /// 付帯ファイル (`-journal` / `-wal` / `-shm`) に加えて `.bak` も対象。
+  /// `.bak` は MLS バックアップ復元 (`api.rs::import_mls_database_*`) が
+  /// インポート前の旧 DB を退避するために生成するもので、削除し忘れると
+  /// 旧 user の MLS グループ秘密がそのまま残る。
+  Future<void> _deleteMlsDatabase() async {
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      // ベースファイル + 付帯ファイル + 退避ファイルをまとめて消す。
+      const targets = [
+        '', // mls.db 本体
+        '-journal',
+        '-wal',
+        '-shm',
+        '.bak', // import_mls_database_* が生成する退避ファイル
+      ];
+      for (final suffix in targets) {
+        final f = File('${appDocDir.path}/mls.db$suffix');
+        if (await f.exists()) {
+          await f.delete();
+          AppLogger.debug('✅ Deleted MLS file: ${f.path}');
+        }
+      }
+    } catch (e) {
+      AppLogger.warning('⚠️ Failed to delete MLS database during logout: $e');
+    }
+  }
+
+  /// ログアウト時に必ずリセットするべきメモリ上の Provider をまとめてリセット。
+  ///
+  /// 個別に列挙しているのは「無関係な provider まで invalidate して
+  /// 再生成コストを払いたくない」「StateProvider は invalidate よりも
+  /// notifier.state = 初期値 のほうが意図が明確」という理由から。
+  void _resetAllProviders() {
+    // データ系
+    ref.invalidate(todosProvider);
+    ref.invalidate(customListsProvider);
+    ref.invalidate(appSettingsProvider);
+    ref.invalidate(bootstrapSyncProvider);
+    ref.invalidate(syncStatusProvider);
+    ref.invalidate(relayStatusProvider);
+    ref.invalidate(mediaServersProvider);
+
+    // 認証/接続状態
+    ref.read(nostrInitializedProvider.notifier).state = false;
+    ref.read(publicKeyProvider.notifier).state = null;
+    ref.read(nostrPrivateKeyProvider.notifier).state = null;
+    ref.read(nostrPublicKeyProvider.notifier).state = null;
   }
 
   void _copyToClipboard(String text, String label) {
