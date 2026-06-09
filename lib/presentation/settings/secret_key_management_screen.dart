@@ -810,9 +810,12 @@ class _SecretKeyManagementScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 公開鍵表示カード（接続中の場合）
+                  // 背景は半透明グリーンにして、ライト/ダーク双方で
+                  // 文字（テーマ追従色）の視認性を確保する。
                   if (isNostrInitialized && publicKeyHex != null)
                     Card(
-                      color: Colors.green.shade50,
+                      elevation: 0,
+                      color: Colors.green.withValues(alpha: 0.12),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(

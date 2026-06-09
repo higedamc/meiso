@@ -8,6 +8,8 @@ import '../../providers/app_settings_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/slide_up_route.dart';
+import '../settings/settings_screen.dart';
 import 'package:intl/intl.dart';
 
 /// プランニングカテゴリー詳細画面
@@ -176,6 +178,9 @@ class PlanningDetailScreen extends StatelessWidget {
                   );
                 },
                 onSomedayTap: () => Navigator.of(context).pop(),
+                onSettingsTap: () => Navigator.of(context).push(
+                  slideUpRoute<void>(const SettingsScreen()),
+                ),
                 isSomedayActive: true,
               );
             },

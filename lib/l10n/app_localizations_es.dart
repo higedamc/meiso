@@ -1722,4 +1722,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get addedBy => 'Añadida por';
+
+  @override
+  String get settingsSectionStatus => 'Estado';
+
+  @override
+  String get settingsSectionGeneral => 'General';
+
+  @override
+  String get settingsSectionAbout => 'Acerca de';
 }

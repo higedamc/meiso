@@ -47,208 +47,175 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // Settings はボトムバーから下→上にスライドして開くモーダル的サーフェス。
+        // ドリルダウンの「戻る」ではなくモーダルの「閉じる」が正しい意味なので、
+        // M3 のフルスクリーンダイアログ流儀に倣い、下スライドの収納を示唆する
+        // 下向きシェブロンで閉じる。
+        leading: IconButton(
+          icon: const Icon(Icons.keyboard_arrow_down),
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         title: Text(l10n.settingsTitle),
         elevation: 0,
       ),
       body: ListView(
+        padding: const EdgeInsets.only(top: 8, bottom: 24),
         children: [
           // Nostr接続ステータス
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: isNostrInitialized
-                ? Colors.green.shade50
-                : Colors.orange.shade50,
-            child: Column(
-              children: [
-                Icon(
-                  isNostrInitialized ? Icons.check_circle : Icons.warning,
-                  size: 40,
-                  color:
-                      isNostrInitialized ? Colors.green : Colors.orange.shade700,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isNostrInitialized
-                      ? (isAmberMode ? l10n.nostrConnectedAmber : l10n.nostrConnected)
-                      : l10n.nostrDisconnected,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                if (isNostrInitialized && publicKeyHex != null) ...[
-                  const SizedBox(height: 8),
-                  publicKeyNpubAsync.when(
-                    data: (npubKey) => npubKey != null
-                        ? Text(
-                            'npub: ${npubKey.substring(0, 16)}...',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade700,
-                                ),
-                          )
-                        : Text(
-                            'hex: ${publicKeyHex.substring(0, 16)}...',
+          _sectionHeader(context, l10n.settingsSectionStatus),
+          _sectionCard(
+            context,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  _StatusBadge(
+                    connected:
+                        isNostrInitialized && connectedRelaysCount > 0,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isNostrInitialized
+                              ? (isAmberMode
+                                  ? l10n.nostrConnectedAmber
+                                  : l10n.nostrConnected)
+                              : l10n.nostrDisconnected,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        if (isNostrInitialized && publicKeyHex != null) ...[
+                          const SizedBox(height: 4),
+                          publicKeyNpubAsync.when(
+                            data: (npubKey) => Text(
+                              npubKey != null
+                                  ? '${npubKey.substring(0, 12)}…${npubKey.substring(npubKey.length - 6)}'
+                                  : '${publicKeyHex.substring(0, 16)}…',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(fontFamily: 'monospace'),
+                            ),
+                            loading: () => const SizedBox(
+                              height: 14,
+                              width: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            error: (_, __) => Text(
+                              '${publicKeyHex.substring(0, 16)}…',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                        if (isNostrInitialized) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.relaysConnectedCount(
+                              connectedRelaysCount,
+                              relayStatuses.length,
+                            ),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
-                    loading: () => const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    error: (_, __) => Text(
-                      'hex: ${publicKeyHex.substring(0, 16)}...',
-                      style: Theme.of(context).textTheme.bodySmall,
+                        ],
+                      ],
                     ),
                   ),
                 ],
-                if (isNostrInitialized) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n.relaysConnectedCount(connectedRelaysCount, relayStatuses.length),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
 
           const SizedBox(height: 16),
 
           // 設定項目リスト
-          _buildSettingTile(
+          _sectionHeader(context, l10n.settingsSectionGeneral),
+          _sectionCard(
             context,
-            icon: Icons.vpn_key,
-            title: l10n.secretKeyManagement,
-            subtitle: isNostrInitialized ? l10n.secretKeyConfigured : l10n.secretKeyNotConfigured,
-            onTap: () => context.push('/settings/secret-key'),
-          ),
-
-          const Divider(height: 1),
-
-          _buildSettingTile(
-            context,
-            icon: Icons.dns,
-            title: l10n.relayServerManagement,
-            subtitle: l10n.relayCountRegistered(relayStatuses.length),
-            onTap: () => context.push('/settings/relays'),
-          ),
-
-          const Divider(height: 1),
-
-          _buildSettingTile(
-            context,
-            icon: Icons.settings_applications,
-            title: l10n.appSettings,
-            subtitle: l10n.appSettingsSubtitle,
-            onTap: () => context.push('/settings/app'),
-          ),
-
-          // デバッグログ表示（debugモードのみ）
-          if (kDebugMode) ...[
-            const Divider(height: 1),
-            _buildSettingTile(
-              context,
-              icon: Icons.bug_report,
-              title: l10n.debugLogs,
-              subtitle: l10n.debugLogsSubtitle,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (context) => TalkerScreen(talker: talker),
+            child: Column(
+              children: [
+                _buildSettingTile(
+                  context,
+                  icon: Icons.vpn_key,
+                  title: l10n.secretKeyManagement,
+                  subtitle: isNostrInitialized
+                      ? l10n.secretKeyConfigured
+                      : l10n.secretKeyNotConfigured,
+                  onTap: () => context.push('/settings/secret-key'),
+                ),
+                _insetDivider(context),
+                _buildSettingTile(
+                  context,
+                  icon: Icons.dns,
+                  title: l10n.relayServerManagement,
+                  subtitle: l10n.relayCountRegistered(relayStatuses.length),
+                  onTap: () => context.push('/settings/relays'),
+                ),
+                _insetDivider(context),
+                _buildSettingTile(
+                  context,
+                  icon: Icons.settings_applications,
+                  title: l10n.appSettings,
+                  subtitle: l10n.appSettingsSubtitle,
+                  onTap: () => context.push('/settings/app'),
+                ),
+                if (kDebugMode) ...[
+                  _insetDivider(context),
+                  _buildSettingTile(
+                    context,
+                    icon: Icons.bug_report,
+                    title: l10n.debugLogs,
+                    subtitle: l10n.debugLogsSubtitle,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => TalkerScreen(talker: talker),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ],
+              ],
             ),
-          ],
+          ),
 
           const SizedBox(height: 24),
 
           // Amberモード情報
           if (isAmberMode)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Card(
-                color: AppTheme.primaryPurple.withOpacity(0.1),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                        Row(
-                        children: [
-                          const Icon(Icons.security, color: AppTheme.primaryPurple),
-                          const SizedBox(width: 8),
-                          Text(
-                            l10n.amberModeTitle,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.darkPurple,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        l10n.amberModeInfo,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.darkPurple,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            _infoCard(
+              context,
+              icon: Icons.security,
+              title: l10n.amberModeTitle,
+              body: l10n.amberModeInfo,
             ),
           if (isAmberMode) const SizedBox(height: 16),
 
           // 注意事項
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Card(
-              color: AppTheme.primaryPurple.withOpacity(0.1),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.info, color: AppTheme.primaryPurple),
-                        const SizedBox(width: 8),
-                        Text(
-                          l10n.autoSyncInfoTitle,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.darkPurple,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.autoSyncInfo,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.darkPurple,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          _infoCard(
+            context,
+            icon: Icons.info_outline,
+            title: l10n.autoSyncInfoTitle,
+            body: l10n.autoSyncInfo,
           ),
           const SizedBox(height: 24),
 
           // Advanced セクション（MLS機能を格納）
           if (isNostrInitialized) ...[
-            const Divider(height: 1),
-            Theme(
+            _sectionHeader(context, l10n.advancedSectionTitle),
+            _sectionCard(
+              context,
+              child: Theme(
               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
-                leading: const Icon(Icons.keyboard_arrow_right, color: AppTheme.primaryPurple),
+                shape: const Border(),
+                collapsedShape: const Border(),
+                leading: const Icon(Icons.tune, color: AppTheme.primaryPurple),
                 title: Text(l10n.advancedSectionTitle),
                 subtitle: Text(l10n.advancedSectionSubtitle, style: const TextStyle(fontSize: 12)),
                 tilePadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -365,32 +332,33 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),
+            ),
           ],
 
           const SizedBox(height: 24),
 
           // バージョン情報
+          _sectionHeader(context, l10n.settingsSectionAbout),
           FutureBuilder<PackageInfo>(
             future: PackageInfo.fromPlatform(),
             builder: (context, snapshot) {
               if (snapshot.hasData) {
                 final info = snapshot.data!;
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         l10n.versionInfo(info.version, info.buildNumber),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey.shade600,
-                            ),
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         info.appName,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey.shade500,
+                              color: Theme.of(context).textTheme.bodySmall?.color
+                                  ?.withValues(alpha: 0.7),
                             ),
                       ),
                     ],
@@ -402,6 +370,85 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+      child: Text(text.toUpperCase(), style: AppTheme.sectionHeader(context)),
+    );
+  }
+
+  Widget _sectionCard(BuildContext context, {required Widget child}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.sectionCardColor(context),
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      ),
+    );
+  }
+
+  Widget _insetDivider(BuildContext context) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      indent: 16,
+      endIndent: 16,
+      color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+    );
+  }
+
+  Widget _infoCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String body,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.sectionCardColor(context),
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              body,
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -620,6 +667,99 @@ class SettingsScreen extends ConsumerWidget {
     showDialog<void>(
       context: context,
       builder: (context) => _MlsTestDialog(ref: ref),
+    );
+  }
+}
+
+/// 接続状態バッジ。
+///
+/// 接続中（リレーに1つ以上接続済み）はふわふわと光る緑のチェック、
+/// 未接続は静止した赤い ✕ を表示する。
+class _StatusBadge extends StatefulWidget {
+  const _StatusBadge({required this.connected});
+
+  final bool connected;
+
+  @override
+  State<_StatusBadge> createState() => _StatusBadgeState();
+}
+
+class _StatusBadgeState extends State<_StatusBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+    if (widget.connected) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _StatusBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.connected && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    } else if (!widget.connected && _controller.isAnimating) {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.connected) {
+      // 未接続: 静止した赤い ✕
+      return Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Icons.cancel, size: 26, color: Colors.red.shade600),
+      );
+    }
+
+    // 接続中: ふわふわと光る緑のチェック
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = Curves.easeInOut.transform(_controller.value);
+        return Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.green.withValues(alpha: 0.15 + 0.20 * t),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.withValues(alpha: 0.35 * t),
+                blurRadius: 10 + 10 * t,
+                spreadRadius: 1 + 2 * t,
+              ),
+            ],
+          ),
+          child: Transform.scale(
+            scale: 1.0 + 0.06 * t,
+            child: Icon(
+              Icons.check_circle,
+              size: 26,
+              color: Colors.green.shade600,
+            ),
+          ),
+        );
+      },
     );
   }
 }

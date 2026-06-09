@@ -9,7 +9,9 @@ import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/slide_up_route.dart';
 import '../../widgets/todo_edit_screen.dart';
+import '../settings/settings_screen.dart';
 
 /// カスタムリスト詳細画面
 class ListDetailScreen extends ConsumerStatefulWidget {
@@ -225,6 +227,9 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                 onTodayTap: () => Navigator.of(context).pop(),
                 onAddTap: () => _showAddTodoScreen(context),
                 onSomedayTap: () => Navigator.of(context).pop(),
+                onSettingsTap: () => Navigator.of(context).push(
+                  slideUpRoute<void>(const SettingsScreen()),
+                ),
                 isSomedayActive: true,
               );
             },
@@ -396,8 +401,8 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   /// Todo追加画面を表示
   void _showAddTodoScreen(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => TodoEditScreen(
+      slideUpRoute<void>(
+        TodoEditScreen(
           customListId: widget.customList.id,
           customListName: widget.customList.name,
           isGroupList: widget.customList.isGroup,

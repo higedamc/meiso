@@ -13,9 +13,11 @@ import '../../utils/error_handler.dart';
 import '../../widgets/bottom_navigation.dart';
 import '../../widgets/add_list_screen.dart';
 import '../../widgets/add_group_list_dialog.dart';
+import '../../widgets/slide_up_route.dart';
 import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
+import '../settings/settings_screen.dart';
 // Phase D.5: MLS UseCase統合
 import '../../features/mls/application/providers/usecase_providers.dart';
 import '../../features/mls/application/usecases/accept_group_invitation_usecase.dart';
@@ -29,10 +31,15 @@ import '../../features/shared_list/domain/entities/shared_invitation.dart';
 class SomedayScreen extends ConsumerStatefulWidget {
   const SomedayScreen({
     this.onClose,
+    this.showBottomNav = true,
     super.key,
   });
 
   final VoidCallback? onClose;
+
+  /// Home に埋め込む場合は false。Home 側が永続的なボトムバーを描画するため、
+  /// 二重描画を避ける（TODAY↔SOMEDAY のシームレスな遷移のため）。
+  final bool showBottomNav;
 
   @override
   ConsumerState<SomedayScreen> createState() => _SomedayScreenState();
@@ -226,6 +233,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           ),
 
           // ボトムナビゲーション
+          if (widget.showBottomNav)
           BottomNavigation(
             onTodayTap: () {
               // BUG FIX: カレンダー展開状態をリセット
@@ -239,6 +247,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             onSomedayTap: () {
               // 既にSOMEDAYページなので何もしない
             },
+            onSettingsTap: () => Navigator.of(context).push(
+              slideUpRoute<void>(const SettingsScreen()),
+            ),
             isSomedayActive: true,
           ),
         ],
@@ -307,13 +318,11 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   return;
                 }
 
-                // リスト詳細画面に遷移
+                // リスト詳細画面に遷移（下から上へスライド）
                 Navigator.push(
                   context,
-                  MaterialPageRoute<void>(
-                    builder: (context) => ListDetailScreen(
-                      customList: list,
-                    ),
+                  slideUpRoute<void>(
+                    ListDetailScreen(customList: list),
                   ),
                 );
               },
@@ -336,13 +345,11 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             isDark,
             key: ValueKey(category.name),
             onTap: () {
-              // プランニングカテゴリー詳細画面に遷移
+              // プランニングカテゴリー詳細画面に遷移（下から上へスライド）
               Navigator.push(
                 context,
-                MaterialPageRoute<void>(
-                  builder: (context) => PlanningDetailScreen(
-                    category: category,
-                  ),
+                slideUpRoute<void>(
+                  PlanningDetailScreen(category: category),
                 ),
               );
             },
@@ -849,8 +856,8 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => const AddListScreen(),
+                    slideUpRoute<void>(
+                      const AddListScreen(),
                       fullscreenDialog: true,
                     ),
                   );

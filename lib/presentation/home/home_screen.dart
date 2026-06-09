@@ -10,6 +10,7 @@ import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
 import '../../widgets/expandable_calendar.dart';
 import '../../widgets/expandable_custom_list_modal.dart';
+import '../../widgets/slide_up_route.dart';
 import '../../widgets/todo_edit_screen.dart';
 import '../settings/settings_screen.dart';
 import '../someday/someday_screen.dart';
@@ -168,9 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _openSettings() {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => const SettingsScreen(),
-      ),
+      slideUpRoute<void>(const SettingsScreen()),
     );
   }
 
@@ -180,10 +179,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final currentDate = _showingSomeday ? null : dates[_currentPageIndex];
 
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => TodoEditScreen(date: currentDate),
+      slideUpRoute<void>(
+        TodoEditScreen(date: currentDate),
         fullscreenDialog: true,
       ),
+    );
+  }
+
+  /// AnimatedSwitcher 用に、現在の状態へ対応するメインビューを返す。
+  /// 各ビューに状態識別キーを付与し、状態変化時のみ遷移アニメを発火させる。
+  Widget _buildMainView({
+    required List<DateTime> dates,
+    required bool isCalendarVisible,
+    required int weekStartDay,
+    required bool isCustomListModalVisible,
+    required WidgetRef ref,
+  }) {
+    if (_showingSomeday) {
+      return SomedayScreen(
+        key: const ValueKey('view-someday'),
+        showBottomNav: false,
+        onClose: () {
+          setState(() {
+            _showingSomeday = false;
+          });
+        },
+      );
+    }
+    if (isCustomListModalVisible) {
+      return ExpandableCustomListModal(
+        key: const ValueKey('view-modal'),
+        isVisible: isCustomListModalVisible,
+        onListSelected: () {
+          ref.read(customListModalVisibleProvider.notifier).state = false;
+        },
+      );
+    }
+    return Column(
+      key: const ValueKey('view-today'),
+      children: [
+        Expanded(
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: _onPageChanged,
+            itemCount: dates.length,
+            itemBuilder: (context, index) {
+              return DayPage(date: dates[index]);
+            },
+          ),
+        ),
+        DateTabBar(
+          dates: dates,
+          currentIndex: _currentPageIndex,
+          onDateTap: _onDateTabTap,
+        ),
+        ExpandableCalendar(
+          isVisible: isCalendarVisible,
+          weekStartDay: weekStartDay,
+          onDaySelected: (selectedDay) =>
+              _onCalendarDaySelected(dates, selectedDay),
+        ),
+      ],
     );
   }
 
@@ -209,67 +265,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ignoring: bootstrapState.isBlocking,
               child: Column(
                 children: [
-                  // Todoページ部分
+                  // メインビュー（TODAY / SOMEDAY / カスタムリスト）を
+                  // シームレスにアニメーション遷移させる。
                   Expanded(
-                  child: _showingSomeday
-                      ? SomedayScreen(
-                          onClose: () {
-                            setState(() {
-                              _showingSomeday = false;
-                            });
-                          },
-                        )
-                      : isCustomListModalVisible
-                      ? ExpandableCustomListModal(
-                          isVisible: isCustomListModalVisible,
-                          onListSelected: () {
-                            // リストが選択されたらモーダルを閉じる
-                            ref.read(customListModalVisibleProvider.notifier).state = false;
-                          },
-                        )
-                      : PageView.builder(
-                          controller: _pageController,
-                          onPageChanged: _onPageChanged,
-                          itemCount: dates.length,
-                          itemBuilder: (context, index) {
-                            return DayPage(
-                              date: dates[index],
-                              onSettingsTap: _openSettings,
-                            );
-                          },
-                        ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 320),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.025),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      layoutBuilder: (currentChild, previousChildren) {
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ...previousChildren,
+                            if (currentChild != null) currentChild,
+                          ],
+                        );
+                      },
+                      child: _buildMainView(
+                        dates: dates,
+                        isCalendarVisible: isCalendarVisible,
+                        weekStartDay: weekStartDay,
+                        isCustomListModalVisible: isCustomListModalVisible,
+                        ref: ref,
+                      ),
+                    ),
                   ),
 
-                  // 日付タブバー（SOMEDAY表示時、モーダル表示時は非表示）
-                  if (!_showingSomeday && !isCustomListModalVisible)
-                    DateTabBar(
-                      dates: dates,
-                      currentIndex: _currentPageIndex,
-                      onDateTap: _onDateTabTap,
-                    ),
-
-                  // カレンダー（TODAYボタンタップで展開、モーダル表示時は非表示）
-                  if (!_showingSomeday && !isCustomListModalVisible)
-                    ExpandableCalendar(
-                      isVisible: isCalendarVisible,
-                      weekStartDay: weekStartDay,
-                      onDaySelected: (selectedDay) =>
-                          _onCalendarDaySelected(dates, selectedDay),
-                    ),
-
-                  // 底部ナビゲーション（SOMEDAY表示時は非表示、モーダル表示時は表示）
-                  if (!_showingSomeday)
-                    BottomNavigation(
-                      onTodayTap: () {
-                        // カスタムリストモーダルを閉じる
-                        ref.read(customListModalVisibleProvider.notifier).state = false;
-                        _jumpToToday(dates);
-                      },
-                      onAddTap: () => _showAddTodoDialog(context, ref),
-                      onSomedayTap: _showSomeday,
-                      onSomedayLongPress: _openSettings,
-                      isSomedayActive: isCustomListModalVisible,
-                    ),
+                  // 底部ナビゲーション（永続表示）。TODAY↔SOMEDAY の
+                  // インジケーターが滑らかにスライドする。
+                  BottomNavigation(
+                    onTodayTap: () {
+                      ref.read(customListModalVisibleProvider.notifier).state =
+                          false;
+                      _jumpToToday(dates);
+                    },
+                    onAddTap: () => _showAddTodoDialog(context, ref),
+                    onSomedayTap: _showSomeday,
+                    onSettingsTap: _openSettings,
+                    onSomedayLongPress: _openSettings,
+                    isSomedayActive: _showingSomeday || isCustomListModalVisible,
+                  ),
                 ],
               ),
             ),

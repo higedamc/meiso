@@ -987,6 +987,12 @@
 
   "addedByCollaborator": "他のメンバーが追加したタスク",
 
-  "addedBy": "追加者"
+  "addedBy": "追加者",
+
+  "settingsSectionStatus": "ステータス",
+
+  "settingsSectionGeneral": "一般",
+
+  "settingsSectionAbout": "アプリ情報"
 }
 

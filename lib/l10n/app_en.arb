@@ -2655,6 +2655,21 @@
   "addedBy": "Added by",
   "@addedBy": {
     "description": "Label shown before the collaborator's npub in task detail"
+  },
+
+  "settingsSectionStatus": "Status",
+  "@settingsSectionStatus": {
+    "description": "Settings section header for connection status"
+  },
+
+  "settingsSectionGeneral": "General",
+  "@settingsSectionGeneral": {
+    "description": "Settings section header for general options"
+  },
+
+  "settingsSectionAbout": "About",
+  "@settingsSectionAbout": {
+    "description": "Settings section header for app information"
   }
 }
 

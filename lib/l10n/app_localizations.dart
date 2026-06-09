@@ -3105,6 +3105,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Added by'**
   String get addedBy;
+
+  /// Settings section header for connection status
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get settingsSectionStatus;
+
+  /// Settings section header for general options
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get settingsSectionGeneral;
+
+  /// Settings section header for app information
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get settingsSectionAbout;
 }
 
 class _AppLocalizationsDelegate

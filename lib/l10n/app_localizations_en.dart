@@ -1700,4 +1700,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addedBy => 'Added by';
+
+  @override
+  String get settingsSectionStatus => 'Status';
+
+  @override
+  String get settingsSectionGeneral => 'General';
+
+  @override
+  String get settingsSectionAbout => 'About';
 }

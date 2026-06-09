@@ -13,6 +13,39 @@ import '../../features/media/presentation/screens/media_server_settings_screen.d
 class AppSettingsDetailScreen extends ConsumerWidget {
   const AppSettingsDetailScreen({super.key});
 
+  /// セクションヘッダー（Settings 画面と統一）
+  Widget _sectionHeader(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+      child: Text(text.toUpperCase(), style: AppTheme.sectionHeader(context)),
+    );
+  }
+
+  /// セクションカード（Settings 画面と統一）
+  Widget _sectionCard(BuildContext context, {required Widget child}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.sectionCardColor(context),
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      ),
+    );
+  }
+
+  Widget _insetDivider(BuildContext context) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      indent: 16,
+      endIndent: 16,
+      color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+    );
+  }
+
   /// 曜日名を取得
   String _getWeekDayName(BuildContext context, int day) {
     final l10n = AppLocalizations.of(context);
@@ -628,62 +661,75 @@ class AppSettingsDetailScreen extends ConsumerWidget {
       }
     });
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.appSettingsTitle),
         elevation: 0,
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.only(top: 8, bottom: 24),
         child: Column(
           children: [
-            // Nostr同期ステータス
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              color: isNostrInitialized
-                  ? Colors.green.shade50
-                  : Colors.orange.shade50,
-              child: Row(
-                children: [
-                  Icon(
-                    isNostrInitialized ? Icons.cloud : Icons.cloud_off,
-                    size: 20,
-                    color: isNostrInitialized
-                        ? Colors.green.shade700
-                        : Colors.orange.shade700,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      isNostrInitialized
-                          ? l10n.nostrAutoSync
-                          : l10n.localStorageOnly,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isNostrInitialized
-                            ? Colors.green.shade900
-                            : Colors.orange.shade900,
+            // Nostr同期ステータス（テーマ追従の半透明バナー）
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: (isNostrInitialized ? Colors.green : Colors.orange)
+                      .withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isNostrInitialized ? Icons.cloud : Icons.cloud_off,
+                      size: 20,
+                      color: isNostrInitialized
+                          ? Colors.green.shade600
+                          : Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        isNostrInitialized
+                            ? l10n.nostrAutoSync
+                            : l10n.localStorageOnly,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurface,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
+
+            const SizedBox(height: 16),
 
             // 設定項目
             appSettingsAsync.when(
               data: (settings) => Column(
                 children: [
+                  _sectionHeader(context, l10n.settingsSectionGeneral),
+                  _sectionCard(
+                    context,
+                    child: Column(
+                      children: [
                   // 言語設定
                   ListTile(
-                    leading: Icon(Icons.language, color: Colors.purple.shade700),
+                    leading: Icon(Icons.language, color: colorScheme.primary),
                     title: Text(l10n.languageSettings),
                     subtitle: Text(_getLocaleName(context, currentLocale)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => _showLanguageDialog(context, ref, currentLocale),
                   ),
 
-                  const Divider(height: 1),
+                  _insetDivider(context),
 
                   // ダークモード設定
                   SwitchListTile(
@@ -697,11 +743,11 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     },
                     secondary: Icon(
                       settings.darkMode ? Icons.dark_mode : Icons.light_mode,
-                      color: Colors.purple.shade700,
+                      color: colorScheme.primary,
                     ),
                   ),
 
-                  const Divider(height: 1),
+                  _insetDivider(context),
 
                   // 完了済みタスクを非表示
                   SwitchListTile(
@@ -717,17 +763,17 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       settings.hideCompletedTasks
                           ? Icons.visibility_off
                           : Icons.visibility,
-                      color: Colors.purple.shade700,
+                      color: colorScheme.primary,
                     ),
                   ),
 
-                  const Divider(height: 1),
+                  _insetDivider(context),
 
                   // メディアサーバー設定
                   ListTile(
                     leading: Icon(
                       Icons.cloud_upload,
-                      color: Colors.purple.shade700,
+                      color: colorScheme.primary,
                     ),
                     title: Text(l10n.mediaServers),
                     subtitle: Text(l10n.mediaServersSubtitle),
@@ -741,45 +787,45 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     },
                   ),
 
-                  const Divider(height: 1),
+                  _insetDivider(context),
 
                   // 週の開始曜日
                   ListTile(
-                    leading: const Icon(Icons.calendar_today),
+                    leading: Icon(Icons.calendar_today, color: colorScheme.primary),
                     title: Text(l10n.weekStartDay),
                     subtitle: Text(_getWeekDayName(context, settings.weekStartDay)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => _showWeekStartDayDialog(context, ref, settings.weekStartDay),
                   ),
 
-                  const Divider(height: 1),
+                  _insetDivider(context),
 
                   // カレンダー表示形式（ステージング版では無効化）
                   ListTile(
                     enabled: false,
-                    leading: Icon(Icons.view_week, color: Colors.grey.shade400),
+                    leading: Icon(Icons.view_week, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                     title: Text(
                       l10n.calendarView,
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
                     ),
                     subtitle: Text(
                       '${settings.calendarView == 'week' ? l10n.weekView : l10n.monthView} ${l10n.inDevelopment}',
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
                     ),
-                    trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                    trailing: Icon(Icons.arrow_forward_ios, size: 16, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                   ),
 
-                  const Divider(height: 1),
+                  _insetDivider(context),
 
                   // 通知設定（ステージング版では無効化）
                   SwitchListTile(
                     title: Text(
                       l10n.notifications,
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
                     ),
                     subtitle: Text(
                       '${l10n.notificationsSubtitle} ${l10n.inDevelopment}',
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
                     ),
                     value: settings.notificationsEnabled,
                     onChanged: null,
@@ -787,11 +833,11 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                       settings.notificationsEnabled
                           ? Icons.notifications_active
                           : Icons.notifications_off,
-                      color: Colors.grey.shade400,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                     ),
                   ),
 
-                  const Divider(height: 1),
+                  _insetDivider(context),
 
                   // Tor接続モード設定
                   ListTile(
@@ -800,8 +846,8 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                           ? Icons.shield_outlined 
                           : Icons.shield,
                       color: settings.torMode == TorMode.disabled 
-                          ? Colors.purple.shade700 
-                          : Colors.green.shade700,
+                          ? colorScheme.primary 
+                          : Colors.green.shade600,
                     ),
                     title: Text(l10n.torConnection),
                     subtitle: Text(
@@ -810,6 +856,9 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     ),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => _showTorModeDialog(context, ref, settings.torMode),
+                  ),
+                      ],
+                    ),
                   ),
 
                   // Orbotモード時の設定とガイド
@@ -899,7 +948,7 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     ),
                     
                     ListTile(
-                      leading: Icon(Icons.settings_ethernet, color: Colors.purple.shade700),
+                      leading: Icon(Icons.settings_ethernet, color: colorScheme.primary),
                       title: Text(l10n.proxyAddress),
                       subtitle: Text(
                         settings.proxyUrl,
@@ -941,42 +990,47 @@ class AppSettingsDetailScreen extends ConsumerWidget {
                     ),
                   ],
 
-                  const Divider(height: 1),
                   const SizedBox(height: 24),
 
-                  // 注意事項
+                  // 注意事項（テーマ追従の情報カード）
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Card(
-                      color: AppTheme.primaryPurple.withOpacity(0.1),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.info, color: AppTheme.primaryPurple),
-                                const SizedBox(width: 8),
-                                Text(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.sectionCardColor(context),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusCard),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline,
+                                  size: 20, color: colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
                                   l10n.appSettingsInfo,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.darkPurple,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: colorScheme.primary,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.appSettingsInfoText,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.darkPurple,
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.appSettingsInfoText,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurfaceVariant,
+                              height: 1.4,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

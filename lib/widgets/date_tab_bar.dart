@@ -13,7 +13,7 @@ class DateTabBar extends ConsumerStatefulWidget {
 
   final List<DateTime> dates;
   final int currentIndex;
-  final Function(int) onDateTap;
+  final void Function(int) onDateTap;
 
   @override
   ConsumerState<DateTabBar> createState() => _DateTabBarState();
@@ -71,18 +71,11 @@ class _DateTabBarState extends ConsumerState<DateTabBar> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
-      height: 90,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.deepPurple.shade400,
-            Colors.deepPurple.shade600,
-          ],
-        ),
-      ),
+      height: 84,
+      color: Colors.transparent,
       child: SingleChildScrollView(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
@@ -91,41 +84,56 @@ class _DateTabBarState extends ConsumerState<DateTabBar> {
           children: List.generate(widget.dates.length, (index) {
             final date = widget.dates[index];
             final isSelected = index == widget.currentIndex;
-            
+
             return SizedBox(
               width: _itemWidth,
-              child: InkWell(
-                onTap: () => widget.onDateTap(index),
-                child: Container(
-                  decoration: isSelected
-                      ? BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
-                          shape: BoxShape.circle,
-                        )
-                      : null,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        DateFormat('M/d').format(date),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: isSelected ? 16 : 14,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                        ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () => widget.onDateTap(index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('EEE', 'en_US').format(date).toUpperCase(),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: isSelected ? 20 : 16,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            DateFormat('M/d').format(date),
+                            style: TextStyle(
+                              color: isSelected
+                                  ? colorScheme.onPrimary
+                                  : colorScheme.onSurfaceVariant,
+                              fontSize: 13,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            DateFormat('EEE', 'en_US').format(date).toUpperCase(),
+                            style: TextStyle(
+                              color: isSelected
+                                  ? colorScheme.onPrimary
+                                  : colorScheme.onSurface,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

@@ -991,6 +991,12 @@
 
   "addedByCollaborator": "Añadida por un colaborador",
 
-  "addedBy": "Añadida por"
+  "addedBy": "Añadida por",
+
+  "settingsSectionStatus": "Estado",
+
+  "settingsSectionGeneral": "General",
+
+  "settingsSectionAbout": "Acerca de"
 }
 

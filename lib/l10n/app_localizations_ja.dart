@@ -1647,4 +1647,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get addedBy => '追加者';
+
+  @override
+  String get settingsSectionStatus => 'ステータス';
+
+  @override
+  String get settingsSectionGeneral => '一般';
+
+  @override
+  String get settingsSectionAbout => 'アプリ情報';
 }
