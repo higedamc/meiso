@@ -4,6 +4,7 @@ import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
@@ -77,19 +78,22 @@ class PlanningDetailScreen extends StatelessWidget {
             child: Consumer(
               builder: (context, ref, child) {
                 final todosAsync = ref.watch(todosProvider);
+                final hideCompleted = ref.watch(appSettingsProvider).valueOrNull?.hideCompletedTasks ?? false;
                 
                 return todosAsync.when(
                   data: (allTodos) {
-                    // 期間内のTodoを日付ごとに抽出
                     final periodTodos = <DateTime, List<Todo>>{};
                     
                     for (final entry in allTodos.entries) {
                       final date = entry.key;
                       if (date != null && dateRange.contains(date)) {
-                        periodTodos[date] = entry.value
-                            .where((todo) => !todo.completed)
-                            .toList()
-                          ..sort((a, b) => a.order.compareTo(b.order));
+                        final filtered = hideCompleted
+                            ? entry.value.where((todo) => !todo.completed).toList()
+                            : entry.value.toList();
+                        if (filtered.isNotEmpty) {
+                          periodTodos[date] = filtered
+                            ..sort((a, b) => a.order.compareTo(b.order));
+                        }
                       }
                     }
 

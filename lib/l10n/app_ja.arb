@@ -75,6 +75,10 @@
 
   "advancedSectionSubtitle": "開発者向け機能",
 
+  "settingsNip89ClientTagTitle": "NIP-89 の client タグを付ける",
+
+  "settingsNip89ClientTagSubtitle": "リレーがクライアントを識別しやすくなります。メタデータを送りたくない場合はオフにしてください。",
+
   "keyPackagePublishTitle": "Key Packageを公開",
 
   "keyPackagePublishSubtitle": "グループ招待を受けるために必要",
@@ -598,7 +602,13 @@
   "aboutRelaysDescription": "• リレーはNostrネットワーク上のサーバーです\n• 複数のリレーに接続することで冗長性が向上します\n• リレーURLは wss:// または ws:// で始める必要があります\n• リレーを追加・削除すると即座にNostr（Kind 10002）に保存されます\n• リレー変更は即座に反映されます（再起動不要）\n• 「Nostrから同期」ボタンで他のデバイスの設定を取得できます\n• 同期時、リモートとローカルが異なる場合のみ更新されます",
   
   "currentlyConnectedViaTor": "• 現在Tor経由で接続しています（Orbotプロキシ使用）",
-  
+
+  "localRelayCitrine": "ローカルリレー (Citrine)",
+  "localRelayDescription": "デバイス上で動作するローカルリレーです。高速キャッシュとオフライン対応に使用されます。グローバル同期成功後にイベントがミラーリングされます。",
+  "localRelayEnabled": "有効",
+  "localRelayUrl": "ローカルリレーURL",
+  "globalRelays": "グローバルリレー",
+
   "cryptoArchPara1": "Meisoは「Zero-Knowledge Architecture」を採用し、あなたの秘密鍵やタスクデータをサーバーに一切送信しません。全ての暗号化処理はあなたのデバイス上で実行されます。",
   
   "cryptoArchSecurityModel": "セキュリティモデル:\n• エンドツーエンド暗号化 (E2EE)\n• クライアントサイド暗号化\n• サーバーは暗号化済みデータのみを保管\n• 秘密鍵はあなただけが保有",
@@ -877,6 +887,102 @@
   
   "requestReinviteFromAdmin": "グループ管理者に再度招待をリクエストしてください。",
   
-  "inviteAcceptanceFailed": "招待の受諾に失敗しました\n\n{error}"
+  "inviteAcceptanceFailed": "招待の受諾に失敗しました\n\n{error}",
+
+  "subtasksHeader": "サブタスク",
+
+  "noSubtasks": "サブタスクはまだありません",
+
+  "addSubtaskHint": "サブタスクを追加...",
+
+  "linkedTasksHeader": "リンクされたタスク",
+
+  "noLinkedTasks": "リンクされたタスクはありません",
+
+  "linkTaskDialogTitle": "タスクをリンク",
+
+  "linkTypeBlocks": "ブロックしている",
+
+  "linkTypeBlockedBy": "ブロックされている",
+
+  "linkTypeRelatedTo": "関連タスク",
+
+  "linkTypeDuplicateOf": "重複タスク",
+
+  "linkRelationship": "関係",
+
+  "linkTargetTask": "対象タスク",
+
+  "linkButton": "リンク",
+
+  "noTasksToLink": "リンクできるタスクがありません",
+
+  "hideCompletedTasks": "完了済みタスクを非表示",
+
+  "hideCompletedTasksSubtitle": "すべてのビューで完了済みタスクを非表示にする",
+
+  "attachImage": "画像を添付",
+
+  "removeImage": "画像を削除",
+
+  "uploadingImage": "画像をアップロード中...",
+
+  "imageUploadFailed": "画像のアップロードに失敗しました: {reason}",
+
+  "imageUploaded": "画像を添付しました",
+
+  "imageSourceCamera": "カメラ",
+
+  "imageSourceGallery": "ギャラリー",
+
+  "mediaServers": "メディアサーバー",
+
+  "mediaServersSubtitle": "Blossom / NIP-96 アップロードサーバーを管理",
+
+  "addMediaServer": "サーバーを追加",
+
+  "mediaServerUrl": "サーバーURL",
+
+  "mediaServerType": "サーバータイプ",
+
+  "mediaServerManual": "手動",
+
+  "mediaServerAutoDiscovered": "自動検出 (Kind 10063)",
+
+  "deleteMediaServer": "サーバーを削除",
+
+  "noMediaServers": "メディアサーバーが設定されていません。サーバーを追加するか、Nostrに接続して自動検出してください。",
+
+  "mediaServerAdded": "メディアサーバーを追加しました",
+
+  "mediaServerDeleted": "メディアサーバーを削除しました",
+
+  "invalidUrl": "有効なURLを入力してください",
+
+  "refreshServers": "サーバーを更新",
+
+  "selectUploadServer": "アップロード先",
+
+  "noServersFound": "利用可能なサーバーがありません。下にURLを入力してください。",
+
+  "addCustomServer": "カスタムURLを使用",
+
+  "customServerUrlHint": "https://example.com",
+
+  "upload": "アップロード",
+
+  "parentTaskLabel": "親タスク",
+
+  "parentTaskNone": "なし",
+
+  "selectParentTask": "親タスクを選択",
+
+  "removeParentTask": "親タスクを解除",
+
+  "convertToSubtaskSuccess": "サブタスクに変換しました",
+
+  "promotedToRootSuccess": "ルートタスクに昇格しました",
+
+  "cannotDemoteHasSubtasks": "先にサブタスクを削除してください"
 }
 

@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -33,7 +33,7 @@ jobs:
           targets: aarch64-linux-android
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -60,51 +60,17 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Decode keystore
-        id: keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "No keystore configured, skipping signing setup"
-            echo "has_keystore=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release-keystore.jks
-          cat > android/key.properties << EOF
-          storePassword=$KEYSTORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          keyAlias=$KEY_ALIAS
-          storeFile=release-keystore.jks
-          EOF
-          echo "has_keystore=true" >> $GITHUB_OUTPUT
+      - name: Run tests
+        run: flutter test --no-pub
 
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Sign APK with release key
-        if: steps.keystore.outputs.has_keystore == 'true'
-        env:
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          BUILD_TOOLS=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)
-          $BUILD_TOOLS/apksigner sign \
-            --ks android/app/release-keystore.jks \
-            --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass "pass:$KEYSTORE_PASSWORD" \
-            --key-pass "pass:$KEY_PASSWORD" \
-            build/app/outputs/flutter-apk/app-release.apk
+      - name: Build beta APK
+        run: flutter build apk --flavor beta --release --dart-define=BUILD_CHANNEL=beta --target-platform android-arm64
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: meiso-apk-${{ github.sha }}
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: meiso-beta-apk-${{ github.sha }}
+          path: build/app/outputs/flutter-apk/app-beta-release.apk
           retention-days: 30
 
   release:
@@ -115,14 +81,14 @@ jobs:
       contents: write
     steps:
       - name: Download APK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
-          name: meiso-apk-${{ github.sha }}
+          name: meiso-beta-apk-${{ github.sha }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: app-release.apk
+          files: app-beta-release.apk
 
   notify:
     needs: build

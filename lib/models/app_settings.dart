@@ -15,6 +15,14 @@ enum TorMode {
   orbot,
 }
 
+/// タスクUIモード
+enum TaskUiMode {
+  reminders,
+  asana,
+  wunderlist,
+  kanban,
+}
+
 /// アプリ設定データ（NIP-78 Application-specific data - Kind 30078）
 @Freezed(makeCollectionsUnmodifiable: false)
 class AppSettings with _$AppSettings {
@@ -45,6 +53,18 @@ class AppSettings with _$AppSettings {
     
     /// 最後に見ていたカスタムリストID
     String? lastViewedCustomListId,
+
+    /// タスクUIモード（既定: Reminders）
+    @Default(TaskUiMode.reminders) TaskUiMode taskUiMode,
+
+    /// 実験機能フラグ（feature_id -> enabled）
+    @Default(<String, bool>{}) Map<String, bool> featureFlags,
+
+    /// 完了済みタスクを非表示にする
+    @Default(false) bool hideCompletedTasks,
+
+    /// NIP-89 `client` タグをイベントに付与する（false = オプトアウト）
+    @Default(true) bool nip89ClientTagEnabled,
     
     /// 最終更新日時
     required DateTime updatedAt,

@@ -7,6 +7,7 @@ import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
 import '../../providers/app_settings_provider.dart';
 
+import '../../models/relay_config.dart';
 import '../../services/logger_service.dart';
 import '../../bridge_generated.dart/api.dart' as bridge;
 
@@ -20,23 +21,40 @@ class RelayManagementScreen extends ConsumerStatefulWidget {
 
 class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
   final _newRelayController = TextEditingController();
+  final _citrineUrlController = TextEditingController();
   String? _errorMessage;
   String? _successMessage;
   bool _isSyncing = false;
+  bool _citrineEnabled = false;
 
   @override
   void initState() {
     super.initState();
-    // リレー状態を初期化
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeRelayStates();
+      _initializeCitrineState();
     });
   }
 
   @override
   void dispose() {
     _newRelayController.dispose();
+    _citrineUrlController.dispose();
     super.dispose();
+  }
+
+  void _initializeCitrineState() {
+    final appSettings = ref.read(appSettingsProvider);
+    appSettings.whenData((settings) {
+      final hasLocalRelay = settings.relays.any(isLikelyLocalRelayUrl);
+      final localUrl = hasLocalRelay
+          ? settings.relays.firstWhere(isLikelyLocalRelayUrl)
+          : defaultCitrineUrl;
+      setState(() {
+        _citrineEnabled = hasLocalRelay;
+        _citrineUrlController.text = localUrl;
+      });
+    });
   }
 
   void _initializeRelayStates() {
@@ -328,12 +346,79 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
             ),
             const SizedBox(height: 24),
 
-            // リレーリスト
+            // Citrine / Local Relay section
+            Text(
+              l10n.localRelayCitrine,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.localRelayDescription,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      title: Text(l10n.localRelayEnabled),
+                      value: _citrineEnabled,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (enabled) async {
+                        setState(() => _citrineEnabled = enabled);
+                        final currentRelays = ref.read(relayStatusProvider).keys.toList();
+                        final citrineUrl = _citrineUrlController.text.trim().isNotEmpty
+                            ? _citrineUrlController.text.trim()
+                            : defaultCitrineUrl;
+
+                        List<String> updatedRelays;
+                        if (enabled) {
+                          updatedRelays = [...currentRelays, citrineUrl];
+                        } else {
+                          updatedRelays = currentRelays.where((r) => !isLikelyLocalRelayUrl(r)).toList();
+                        }
+                        await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
+                        ref.read(relayStatusProvider.notifier).initializeAsConnected(updatedRelays);
+                        try {
+                          await bridge.updateRelayList(relays: updatedRelays);
+                        } catch (e) {
+                          AppLogger.debug('Citrine toggle relay update: $e');
+                        }
+                      },
+                    ),
+                    if (_citrineEnabled) ...[
+                      TextField(
+                        controller: _citrineUrlController,
+                        decoration: InputDecoration(
+                          hintText: defaultCitrineUrl,
+                          labelText: l10n.localRelayUrl,
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Global relay list
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  l10n.relayList,
+                  l10n.globalRelays,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 ElevatedButton.icon(

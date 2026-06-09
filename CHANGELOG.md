@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-05-29
+
+### Fixed
+- **Calendar crash when opening via TODAY**: `table_calendar`'s internal `late final _pageController` could be initialized twice on subtree re-inflation, throwing `LateInitializationError: Field '_pageController@...' has already been initialized` and leaving the screen stuck until the app was killed. `ExpandableCalendar` now mounts the calendar only while visible (plus the closing animation), so a fresh state is created on every open and the double-init cannot occur. Added regression tests in `test/calendar_pagecontroller_repro_test.dart`. (relates to Issue #132)
+- **Custom list deletion zombie resurrection**: switched from last-writer-wins recreation to permanent tombstones so deleted lists no longer reappear after a sync.
+
+## [1.3.0] - 2026-04-07
+
+### Added
+- **Subtask Support (Issue #128)**: Reminders-first subtask mode with parent-child task relationships
+  - `parentTaskId` / `depth` fields on Todo model
+  - Subtask CRUD in TodosNotifier, inline UI in todo_edit_screen and todo_item
+  - Task Links model (blocks, blocked_by, related_to, duplicate_of) for Asana mode
+  - **Edit screen**: Promote subtask to root or attach task as subtask of another parent (with l10n)
+- **Image Attachments**: Blossom / NIP-96 image upload with server picker and full-screen viewer
+  - Amber-mode signing support for media uploads
+- **Product Flavors**: `production` (Zapstore) / `beta` (GitHub Actions) build split
+  - `BuildChannel` enum + `buildChannel` constant in `app_config.dart` (Issue #124)
+  - `--dart-define=BUILD_CHANNEL` for compile-time channel detection
+- **Feature Gate System**: Beta-only experimental feature toggles (Asana/Wunderlist/Kanban modes, Task Linking)
+- **Hide Completed Tasks**: Toggle in App Settings to hide completed tasks (including Planning detail view)
+- **CI/CD**: GitHub Actions workflow for automated beta APK builds with Telegram notifications
+- **Go CUI**: Bidirectional Nostr sync, custom lists, tree view for terminal-based task management
+- **Nostr relay User-Agent (Issue #130)**: WebSocket handshake sends `meiso/<version> (<os>; <os_version>)` using a vendored `async-wsocket` fork and `setRelayWebsocketUserAgent` before client init
+- **NIP-89 client tag (Issue #131)**: Published events include a minimal `["client","meiso"]` tag unless disabled under Settings -> Advanced (synced in Kind 30078 as `nip89_client_tag_enabled`)
+
+### Changed
+- **Three-Tier Sync**: Refactored sync flow to Hive -> Global -> Citrine relay architecture
+- **CargoKit**: Vendored cargokit to resolve CI submodule fetch failures; fixed flavor compatibility in plugin.gradle
+- **Rust Bridge**: Regenerated FRB bindings with subtask/task-link fields
+- **Rust**: `async-wsocket` 0.10.1 patched at `rust/vendor/async-wsocket` with `[patch.crates-io]`; direct dependency from the `rust` crate for the setter API
+- **Task reorder UX**: Dedicated drag handle; subtask drag-out promotes to root; long-press on text remains JSON/debug path where applicable
+- **GitHub Actions**: `actions/checkout`, `setup-java`, `cache`, `upload-artifact`, and `download-artifact` bumped to v5
+- **Test Suite**: Fixed 17 broken tests, added tests for recurring instance generation and child instance removal
+
+### Fixed
+- **Community feedback ([Nostr](https://njump.me/nevent1qqsgx0r3afgwp8p7rgwcpnl4xs8j0wtvhdtv3h5djjvwe795y6y0y4gppemhxue69uhkummn9ekx7mp0qgs9dcnp82lvzhplnvrua24rq842dg9025q9g6shzkurh6r2yqj9wsgrqsqqqpzhkcx0sp))**: Tasks looked like they only synced after pull-to-refresh — fixed “Send to relay” showing for already-synced todos, stale/null `eventId` merge from encrypted payloads, cold-start retry, and batch sync window (PR #129).
+- **Same thread**: Relay behaviour on cold start — Amber mode client reuse (avoid per-send client recreation / WS timeout loop), real per-relay connection checks, relay status UI updates, and Citrine/global relay management improvements (PR #129).
+- Beta APK stuck on splash / white screen: `abiFilters` for ARM64, FRB version alignment, splash error diagnostics
+- Relay status stuck at `0/n` connected after successful init
+- `needsSync` stuck true and related sync state persistence
+- `imageUrl` end-to-end through Rust, FRB, and Nostr conversion layers
+- `moveTodo`: child tasks follow parent date; Amber JSON parity for subtasks / `image_url`
+- Task reorder jumping back: list order vs. arranged (e.g. hidden completed) index mismatch
+- Production build: `app-production-release.apk` also copied to `app-release.apk` for `flutter install`
+- **Security / logging**: Rust `println!` only in debug; removed secret-key logging (defense in depth)
+- CargoKit product flavor compatibility (Rust .so missing from APK)
+- Removed stale prebuilt jniLibs that masked cargokit output
+- CI build failures (cargokit submodule, Amber gitlink, signing config)
+
+### Notes
+- Community-reported “Today” blank bottom sheet (no dismiss) is tracked for verification in Issue #132.
+
 ## [1.1.9] - 2026-03-13
 
 ### Added

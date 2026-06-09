@@ -9,44 +9,50 @@ class CustomList with _$CustomList {
   const factory CustomList({
     /// UUID
     required String id,
-    
+
     /// リスト名
     required String name,
-    
+
     /// 並び順
     @Default(0) int order,
-    
+
     /// 作成日時
     required DateTime createdAt,
-    
+
     /// 更新日時
     required DateTime updatedAt,
-    
+
     /// グループリストかどうか（マルチパーティ暗号化使用）
     @Default(false) bool isGroup,
-    
+
     /// グループメンバーの公開鍵リスト（hex形式）
     @Default([]) List<String> groupMembers,
-    
+
     /// インビテーション待ちかどうか（Phase 6.4: MLS招待システム）
     @Default(false) bool isPendingInvitation,
-    
+
     /// 招待者のnpub（Phase 6.4: MLS招待システム）
     String? inviterNpub,
-    
+
     /// 招待者の名前（Phase 6.4: MLS招待システム）
     String? inviterName,
-    
+
     /// Welcome Message（base64エンコード済み）（Phase 6.4: MLS招待システム）
     String? welcomeMsg,
-    
+
     /// 招待を承諾した日時（Phase 8.7: Bug #1修正）
     /// この値が存在する場合、招待は既に承諾済みと見なす
     DateTime? acceptedAt,
-    
+
     /// NostrイベントID（Phase E: リスト削除・更新の同期用）
     /// Personal Listのリモート削除・更新に必要
     String? eventId,
+
+    /// 共有リスト同期プロトコルバージョン
+    /// - none: 個人リスト
+    /// - mls-v1: MLSベース共有
+    /// - gw17-v1: NIP-17 fan-out共有
+    @Default('none') String protocolVersion,
   }) = _CustomList;
 
   factory CustomList.fromJson(Map<String, dynamic> json) =>
@@ -55,32 +61,39 @@ class CustomList with _$CustomList {
 
 /// CustomListのヘルパーメソッド
 extension CustomListHelpers on CustomList {
+  static const String protocolNone = 'none';
+  static const String protocolMlsV1 = 'mls-v1';
+  static const String protocolGw17V1 = 'gw17-v1';
+
+  bool get isMlsProtocol => protocolVersion == protocolMlsV1;
+  bool get isGw17Protocol => protocolVersion == protocolGw17V1;
+
   /// リスト名から決定的なIDを生成（NIP-51準拠）
-  /// 
+  ///
   /// 例:
   /// - "BRAIN DUMP" → "brain-dump"
-  /// - "Grocery List" → "grocery-list"  
+  /// - "Grocery List" → "grocery-list"
   /// - "TO BUY!!!" → "to-buy"
-  /// 
+  ///
   /// ⚠️ 日本語や特殊文字は削除されます：
   /// - "買い物リスト" → "" (空文字列)
   /// - "Groceryリスト" → "grocery"
-  /// 
+  ///
   /// 空文字列になった場合は、"unnamed-list"を返します
   static String generateIdFromName(String name) {
     final id = name
         .toLowerCase()
         .trim()
         .replaceAll(RegExp(r'[^\w\s-]'), '') // 特殊文字を削除（日本語も削除される）
-        .replaceAll(RegExp(r'\s+'), '-')     // スペースをハイフンに
-        .replaceAll(RegExp(r'-+'), '-')      // 連続するハイフンを1つに
-        .replaceAll(RegExp(r'^-|-$'), '');   // 先頭・末尾のハイフンを削除
-    
+        .replaceAll(RegExp(r'\s+'), '-') // スペースをハイフンに
+        .replaceAll(RegExp(r'-+'), '-') // 連続するハイフンを1つに
+        .replaceAll(RegExp(r'^-|-$'), ''); // 先頭・末尾のハイフンを削除
+
     // 空文字列の場合はフォールバック
     if (id.isEmpty) {
       return 'unnamed-list';
     }
-    
+
     return id;
   }
 
@@ -117,12 +130,12 @@ extension PlanningCategoryExtension on PlanningCategory {
         return 'NEXT MONTH';
     }
   }
-  
+
   /// このカテゴリーに該当する日付範囲を取得
   DateRange getDateRange() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
+
     switch (this) {
       case PlanningCategory.thisWeek:
         // 今週（月曜日〜日曜日）
@@ -130,7 +143,7 @@ extension PlanningCategoryExtension on PlanningCategory {
         final monday = today.subtract(Duration(days: weekday - 1));
         final sunday = monday.add(const Duration(days: 6));
         return DateRange(start: monday, end: sunday);
-        
+
       case PlanningCategory.nextWeek:
         // 来週（月曜日〜日曜日）
         final weekday = today.weekday;
@@ -138,13 +151,13 @@ extension PlanningCategoryExtension on PlanningCategory {
         final nextMonday = thisMonday.add(const Duration(days: 7));
         final nextSunday = nextMonday.add(const Duration(days: 6));
         return DateRange(start: nextMonday, end: nextSunday);
-        
+
       case PlanningCategory.thisMonth:
         // 今月
         final firstDay = DateTime(now.year, now.month);
         final lastDay = DateTime(now.year, now.month + 1, 0);
         return DateRange(start: firstDay, end: lastDay);
-        
+
       case PlanningCategory.nextMonth:
         // 来月
         final firstDay = DateTime(now.year, now.month + 1);
@@ -160,15 +173,14 @@ class DateRange {
     required this.start,
     required this.end,
   });
-  
+
   final DateTime start;
   final DateTime end;
-  
+
   /// 指定した日付がこの範囲内にあるかチェック
   bool contains(DateTime date) {
     final normalized = DateTime(date.year, date.month, date.day);
     return (normalized.isAfter(start) || normalized.isAtSameMomentAs(start)) &&
-           (normalized.isBefore(end) || normalized.isAtSameMomentAs(end));
+        (normalized.isBefore(end) || normalized.isAtSameMomentAs(end));
   }
 }
-

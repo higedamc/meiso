@@ -22,14 +22,14 @@ class SyncLoadingOverlay extends ConsumerWidget {
         return l10n.bootstrapPhaseContinueWithLocalCache;
       case BootstrapSyncPhase.fetchingAccountRelays:
         return l10n.bootstrapPhaseFetchingAccountRelays;
+      case BootstrapSyncPhase.fetchingGlobalTodos:
+        return l10n.bootstrapPhaseFetchingAllRelaysTodos;
+      case BootstrapSyncPhase.fetchingGlobalGroupTodos:
+        return l10n.bootstrapPhaseFetchingAllRelaysGroupTodos;
       case BootstrapSyncPhase.fetchingLocalTodos:
         return l10n.bootstrapPhaseFetchingLocalTodos;
       case BootstrapSyncPhase.fetchingLocalGroupTodos:
         return l10n.bootstrapPhaseFetchingLocalGroupTodos;
-      case BootstrapSyncPhase.fetchingAllRelaysTodos:
-        return l10n.bootstrapPhaseFetchingAllRelaysTodos;
-      case BootstrapSyncPhase.fetchingAllRelaysGroupTodos:
-        return l10n.bootstrapPhaseFetchingAllRelaysGroupTodos;
       case BootstrapSyncPhase.fetchingGroupInvitations:
         return l10n.bootstrapPhaseFetchingGroupInvitations;
       case BootstrapSyncPhase.syncCompleted:

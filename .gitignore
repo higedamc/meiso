@@ -35,9 +35,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Flutter Rust Bridge generated files
-lib/bridge_generated.dart/
-rust/bridge_generated.h
+# Flutter Rust Bridge generated files (tracked for CI builds)
+# NOTE: bridge_generated.dart/ and bridge_generated.h are now tracked
+# to avoid requiring LLVM + flutter_rust_bridge_codegen in CI.
+# Regenerate locally with: flutter_rust_bridge_codegen generate
 rust/bridge_generated.rs
 
 # Symbolication related
@@ -55,16 +56,23 @@ app.*.map.json
 
 # Rust related
 rust/target/
+rust/build/
 rust/Cargo.lock
 rust/target/.rustc_info.json
 
 # External reference projects (not part of main app)
-# Amber/
+Amber/
 
 # Temporary backup files
 .tmp_backup/
-pubspec.lock
-rust/src/frb_generated.rs
+.tmp_gradle_tasks.txt
+tmp-fetch-note/
+
+# Build artifacts
+android/build/
+cui/meiso
+# pubspec.lock — アプリケーションでは lock ファイルをコミットして CI との再現性を担保する
+# rust/src/frb_generated.rs  # tracked for CI builds
 
 # Local utility scripts
 migrate_docs_to_anytype.py

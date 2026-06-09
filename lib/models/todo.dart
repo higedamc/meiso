@@ -1,84 +1,64 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'link_preview.dart';
 import 'recurrence_pattern.dart';
+import 'task_link.dart';
 
 part 'todo.freezed.dart';
 part 'todo.g.dart';
 
-/// Nostr Kind 30078 (Application-specific data) として保存されるTodoモデル
-/// 
-/// Nostrイベント構造:
-/// - Kind: 30078
-/// - content: NIP-44で暗号化されたこのTodoのJSONデータ
-/// - tags: ["d", "todo-{id}"] (Replaceable Event用)
+/// Nostr Kind 30001 (NIP-51 Bookmark List) として保存されるTodoモデル
+///
+/// 将来的に NIP-XXA Kind 35001 (per-task addressable event) への移行を想定。
+/// サブタスク関係は parentTaskId で、タスクリンクは taskLinks で表現する。
 @Freezed(makeCollectionsUnmodifiable: false)
 class Todo with _$Todo {
   const factory Todo({
-    /// UUID (Nostrイベントの'd' tagとしても使用)
     required String id,
-    
-    /// タスクのタイトル
     required String title,
-    
-    /// 完了状態
     @Default(false) bool completed,
-    
-    /// 日付 (null = Someday)
     DateTime? date,
-    
-    /// 同じ日付内での並び順
     @Default(0) int order,
-    
-    /// 作成日時
     required DateTime createdAt,
-    
-    /// 更新日時
     required DateTime updatedAt,
-    
-    /// Nostrイベントの event ID (同期後に設定)
     String? eventId,
-
-    /// ローカル操作識別子（作成直後に即時付与、デバッグ/追跡用）
     String? localOpId,
-
-    /// ローカルリレー同期完了時刻（Citrine等への送信成功）
     DateTime? localRelaySyncedAt,
-
-    /// グローバルリレー同期完了時刻（バックグラウンド反映）
     DateTime? globalRelaySyncedAt,
-
-    /// グローバルリレーへのバックフィル待機中
     @Default(false) bool globalSyncPending,
-
-    /// グローバルリレーへのバックフィル失敗中（再試行待ち）
     @Default(false) bool globalSyncFailed,
-    
-    /// URLリンクプレビュー（テキストにURLが含まれる場合）
     LinkPreview? linkPreview,
-    
-    /// リカーリングタスクの繰り返しパターン
     RecurrencePattern? recurrence,
-    
-    /// 親リカーリングタスクのID（このタスクが自動生成されたインスタンスの場合）
     String? parentRecurringId,
-    
-    /// カスタムリストID（SOMEDAYページのリストに属する場合）
     String? customListId,
-    
-    /// Nostrへの同期が必要かどうか（楽観的UI更新用）
     @Default(true) bool needsSync,
+
+    /// 親タスクID（サブタスクの場合に設定）
+    /// NIP-XXA 互換: ["a", "35001:<pubkey>:<parent-d>", "", "parent"]
+    String? parentTaskId,
+
+    /// ネスト深度（0 = ルートタスク、表示用キャッシュ）
+    @Default(0) int depth,
+
+    /// タスクリンク（blocks, blocked_by, related_to, duplicate_of）
+    @Default([]) List<TaskLink> taskLinks,
+
+    /// 添付画像のURL（Blossom/NIP-96経由でアップロード済み）
+    String? imageUrl,
   }) = _Todo;
 
   factory Todo.fromJson(Map<String, dynamic> json) => _$TodoFromJson(json);
 }
 
-/// Todoの便利な拡張メソッド
 extension TodoExtension on Todo {
-  /// このタスクがリカーリングタスクかどうか
   bool get isRecurring => recurrence != null;
-  
-  /// このタスクがリカーリングタスクから生成されたインスタンスかどうか
   bool get isRecurringInstance => parentRecurringId != null;
+
+  /// サブタスクを持つ可能性がある（子の探索は provider 側で行う）
+  bool get isSubtask => parentTaskId != null;
+
+  /// ブロッキングリンクが存在するか
+  bool get hasBlockingLinks =>
+      taskLinks.any((l) => l.linkType == TaskLinkType.blockedBy);
 }
 
 /// Todoの日付カテゴリー

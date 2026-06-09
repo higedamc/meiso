@@ -172,13 +172,16 @@ cd /Users/apple/work/meiso
 
 #### 3.2 Flutter Release APKのビルド
 
+> **重要**: Zapstore 向けは必ず `production` flavor でローカルビルドすること。
+> CI の debug keystore はローカルと異なるため、CI ビルドの APK を Zapstore に公開しないこと。
+
 ```bash
-# リリースビルド
+# リリースビルド (production flavor)
 fvm flutter clean
-fvm flutter build apk --release
+fvm flutter build apk --flavor production --release --dart-define=BUILD_CHANNEL=release
 
 # ビルド成功の確認
-ls -lh build/app/outputs/flutter-apk/app-release.apk
+ls -lh build/app/outputs/flutter-apk/app-production-release.apk
 ```
 
 予想されるAPKサイズ: 約30-50MB
@@ -187,7 +190,7 @@ ls -lh build/app/outputs/flutter-apk/app-release.apk
 
 ```bash
 # エミュレータまたは実機にインストール
-fvm flutter install
+fvm flutter install --flavor production
 ```
 
 ### ステップ4: GitHubリリースの作成
@@ -208,24 +211,8 @@ git push origin v1.1.7
 # GitHub CLIでリリースを作成（APK添付）
 gh release create v1.1.7 \
   --title "v1.1.7 - Bug fixes and improvements" \
-  --notes "## 🐛 Bug Fixes
-- **OGP Link Preview (Issue #114)**: Fixed link preview functionality
-- **Undo Delete Button (Issue #11)**: Fixed Undo button
-- **Week Start Day Setting (Issue #38)**: Implemented week start day setting
-
-## 🔄 Changes
-- Simplified sync status indicator
-- Comprehensive localization updates
-- Adjusted network timeout values
-
-## ⚡ Improvements
-- Todo Provider refactoring for better performance
-
-## 📦 Version
-- Version: 1.1.7+307
-
-Full changelog: https://github.com/higedamc/meiso/blob/main/CHANGELOG.md" \
-  build/app/outputs/flutter-apk/app-release.apk
+  --notes-file <(sed -n "/## \[1.1.7\]/,/## \[/p" CHANGELOG.md | head -n -1) \
+  build/app/outputs/flutter-apk/app-production-release.apk
 
 # リリースが作成されたことを確認
 gh release view v1.1.7
@@ -612,10 +599,10 @@ meiso_release() {
   git checkout main
   git pull origin main
   
-  # 4. APKビルド
+  # 4. APKビルド (production flavor)
   ./generate.sh
   fvm flutter clean
-  fvm flutter build apk --release
+  fvm flutter build apk --flavor production --release --dart-define=BUILD_CHANNEL=release
   echo "✓ APK built"
   
   # 5. Gitタグ & GitHub Release
@@ -624,7 +611,7 @@ meiso_release() {
   gh release create v${VERSION} \
     --title "v${VERSION}" \
     --notes-file <(sed -n "/## \[${VERSION}\]/,/## \[/p" CHANGELOG.md | head -n -1) \
-    build/app/outputs/flutter-apk/app-release.apk
+    build/app/outputs/flutter-apk/app-production-release.apk
   echo "✓ GitHub Release created"
   
   # 6. Zapstore公開
@@ -656,16 +643,19 @@ zsp publish --verbose zapstore.yaml
 
 ```bash
 # APKサイズ確認
-ls -lh build/app/outputs/flutter-apk/app-release.apk
+ls -lh build/app/outputs/flutter-apk/app-production-release.apk
 
 # APKのメタ情報確認
-aapt dump badging build/app/outputs/flutter-apk/app-release.apk | grep -E "package:|version"
+aapt dump badging build/app/outputs/flutter-apk/app-production-release.apk | grep -E "package:|version"
+
+# 署名証明書の確認 (Zapstore certificate hash と一致すること)
+keytool -printcert -jarfile build/app/outputs/flutter-apk/app-production-release.apk | grep SHA256
 
 # APKの詳細情報をJSON出力
-zsp apk --extract build/app/outputs/flutter-apk/app-release.apk
+zsp apk --extract build/app/outputs/flutter-apk/app-production-release.apk
 
-# SHA256ハッシュ計算
-shasum -a 256 build/app/outputs/flutter-apk/app-release.apk
+# SHA256ファイルハッシュ計算
+shasum -a 256 build/app/outputs/flutter-apk/app-production-release.apk
 ```
 
 ### Nostr関連
@@ -710,8 +700,10 @@ gh release download v1.1.7 -p "*.apk"
 
 - [ ] `./generate.sh` の実行
 - [ ] `fvm flutter clean` でクリーンビルド
-- [ ] `fvm flutter build apk --release` でリリースビルド
+- [ ] `fvm flutter build apk --flavor production --release --dart-define=BUILD_CHANNEL=release`
 - [ ] APKサイズの確認（30-50MB程度）
+- [ ] 署名確認: `keytool -printcert -jarfile build/app/outputs/flutter-apk/app-production-release.apk | grep SHA256`
+- [ ] SHA256 が `BA:94:CF:06:8F:15:27:70:BB:90:11:1E:3C:ED:0A:36:5C:3D:8B:EA:...` と一致すること
 - [ ] 実機でのインストール & 動作確認
 
 ### GitHubリリース

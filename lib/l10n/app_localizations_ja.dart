@@ -131,6 +131,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get advancedSectionSubtitle => '開発者向け機能';
 
   @override
+  String get settingsNip89ClientTagTitle => 'NIP-89 の client タグを付ける';
+
+  @override
+  String get settingsNip89ClientTagSubtitle =>
+      'リレーがクライアントを識別しやすくなります。メタデータを送りたくない場合はオフにしてください。';
+
+  @override
   String get keyPackagePublishTitle => 'Key Packageを公開';
 
   @override
@@ -1001,6 +1008,22 @@ class AppLocalizationsJa extends AppLocalizations {
   String get currentlyConnectedViaTor => '• 現在Tor経由で接続しています（Orbotプロキシ使用）';
 
   @override
+  String get localRelayCitrine => 'ローカルリレー (Citrine)';
+
+  @override
+  String get localRelayDescription =>
+      'デバイス上で動作するローカルリレーです。高速キャッシュとオフライン対応に使用されます。グローバル同期成功後にイベントがミラーリングされます。';
+
+  @override
+  String get localRelayEnabled => '有効';
+
+  @override
+  String get localRelayUrl => 'ローカルリレーURL';
+
+  @override
+  String get globalRelays => 'グローバルリレー';
+
+  @override
   String get cryptoArchPara1 =>
       'Meisoは「Zero-Knowledge Architecture」を採用し、あなたの秘密鍵やタスクデータをサーバーに一切送信しません。全ての暗号化処理はあなたのデバイス上で実行されます。';
 
@@ -1471,4 +1494,151 @@ class AppLocalizationsJa extends AppLocalizations {
   String inviteAcceptanceFailed(String error) {
     return '招待の受諾に失敗しました\n\n$error';
   }
+
+  @override
+  String get subtasksHeader => 'サブタスク';
+
+  @override
+  String get noSubtasks => 'サブタスクはまだありません';
+
+  @override
+  String get addSubtaskHint => 'サブタスクを追加...';
+
+  @override
+  String get linkedTasksHeader => 'リンクされたタスク';
+
+  @override
+  String get noLinkedTasks => 'リンクされたタスクはありません';
+
+  @override
+  String get linkTaskDialogTitle => 'タスクをリンク';
+
+  @override
+  String get linkTypeBlocks => 'ブロックしている';
+
+  @override
+  String get linkTypeBlockedBy => 'ブロックされている';
+
+  @override
+  String get linkTypeRelatedTo => '関連タスク';
+
+  @override
+  String get linkTypeDuplicateOf => '重複タスク';
+
+  @override
+  String get linkRelationship => '関係';
+
+  @override
+  String get linkTargetTask => '対象タスク';
+
+  @override
+  String get linkButton => 'リンク';
+
+  @override
+  String get noTasksToLink => 'リンクできるタスクがありません';
+
+  @override
+  String get hideCompletedTasks => '完了済みタスクを非表示';
+
+  @override
+  String get hideCompletedTasksSubtitle => 'すべてのビューで完了済みタスクを非表示にする';
+
+  @override
+  String get attachImage => '画像を添付';
+
+  @override
+  String get removeImage => '画像を削除';
+
+  @override
+  String get uploadingImage => '画像をアップロード中...';
+
+  @override
+  String imageUploadFailed(String reason) {
+    return '画像のアップロードに失敗しました: $reason';
+  }
+
+  @override
+  String get imageUploaded => '画像を添付しました';
+
+  @override
+  String get imageSourceCamera => 'カメラ';
+
+  @override
+  String get imageSourceGallery => 'ギャラリー';
+
+  @override
+  String get mediaServers => 'メディアサーバー';
+
+  @override
+  String get mediaServersSubtitle => 'Blossom / NIP-96 アップロードサーバーを管理';
+
+  @override
+  String get addMediaServer => 'サーバーを追加';
+
+  @override
+  String get mediaServerUrl => 'サーバーURL';
+
+  @override
+  String get mediaServerType => 'サーバータイプ';
+
+  @override
+  String get mediaServerManual => '手動';
+
+  @override
+  String get mediaServerAutoDiscovered => '自動検出 (Kind 10063)';
+
+  @override
+  String get deleteMediaServer => 'サーバーを削除';
+
+  @override
+  String get noMediaServers =>
+      'メディアサーバーが設定されていません。サーバーを追加するか、Nostrに接続して自動検出してください。';
+
+  @override
+  String get mediaServerAdded => 'メディアサーバーを追加しました';
+
+  @override
+  String get mediaServerDeleted => 'メディアサーバーを削除しました';
+
+  @override
+  String get invalidUrl => '有効なURLを入力してください';
+
+  @override
+  String get refreshServers => 'サーバーを更新';
+
+  @override
+  String get selectUploadServer => 'アップロード先';
+
+  @override
+  String get noServersFound => '利用可能なサーバーがありません。下にURLを入力してください。';
+
+  @override
+  String get addCustomServer => 'カスタムURLを使用';
+
+  @override
+  String get customServerUrlHint => 'https://example.com';
+
+  @override
+  String get upload => 'アップロード';
+
+  @override
+  String get parentTaskLabel => '親タスク';
+
+  @override
+  String get parentTaskNone => 'なし';
+
+  @override
+  String get selectParentTask => '親タスクを選択';
+
+  @override
+  String get removeParentTask => '親タスクを解除';
+
+  @override
+  String get convertToSubtaskSuccess => 'サブタスクに変換しました';
+
+  @override
+  String get promotedToRootSuccess => 'ルートタスクに昇格しました';
+
+  @override
+  String get cannotDemoteHasSubtasks => '先にサブタスクを削除してください';
 }

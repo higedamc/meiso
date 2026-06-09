@@ -131,6 +131,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get advancedSectionSubtitle => 'Developer features';
 
   @override
+  String get settingsNip89ClientTagTitle => 'NIP-89 client tag on events';
+
+  @override
+  String get settingsNip89ClientTagSubtitle =>
+      'Helps relays and tools identify Meiso. Turn off if you prefer not to send this metadata.';
+
+  @override
   String get keyPackagePublishTitle => 'Publish Key Package';
 
   @override
@@ -1031,6 +1038,22 @@ class AppLocalizationsEn extends AppLocalizations {
       '• Currently connected via Tor (using Orbot proxy)';
 
   @override
+  String get localRelayCitrine => 'Local Relay (Citrine)';
+
+  @override
+  String get localRelayDescription =>
+      'A local relay running on your device for fast caching and offline support. Events are mirrored here after successful global sync.';
+
+  @override
+  String get localRelayEnabled => 'Enabled';
+
+  @override
+  String get localRelayUrl => 'Local relay URL';
+
+  @override
+  String get globalRelays => 'Global Relays';
+
+  @override
   String get cryptoArchPara1 =>
       'Meiso adopts a \"Zero-Knowledge Architecture\" and never sends your secret keys or task data to servers. All encryption processing is performed on your device.';
 
@@ -1522,4 +1545,153 @@ class AppLocalizationsEn extends AppLocalizations {
   String inviteAcceptanceFailed(String error) {
     return 'Invite acceptance failed\n\n$error';
   }
+
+  @override
+  String get subtasksHeader => 'SUBTASKS';
+
+  @override
+  String get noSubtasks => 'No subtasks yet';
+
+  @override
+  String get addSubtaskHint => 'Add subtask...';
+
+  @override
+  String get linkedTasksHeader => 'LINKED TASKS';
+
+  @override
+  String get noLinkedTasks => 'No linked tasks';
+
+  @override
+  String get linkTaskDialogTitle => 'LINK TASK';
+
+  @override
+  String get linkTypeBlocks => 'Blocks';
+
+  @override
+  String get linkTypeBlockedBy => 'Blocked by';
+
+  @override
+  String get linkTypeRelatedTo => 'Related to';
+
+  @override
+  String get linkTypeDuplicateOf => 'Duplicate of';
+
+  @override
+  String get linkRelationship => 'Relationship';
+
+  @override
+  String get linkTargetTask => 'Target task';
+
+  @override
+  String get linkButton => 'LINK';
+
+  @override
+  String get noTasksToLink => 'No tasks available to link';
+
+  @override
+  String get hideCompletedTasks => 'Hide Completed Tasks';
+
+  @override
+  String get hideCompletedTasksSubtitle => 'Hide completed tasks in all views';
+
+  @override
+  String get attachImage => 'Attach Image';
+
+  @override
+  String get removeImage => 'Remove Image';
+
+  @override
+  String get uploadingImage => 'Uploading image...';
+
+  @override
+  String imageUploadFailed(String reason) {
+    return 'Image upload failed: $reason';
+  }
+
+  @override
+  String get imageUploaded => 'Image attached successfully';
+
+  @override
+  String get imageSourceCamera => 'Camera';
+
+  @override
+  String get imageSourceGallery => 'Gallery';
+
+  @override
+  String get mediaServers => 'Media Servers';
+
+  @override
+  String get mediaServersSubtitle => 'Manage Blossom / NIP-96 upload servers';
+
+  @override
+  String get addMediaServer => 'Add Server';
+
+  @override
+  String get mediaServerUrl => 'Server URL';
+
+  @override
+  String get mediaServerType => 'Server Type';
+
+  @override
+  String get mediaServerManual => 'Manual';
+
+  @override
+  String get mediaServerAutoDiscovered => 'Auto-discovered (Kind 10063)';
+
+  @override
+  String get deleteMediaServer => 'Delete Server';
+
+  @override
+  String get noMediaServers =>
+      'No media servers configured. Add a server or connect to Nostr to auto-discover.';
+
+  @override
+  String get mediaServerAdded => 'Media server added';
+
+  @override
+  String get mediaServerDeleted => 'Media server removed';
+
+  @override
+  String get invalidUrl => 'Please enter a valid URL';
+
+  @override
+  String get refreshServers => 'Refresh Servers';
+
+  @override
+  String get selectUploadServer => 'Upload to';
+
+  @override
+  String get noServersFound =>
+      'No upload servers found. Add a server URL below.';
+
+  @override
+  String get addCustomServer => 'Use custom URL';
+
+  @override
+  String get customServerUrlHint => 'https://example.com';
+
+  @override
+  String get upload => 'Upload';
+
+  @override
+  String get parentTaskLabel => 'PARENT TASK';
+
+  @override
+  String get parentTaskNone => 'None';
+
+  @override
+  String get selectParentTask => 'Select parent task';
+
+  @override
+  String get removeParentTask => 'Remove parent';
+
+  @override
+  String get convertToSubtaskSuccess => 'Converted to subtask';
+
+  @override
+  String get promotedToRootSuccess => 'Promoted to root task';
+
+  @override
+  String get cannotDemoteHasSubtasks =>
+      'Remove subtasks first to convert this task';
 }

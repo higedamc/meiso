@@ -13,10 +13,10 @@ enum BootstrapSyncPhase {
   none,
   continueWithLocalCache,
   fetchingAccountRelays,
+  fetchingGlobalTodos,
+  fetchingGlobalGroupTodos,
   fetchingLocalTodos,
   fetchingLocalGroupTodos,
-  fetchingAllRelaysTodos,
-  fetchingAllRelaysGroupTodos,
   fetchingGroupInvitations,
   syncCompleted,
   syncFailed,
@@ -136,6 +136,7 @@ class BootstrapSyncNotifier extends StateNotifier<BootstrapSyncState> {
     }
   }
 
+  /// Three-tier bootstrap: Hive (already loaded) -> Global relays -> Local relay (Citrine)
   Future<void> _runBlockingBootstrap() async {
     _running = true;
     state = state.copyWith(
@@ -153,6 +154,7 @@ class BootstrapSyncNotifier extends StateNotifier<BootstrapSyncState> {
       final todosNotifier = _ref.read(todosProvider.notifier);
       final nostrService = _ref.read(nostrServiceProvider);
 
+      // Phase 0: Sync account settings (relay list, etc.)
       await appSettingsNotifier.syncFromNostr(
         skipIfFresh: false,
         minInterval: Duration.zero,
@@ -161,46 +163,57 @@ class BootstrapSyncNotifier extends StateNotifier<BootstrapSyncState> {
       final relaySplit = await nostrService.resolveRelaySplit();
       final localRelays = relaySplit.$1;
       final globalRelays = relaySplit.$2;
-      final relays = [...localRelays, ...globalRelays];
-      if (relays.isEmpty) {
-        relays.addAll(defaultRelays);
-      }
 
-      if (localRelays.isNotEmpty) {
-        state = state.copyWith(
-          phase: BootstrapSyncPhase.fetchingLocalTodos,
-        );
-        await nostrService.updateActiveRelays(localRelays);
-        await todosNotifier.syncFromNostr(
-          isInitialSync: true,
-          trigger: TodoSyncTrigger.appStart,
-        );
+      // Global relays are the primary source of truth
+      final primaryRelays = globalRelays.isNotEmpty
+          ? globalRelays
+          : defaultRelays;
 
-        state = state.copyWith(
-          phase: BootstrapSyncPhase.fetchingLocalGroupTodos,
-        );
-        await todosNotifier.syncAllGroupTodos();
-      }
-
+      // Phase 1: Fetch from global relays (reliable, always available)
       state = state.copyWith(
-        phase: BootstrapSyncPhase.fetchingAllRelaysTodos,
+        phase: BootstrapSyncPhase.fetchingGlobalTodos,
       );
-      await nostrService.updateActiveRelays(relays);
+      await nostrService.updateActiveRelays(primaryRelays);
       await todosNotifier.syncFromNostr(
         isInitialSync: true,
         trigger: TodoSyncTrigger.appStart,
       );
 
       state = state.copyWith(
-        phase: BootstrapSyncPhase.fetchingAllRelaysGroupTodos,
+        phase: BootstrapSyncPhase.fetchingGlobalGroupTodos,
       );
       await todosNotifier.syncAllGroupTodos();
 
+      // Phase 2: Fetch from local relay (Citrine) if available — supplementary
+      if (localRelays.isNotEmpty) {
+        state = state.copyWith(
+          phase: BootstrapSyncPhase.fetchingLocalTodos,
+        );
+        try {
+          final allRelays = [...primaryRelays, ...localRelays];
+          await nostrService.updateActiveRelays(allRelays);
+          await todosNotifier.syncFromNostr(
+            isInitialSync: true,
+            trigger: TodoSyncTrigger.appStart,
+          );
+
+          state = state.copyWith(
+            phase: BootstrapSyncPhase.fetchingLocalGroupTodos,
+          );
+          await todosNotifier.syncAllGroupTodos();
+        } catch (e) {
+          AppLogger.warning(
+            ' [Bootstrap] Local relay sync failed (non-fatal): $e',
+          );
+        }
+      }
+
+      // Phase 3: Invitations and pending backfill
       state = state.copyWith(
         phase: BootstrapSyncPhase.fetchingGroupInvitations,
       );
       await customListsNotifier.syncGroupInvitations();
-      await nostrService.processGlobalBackfillQueue();
+      await nostrService.processLocalBackfillQueue();
 
       state = state.copyWith(
         isBlocking: false,

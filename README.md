@@ -9,24 +9,30 @@ A minimalist task management app built on the Nostr protocol.
 
 ---
 
-## 📱 About
+## About
 
 **Meiso** (瞑想) is a simple, privacy-focused task management app inspired by TeuxDeux's clean design. Built on the Nostr protocol with end-to-end NIP-44 encryption, your tasks are synced across devices without any central server.
 
-## ✨ Features
+## Features
 
 - **Three-Column Layout**: Today / Tomorrow / Someday organization
+- **Subtasks**: Parent-child task relationships with inline editing
 - **Recurring Tasks**: Daily, weekly, monthly, yearly patterns with flexible intervals
 - **Personal Lists**: Create custom lists to organize tasks by category
+- **Image Attachments**: Blossom / NIP-96 image upload with server picker
+- **Hide Completed Tasks**: Declutter your view with a single toggle
 - **Nostr Sync**: Multi-device synchronization via Nostr relays
 - **Privacy First**: NIP-44 end-to-end encryption for all tasks
 - **Amber Integration**: Secure key management with Amber signer support
+- **NIP-89 Client Tag**: Identify events published by Meiso (opt-out in Settings)
+- **Relay User-Agent**: WebSocket handshake includes `meiso/<version>` for relay analytics
 - **Dark Mode**: Easy on the eyes day and night
 - **Multi-Language**: English, Japanese, Spanish support
-- **Drag & Drop**: Intuitive task reordering
+- **Drag & Drop**: Intuitive task reordering with drag handle
 - **Pull to Refresh**: Quick sync with a simple gesture
+- **Go CUI**: Terminal-based task management with bidirectional Nostr sync
 
-## 📸 Screenshots
+## Screenshots
 
 <p align="center">
   <img src="screenshots/01_home_screen.png" width="250" alt="Home Screen"/>
@@ -34,7 +40,7 @@ A minimalist task management app built on the Nostr protocol.
   <img src="screenshots/03_someday_lists.png" width="250" alt="Someday Lists"/>
 </p>
 
-## 📥 Installation
+## Installation
 
 ### Zapstore (Recommended)
 Download Meiso from [Zapstore](https://zapstore.dev/) - the Nostr-native app store.
@@ -48,38 +54,41 @@ cd meiso
 # Install dependencies
 fvm flutter pub get
 
-# Build for Android
+# Build for Android (production flavor)
 ./generate.sh
-fvm flutter build apk --release
+fvm flutter build apk --flavor production --release
 ```
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Frontend**: Flutter 3.x with Riverpod state management
 - **Backend Logic**: Rust with flutter_rust_bridge
-- **Protocol**: Nostr (NIP-44 encryption, Kind 30078)
+- **Protocol**: Nostr (NIP-44 encryption, Kind 30001 for tasks, Kind 30078 for settings)
 - **Storage**: Local-first with Hive, synced via Nostr relays
 - **Architecture**: Feature-based Clean Architecture
+- **CUI**: Go (terminal companion app with Nostr sync)
 
-## 📚 Documentation
+## Documentation
 
 - **[Development Roadmap](docs/MLS_BETA_ROADMAP.md)** - Upcoming features and MLS group lists
 - **[Clean Architecture Guide](docs/REFACTOR_CLEAN_ARCHITECTURE_STRATEGY.md)** - Architecture details
 - **[Release Guide](docs/ZAPSTORE_RELEASE_GUIDE_JA.md)** - How to publish to Zapstore (Japanese)
+- **[Go CUI MVP Spec](docs/GO_CUI_MVP_SPEC.md)** - macOS supplemental CUI scope and auth model
+- **[Go CUI Operation Guide](docs/GO_CUI_OPERATION_GUIDE.md)** - build, E2E flow, and future TUI reuse strategy
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
 
-## 👤 Author
+## Author
 
 **Kohei Otani**  
 Nostr: `npub16lrdq99ng2q4hg5ufre5f8j0qpealp8544vq4ctn2wqyrf4tk6uqn8mfeq`
 
 ---
 
-**⚡ Powered by Nostr ⚡**
+**Powered by Nostr**

@@ -322,6 +322,18 @@ abstract class AppLocalizations {
   /// **'Developer features'**
   String get advancedSectionSubtitle;
 
+  /// Toggle title for adding NIP-89 client identification to published Nostr events
+  ///
+  /// In en, this message translates to:
+  /// **'NIP-89 client tag on events'**
+  String get settingsNip89ClientTagTitle;
+
+  /// Explains NIP-89 client tag and privacy opt-out
+  ///
+  /// In en, this message translates to:
+  /// **'Helps relays and tools identify Meiso. Turn off if you prefer not to send this metadata.'**
+  String get settingsNip89ClientTagSubtitle;
+
   /// Menu title for publishing Key Package
   ///
   /// In en, this message translates to:
@@ -1924,6 +1936,36 @@ abstract class AppLocalizations {
   /// **'• Currently connected via Tor (using Orbot proxy)'**
   String get currentlyConnectedViaTor;
 
+  /// Section title for local relay settings
+  ///
+  /// In en, this message translates to:
+  /// **'Local Relay (Citrine)'**
+  String get localRelayCitrine;
+
+  /// Description of local relay functionality
+  ///
+  /// In en, this message translates to:
+  /// **'A local relay running on your device for fast caching and offline support. Events are mirrored here after successful global sync.'**
+  String get localRelayDescription;
+
+  /// Local relay toggle label
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get localRelayEnabled;
+
+  /// Label for local relay URL input
+  ///
+  /// In en, this message translates to:
+  /// **'Local relay URL'**
+  String get localRelayUrl;
+
+  /// Section title for global relay list
+  ///
+  /// In en, this message translates to:
+  /// **'Global Relays'**
+  String get globalRelays;
+
   /// Architecture section paragraph 1
   ///
   /// In en, this message translates to:
@@ -2763,6 +2805,294 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Invite acceptance failed\n\n{error}'**
   String inviteAcceptanceFailed(String error);
+
+  /// Header for subtask section
+  ///
+  /// In en, this message translates to:
+  /// **'SUBTASKS'**
+  String get subtasksHeader;
+
+  /// Placeholder when no subtasks
+  ///
+  /// In en, this message translates to:
+  /// **'No subtasks yet'**
+  String get noSubtasks;
+
+  /// Hint text for add subtask field
+  ///
+  /// In en, this message translates to:
+  /// **'Add subtask...'**
+  String get addSubtaskHint;
+
+  /// Header for linked tasks section
+  ///
+  /// In en, this message translates to:
+  /// **'LINKED TASKS'**
+  String get linkedTasksHeader;
+
+  /// Placeholder when no linked tasks
+  ///
+  /// In en, this message translates to:
+  /// **'No linked tasks'**
+  String get noLinkedTasks;
+
+  /// Title for link task dialog
+  ///
+  /// In en, this message translates to:
+  /// **'LINK TASK'**
+  String get linkTaskDialogTitle;
+
+  /// Link type: blocks
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks'**
+  String get linkTypeBlocks;
+
+  /// Link type: blocked by
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked by'**
+  String get linkTypeBlockedBy;
+
+  /// Link type: related to
+  ///
+  /// In en, this message translates to:
+  /// **'Related to'**
+  String get linkTypeRelatedTo;
+
+  /// Link type: duplicate of
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate of'**
+  String get linkTypeDuplicateOf;
+
+  /// Label for link relationship selector
+  ///
+  /// In en, this message translates to:
+  /// **'Relationship'**
+  String get linkRelationship;
+
+  /// Label for link target task selector
+  ///
+  /// In en, this message translates to:
+  /// **'Target task'**
+  String get linkTargetTask;
+
+  /// Button to confirm link
+  ///
+  /// In en, this message translates to:
+  /// **'LINK'**
+  String get linkButton;
+
+  /// Message when no tasks available for linking
+  ///
+  /// In en, this message translates to:
+  /// **'No tasks available to link'**
+  String get noTasksToLink;
+
+  /// Setting to hide completed tasks from task lists
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Completed Tasks'**
+  String get hideCompletedTasks;
+
+  /// Subtitle for hide completed tasks setting
+  ///
+  /// In en, this message translates to:
+  /// **'Hide completed tasks in all views'**
+  String get hideCompletedTasksSubtitle;
+
+  /// Button to attach an image to a task
+  ///
+  /// In en, this message translates to:
+  /// **'Attach Image'**
+  String get attachImage;
+
+  /// Button to remove attached image
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Image'**
+  String get removeImage;
+
+  /// Message shown while image is being uploaded
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading image...'**
+  String get uploadingImage;
+
+  /// Error message when image upload fails
+  ///
+  /// In en, this message translates to:
+  /// **'Image upload failed: {reason}'**
+  String imageUploadFailed(String reason);
+
+  /// Success message after image upload
+  ///
+  /// In en, this message translates to:
+  /// **'Image attached successfully'**
+  String get imageUploaded;
+
+  /// Option to take photo with camera
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get imageSourceCamera;
+
+  /// Option to select from gallery
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get imageSourceGallery;
+
+  /// Title for media server settings
+  ///
+  /// In en, this message translates to:
+  /// **'Media Servers'**
+  String get mediaServers;
+
+  /// Subtitle for media server settings
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Blossom / NIP-96 upload servers'**
+  String get mediaServersSubtitle;
+
+  /// Button to add a manual media server
+  ///
+  /// In en, this message translates to:
+  /// **'Add Server'**
+  String get addMediaServer;
+
+  /// Label for media server URL input
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL'**
+  String get mediaServerUrl;
+
+  /// Label for media server type selector
+  ///
+  /// In en, this message translates to:
+  /// **'Server Type'**
+  String get mediaServerType;
+
+  /// Label for manually added server
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get mediaServerManual;
+
+  /// Label for auto-discovered server via Nostr
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-discovered (Kind 10063)'**
+  String get mediaServerAutoDiscovered;
+
+  /// Button to delete a media server
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Server'**
+  String get deleteMediaServer;
+
+  /// Empty state when no media servers
+  ///
+  /// In en, this message translates to:
+  /// **'No media servers configured. Add a server or connect to Nostr to auto-discover.'**
+  String get noMediaServers;
+
+  /// Confirmation when server added
+  ///
+  /// In en, this message translates to:
+  /// **'Media server added'**
+  String get mediaServerAdded;
+
+  /// Confirmation when server deleted
+  ///
+  /// In en, this message translates to:
+  /// **'Media server removed'**
+  String get mediaServerDeleted;
+
+  /// Validation error for invalid URL
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a valid URL'**
+  String get invalidUrl;
+
+  /// Button to refresh server list
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Servers'**
+  String get refreshServers;
+
+  /// Title for the server selection bottom sheet when uploading an image
+  ///
+  /// In en, this message translates to:
+  /// **'Upload to'**
+  String get selectUploadServer;
+
+  /// Message shown when no upload servers are available
+  ///
+  /// In en, this message translates to:
+  /// **'No upload servers found. Add a server URL below.'**
+  String get noServersFound;
+
+  /// Option to add a one-off custom server URL for upload
+  ///
+  /// In en, this message translates to:
+  /// **'Use custom URL'**
+  String get addCustomServer;
+
+  /// Hint text for custom server URL input
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com'**
+  String get customServerUrlHint;
+
+  /// Upload button label
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get upload;
+
+  /// Label for parent task section in edit screen
+  ///
+  /// In en, this message translates to:
+  /// **'PARENT TASK'**
+  String get parentTaskLabel;
+
+  /// Displayed when a task has no parent
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get parentTaskNone;
+
+  /// Title for parent task selection dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Select parent task'**
+  String get selectParentTask;
+
+  /// Button to remove parent task relationship
+  ///
+  /// In en, this message translates to:
+  /// **'Remove parent'**
+  String get removeParentTask;
+
+  /// Snackbar message after converting to subtask
+  ///
+  /// In en, this message translates to:
+  /// **'Converted to subtask'**
+  String get convertToSubtaskSuccess;
+
+  /// Snackbar message after promoting to root task
+  ///
+  /// In en, this message translates to:
+  /// **'Promoted to root task'**
+  String get promotedToRootSuccess;
+
+  /// Error when trying to demote a task that has subtasks
+  ///
+  /// In en, this message translates to:
+  /// **'Remove subtasks first to convert this task'**
+  String get cannotDemoteHasSubtasks;
 }
 
 class _AppLocalizationsDelegate

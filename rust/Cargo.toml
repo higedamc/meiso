@@ -12,7 +12,10 @@ tor = []
 
 [dependencies]
 # Flutter Rust Bridge
-flutter_rust_bridge = "=2.11.1"
+flutter_rust_bridge = "=2.12.0"
+
+# Patched fork (see [patch.crates-io]): WebSocket User-Agent for relays (#130)
+async-wsocket = { version = "0.10.1", features = ["socks", "tor"] }
 
 # Nostr SDK
 nostr-sdk = { version = "0.37", features = ["nip44", "tor"] }
@@ -60,3 +63,8 @@ opt-level = "z"  # 最適化レベル（サイズ優先）
 lto = true       # リンク時最適化
 codegen-units = 1
 strip = true     # シンボル削除
+panic = "abort"  # unwind情報を省いてバイナリ縮小
+
+# Meiso-vendored async-wsocket: optional User-Agent on WS handshake (issue #130)
+[patch.crates-io]
+async-wsocket = { path = "vendor/async-wsocket" }

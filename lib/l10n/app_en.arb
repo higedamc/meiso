@@ -199,6 +199,16 @@
     "description": "Subtitle for advanced section in settings"
   },
 
+  "settingsNip89ClientTagTitle": "NIP-89 client tag on events",
+  "@settingsNip89ClientTagTitle": {
+    "description": "Toggle title for adding NIP-89 client identification to published Nostr events"
+  },
+
+  "settingsNip89ClientTagSubtitle": "Helps relays and tools identify Meiso. Turn off if you prefer not to send this metadata.",
+  "@settingsNip89ClientTagSubtitle": {
+    "description": "Explains NIP-89 client tag and privacy opt-out"
+  },
+
   "keyPackagePublishTitle": "Publish Key Package",
   "@keyPackagePublishTitle": {
     "description": "Menu title for publishing Key Package"
@@ -1646,6 +1656,31 @@
   "@currentlyConnectedViaTor": {
     "description": "Message shown when connected via Tor"
   },
+
+  "localRelayCitrine": "Local Relay (Citrine)",
+  "@localRelayCitrine": {
+    "description": "Section title for local relay settings"
+  },
+
+  "localRelayDescription": "A local relay running on your device for fast caching and offline support. Events are mirrored here after successful global sync.",
+  "@localRelayDescription": {
+    "description": "Description of local relay functionality"
+  },
+
+  "localRelayEnabled": "Enabled",
+  "@localRelayEnabled": {
+    "description": "Local relay toggle label"
+  },
+
+  "localRelayUrl": "Local relay URL",
+  "@localRelayUrl": {
+    "description": "Label for local relay URL input"
+  },
+
+  "globalRelays": "Global Relays",
+  "@globalRelays": {
+    "description": "Section title for global relay list"
+  },
   
   "cryptoArchPara1": "Meiso adopts a \"Zero-Knowledge Architecture\" and never sends your secret keys or task data to servers. All encryption processing is performed on your device.",
   "@cryptoArchPara1": {
@@ -2365,6 +2400,251 @@
         "type": "String"
       }
     }
+  },
+
+  "subtasksHeader": "SUBTASKS",
+  "@subtasksHeader": {
+    "description": "Header for subtask section"
+  },
+
+  "noSubtasks": "No subtasks yet",
+  "@noSubtasks": {
+    "description": "Placeholder when no subtasks"
+  },
+
+  "addSubtaskHint": "Add subtask...",
+  "@addSubtaskHint": {
+    "description": "Hint text for add subtask field"
+  },
+
+  "linkedTasksHeader": "LINKED TASKS",
+  "@linkedTasksHeader": {
+    "description": "Header for linked tasks section"
+  },
+
+  "noLinkedTasks": "No linked tasks",
+  "@noLinkedTasks": {
+    "description": "Placeholder when no linked tasks"
+  },
+
+  "linkTaskDialogTitle": "LINK TASK",
+  "@linkTaskDialogTitle": {
+    "description": "Title for link task dialog"
+  },
+
+  "linkTypeBlocks": "Blocks",
+  "@linkTypeBlocks": {
+    "description": "Link type: blocks"
+  },
+
+  "linkTypeBlockedBy": "Blocked by",
+  "@linkTypeBlockedBy": {
+    "description": "Link type: blocked by"
+  },
+
+  "linkTypeRelatedTo": "Related to",
+  "@linkTypeRelatedTo": {
+    "description": "Link type: related to"
+  },
+
+  "linkTypeDuplicateOf": "Duplicate of",
+  "@linkTypeDuplicateOf": {
+    "description": "Link type: duplicate of"
+  },
+
+  "linkRelationship": "Relationship",
+  "@linkRelationship": {
+    "description": "Label for link relationship selector"
+  },
+
+  "linkTargetTask": "Target task",
+  "@linkTargetTask": {
+    "description": "Label for link target task selector"
+  },
+
+  "linkButton": "LINK",
+  "@linkButton": {
+    "description": "Button to confirm link"
+  },
+
+  "noTasksToLink": "No tasks available to link",
+  "@noTasksToLink": {
+    "description": "Message when no tasks available for linking"
+  },
+
+  "hideCompletedTasks": "Hide Completed Tasks",
+  "@hideCompletedTasks": {
+    "description": "Setting to hide completed tasks from task lists"
+  },
+
+  "hideCompletedTasksSubtitle": "Hide completed tasks in all views",
+  "@hideCompletedTasksSubtitle": {
+    "description": "Subtitle for hide completed tasks setting"
+  },
+
+  "attachImage": "Attach Image",
+  "@attachImage": {
+    "description": "Button to attach an image to a task"
+  },
+
+  "removeImage": "Remove Image",
+  "@removeImage": {
+    "description": "Button to remove attached image"
+  },
+
+  "uploadingImage": "Uploading image...",
+  "@uploadingImage": {
+    "description": "Message shown while image is being uploaded"
+  },
+
+  "imageUploadFailed": "Image upload failed: {reason}",
+  "@imageUploadFailed": {
+    "description": "Error message when image upload fails",
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+
+  "imageUploaded": "Image attached successfully",
+  "@imageUploaded": {
+    "description": "Success message after image upload"
+  },
+
+  "imageSourceCamera": "Camera",
+  "@imageSourceCamera": {
+    "description": "Option to take photo with camera"
+  },
+
+  "imageSourceGallery": "Gallery",
+  "@imageSourceGallery": {
+    "description": "Option to select from gallery"
+  },
+
+  "mediaServers": "Media Servers",
+  "@mediaServers": {
+    "description": "Title for media server settings"
+  },
+
+  "mediaServersSubtitle": "Manage Blossom / NIP-96 upload servers",
+  "@mediaServersSubtitle": {
+    "description": "Subtitle for media server settings"
+  },
+
+  "addMediaServer": "Add Server",
+  "@addMediaServer": {
+    "description": "Button to add a manual media server"
+  },
+
+  "mediaServerUrl": "Server URL",
+  "@mediaServerUrl": {
+    "description": "Label for media server URL input"
+  },
+
+  "mediaServerType": "Server Type",
+  "@mediaServerType": {
+    "description": "Label for media server type selector"
+  },
+
+  "mediaServerManual": "Manual",
+  "@mediaServerManual": {
+    "description": "Label for manually added server"
+  },
+
+  "mediaServerAutoDiscovered": "Auto-discovered (Kind 10063)",
+  "@mediaServerAutoDiscovered": {
+    "description": "Label for auto-discovered server via Nostr"
+  },
+
+  "deleteMediaServer": "Delete Server",
+  "@deleteMediaServer": {
+    "description": "Button to delete a media server"
+  },
+
+  "noMediaServers": "No media servers configured. Add a server or connect to Nostr to auto-discover.",
+  "@noMediaServers": {
+    "description": "Empty state when no media servers"
+  },
+
+  "mediaServerAdded": "Media server added",
+  "@mediaServerAdded": {
+    "description": "Confirmation when server added"
+  },
+
+  "mediaServerDeleted": "Media server removed",
+  "@mediaServerDeleted": {
+    "description": "Confirmation when server deleted"
+  },
+
+  "invalidUrl": "Please enter a valid URL",
+  "@invalidUrl": {
+    "description": "Validation error for invalid URL"
+  },
+
+  "refreshServers": "Refresh Servers",
+  "@refreshServers": {
+    "description": "Button to refresh server list"
+  },
+
+  "selectUploadServer": "Upload to",
+  "@selectUploadServer": {
+    "description": "Title for the server selection bottom sheet when uploading an image"
+  },
+
+  "noServersFound": "No upload servers found. Add a server URL below.",
+  "@noServersFound": {
+    "description": "Message shown when no upload servers are available"
+  },
+
+  "addCustomServer": "Use custom URL",
+  "@addCustomServer": {
+    "description": "Option to add a one-off custom server URL for upload"
+  },
+
+  "customServerUrlHint": "https://example.com",
+  "@customServerUrlHint": {
+    "description": "Hint text for custom server URL input"
+  },
+
+  "upload": "Upload",
+  "@upload": {
+    "description": "Upload button label"
+  },
+
+  "parentTaskLabel": "PARENT TASK",
+  "@parentTaskLabel": {
+    "description": "Label for parent task section in edit screen"
+  },
+
+  "parentTaskNone": "None",
+  "@parentTaskNone": {
+    "description": "Displayed when a task has no parent"
+  },
+
+  "selectParentTask": "Select parent task",
+  "@selectParentTask": {
+    "description": "Title for parent task selection dialog"
+  },
+
+  "removeParentTask": "Remove parent",
+  "@removeParentTask": {
+    "description": "Button to remove parent task relationship"
+  },
+
+  "convertToSubtaskSuccess": "Converted to subtask",
+  "@convertToSubtaskSuccess": {
+    "description": "Snackbar message after converting to subtask"
+  },
+
+  "promotedToRootSuccess": "Promoted to root task",
+  "@promotedToRootSuccess": {
+    "description": "Snackbar message after promoting to root task"
+  },
+
+  "cannotDemoteHasSubtasks": "Remove subtasks first to convert this task",
+  "@cannotDemoteHasSubtasks": {
+    "description": "Error when trying to demote a task that has subtasks"
   }
 }
 

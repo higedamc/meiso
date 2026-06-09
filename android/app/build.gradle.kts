@@ -18,6 +18,7 @@ android {
     namespace = "jp.godzhigella.meiso"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    flavorDimensions += "channel"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -29,32 +30,59 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "jp.godzhigella.meiso"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        
-        // NDK設定 (arm64-v8a のみビルド - 最新のAndroidデバイス用)
-        ndk {
-            abiFilters.add("arm64-v8a")
+    }
+
+    productFlavors {
+        create("production") {
+            dimension = "channel"
+            applicationId = "jp.godzhigella.meiso"
+            resValue("string", "app_name", "Meiso")
+        }
+        create("beta") {
+            dimension = "channel"
+            applicationId = "jp.godzhigella.meiso.beta"
+            resValue("string", "app_name", "Meiso Beta")
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
         }
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Zapstore v1.1.9 で debug keystore (SHA256: ba94cf06...) で公開済み。
+            // 署名を変更すると既存ユーザーがアップデートできなくなるため、
+            // production flavor も debug keystore を維持する。
+            // Zapstore 向けビルドは必ずローカルで行うこと (CI の debug keystore は別物)。
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
+
 }
 
 flutter {
     source = "../.."
+}
+
+// production flavor の APK を app-release.apk としてもコピーする。
+// Flutter プラグインは flutter-apk/ に app-production-release.apk でコピーするが、
+// flutter install (--flavor なし) は app-release.apk を期待するため、両方存在させる。
+afterEvaluate {
+    tasks.findByName("assembleProductionRelease")?.doLast {
+        val flutterApkDir = File(project.layout.buildDirectory.get().asFile, "outputs/flutter-apk")
+        val src = File(flutterApkDir, "app-production-release.apk")
+        val dst = File(flutterApkDir, "app-release.apk")
+        if (src.exists()) {
+            src.copyTo(dst, overwrite = true)
+        }
+    }
 }
 
 // Cargokit設定

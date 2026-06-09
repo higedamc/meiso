@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:meiso/features/settings/domain/entities/app_settings.dart';
+import 'package:meiso/models/app_settings.dart';
 
 void main() {
   group('AppSettings Entity', () {
@@ -7,26 +7,28 @@ void main() {
       final settings = AppSettings.defaultSettings();
       
       expect(settings.darkMode, false);
-      expect(settings.weekStartDay, 1); // 月曜日始まり
+      expect(settings.weekStartDay, 1);
       expect(settings.calendarView, 'week');
       expect(settings.notificationsEnabled, true);
       expect(settings.relays, isEmpty);
-      expect(settings.torEnabled, false);
+      expect(settings.torMode, TorMode.disabled);
       expect(settings.proxyUrl, 'socks5://127.0.0.1:9050');
       expect(settings.customListOrder, isEmpty);
       expect(settings.lastViewedCustomListId, isNull);
+      expect(settings.taskUiMode, TaskUiMode.reminders);
+      expect(settings.featureFlags, isEmpty);
+      expect(settings.hideCompletedTasks, false);
     });
     
     test('copyWithでフィールドを更新できる', () {
       final settings = AppSettings.defaultSettings();
       final updated = settings.copyWith(
         darkMode: true,
-        weekStartDay: 0, // 日曜日始まり
+        weekStartDay: 0,
       );
       
       expect(updated.darkMode, true);
       expect(updated.weekStartDay, 0);
-      // その他のフィールドは変更されていない
       expect(updated.calendarView, settings.calendarView);
       expect(updated.notificationsEnabled, settings.notificationsEnabled);
     });
@@ -38,7 +40,7 @@ void main() {
         calendarView: 'week',
         notificationsEnabled: true,
         relays: ['wss://relay.damus.io'],
-        torEnabled: false,
+        torMode: TorMode.disabled,
         proxyUrl: 'socks5://127.0.0.1:9050',
         customListOrder: [],
         updatedAt: DateTime(2025, 1),
@@ -50,4 +52,3 @@ void main() {
     });
   });
 }
-

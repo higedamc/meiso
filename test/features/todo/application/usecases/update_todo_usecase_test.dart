@@ -2,220 +2,165 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/core/common/failure.dart';
 import 'package:meiso/features/todo/application/usecases/update_todo_usecase.dart';
-import 'package:meiso/features/todo/domain/entities/todo.dart';
-import 'package:meiso/features/todo/domain/errors/todo_errors.dart';
 import 'package:meiso/features/todo/domain/repositories/todo_repository.dart';
-import 'package:meiso/features/todo/domain/value_objects/todo_title.dart';
+import 'package:meiso/models/todo.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockTodoRepository extends Mock implements TodoRepository {}
-
-class FakeTodo extends Fake implements Todo {}
 
 void main() {
   late UpdateTodoUseCase usecase;
   late MockTodoRepository mockRepository;
 
-  setUpAll(() {
-    registerFallbackValue(FakeTodo());
-  });
+  final now = DateTime(2025, 11, 12);
+  final today = DateTime(2025, 11, 12);
 
   setUp(() {
     mockRepository = MockTodoRepository();
     usecase = UpdateTodoUseCase(mockRepository);
   });
 
-  group('UpdateTodoUseCase', () {
-    final existingTodo = Todo(
-      id: 'test-id-1',
-      title: TodoTitle.unsafe('Original Title'),
-      completed: false,
-      createdAt: DateTime(2025, 11, 12, 10),
-      updatedAt: DateTime(2025, 11, 12, 10),
-      order: 0,
-      linkPreview: null,
-      recurrence: null,
-      eventId: 'event-1',
-      needsSync: false,
+  setUpAll(() {
+    registerFallbackValue(
+      Todo(id: 'fallback', title: 'fb', createdAt: DateTime(2025), updatedAt: DateTime(2025)),
     );
+  });
 
-    test('タイトルのみ更新される', () async {
-      // Arrange
-      const params = UpdateTodoParams(
-        todoId: 'test-id-1',
-        title: 'Updated Title',
+  Todo makeTodo(String id, {String title = 'Original', bool completed = false}) => Todo(
+        id: id,
+        title: title,
+        completed: completed,
+        createdAt: now,
+        updatedAt: now,
+        date: today,
+        order: 0,
       );
 
-      when(() => mockRepository.getTodoById('test-id-1'))
-          .thenAnswer((_) async => Right(existingTodo));
-
-      when(() => mockRepository.updateTodo(any())).thenAnswer(
-        (invocation) async {
-          final todo = invocation.positionalArguments[0] as Todo;
-          return Right(todo);
-        },
+  group('UpdateTodoUseCase', () {
+    test('Todoが正常に更新される', () async {
+      final todo = makeTodo('t-1');
+      final updatedTodo = todo.copyWith(title: 'Updated Title');
+      final currentTodos = <DateTime?, List<Todo>>{
+        today: [todo],
+      };
+      final params = UpdateTodoParams(
+        todo: updatedTodo,
+        currentTodos: currentTodos,
       );
 
-      // Act
+      when(() => mockRepository.saveTodoToLocal(any()))
+          .thenAnswer((_) async => const Right(null));
+
       final result = await usecase(params);
 
-      // Assert
       expect(result.isRight(), true);
       result.fold(
         (_) => fail('Should succeed'),
-        (todo) {
-          expect(todo.title.value, 'Updated Title');
-          expect(todo.completed, false); // 変更されない
+        (updatedMap) {
+          final list = updatedMap[today]!;
+          expect(list.first.title, 'Updated Title');
+          expect(list.first.needsSync, true);
         },
       );
-
-      verify(() => mockRepository.getTodoById('test-id-1')).called(1);
-      verify(() => mockRepository.updateTodo(any())).called(1);
+      verify(() => mockRepository.saveTodoToLocal(any())).called(1);
     });
 
-    test('完了状態のみ更新される', () async {
-      // Arrange
-      const params = UpdateTodoParams(
-        todoId: 'test-id-1',
-        completed: true,
+    test('完了状態の更新', () async {
+      final todo = makeTodo('t-1');
+      final toggled = todo.copyWith(completed: true);
+      final currentTodos = <DateTime?, List<Todo>>{
+        today: [todo],
+      };
+      final params = UpdateTodoParams(
+        todo: toggled,
+        currentTodos: currentTodos,
       );
 
-      when(() => mockRepository.getTodoById('test-id-1'))
-          .thenAnswer((_) async => Right(existingTodo));
+      when(() => mockRepository.saveTodoToLocal(any()))
+          .thenAnswer((_) async => const Right(null));
 
-      when(() => mockRepository.updateTodo(any())).thenAnswer(
-        (invocation) async {
-          final todo = invocation.positionalArguments[0] as Todo;
-          return Right(todo);
-        },
-      );
-
-      // Act
       final result = await usecase(params);
 
-      // Assert
       expect(result.isRight(), true);
       result.fold(
         (_) => fail('Should succeed'),
-        (todo) {
-          expect(todo.completed, true);
-          expect(todo.title.value, 'Original Title'); // 変更されない
+        (updatedMap) {
+          expect(updatedMap[today]!.first.completed, true);
         },
       );
     });
 
-    test('複数フィールドが同時に更新される', () async {
-      // Arrange
-      const params = UpdateTodoParams(
-        todoId: 'test-id-1',
-        title: 'New Title',
-        completed: true,
-        customListId: 'Work',
-        order: 2,
+    test('存在しないTodoでValidationFailureが返る', () async {
+      final todo = makeTodo('non-existent');
+      final currentTodos = <DateTime?, List<Todo>>{
+        today: [makeTodo('t-1')],
+      };
+      final params = UpdateTodoParams(
+        todo: todo,
+        currentTodos: currentTodos,
       );
 
-      when(() => mockRepository.getTodoById('test-id-1'))
-          .thenAnswer((_) async => Right(existingTodo));
-
-      when(() => mockRepository.updateTodo(any())).thenAnswer(
-        (invocation) async {
-          final todo = invocation.positionalArguments[0] as Todo;
-          return Right(todo);
-        },
-      );
-
-      // Act
       final result = await usecase(params);
 
-      // Assert
+      expect(result.isLeft(), true);
+      result.fold(
+        (failure) => expect(failure, isA<ValidationFailure>()),
+        (_) => fail('Should fail'),
+      );
+      verifyNever(() => mockRepository.saveTodoToLocal(any()));
+    });
+
+    test('Repository保存失敗時にエラーが返る', () async {
+      final todo = makeTodo('t-1');
+      final updated = todo.copyWith(title: 'New');
+      final currentTodos = <DateTime?, List<Todo>>{
+        today: [todo],
+      };
+      final params = UpdateTodoParams(
+        todo: updated,
+        currentTodos: currentTodos,
+      );
+
+      when(() => mockRepository.saveTodoToLocal(any()))
+          .thenAnswer((_) async => const Left(ServerFailure('Save failed')));
+
+      final result = await usecase(params);
+
+      expect(result.isLeft(), true);
+      result.fold(
+        (failure) => expect(failure, isA<ServerFailure>()),
+        (_) => fail('Should fail'),
+      );
+    });
+
+    test('複数Todoの中から正しいTodoだけが更新される', () async {
+      final t1 = makeTodo('t-1', title: 'First');
+      final t2 = makeTodo('t-2', title: 'Second');
+      final t3 = makeTodo('t-3', title: 'Third');
+      final updatedT2 = t2.copyWith(title: 'Updated Second');
+      final currentTodos = <DateTime?, List<Todo>>{
+        today: [t1, t2, t3],
+      };
+      final params = UpdateTodoParams(
+        todo: updatedT2,
+        currentTodos: currentTodos,
+      );
+
+      when(() => mockRepository.saveTodoToLocal(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final result = await usecase(params);
+
       expect(result.isRight(), true);
       result.fold(
         (_) => fail('Should succeed'),
-        (todo) {
-          expect(todo.title.value, 'New Title');
-          expect(todo.completed, true);
-          expect(todo.customListId, 'Work');
-          expect(todo.order, 2);
+        (updatedMap) {
+          final list = updatedMap[today]!;
+          expect(list[0].title, 'First');
+          expect(list[1].title, 'Updated Second');
+          expect(list[2].title, 'Third');
         },
-      );
-    });
-
-    test('存在しないTodoIDでエラーが返る', () async {
-      // Arrange
-      const params = UpdateTodoParams(
-        todoId: 'non-existent-id',
-        title: 'Updated Title',
-      );
-
-      when(() => mockRepository.getTodoById('non-existent-id'))
-          .thenAnswer((_) async => const Left(TodoFailure(TodoError.notFound)));
-
-      // Act
-      final result = await usecase(params);
-
-      // Assert
-      expect(result.isLeft(), true);
-      result.fold(
-        (failure) {
-          expect(failure, isA<TodoFailure>());
-        },
-        (_) => fail('Should fail'),
-      );
-
-      verify(() => mockRepository.getTodoById('non-existent-id')).called(1);
-      verifyNever(() => mockRepository.updateTodo(any()));
-    });
-
-    test('空のタイトルでバリデーションエラーが返る', () async {
-      // Arrange
-      const params = UpdateTodoParams(
-        todoId: 'test-id-1',
-        title: '',
-      );
-
-      when(() => mockRepository.getTodoById('test-id-1'))
-          .thenAnswer((_) async => Right(existingTodo));
-
-      // Act
-      final result = await usecase(params);
-
-      // Assert
-      expect(result.isLeft(), true);
-      result.fold(
-        (failure) {
-          expect(failure, isA<ValidationFailure>());
-        },
-        (_) => fail('Should fail'),
-      );
-
-      verifyNever(() => mockRepository.updateTodo(any()));
-    });
-
-    test('Repository更新失敗時にエラーが返る', () async {
-      // Arrange
-      const params = UpdateTodoParams(
-        todoId: 'test-id-1',
-        title: 'Updated Title',
-      );
-
-      when(() => mockRepository.getTodoById('test-id-1'))
-          .thenAnswer((_) async => Right(existingTodo));
-
-      when(() => mockRepository.updateTodo(any()))
-          .thenAnswer((_) async => const Left(ServerFailure('Update failed')));
-
-      // Act
-      final result = await usecase(params);
-
-      // Assert
-      expect(result.isLeft(), true);
-      result.fold(
-        (failure) {
-          expect(failure, isA<ServerFailure>());
-        },
-        (_) => fail('Should fail'),
       );
     });
   });
 }
-

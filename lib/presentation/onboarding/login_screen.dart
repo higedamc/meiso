@@ -641,8 +641,7 @@ class _LoginScreenState extends State<LoginScreen> {
       AppLogger.info('Generating new keypair...', tag: 'KEYPAIR');
       final keypair = await rust_api.generateKeypair();
 
-      AppLogger.info('Keypair generated:', tag: 'KEYPAIR');
-      AppLogger.debug('  Private (nsec): ${keypair.privateKeyNsec.substring(0, 20)}...', tag: 'KEYPAIR');
+      AppLogger.info('Keypair generated', tag: 'KEYPAIR');
       AppLogger.debug('  Public (npub): ${keypair.publicKeyNpub}', tag: 'KEYPAIR');
 
       // Rust APIで秘密鍵を暗号化して保存

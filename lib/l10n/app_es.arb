@@ -75,6 +75,10 @@
   
   "advancedSectionSubtitle": "Funciones de desarrollador",
 
+  "settingsNip89ClientTagTitle": "Etiqueta client NIP-89 en eventos",
+
+  "settingsNip89ClientTagSubtitle": "Ayuda a identificar Meiso en relays. Desactívala si no quieres enviar estos metadatos.",
+
   "keyPackagePublishTitle": "Publicar Key Package",
   
   "keyPackagePublishSubtitle": "Requerido para recibir invitaciones de grupo",
@@ -887,6 +891,102 @@
   
   "requestReinviteFromAdmin": "Por favor solicita una nueva invitación al administrador del grupo.",
   
-  "inviteAcceptanceFailed": "Falló la aceptación de la invitación\n\n{error}"
+  "inviteAcceptanceFailed": "Falló la aceptación de la invitación\n\n{error}",
+
+  "subtasksHeader": "SUBTAREAS",
+
+  "noSubtasks": "Aun no hay subtareas",
+
+  "addSubtaskHint": "Agregar subtarea...",
+
+  "linkedTasksHeader": "TAREAS VINCULADAS",
+
+  "noLinkedTasks": "No hay tareas vinculadas",
+
+  "linkTaskDialogTitle": "VINCULAR TAREA",
+
+  "linkTypeBlocks": "Bloquea",
+
+  "linkTypeBlockedBy": "Bloqueado por",
+
+  "linkTypeRelatedTo": "Relacionado con",
+
+  "linkTypeDuplicateOf": "Duplicado de",
+
+  "linkRelationship": "Relacion",
+
+  "linkTargetTask": "Tarea objetivo",
+
+  "linkButton": "VINCULAR",
+
+  "noTasksToLink": "No hay tareas disponibles para vincular",
+
+  "hideCompletedTasks": "Ocultar Tareas Completadas",
+
+  "hideCompletedTasksSubtitle": "Ocultar tareas completadas en todas las vistas",
+
+  "attachImage": "Adjuntar Imagen",
+
+  "removeImage": "Eliminar Imagen",
+
+  "uploadingImage": "Subiendo imagen...",
+
+  "imageUploadFailed": "Error al subir imagen: {reason}",
+
+  "imageUploaded": "Imagen adjuntada exitosamente",
+
+  "imageSourceCamera": "Camara",
+
+  "imageSourceGallery": "Galeria",
+
+  "mediaServers": "Servidores de Medios",
+
+  "mediaServersSubtitle": "Gestionar servidores de carga Blossom / NIP-96",
+
+  "addMediaServer": "Agregar Servidor",
+
+  "mediaServerUrl": "URL del Servidor",
+
+  "mediaServerType": "Tipo de Servidor",
+
+  "mediaServerManual": "Manual",
+
+  "mediaServerAutoDiscovered": "Auto-descubierto (Kind 10063)",
+
+  "deleteMediaServer": "Eliminar Servidor",
+
+  "noMediaServers": "No hay servidores configurados. Agregue uno o conectese a Nostr para descubrirlos automaticamente.",
+
+  "mediaServerAdded": "Servidor de medios agregado",
+
+  "mediaServerDeleted": "Servidor de medios eliminado",
+
+  "invalidUrl": "Ingrese una URL valida",
+
+  "refreshServers": "Actualizar Servidores",
+
+  "selectUploadServer": "Subir a",
+
+  "noServersFound": "No se encontraron servidores. Ingrese una URL abajo.",
+
+  "addCustomServer": "Usar URL personalizada",
+
+  "customServerUrlHint": "https://example.com",
+
+  "upload": "Subir",
+
+  "parentTaskLabel": "TAREA PADRE",
+
+  "parentTaskNone": "Ninguno",
+
+  "selectParentTask": "Seleccionar tarea padre",
+
+  "removeParentTask": "Quitar padre",
+
+  "convertToSubtaskSuccess": "Convertido en subtarea",
+
+  "promotedToRootSuccess": "Promovido a tarea principal",
+
+  "cannotDemoteHasSubtasks": "Elimine las subtareas primero"
 }
 

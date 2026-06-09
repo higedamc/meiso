@@ -12,6 +12,7 @@ import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
 import 'circular_checkbox.dart';
+import '../features/media/presentation/widgets/image_thumbnail.dart';
 
 /// リカーリングタスクアクションオプション（削除・更新共通）
 enum RecurringActionOption {
@@ -30,10 +31,12 @@ enum RecurringActionType {
 class TodoItem extends StatelessWidget {
   const TodoItem({
     required this.todo,
+    this.index,
     super.key,
   });
 
   final Todo todo;
+  final int? index;
 
   void _showEditDialog(BuildContext context, WidgetRef ref) {
     Navigator.of(context).push(
@@ -96,9 +99,7 @@ class TodoItem extends StatelessWidget {
           ),
         ),
         actions: [
-          // 個人Todoは eventId が存在するときのみ「同期済み」とみなす。
-          // （needsSync=false だけでは表示不整合が起こり得るため）
-          if (!todo.needsSync && todo.eventId != null && !todo.globalSyncFailed)
+          if (!todo.needsSync && !todo.globalSyncFailed)
             // 同期済み
             TextButton.icon(
               onPressed: () {
@@ -448,6 +449,47 @@ class TodoItem extends StatelessWidget {
     );
   }
 
+  Future<void> _handleTodoToggle(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(todosProvider.notifier);
+
+    // 親タスクを未完了 -> 完了にする場合は、未完了の子タスク確認を出す
+    if (!todo.completed && !todo.isSubtask) {
+      final subtasks = notifier.getSubtasks(todo.id);
+      final hasIncompleteSubtasks = subtasks.any((subtask) => !subtask.completed);
+
+      if (hasIncompleteSubtasks) {
+        final shouldCompleteAll = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Complete parent task?'),
+            content: Text(
+              'This task has ${subtasks.length} subtasks. Completing the parent will also complete all subtasks.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Complete all'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldCompleteAll != true) {
+          return;
+        }
+
+        await notifier.completeParentAndSubtasks(todo.id);
+        return;
+      }
+    }
+
+    await notifier.toggleTodo(todo.id, todo.date);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer(
@@ -599,63 +641,137 @@ class TodoItem extends StatelessWidget {
                 ),
               ),
             ),
-            child: InkWell(
-              onTap: () => _showEditDialog(context, ref),
-              onLongPress: () => _showJsonDialog(context, ref),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Todo タイトル行
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    child: Row(
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _showEditDialog(context, ref),
+                    onLongPress: () => _showJsonDialog(context, ref),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 円形チェックボックス
-                        CircularCheckbox(
-                          value: todo.completed,
-                          onChanged: (_) {
-                            ref
-                                .read(todosProvider.notifier)
-                                .toggleTodo(todo.id, todo.date);
-                          },
-                          size: 22,
+                        Padding(
+                          padding: EdgeInsets.only(
+                            left: 16.0 + (todo.depth * 24.0),
+                            right: index != null ? 0 : 16,
+                            top: 14,
+                            bottom: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              CircularCheckbox(
+                                value: todo.completed,
+                                onChanged: (_) {
+                                  _handleTodoToggle(context, ref);
+                                },
+                                size: 22,
+                              ),
+                              
+                              const SizedBox(width: 12),
+                              
+                              if (todo.linkPreview == null)
+                                Expanded(
+                                  child: Text(
+                                    todo.title,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: todo.completed
+                                        ? AppTheme.todoTitleCompleted
+                                        : AppTheme.todoTitle(context),
+                                  ),
+                                ),
+                              
+                              if (todo.imageUrl != null)
+                                ImageThumbnail(imageUrl: todo.imageUrl!),
+
+                              if (!todo.isSubtask)
+                                Consumer(
+                                  builder: (context, ref, _) {
+                                    final notifier = ref.watch(todosProvider.notifier);
+                                    final subs = notifier.getSubtasks(todo.id);
+                                    if (subs.isEmpty) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final isExpanded =
+                                        ref.watch(subtaskExpansionProvider).contains(todo.id);
+                                    return Padding(
+                                      padding: const EdgeInsets.only(left: 8),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () =>
+                                            notifier.toggleSubtasksExpanded(todo.id),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 2,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                '${subs.length}',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.color
+                                                      ?.withOpacity(0.75),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 2),
+                                              Icon(
+                                                isExpanded
+                                                    ? Icons.keyboard_arrow_down
+                                                    : Icons.keyboard_arrow_right,
+                                                size: 16,
+                                                color: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.color
+                                                    ?.withOpacity(0.65),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                              if (todo.isRecurring)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Icon(
+                                    Icons.repeat,
+                                    size: 18,
+                                    color: AppTheme.primaryPurple.withOpacity(0.5),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                         
-                        const SizedBox(width: 12),
-                        
-                        // タイトル（リンクプレビューがある場合は非表示）
-                        if (todo.linkPreview == null)
-                          Expanded(
-                            child: Text(
-                              todo.title,
-                              style: todo.completed
-                                  ? AppTheme.todoTitleCompleted
-                                  : AppTheme.todoTitle(context),
-                            ),
-                          ),
-                        
-                        // リカーリングタスクのマーカー
-                        if (todo.isRecurring)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: Icon(
-                              Icons.repeat,
-                              size: 18,
-                              color: AppTheme.primaryPurple.withOpacity(0.5),
-                            ),
-                          ),
+                        if (todo.linkPreview != null)
+                          _buildLinkCard(context, todo.linkPreview!),
                       ],
                     ),
                   ),
-                  
-                  // リンクカード（URLが検出された場合）
-                  if (todo.linkPreview != null)
-                    _buildLinkCard(context, todo.linkPreview!),
-                ],
-              ),
+                ),
+                if (index != null)
+                  ReorderableDelayedDragStartListener(
+                    index: index!,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                      child: Icon(
+                        Icons.drag_indicator,
+                        size: 20,
+                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.3),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         );

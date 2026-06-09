@@ -31,6 +31,21 @@ import 'features/mls/domain/value_objects/key_package_publish_policy.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // リリースビルドでもウィジェットエラーを視覚的に表示
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'Widget error:\n${details.exception}\n\n${details.stack}',
+            style: const TextStyle(fontSize: 11, color: Colors.red),
+          ),
+        ),
+      ),
+    );
+  };
+  
   // 英語ロケール初期化
   await initializeDateFormatting('en_US');
   
@@ -42,13 +57,26 @@ void main() async {
     AppLogger.error('ローカルストレージ初期化エラー', error: e, tag: 'INIT');
   }
   
-  // Rustブリッジの初期化（エラーハンドリング付き）
+  // Rustブリッジの初期化
   try {
     await RustLib.init();
     AppLogger.info('Rust初期化成功', tag: 'INIT');
   } catch (e, stackTrace) {
     AppLogger.error('Rust初期化エラー', error: e, stackTrace: stackTrace, tag: 'INIT');
-    // エラーがあってもアプリは起動させる（Nostr機能なしで動作）
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Rust init failed:\n$e\n\n$stackTrace',
+              style: const TextStyle(fontSize: 12, color: Colors.red),
+            ),
+          ),
+        ),
+      ),
+    ));
+    return;
   }
   
   runApp(

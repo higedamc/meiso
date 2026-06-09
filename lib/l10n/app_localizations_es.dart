@@ -131,6 +131,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get advancedSectionSubtitle => 'Funciones de desarrollador';
 
   @override
+  String get settingsNip89ClientTagTitle => 'Etiqueta client NIP-89 en eventos';
+
+  @override
+  String get settingsNip89ClientTagSubtitle =>
+      'Ayuda a identificar Meiso en relays. Desactívala si no quieres enviar estos metadatos.';
+
+  @override
   String get keyPackagePublishTitle => 'Publicar Key Package';
 
   @override
@@ -1046,6 +1053,22 @@ class AppLocalizationsEs extends AppLocalizations {
       '• Actualmente conectado a través de Tor (usando proxy Orbot)';
 
   @override
+  String get localRelayCitrine => 'Local Relay (Citrine)';
+
+  @override
+  String get localRelayDescription =>
+      'A local relay running on your device for fast caching and offline support. Events are mirrored here after successful global sync.';
+
+  @override
+  String get localRelayEnabled => 'Enabled';
+
+  @override
+  String get localRelayUrl => 'Local relay URL';
+
+  @override
+  String get globalRelays => 'Global Relays';
+
+  @override
   String get cryptoArchPara1 =>
       'Meiso adopta una \"Arquitectura de Conocimiento Cero\" y nunca envía sus claves secretas o datos de tareas a servidores. Todo el procesamiento de cifrado se realiza en su dispositivo.';
 
@@ -1543,4 +1566,154 @@ class AppLocalizationsEs extends AppLocalizations {
   String inviteAcceptanceFailed(String error) {
     return 'Falló la aceptación de la invitación\n\n$error';
   }
+
+  @override
+  String get subtasksHeader => 'SUBTAREAS';
+
+  @override
+  String get noSubtasks => 'Aun no hay subtareas';
+
+  @override
+  String get addSubtaskHint => 'Agregar subtarea...';
+
+  @override
+  String get linkedTasksHeader => 'TAREAS VINCULADAS';
+
+  @override
+  String get noLinkedTasks => 'No hay tareas vinculadas';
+
+  @override
+  String get linkTaskDialogTitle => 'VINCULAR TAREA';
+
+  @override
+  String get linkTypeBlocks => 'Bloquea';
+
+  @override
+  String get linkTypeBlockedBy => 'Bloqueado por';
+
+  @override
+  String get linkTypeRelatedTo => 'Relacionado con';
+
+  @override
+  String get linkTypeDuplicateOf => 'Duplicado de';
+
+  @override
+  String get linkRelationship => 'Relacion';
+
+  @override
+  String get linkTargetTask => 'Tarea objetivo';
+
+  @override
+  String get linkButton => 'VINCULAR';
+
+  @override
+  String get noTasksToLink => 'No hay tareas disponibles para vincular';
+
+  @override
+  String get hideCompletedTasks => 'Ocultar Tareas Completadas';
+
+  @override
+  String get hideCompletedTasksSubtitle =>
+      'Ocultar tareas completadas en todas las vistas';
+
+  @override
+  String get attachImage => 'Adjuntar Imagen';
+
+  @override
+  String get removeImage => 'Eliminar Imagen';
+
+  @override
+  String get uploadingImage => 'Subiendo imagen...';
+
+  @override
+  String imageUploadFailed(String reason) {
+    return 'Error al subir imagen: $reason';
+  }
+
+  @override
+  String get imageUploaded => 'Imagen adjuntada exitosamente';
+
+  @override
+  String get imageSourceCamera => 'Camara';
+
+  @override
+  String get imageSourceGallery => 'Galeria';
+
+  @override
+  String get mediaServers => 'Servidores de Medios';
+
+  @override
+  String get mediaServersSubtitle =>
+      'Gestionar servidores de carga Blossom / NIP-96';
+
+  @override
+  String get addMediaServer => 'Agregar Servidor';
+
+  @override
+  String get mediaServerUrl => 'URL del Servidor';
+
+  @override
+  String get mediaServerType => 'Tipo de Servidor';
+
+  @override
+  String get mediaServerManual => 'Manual';
+
+  @override
+  String get mediaServerAutoDiscovered => 'Auto-descubierto (Kind 10063)';
+
+  @override
+  String get deleteMediaServer => 'Eliminar Servidor';
+
+  @override
+  String get noMediaServers =>
+      'No hay servidores configurados. Agregue uno o conectese a Nostr para descubrirlos automaticamente.';
+
+  @override
+  String get mediaServerAdded => 'Servidor de medios agregado';
+
+  @override
+  String get mediaServerDeleted => 'Servidor de medios eliminado';
+
+  @override
+  String get invalidUrl => 'Ingrese una URL valida';
+
+  @override
+  String get refreshServers => 'Actualizar Servidores';
+
+  @override
+  String get selectUploadServer => 'Subir a';
+
+  @override
+  String get noServersFound =>
+      'No se encontraron servidores. Ingrese una URL abajo.';
+
+  @override
+  String get addCustomServer => 'Usar URL personalizada';
+
+  @override
+  String get customServerUrlHint => 'https://example.com';
+
+  @override
+  String get upload => 'Subir';
+
+  @override
+  String get parentTaskLabel => 'TAREA PADRE';
+
+  @override
+  String get parentTaskNone => 'Ninguno';
+
+  @override
+  String get selectParentTask => 'Seleccionar tarea padre';
+
+  @override
+  String get removeParentTask => 'Quitar padre';
+
+  @override
+  String get convertToSubtaskSuccess => 'Convertido en subtarea';
+
+  @override
+  String get promotedToRootSuccess => 'Promovido a tarea principal';
+
+  @override
+  String get cannotDemoteHasSubtasks => 'Elimine las subtareas primero';
 }

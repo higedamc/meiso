@@ -18,8 +18,10 @@ class AddGroupListDialog extends ConsumerStatefulWidget {
 
 class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   final TextEditingController _groupNameController = TextEditingController();
-  final TextEditingController _memberNpubController = TextEditingController(); // MLS用
-  final List<Map<String, dynamic>> _mlsMembers = []; // {npub, keyPackage, hasWarning}
+  final TextEditingController _memberNpubController = TextEditingController();
+  final List<Map<String, dynamic>> _mlsMembers =
+      []; // {npub, keyPackage, hasWarning}
+  bool _useMls = false;
   bool _isLoading = false;
   bool _isFetchingKeyPackage = false;
 
@@ -35,13 +37,37 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     _memberNpubController.dispose();
     super.dispose();
   }
-  
+
   // Phase 8.4: _addLegacyMember() 削除（kind: 30001廃止）
-  
+
+  void _addMemberWithoutKeyPackage() {
+    final npub = _memberNpubController.text.trim();
+    if (npub.isEmpty || !npub.startsWith('npub')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('有効なnpubを入力してください')),
+      );
+      return;
+    }
+    if (_mlsMembers.any((m) => m['npub'] == npub)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('このメンバーは既に追加されています')),
+      );
+      return;
+    }
+    setState(() {
+      _mlsMembers.add({
+        'npub': npub,
+        'keyPackage': null,
+        'hasWarning': false,
+      });
+      _memberNpubController.clear();
+    });
+  }
+
   /// Phase 8.1: Key Package取得
   Future<void> _fetchKeyPackage() async {
     final npub = _memberNpubController.text.trim();
-    
+
     if (npub.isEmpty || !npub.startsWith('npub')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -51,7 +77,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       );
       return;
     }
-    
+
     // 重複チェック
     if (_mlsMembers.any((m) => m['npub'] == npub)) {
       if (mounted) {
@@ -64,39 +90,43 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       }
       return;
     }
-    
+
     setState(() {
       _isFetchingKeyPackage = true;
     });
-    
+
     try {
       // Nostrクライアント初期化確認（最大5秒待機）
       final isInitialized = ref.read(nostrInitializedProvider);
       if (!isInitialized) {
-        AppLogger.warning('⚠️ [AddGroupListDialog] Nostrクライアントが初期化されていません。待機中...');
-        
+        AppLogger.warning(
+          '⚠️ [AddGroupListDialog] Nostrクライアントが初期化されていません。待機中...',
+        );
+
         // 最大10回（5秒）待機
         var initCompleted = false;
         for (var i = 0; i < 10; i++) {
-          await Future.delayed(const Duration(milliseconds: 500));
+          await Future<void>.delayed(const Duration(milliseconds: 500));
           if (ref.read(nostrInitializedProvider)) {
             AppLogger.info('✅ [AddGroupListDialog] Nostrクライアント初期化完了');
             initCompleted = true;
             break;
           }
         }
-        
+
         // まだ初期化されていない場合はエラー
         if (!initCompleted) {
           throw Exception('Nostrクライアントの初期化がタイムアウトしました。アプリを再起動してください。');
         }
       }
-      
-      AppLogger.info('🔍 [AddGroupListDialog] Fetching Key Package for: ${npub.substring(0, 20)}...');
-      
+
+      AppLogger.info(
+        '🔍 [AddGroupListDialog] Fetching Key Package for: ${npub.substring(0, 20)}...',
+      );
+
       final nostrService = ref.read(nostrServiceProvider);
       final keyPackage = await nostrService.fetchKeyPackageByNpub(npub);
-      
+
       if (keyPackage != null) {
         setState(() {
           _mlsMembers.add({
@@ -106,9 +136,11 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
           });
           _memberNpubController.clear();
         });
-        
-        AppLogger.info('✅ [AddGroupListDialog] Key Package fetched successfully');
-        
+
+        AppLogger.info(
+          '✅ [AddGroupListDialog] Key Package fetched successfully',
+        );
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -127,18 +159,22 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
           });
           _memberNpubController.clear();
         });
-        
-        AppLogger.warning('⚠️ [AddGroupListDialog] Key Package not found for: ${npub.substring(0, 20)}...');
-        
+
+        AppLogger.warning(
+          '⚠️ [AddGroupListDialog] Key Package not found for: ${npub.substring(0, 20)}...',
+        );
+
         // KeyChat風の警告ダイアログを表示
         if (mounted) {
           _showKeyPackageWarningDialog(npub);
         }
       }
-      
     } catch (e) {
-      AppLogger.error('❌ [AddGroupListDialog] Failed to fetch Key Package', error: e);
-      
+      AppLogger.error(
+        '❌ [AddGroupListDialog] Failed to fetch Key Package',
+        error: e,
+      );
+
       // エラー時も警告状態で追加
       setState(() {
         _mlsMembers.add({
@@ -148,7 +184,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         });
         _memberNpubController.clear();
       });
-      
+
       if (mounted) {
         _showKeyPackageWarningDialog(npub);
       }
@@ -160,15 +196,17 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       }
     }
   }
-  
+
   /// Phase 8.1.1: Key Package警告ダイアログ（KeyChatパターン）
   void _showKeyPackageWarningDialog(String npub) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    showDialog(
+
+    showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        backgroundColor: isDark
+            ? AppTheme.darkBackground
+            : AppTheme.lightBackground,
         title: Row(
           children: [
             const Icon(Icons.warning, color: Colors.orange),
@@ -176,7 +214,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
             Text(
               'Key Package未公開',
               style: TextStyle(
-                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                color: isDark
+                    ? AppTheme.darkTextPrimary
+                    : AppTheme.lightTextPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -188,7 +228,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
           '相手にアプリを起動してもらうと、自動的にKey Packageが公開されます。\n\n'
           '※ このメンバーはグループ作成時に除外されます',
           style: TextStyle(
-            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+            color: isDark
+                ? AppTheme.darkTextSecondary
+                : AppTheme.lightTextSecondary,
           ),
         ),
         actions: [
@@ -214,19 +256,26 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       ),
     );
   }
-  
+
   /// Phase 8.1.1: 警告メンバー確認ダイアログ
-  Future<bool?> _showWarningMembersConfirmDialog(int warningCount, int validCount) async {
+  Future<bool?> _showWarningMembersConfirmDialog(
+    int warningCount,
+    int validCount,
+  ) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        backgroundColor: isDark
+            ? AppTheme.darkBackground
+            : AppTheme.lightBackground,
         title: Text(
           '一部のメンバーのKey Packageが未公開です',
           style: TextStyle(
-            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            color: isDark
+                ? AppTheme.darkTextPrimary
+                : AppTheme.lightTextPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -236,7 +285,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
           'Key Packageが未公開のメンバーは招待できません。\n'
           'それでもグループを作成しますか？',
           style: TextStyle(
-            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+            color: isDark
+                ? AppTheme.darkTextSecondary
+                : AppTheme.lightTextSecondary,
           ),
         ),
         actions: [
@@ -259,44 +310,48 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       ),
     );
   }
-  
+
   /// Phase 8.1.1: Key Package再取得
   Future<void> _retryFetchKeyPackage(String npub) async {
     final memberIndex = _mlsMembers.indexWhere((m) => m['npub'] == npub);
     if (memberIndex == -1) return;
-    
+
     setState(() {
       _isFetchingKeyPackage = true;
     });
-    
+
     try {
       // Nostrクライアント初期化確認（最大5秒待機）
       final isInitialized = ref.read(nostrInitializedProvider);
       if (!isInitialized) {
-        AppLogger.warning('⚠️ [AddGroupListDialog] Nostrクライアントが初期化されていません。待機中...');
-        
+        AppLogger.warning(
+          '⚠️ [AddGroupListDialog] Nostrクライアントが初期化されていません。待機中...',
+        );
+
         // 最大10回（5秒）待機
         var initCompleted = false;
         for (var i = 0; i < 10; i++) {
-          await Future.delayed(const Duration(milliseconds: 500));
+          await Future<void>.delayed(const Duration(milliseconds: 500));
           if (ref.read(nostrInitializedProvider)) {
             AppLogger.info('✅ [AddGroupListDialog] Nostrクライアント初期化完了');
             initCompleted = true;
             break;
           }
         }
-        
+
         // まだ初期化されていない場合はエラー
         if (!initCompleted) {
           throw Exception('Nostrクライアントの初期化がタイムアウトしました。アプリを再起動してください。');
         }
       }
-      
-      AppLogger.info('🔄 [AddGroupListDialog] Retrying Key Package fetch for: ${npub.substring(0, 20)}...');
-      
+
+      AppLogger.info(
+        '🔄 [AddGroupListDialog] Retrying Key Package fetch for: ${npub.substring(0, 20)}...',
+      );
+
       final nostrService = ref.read(nostrServiceProvider);
       final keyPackage = await nostrService.fetchKeyPackageByNpub(npub);
-      
+
       if (keyPackage != null) {
         setState(() {
           _mlsMembers[memberIndex] = {
@@ -305,13 +360,17 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
             'hasWarning': false,
           };
         });
-        
-        AppLogger.info('✅ [AddGroupListDialog] Key Package fetched successfully on retry');
-        
+
+        AppLogger.info(
+          '✅ [AddGroupListDialog] Key Package fetched successfully on retry',
+        );
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✅ ${npub.substring(0, 20)}... のKey Packageを取得しました'),
+              content: Text(
+                '✅ ${npub.substring(0, 20)}... のKey Packageを取得しました',
+              ),
               duration: const Duration(seconds: 2),
             ),
           );
@@ -329,7 +388,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       }
     } catch (e) {
       AppLogger.error('❌ [AddGroupListDialog] Retry failed', error: e);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -355,11 +414,15 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       builder: (context) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return AlertDialog(
-          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          backgroundColor: isDark
+              ? AppTheme.darkBackground
+              : AppTheme.lightBackground,
           title: Text(
             'Key Package公開',
             style: TextStyle(
-              color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              color: isDark
+                  ? AppTheme.darkTextPrimary
+                  : AppTheme.lightTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -368,13 +431,18 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
             '公開することで、他のユーザーがあなたをグループに招待できるようになります。\n\n'
             '続行しますか？',
             style: TextStyle(
-              color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+              color: isDark
+                  ? AppTheme.darkTextSecondary
+                  : AppTheme.lightTextSecondary,
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('キャンセル', style: TextStyle(color: AppTheme.primaryPurple)),
+              child: const Text(
+                'キャンセル',
+                style: TextStyle(color: AppTheme.primaryPurple),
+              ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
@@ -388,9 +456,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         );
       },
     );
-    
+
     if (confirmed != true || !mounted) return;
-    
+
     // ローディング表示
     showDialog<void>(
       context: context,
@@ -411,35 +479,39 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         ),
       ),
     );
-    
+
     try {
       // Key Package公開
       final nostrService = ref.read(nostrServiceProvider);
       final eventId = await nostrService.publishKeyPackage();
-      
+
       // ローディング閉じる
       if (mounted) Navigator.pop(context);
-      
+
       if (eventId != null) {
         // 成功SnackBar
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✅ Key Packageを公開しました！ Event ID: ${eventId.substring(0, 16)}...'),
+              content: Text(
+                '✅ Key Packageを公開しました！ Event ID: ${eventId.substring(0, 16)}...',
+              ),
               duration: const Duration(seconds: 3),
               backgroundColor: Colors.green,
             ),
           );
         }
-        
-        AppLogger.info('✅ [AddGroupListDialog] Key Package published: ${eventId.substring(0, 16)}...');
+
+        AppLogger.info(
+          '✅ [AddGroupListDialog] Key Package published: ${eventId.substring(0, 16)}...',
+        );
       } else {
         throw Exception('イベントIDが取得できませんでした');
       }
     } catch (e) {
       // ローディング閉じる
       if (mounted) Navigator.pop(context);
-      
+
       // エラーSnackBar
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -450,11 +522,14 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
           ),
         );
       }
-      
-      AppLogger.error('❌ [AddGroupListDialog] Failed to publish Key Package', error: e);
+
+      AppLogger.error(
+        '❌ [AddGroupListDialog] Failed to publish Key Package',
+        error: e,
+      );
     }
   }
-  
+
   /// Phase 8.4: MLSグループ作成（kind: 30001廃止）
   Future<void> _createGroup() async {
     if (_groupNameController.text.trim().isEmpty) {
@@ -469,8 +544,6 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       return;
     }
 
-    // Phase D.6.2: メンバーが0人の場合はエラー
-    // グループリストは最低2人（自分 + 他のメンバー1人以上）が必要
     if (_mlsMembers.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -484,12 +557,17 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     }
 
     // Phase 8.4: MLS - 警告メンバーの検証
-    final hasWarning = _mlsMembers.any((m) => m['hasWarning'] == true);
-    
+    final hasWarning =
+        _useMls && _mlsMembers.any((m) => m['hasWarning'] == true);
+
     if (hasWarning) {
-      final warningCount = _mlsMembers.where((m) => m['hasWarning'] == true).length;
-      final validCount = _mlsMembers.where((m) => m['hasWarning'] != true).length;
-      
+      final warningCount = _mlsMembers
+          .where((m) => m['hasWarning'] == true)
+          .length;
+      final validCount = _mlsMembers
+          .where((m) => m['hasWarning'] != true)
+          .length;
+
       if (validCount == 0) {
         // 全員が警告状態の場合はグループ作成不可
         if (mounted) {
@@ -502,16 +580,21 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
         }
         return;
       }
-      
+
       // 一部が警告状態の場合は確認ダイアログ
-      final confirmed = await _showWarningMembersConfirmDialog(warningCount, validCount);
+      final confirmed = await _showWarningMembersConfirmDialog(
+        warningCount,
+        validCount,
+      );
       if (confirmed != true) {
         return;
       }
-      
+
       // 警告メンバーを除外
       _mlsMembers.removeWhere((m) => m['hasWarning'] == true);
-      AppLogger.info('⚠️ [AddGroupListDialog] Excluded $warningCount member(s) without Key Package');
+      AppLogger.info(
+        '⚠️ [AddGroupListDialog] Excluded $warningCount member(s) without Key Package',
+      );
     }
 
     setState(() {
@@ -519,46 +602,61 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     });
 
     try {
-      // Phase 8.4: MLSグループのみ作成（kind: 30001は廃止）
-      AppLogger.info('🚀 [AddGroupListDialog] Creating MLS group: ${_groupNameController.text}');
-      AppLogger.info('   Members: ${_mlsMembers.length}');
-      
-      final keyPackages = _mlsMembers
-          .where((m) => m['keyPackage'] != null)
-          .map((m) => m['keyPackage'] as String)
-          .toList();
-      final memberNpubs = _mlsMembers
-          .where((m) => m['keyPackage'] != null)
-          .map((m) => m['npub'] as String)
-          .toList();
-      
-      AppLogger.info('🔍 [AddGroupListDialog] Debug: Key Packages count: ${keyPackages.length}');
-      AppLogger.info('🔍 [AddGroupListDialog] Debug: Member npubs count: ${memberNpubs.length}');
-      for (var i = 0; i < memberNpubs.length; i++) {
-        AppLogger.info('   Member ${i + 1}: ${memberNpubs[i].substring(0, 20)}... (KP: ${keyPackages[i].length} bytes)');
-      }
-      
-      AppLogger.info('📤 [AddGroupListDialog] Calling createMlsGroupList...');
-      final groupList = await ref.read(customListsProvider.notifier).createMlsGroupList(
-            name: _groupNameController.text.trim(),
-            keyPackages: keyPackages,
-            memberNpubs: memberNpubs,
-          );
-      
-      AppLogger.info('🔍 [AddGroupListDialog] Debug: createMlsGroupList returned: ${groupList != null ? "SUCCESS" : "NULL"}');
+      final memberNpubs = _mlsMembers.map((m) => m['npub'] as String).toList();
+
+      AppLogger.info(
+        '📤 [AddGroupListDialog] Creating group: mode=${_useMls ? "mls-v1" : "gw17-v1"}, members=${memberNpubs.length}',
+      );
+
+      final groupList = _useMls
+          ? await ref
+                .read(customListsProvider.notifier)
+                .createMlsGroupList(
+                  name: _groupNameController.text.trim(),
+                  keyPackages: _mlsMembers
+                      .where((m) => m['keyPackage'] != null)
+                      .map((m) => m['keyPackage'] as String)
+                      .toList(),
+                  memberNpubs: _mlsMembers
+                      .where((m) => m['keyPackage'] != null)
+                      .map((m) => m['npub'] as String)
+                      .toList(),
+                )
+          : await ref
+                .read(customListsProvider.notifier)
+                .createGw17GroupList(
+                  name: _groupNameController.text.trim(),
+                  memberNpubs: memberNpubs,
+                );
+
+      AppLogger.info(
+        '🔍 [AddGroupListDialog] Debug: createMlsGroupList returned: ${groupList != null ? "SUCCESS" : "NULL"}',
+      );
 
       if (groupList != null && mounted) {
-        AppLogger.info('✅ [AddGroupListDialog] MLS group created: ${groupList.name}');
+        AppLogger.info(
+          '✅ [AddGroupListDialog] Group created: ${groupList.name}',
+        );
         Navigator.pop(context, true);
       }
     } catch (e, st) {
-      AppLogger.error('❌ [AddGroupListDialog] Failed to create group: $e', error: e, stackTrace: st);
-      AppLogger.error('🔍 [AddGroupListDialog] Debug: Stack trace:', stackTrace: st);
-      
+      AppLogger.error(
+        '❌ [AddGroupListDialog] Failed to create group: $e',
+        error: e,
+        stackTrace: st,
+      );
+      AppLogger.error(
+        '🔍 [AddGroupListDialog] Debug: Stack trace:',
+        stackTrace: st,
+      );
+
       if (mounted) {
+        final errorHint = _useMls
+            ? 'MLS: Key Package取得状況を確認して再試行してください。'
+            : 'NIP-17: npubとリレー接続を確認して再試行してください。';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ グループ作成失敗: $e'),
+            content: Text('❌ グループ作成失敗: $errorHint'),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -578,7 +676,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
 
     return AlertDialog(
-      backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+      backgroundColor: isDark
+          ? AppTheme.darkBackground
+          : AppTheme.lightBackground,
       title: Text(
         'CREATE GROUP LIST',
         style: TextStyle(
@@ -596,158 +696,223 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            // Nostr初期化状態の表示
-            if (!isNostrInitialized)
+              // Nostr初期化状態の表示
+              if (!isNostrInitialized)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.orange.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.orange,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Nostr接続を初期化中...\nKey Package取得は初期化完了後に可能です',
+                          style: TextStyle(
+                            color: Colors.orange[700],
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              TextField(
+                controller: _groupNameController,
+                decoration: InputDecoration(
+                  labelText: 'Group Name',
+                  labelStyle: TextStyle(
+                    color: isDark
+                        ? AppTheme.darkTextSecondary
+                        : AppTheme.lightTextSecondary,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: isDark
+                          ? AppTheme.darkDivider
+                          : AppTheme.lightDivider,
+                    ),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: AppTheme.primaryPurple),
+                  ),
+                ),
+                style: TextStyle(
+                  color: isDark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              SwitchListTile(
+                value: _useMls,
+                onChanged: _isLoading
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _useMls = value;
+                          _mlsMembers.clear();
+                          _memberNpubController.clear();
+                        });
+                      },
+                title: const Text('Advanced mode (MLS legacy)'),
+                subtitle: Text(
+                  _useMls
+                      ? 'Key Package required'
+                      : 'Simple share (NIP-17 fan-out, default)',
+                ),
+                activeColor: AppTheme.primaryPurple,
+              ),
+              const SizedBox(height: 8),
+
               Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 16,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.15),
+                  color: AppTheme.primaryPurple.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.orange.withOpacity(0.3),
+                    color: AppTheme.primaryPurple.withOpacity(0.3),
                   ),
                 ),
                 child: Row(
                   children: [
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
-                      ),
+                    const Icon(
+                      Icons.security,
+                      color: AppTheme.primaryPurple,
+                      size: 18,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Nostr接続を初期化中...\nKey Package取得は初期化完了後に可能です',
+                        _useMls
+                            ? 'MLS Encrypted Group'
+                            : 'Simple Shared Group (NIP-17)',
                         style: TextStyle(
-                          color: Colors.orange[700],
-                          fontSize: 11,
+                          color: isDark
+                              ? AppTheme.darkTextPrimary
+                              : AppTheme.lightTextPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
                         ),
                       ),
                     ),
+                    // Phase D.7補完: 手動Key Packageアップロード
+                    if (_useMls && isNostrInitialized)
+                      IconButton(
+                        icon: const Icon(Icons.cloud_upload, size: 18),
+                        tooltip: '自分のKey Packageを公開',
+                        color: AppTheme.primaryPurple,
+                        onPressed: _publishOwnKeyPackage,
+                      ),
                   ],
                 ),
               ),
-            TextField(
-              controller: _groupNameController,
-              decoration: InputDecoration(
-                labelText: 'Group Name',
-                labelStyle: TextStyle(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppTheme.primaryPurple),
-                ),
-              ),
-              style: TextStyle(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
-            ),
-            const SizedBox(height: 16),
-            
-            // Phase 8.4: MLSグループのみに統一（kind: 30001廃止）
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryPurple.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppTheme.primaryPurple.withOpacity(0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.security,
-                    color: AppTheme.primaryPurple,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'MLS Encrypted Group',
-                      style: TextStyle(
-                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  // Phase D.7補完: 手動Key Packageアップロード
-                  if (isNostrInitialized)
-                    IconButton(
-                      icon: const Icon(Icons.cloud_upload, size: 18),
-                      tooltip: '自分のKey Packageを公開',
-                      color: AppTheme.primaryPurple,
-                      onPressed: _publishOwnKeyPackage,
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Phase 8.4: MLSメンバー入力（kind: 30001は廃止）
+              const SizedBox(height: 16),
+
+              // メンバー入力
               Text(
-                'Add Member (MLS)',
+                _useMls ? 'Add Member (MLS)' : 'Add Member (npub)',
                 style: TextStyle(
-                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                  color: isDark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
               ),
               const SizedBox(height: 8),
               Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _memberNpubController,
-                    decoration: InputDecoration(
-                      labelText: 'Member npub',
-                      hintText: 'npub1...',
-                      labelStyle: TextStyle(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-                      hintStyle: TextStyle(color: isDark ? AppTheme.darkTextSecondary.withOpacity(0.5) : AppTheme.lightTextSecondary.withOpacity(0.5)),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider),
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _memberNpubController,
+                      decoration: InputDecoration(
+                        labelText: 'Member npub',
+                        hintText: 'npub1...',
+                        labelStyle: TextStyle(
+                          color: isDark
+                              ? AppTheme.darkTextSecondary
+                              : AppTheme.lightTextSecondary,
+                        ),
+                        hintStyle: TextStyle(
+                          color: isDark
+                              ? AppTheme.darkTextSecondary.withOpacity(0.5)
+                              : AppTheme.lightTextSecondary.withOpacity(0.5),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: isDark
+                                ? AppTheme.darkDivider
+                                : AppTheme.lightDivider,
+                          ),
+                        ),
+                        focusedBorder: const OutlineInputBorder(
+                          borderSide: BorderSide(color: AppTheme.primaryPurple),
+                        ),
                       ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: AppTheme.primaryPurple),
+                      style: TextStyle(
+                        color: isDark
+                            ? AppTheme.darkTextPrimary
+                            : AppTheme.lightTextPrimary,
                       ),
                     ),
-                    style: TextStyle(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
                   ),
-                ),
-                if (_isFetchingKeyPackage)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  if (_isFetchingKeyPackage)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: Icon(
+                        _useMls ? Icons.download : Icons.person_add_alt_1,
+                      ),
+                      tooltip: _useMls
+                          ? (isNostrInitialized
+                                ? 'Fetch Key Package'
+                                : 'Nostr初期化中...')
+                          : 'Add member',
+                      color: (_useMls && !isNostrInitialized)
+                          ? Colors.grey
+                          : null,
+                      onPressed: _useMls
+                          ? (isNostrInitialized ? _fetchKeyPackage : null)
+                          : _addMemberWithoutKeyPackage,
                     ),
-                  )
-                else
-                  IconButton(
-                    icon: const Icon(Icons.download),
-                    tooltip: isNostrInitialized 
-                        ? 'Fetch Key Package' 
-                        : 'Nostr初期化中...',
-                    color: isNostrInitialized 
-                        ? null 
-                        : Colors.grey,
-                    onPressed: isNostrInitialized 
-                        ? _fetchKeyPackage 
-                        : null,
-                  ),
-              ],
-            ),
+                ],
+              ),
               const SizedBox(height: 8),
               if (_mlsMembers.isNotEmpty) ...[
                 Text(
                   'Members: ${_mlsMembers.length}',
                   style: TextStyle(
-                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                    color: isDark
+                        ? AppTheme.darkTextSecondary
+                        : AppTheme.lightTextSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -756,7 +921,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                   constraints: const BoxConstraints(maxHeight: 120),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
+                      color: isDark
+                          ? AppTheme.darkDivider
+                          : AppTheme.lightDivider,
                     ),
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -767,17 +934,29 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                       final member = _mlsMembers[index];
                       final npub = member['npub'] as String;
                       final hasWarning = member['hasWarning'] == true;
-                      final shortNpub = npub.length > 20 ? '${npub.substring(0, 16)}...' : npub;
-                      
+                      final shortNpub = npub.length > 20
+                          ? '${npub.substring(0, 16)}...'
+                          : npub;
+
                       return ListTile(
                         dense: true,
                         leading: hasWarning
-                            ? const Icon(Icons.warning, color: Colors.orange, size: 16)
-                            : const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                            ? const Icon(
+                                Icons.warning,
+                                color: Colors.orange,
+                                size: 16,
+                              )
+                            : const Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 16,
+                              ),
                         title: Text(
                           shortNpub,
                           style: TextStyle(
-                            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                            color: isDark
+                                ? AppTheme.darkTextPrimary
+                                : AppTheme.lightTextPrimary,
                             fontSize: 12,
                           ),
                         ),
@@ -793,14 +972,21 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (hasWarning)
+                            if (_useMls && hasWarning)
                               IconButton(
-                                icon: const Icon(Icons.refresh, size: 18, color: Colors.orange),
+                                icon: const Icon(
+                                  Icons.refresh,
+                                  size: 18,
+                                  color: Colors.orange,
+                                ),
                                 tooltip: '再試行',
                                 onPressed: () => _retryFetchKeyPackage(npub),
                               ),
                             IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, size: 18),
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                size: 18,
+                              ),
                               onPressed: () {
                                 setState(() {
                                   _mlsMembers.removeAt(index);
@@ -814,9 +1000,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                   ),
                 ),
               ],
-            // Phase 8.4: Legacy (kind: 30001) メンバー入力は削除
-          ],
-        ),
+              // Phase 8.4: Legacy (kind: 30001) メンバー入力は削除
+            ],
+          ),
         ),
       ),
       actions: [
@@ -848,4 +1034,3 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
     );
   }
 }
-

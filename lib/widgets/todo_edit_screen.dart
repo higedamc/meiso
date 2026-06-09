@@ -3,14 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../app_theme.dart';
+import '../l10n/app_localizations.dart';
 import '../models/todo.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
+import '../models/app_settings.dart';
 import '../providers/todos_provider.dart';
+import '../providers/app_settings_provider.dart';
 import '../providers/custom_lists_provider.dart';
 import '../services/logger_service.dart';
 import '../services/local_storage_service.dart';
+import '../features/feature_gate/feature_gate_service.dart';
 import 'todo_item.dart';
+import 'subtask_section.dart';
+import 'task_link_section.dart';
+import '../features/media/presentation/widgets/image_attachment_section.dart';
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -38,6 +45,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
   late FocusNode _focusNode;
   RecurrencePattern? _recurrence;
   bool _showRecurringTasksTips = false;
+  String? _imageUrl;
 
   bool get isEditing => widget.todo != null;
 
@@ -47,6 +55,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     _controller = TextEditingController(text: widget.todo?.title ?? '');
     _focusNode = FocusNode();
     _recurrence = widget.todo?.recurrence;
+    _imageUrl = widget.todo?.imageUrl;
     
     // Recurring Tasks Tipsを表示するか確認（新規作成時のみ）
     if (!isEditing) {
@@ -71,6 +80,14 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
     final statusBarHeight = MediaQuery.of(context).padding.top;
+    final appSettings = ref.watch(appSettingsProvider).valueOrNull;
+    final featureGate = ref.watch(featureGateServiceProvider);
+    final activeTaskMode = appSettings == null
+        ? TaskUiMode.reminders
+        : featureGate.resolveActiveMode(appSettings);
+    final canUseTaskLinking = appSettings != null &&
+        featureGate.canUseTaskLinking(appSettings) &&
+        activeTaskMode == TaskUiMode.asana;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -126,6 +143,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                     child: TextField(
                       controller: _controller,
                       focusNode: _focusNode,
+                      keyboardType: TextInputType.multiline,
                       style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
                       decoration: InputDecoration(
                         border: InputBorder.none,
@@ -137,8 +155,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                         ),
                       ),
                       maxLines: null,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _save(),
+                      textInputAction: TextInputAction.newline,
                     ),
                   ),
                   
@@ -177,6 +194,31 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                         );
                       },
                     ),
+
+                  // 画像添付セクション
+                  ImageAttachmentSection(
+                    imageUrl: _imageUrl,
+                    onImageChanged: (url) {
+                      setState(() => _imageUrl = url);
+                    },
+                  ),
+
+                  // 親タスク設定セクション（編集時のみ）
+                  if (isEditing)
+                    _ParentTaskSection(todo: widget.todo!),
+
+                  // サブタスクセクション（編集時 & ルートタスクのみ）
+                  if (isEditing && !(widget.todo?.isSubtask ?? false))
+                    SubtaskSection(
+                      parentTodo: widget.todo!,
+                    ),
+                  if (isEditing &&
+                      !(widget.todo?.isSubtask ?? false) &&
+                      canUseTaskLinking)
+                    TaskLinkSection(
+                      todo: widget.todo!,
+                    ),
+
                 ],
               ),
             ),
@@ -502,6 +544,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
         final updatedTodo = widget.todo!.copyWith(
           title: text,
           recurrence: _recurrence,
+          imageUrl: _imageUrl,
         );
         await ref.read(todosProvider.notifier).updateTodoInGroup(
           groupId: widget.customListId!,
@@ -562,6 +605,15 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
           );
           AppLogger.info(' Todo update completed and synced');
         }
+
+        // 画像URLの変更があれば別途保存
+        if (_imageUrl != widget.todo!.imageUrl) {
+          await ref.read(todosProvider.notifier).updateTodoImageUrl(
+            widget.todo!.id,
+            widget.todo!.date,
+            _imageUrl,
+          );
+        }
       }
     } else {
       // 追加モード: 新しいTodoを作成
@@ -581,6 +633,22 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
           customListId: widget.customListId,
         );
         AppLogger.info(' Todo added and synced to Nostr');
+      }
+
+      // 新規作成時に画像が添付されていれば、直後に反映
+      if (_imageUrl != null) {
+        final todosData = ref.read(todosProvider).valueOrNull;
+        if (todosData != null) {
+          final list = todosData[widget.date] ?? [];
+          if (list.isNotEmpty) {
+            final newTodo = list.last;
+            await ref.read(todosProvider.notifier).updateTodoImageUrl(
+              newTodo.id,
+              widget.date,
+              _imageUrl,
+            );
+          }
+        }
       }
     }
 
@@ -843,6 +911,303 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
           ),
         );
       }
+    }
+  }
+}
+
+/// 親タスクの表示・設定セクション
+class _ParentTaskSection extends ConsumerWidget {
+  const _ParentTaskSection({required this.todo});
+
+  final Todo todo;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
+
+    return Consumer(
+      builder: (context, ref, _) {
+        final todosAsync = ref.watch(todosProvider);
+        return todosAsync.when(
+          data: (todos) {
+            Todo? parentTodo;
+            if (todo.parentTaskId != null) {
+              for (final group in todos.values) {
+                for (final t in group) {
+                  if (t.id == todo.parentTaskId) {
+                    parentTodo = t;
+                    break;
+                  }
+                }
+                if (parentTodo != null) break;
+              }
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.subdirectory_arrow_right,
+                        size: 18,
+                        color: isDark
+                            ? AppTheme.darkTextSecondary
+                            : AppTheme.lightTextSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.parentTaskLabel,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: isDark
+                              ? AppTheme.darkTextSecondary
+                              : AppTheme.lightTextSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (todo.isSubtask && parentTodo != null)
+                    _buildCurrentParent(context, ref, parentTodo, l10n, isDark)
+                  else if (!todo.isSubtask)
+                    _buildSetParentButton(context, ref, todos, l10n, isDark),
+                ],
+              ),
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        );
+      },
+    );
+  }
+
+  Widget _buildCurrentParent(
+    BuildContext context,
+    WidgetRef ref,
+    Todo parent,
+    AppLocalizations l10n,
+    bool isDark,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppTheme.darkSurface.withValues(alpha: 0.5)
+                  : AppTheme.lightSurface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
+              ),
+            ),
+            child: Text(
+              parent.title,
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark
+                    ? AppTheme.darkTextPrimary
+                    : AppTheme.lightTextPrimary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        TextButton(
+          onPressed: () => _promoteToRoot(context, ref, l10n),
+          child: Text(
+            l10n.removeParentTask,
+            style: const TextStyle(fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSetParentButton(
+    BuildContext context,
+    WidgetRef ref,
+    Map<DateTime?, List<Todo>> todos,
+    AppLocalizations l10n,
+    bool isDark,
+  ) {
+    final subtasks = ref.read(todosProvider.notifier).getSubtasks(todo.id);
+    if (subtasks.isNotEmpty) {
+      return Text(
+        l10n.cannotDemoteHasSubtasks,
+        style: TextStyle(
+          fontSize: 13,
+          color: isDark
+              ? AppTheme.darkTextDisabled
+              : AppTheme.lightTextDisabled,
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: () => _showParentPicker(context, ref, todos, l10n),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.add,
+              size: 18,
+              color: isDark
+                  ? AppTheme.darkTextSecondary
+                  : AppTheme.lightTextSecondary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              l10n.selectParentTask,
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark
+                    ? AppTheme.darkTextSecondary
+                    : AppTheme.lightTextSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showParentPicker(
+    BuildContext context,
+    WidgetRef ref,
+    Map<DateTime?, List<Todo>> todos,
+    AppLocalizations l10n,
+  ) {
+    final candidates = <Todo>[];
+    final dateList = todos[todo.date] ?? [];
+    for (final t in dateList) {
+      if (t.id == todo.id) continue;
+      if (t.isSubtask) continue;
+      candidates.add(t);
+    }
+    candidates.sort((a, b) => a.order.compareTo(b.order));
+
+    if (candidates.isEmpty) return;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor:
+          isDark ? AppTheme.darkSurface : AppTheme.lightBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  l10n.selectParentTask,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? AppTheme.darkTextPrimary
+                        : AppTheme.lightTextPrimary,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: candidates.length,
+                  itemBuilder: (_, index) {
+                    final candidate = candidates[index];
+                    return ListTile(
+                      leading: Icon(
+                        candidate.completed
+                            ? Icons.check_circle
+                            : Icons.circle_outlined,
+                        size: 20,
+                        color: isDark
+                            ? AppTheme.darkTextSecondary
+                            : AppTheme.lightTextSecondary,
+                      ),
+                      title: Text(
+                        candidate.title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: isDark
+                              ? AppTheme.darkTextPrimary
+                              : AppTheme.lightTextPrimary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _convertToSubtask(context, ref, candidate.id, l10n);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _convertToSubtask(
+    BuildContext context,
+    WidgetRef ref,
+    String parentId,
+    AppLocalizations l10n,
+  ) async {
+    await ref.read(todosProvider.notifier).convertToSubtask(todo.id, parentId);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.convertToSubtaskSuccess),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _promoteToRoot(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) async {
+    await ref.read(todosProvider.notifier).promoteToRoot(todo.id);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.promotedToRootSuccess),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      Navigator.pop(context);
     }
   }
 }
