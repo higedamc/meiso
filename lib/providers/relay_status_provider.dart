@@ -56,76 +56,50 @@ class RelayStatusNotifier extends StateNotifier<Map<String, RelayStatus>> {
     state = newState;
   }
 
-  /// リレーの状態を更新
-  void updateRelayState(String url, RelayConnectionState newState, {String? errorMessage}) {
-    if (state.containsKey(url)) {
-      state = {
-        ...state,
-        url: state[url]!.copyWith(
-          state: newState,
-          errorMessage: errorMessage,
-        ),
-      };
-    }
-  }
-
-  /// すべてのリレーをリセット
-  void resetAll() {
-    state = {};
-  }
-
-  /// リレーリストを disconnected で初期化
-  void initializeWithRelays(List<String> relays) {
+  /// リレーリストを指定状態で初期化（デフォルトは disconnected）
+  void initializeWithRelays(
+    List<String> relays, {
+    RelayConnectionState initialState = RelayConnectionState.disconnected,
+  }) {
     final newState = <String, RelayStatus>{};
     for (final url in relays) {
-      newState[url] = RelayStatus(url: url, state: RelayConnectionState.disconnected);
+      newState[url] = RelayStatus(url: url, state: initialState);
     }
     state = newState;
   }
 
-  /// リレーリストを connected で初期化（Rust 接続成功後に使用）
+  /// リレーリストを connected で初期化（Rust 接続成功直後の楽観的シード）
+  ///
+  /// 実状態は直後の refreshRelayStatus / 定期監視で補正される前提で使う。
   void initializeAsConnected(List<String> relays) {
-    final newState = <String, RelayStatus>{};
-    for (final url in relays) {
-      newState[url] = RelayStatus(url: url, state: RelayConnectionState.connected);
-    }
-    state = newState;
+    initializeWithRelays(relays, initialState: RelayConnectionState.connected);
+  }
+
+  /// Rust の実接続情報で状態全体を置き換える（唯一の真実）
+  ///
+  /// 登録済みでないリレーは upsert し、Rust 側に存在しないリレーは
+  /// 除去する。表示と実態の乖離を防ぐため、接続性の更新は原則として
+  /// このメソッド経由で行う。
+  void applyConnectionInfo(Map<String, bool> connectionByUrl) {
+    state = {
+      for (final entry in connectionByUrl.entries)
+        entry.key: RelayStatus(
+          url: entry.key,
+          state: entry.value
+              ? RelayConnectionState.connected
+              : RelayConnectionState.disconnected,
+        ),
+    };
   }
 
   /// 登録済みリレーを一括で disconnected にマーク
+  ///
+  /// 再接続失敗など、実状態の取得自体が期待できない場合の悲観的フォールバック。
   void markAllDisconnected() {
     state = {
       for (final entry in state.entries)
         entry.key: entry.value.copyWith(state: RelayConnectionState.disconnected),
     };
-  }
-
-  /// 登録済みリレーを一括で connected にマーク
-  void markAllConnected() {
-    state = {
-      for (final entry in state.entries)
-        entry.key: entry.value.copyWith(state: RelayConnectionState.connected),
-    };
-  }
-
-  /// 接続中に設定
-  void setConnecting(String url) {
-    updateRelayState(url, RelayConnectionState.connecting);
-  }
-
-  /// 接続成功
-  void setConnected(String url) {
-    updateRelayState(url, RelayConnectionState.connected);
-  }
-
-  /// エラー
-  void setError(String url, String errorMessage) {
-    updateRelayState(url, RelayConnectionState.error, errorMessage: errorMessage);
-  }
-
-  /// 切断
-  void setDisconnected(String url) {
-    updateRelayState(url, RelayConnectionState.disconnected);
   }
 }
 

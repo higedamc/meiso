@@ -387,12 +387,17 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                           updatedRelays = currentRelays.where((r) => !isLikelyLocalRelayUrl(r)).toList();
                         }
                         await ref.read(appSettingsProvider.notifier).updateRelays(updatedRelays);
-                        ref.read(relayStatusProvider.notifier).initializeAsConnected(updatedRelays);
+                        // 接続成否はまだ不明なので connecting でシードし、実状態で補正する
+                        ref.read(relayStatusProvider.notifier).initializeWithRelays(
+                              updatedRelays,
+                              initialState: RelayConnectionState.connecting,
+                            );
                         try {
                           await bridge.updateRelayList(relays: updatedRelays);
                         } catch (e) {
                           AppLogger.debug('Citrine toggle relay update: $e');
                         }
+                        await ref.read(nostrServiceProvider).refreshRelayStatus();
                       },
                     ),
                     if (_citrineEnabled) ...[

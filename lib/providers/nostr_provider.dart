@@ -768,7 +768,13 @@ class NostrService {
       await rust_api.updateRelayList(relays: uniqueRelays);
     }
 
-    _ref.read(relayStatusProvider.notifier).initializeAsConnected(uniqueRelays);
+    // 接続処理は完了しているが個々の接続成否は不明なため、
+    // connecting でシードして実状態で即補正する
+    _ref.read(relayStatusProvider.notifier).initializeWithRelays(
+          uniqueRelays,
+          initialState: RelayConnectionState.connecting,
+        );
+    await refreshRelayStatus();
   }
 
   Future<(List<String>, List<String>)> _resolveRelaySplit() async {
@@ -983,12 +989,15 @@ class NostrService {
     AppLogger.info(' Reconnecting to relays...');
     try {
       await rust_api.reconnectToRelays();
-      _ref.read(relayStatusProvider.notifier).markAllConnected();
       AppLogger.info(' Successfully reconnected to relays');
     } catch (e) {
+      // 実状態の取得が期待できないため、悲観的にマークしてから補正を試みる
       _ref.read(relayStatusProvider.notifier).markAllDisconnected();
       AppLogger.error(' Failed to reconnect to relays: $e');
       rethrow;
+    } finally {
+      // 楽観的な markAllConnected はせず、Rust の実接続状態を反映する
+      await refreshRelayStatus();
     }
   }
 
@@ -1002,12 +1011,13 @@ class NostrService {
       await rust_api.reconnectToRelaysWithTimeout(
         timeoutSecs: BigInt.from(timeout),
       );
-      _ref.read(relayStatusProvider.notifier).markAllConnected();
       AppLogger.info(' Successfully reconnected to relays');
     } catch (e) {
       _ref.read(relayStatusProvider.notifier).markAllDisconnected();
       AppLogger.error(' Failed to reconnect to relays: $e');
       rethrow;
+    } finally {
+      await refreshRelayStatus();
     }
   }
 
@@ -1022,17 +1032,15 @@ class NostrService {
   }
 
   /// Rust から実際の WebSocket 接続状態を取得し relayStatusProvider を更新
+  ///
+  /// 接続性表示の唯一の真実。未登録リレーの upsert と、Rust 側に存在しない
+  /// リレーの除去も行う（楽観的シードによる表示乖離を補正する）。
   Future<void> refreshRelayStatus() async {
     try {
       final info = await rust_api.getRelayConnectionInfo();
-      final notifier = _ref.read(relayStatusProvider.notifier);
-      for (final status in info.relayStatuses) {
-        if (status.connected) {
-          notifier.setConnected(status.url);
-        } else {
-          notifier.setDisconnected(status.url);
-        }
-      }
+      _ref.read(relayStatusProvider.notifier).applyConnectionInfo({
+        for (final status in info.relayStatuses) status.url: status.connected,
+      });
     } catch (e) {
       AppLogger.warning('Failed to refresh relay status: $e');
     }
