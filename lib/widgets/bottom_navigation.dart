@@ -14,6 +14,8 @@ class BottomNavigation extends StatelessWidget {
     this.onSettingsTap,
     this.onSomedayLongPress,
     this.isSomedayActive = false,
+    this.somedayMerged = false,
+    this.mergedLabel,
     super.key,
   });
 
@@ -23,6 +25,13 @@ class BottomNavigation extends StatelessWidget {
   final VoidCallback? onSettingsTap;
   final VoidCallback? onSomedayLongPress;
   final bool isSomedayActive;
+
+  /// SOMEDAY 配下の詳細（カスタムリスト等）を表示中は true。
+  /// TODAY セグメントを収納し、SOMEDAY セグメントが全幅に統合される。
+  final bool somedayMerged;
+
+  /// マージ時に SOMEDAY セグメントへ表示するラベル（リスト名など）。
+  final String? mergedLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +70,8 @@ class BottomNavigation extends StatelessWidget {
               Expanded(
                 child: _SegmentedTabs(
                   isSomedayActive: isSomedayActive,
+                  merged: somedayMerged,
+                  mergedLabel: mergedLabel,
                   onTodayTap: onTodayTap,
                   onSomedayTap: onSomedayTap,
                   onSomedayLongPress: onSomedayLongPress,
@@ -90,65 +101,113 @@ class BottomNavigation extends StatelessWidget {
   }
 }
 
-/// TODAY/SOMEDAY のセグメント。アクティブ側の下に白いピルがスライドする。
+/// TODAY/SOMEDAY のセグメント。アクティブ側に白いピルがスライドする。
+///
+/// [merged] が true のときは TODAY を左へ収納し、SOMEDAY セグメントが
+/// 全幅に統合される（カスタムリスト等の詳細表示中）。解除時は TODAY が
+/// 左から滑らかに復帰する。
 class _SegmentedTabs extends StatelessWidget {
   const _SegmentedTabs({
     required this.isSomedayActive,
+    required this.merged,
     required this.onTodayTap,
     required this.onSomedayTap,
+    this.mergedLabel,
     this.onSomedayLongPress,
   });
 
   final bool isSomedayActive;
+  final bool merged;
+  final String? mergedLabel;
   final VoidCallback onTodayTap;
   final VoidCallback onSomedayTap;
   final VoidCallback? onSomedayLongPress;
 
   @override
   Widget build(BuildContext context) {
+    const dur = Duration(milliseconds: 300);
+    const curve = Curves.easeOutCubic;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final segWidth = constraints.maxWidth / 2;
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            // スライドするアクティブインジケーター
-            AnimatedAlign(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              alignment:
-                  isSomedayActive ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                width: segWidth,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(22),
+        final w = constraints.maxWidth;
+        final half = w / 2;
+
+        final todayWidth = merged ? 0.0 : half;
+        final somedayLeft = merged ? 0.0 : half;
+        final somedayWidth = merged ? w : half;
+        final indicatorLeft = merged ? 0.0 : (isSomedayActive ? half : 0.0);
+        final indicatorWidth = merged ? w : half;
+
+        return SizedBox(
+          height: 48,
+          child: Stack(
+            children: [
+              // スライド/拡縮するアクティブインジケーター
+              AnimatedPositioned(
+                duration: dur,
+                curve: curve,
+                left: indicatorLeft,
+                width: indicatorWidth,
+                top: 2,
+                bottom: 2,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
                 ),
               ),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: _SegmentItem(
-                    icon: Icons.wb_sunny_rounded,
-                    label: 'TODAY',
-                    selected: !isSomedayActive,
-                    onTap: onTodayTap,
+
+              // TODAY セグメント（マージ時は左へ収納）
+              AnimatedPositioned(
+                duration: dur,
+                curve: curve,
+                left: 0,
+                width: todayWidth,
+                top: 0,
+                bottom: 0,
+                child: ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    minWidth: 0,
+                    maxWidth: half,
+                    child: SizedBox(
+                      width: half,
+                      child: AnimatedOpacity(
+                        duration: dur,
+                        opacity: merged ? 0.0 : 1.0,
+                        child: _SegmentItem(
+                          icon: Icons.wb_sunny_rounded,
+                          label: 'TODAY',
+                          selected: !isSomedayActive,
+                          onTap: onTodayTap,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                Expanded(
-                  child: _SegmentItem(
-                    icon: Icons.calendar_month_rounded,
-                    label: 'SOMEDAY',
-                    selected: isSomedayActive,
-                    onTap: onSomedayTap,
-                    onLongPress: onSomedayLongPress,
-                  ),
+              ),
+
+              // SOMEDAY セグメント（マージ時は全幅に統合、戻る導線）
+              AnimatedPositioned(
+                duration: dur,
+                curve: curve,
+                left: somedayLeft,
+                width: somedayWidth,
+                top: 0,
+                bottom: 0,
+                child: _SegmentItem(
+                  icon: merged
+                      ? Icons.keyboard_arrow_down_rounded
+                      : Icons.calendar_month_rounded,
+                  label: merged ? (mergedLabel ?? 'SOMEDAY') : 'SOMEDAY',
+                  selected: isSomedayActive,
+                  onTap: onSomedayTap,
+                  onLongPress: onSomedayLongPress,
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         );
       },
     );

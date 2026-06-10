@@ -11,8 +11,7 @@ import '../../providers/nostr_provider.dart';
 import '../../services/logger_service.dart';
 import '../../utils/error_handler.dart';
 import '../../widgets/bottom_navigation.dart';
-import '../../widgets/add_list_screen.dart';
-import '../../widgets/add_group_list_dialog.dart';
+import '../../widgets/add_list_chooser.dart';
 import '../../widgets/slide_up_route.dart';
 import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
@@ -32,6 +31,8 @@ class SomedayScreen extends ConsumerStatefulWidget {
   const SomedayScreen({
     this.onClose,
     this.showBottomNav = true,
+    this.onListTap,
+    this.onPlanningTap,
     super.key,
   });
 
@@ -40,6 +41,14 @@ class SomedayScreen extends ConsumerStatefulWidget {
   /// Home に埋め込む場合は false。Home 側が永続的なボトムバーを描画するため、
   /// 二重描画を避ける（TODAY↔SOMEDAY のシームレスな遷移のため）。
   final bool showBottomNav;
+
+  /// Home に埋め込まれている場合のリストタップ委譲。
+  /// 指定時は Navigator.push せず、Home 側がコンテンツ領域内（ボトムバーの上）に
+  /// 詳細を表示する。
+  final void Function(CustomList list)? onListTap;
+
+  /// Home に埋め込まれている場合のプランニングカテゴリタップ委譲。
+  final void Function(PlanningCategory category)? onPlanningTap;
 
   @override
   ConsumerState<SomedayScreen> createState() => _SomedayScreenState();
@@ -318,7 +327,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   return;
                 }
 
-                // リスト詳細画面に遷移（下から上へスライド）
+                // Home 埋め込み時はコンテンツ領域内に詳細を表示（ボトムバーの上）。
+                if (widget.onListTap != null) {
+                  widget.onListTap!(list);
+                  return;
+                }
+                // 単独表示時のフォールバック（下から上へスライド）
                 Navigator.push(
                   context,
                   slideUpRoute<void>(
@@ -345,7 +359,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             isDark,
             key: ValueKey(category.name),
             onTap: () {
-              // プランニングカテゴリー詳細画面に遷移（下から上へスライド）
+              // Home 埋め込み時はコンテンツ領域内に詳細を表示（ボトムバーの上）。
+              if (widget.onPlanningTap != null) {
+                widget.onPlanningTap!(category);
+                return;
+              }
+              // 単独表示時のフォールバック（下から上へスライド）
               Navigator.push(
                 context,
                 slideUpRoute<void>(
@@ -826,62 +845,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
 
   /// リスト追加画面を表示（通常リストorグループリスト）
   void _showAddListScreen(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return AlertDialog(
-          backgroundColor: isDark
-              ? AppTheme.darkBackground
-              : AppTheme.lightBackground,
-          title: Text(
-            'ADD LIST',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: isDark
-                  ? AppTheme.darkTextPrimary
-                  : AppTheme.lightTextPrimary,
-              letterSpacing: 1.2,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 通常のカスタムリスト
-              ListTile(
-                leading: const Icon(Icons.list_alt),
-                title: const Text('Personal List'),
-                subtitle: const Text('個人用のタスクリスト'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push(
-                    slideUpRoute<void>(
-                      const AddListScreen(),
-                      fullscreenDialog: true,
-                    ),
-                  );
-                },
-              ),
-              const Divider(),
-              // グループリスト（有効化）
-              ListTile(
-                leading: const Icon(Icons.group),
-                title: const Text('Group List'),
-                subtitle: const Text('共有可能なグループタスクリスト'),
-                onTap: () {
-                  Navigator.pop(context);
-                  showDialog<void>(
-                    context: context,
-                    builder: (context) => const AddGroupListDialog(),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    showAddListChooser(context);
   }
 
   /// グループ招待受諾ダイアログを表示（Phase 6.5: MLS招待システム）
