@@ -68,6 +68,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get nostrDisconnected => 'Nostr未接続';
 
   @override
+  String get statusTapToReconnect => 'タップしてリレーに再接続';
+
+  @override
   String relaysConnectedCount(int count, int total) {
     return 'リレー: $count/$total 接続中';
   }

@@ -68,6 +68,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nostrDisconnected => 'Nostr Disconnected';
 
   @override
+  String get statusTapToReconnect => 'Tap to reconnect to relays';
+
+  @override
   String relaysConnectedCount(int count, int total) {
     return 'Relays: $count/$total connected';
   }

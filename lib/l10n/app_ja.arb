@@ -36,6 +36,7 @@
   "nostrConnectedAmber": "Nostr接続中 (Amber)",
   
   "nostrDisconnected": "Nostr未接続",
+  "statusTapToReconnect": "タップしてリレーに再接続",
   
   "relaysConnectedCount": "リレー: {count}/{total} 接続中",
   

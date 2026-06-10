@@ -12,6 +12,7 @@ import '../../app_theme.dart';
 import '../../features/feature_gate/feature_gate_service.dart';
 import '../../features/feature_gate/feature_id.dart';
 import '../../models/app_settings.dart';
+import '../../providers/app_lifecycle_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/nostr_provider.dart';
 import '../../providers/relay_status_provider.dart';
@@ -73,6 +74,9 @@ class SettingsScreen extends ConsumerWidget {
                   _StatusBadge(
                     connected:
                         isNostrInitialized && connectedRelaysCount > 0,
+                    tor: appSettings != null &&
+                        appSettings.torMode != TorMode.disabled,
+                    canRetry: isNostrInitialized,
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -673,20 +677,32 @@ class SettingsScreen extends ConsumerWidget {
 
 /// 接続状態バッジ。
 ///
-/// 接続中（リレーに1つ以上接続済み）はふわふわと光る緑のチェック、
-/// 未接続は静止した赤い ✕ を表示する。
-class _StatusBadge extends StatefulWidget {
-  const _StatusBadge({required this.connected});
+/// - 接続中（リレーに1つ以上接続済み）: ふわふわと光るチェック。
+///   Clearnet は緑、Tor 経由はホームのインジケーターと同じ青で表示する。
+/// - 未接続: 静止した赤い ✕。タップでリレーへの再接続を試みる。
+class _StatusBadge extends ConsumerStatefulWidget {
+  const _StatusBadge({
+    required this.connected,
+    required this.tor,
+    required this.canRetry,
+  });
 
   final bool connected;
 
+  /// Tor（Orbot プロキシ）経由で接続している場合は true。
+  final bool tor;
+
+  /// Nostr 初期化済みで再接続を試みられる場合は true。
+  final bool canRetry;
+
   @override
-  State<_StatusBadge> createState() => _StatusBadgeState();
+  ConsumerState<_StatusBadge> createState() => _StatusBadgeState();
 }
 
-class _StatusBadgeState extends State<_StatusBadge>
+class _StatusBadgeState extends ConsumerState<_StatusBadge>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  bool _reconnecting = false;
 
   @override
   void initState() {
@@ -697,6 +713,13 @@ class _StatusBadgeState extends State<_StatusBadge>
     );
     if (widget.connected) {
       _controller.repeat(reverse: true);
+    }
+    // 表示時に Rust の実際の WebSocket 状態へ同期し、
+    // 楽観的にマークされた古い接続表示を補正する。
+    if (widget.canRetry) {
+      Future<void>(() async {
+        await ref.read(nostrServiceProvider).refreshRelayStatus();
+      });
     }
   }
 
@@ -716,11 +739,44 @@ class _StatusBadgeState extends State<_StatusBadge>
     super.dispose();
   }
 
+  /// 赤バッジタップ時: リレー再接続＋同期を実行し、実状態を再取得する。
+  Future<void> _retryConnection() async {
+    if (_reconnecting) return;
+    setState(() => _reconnecting = true);
+    try {
+      // フォアグラウンド復帰時と同じ導線（再接続＋差分同期）を再利用
+      await ref.read(appLifecycleProvider.notifier).manualReconnectAndSync();
+      // markAll* は楽観的なので、Rust の実接続状態で上書きする
+      await ref.read(nostrServiceProvider).refreshRelayStatus();
+    } finally {
+      if (mounted) setState(() => _reconnecting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     if (!widget.connected) {
-      // 未接続: 静止した赤い ✕
-      return Container(
+      if (_reconnecting) {
+        // 再接続試行中: スピナー
+        return Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.red.withValues(alpha: 0.10),
+            shape: BoxShape.circle,
+          ),
+          padding: const EdgeInsets.all(12),
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: Colors.red.shade400,
+          ),
+        );
+      }
+
+      // 未接続: 静止した赤い ✕（タップで再接続）
+      final badge = Container(
         width: 48,
         height: 48,
         decoration: BoxDecoration(
@@ -729,9 +785,27 @@ class _StatusBadgeState extends State<_StatusBadge>
         ),
         child: Icon(Icons.cancel, size: 26, color: Colors.red.shade600),
       );
+
+      if (!widget.canRetry) return badge;
+
+      return Tooltip(
+        message: l10n.statusTapToReconnect,
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: _retryConnection,
+            child: badge,
+          ),
+        ),
+      );
     }
 
-    // 接続中: ふわふわと光る緑のチェック
+    // 接続中: ふわふわと光るチェック（Clearnet=緑 / Tor=青）
+    final color = widget.tor ? Colors.blue : Colors.green;
+    final iconColor =
+        widget.tor ? Colors.blue.shade600 : Colors.green.shade600;
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
@@ -740,11 +814,11 @@ class _StatusBadgeState extends State<_StatusBadge>
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.green.withValues(alpha: 0.15 + 0.20 * t),
+            color: color.withValues(alpha: 0.15 + 0.20 * t),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.green.withValues(alpha: 0.35 * t),
+                color: color.withValues(alpha: 0.35 * t),
                 blurRadius: 10 + 10 * t,
                 spreadRadius: 1 + 2 * t,
               ),
@@ -755,7 +829,7 @@ class _StatusBadgeState extends State<_StatusBadge>
             child: Icon(
               Icons.check_circle,
               size: 26,
-              color: Colors.green.shade600,
+              color: iconColor,
             ),
           ),
         );

@@ -208,6 +208,12 @@ abstract class AppLocalizations {
   /// **'Nostr Disconnected'**
   String get nostrDisconnected;
 
+  /// Tooltip on the red status badge prompting a manual relay reconnection
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to reconnect to relays'**
+  String get statusTapToReconnect;
+
   /// Shows how many relays are connected
   ///
   /// In en, this message translates to:

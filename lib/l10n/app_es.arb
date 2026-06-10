@@ -36,6 +36,7 @@
   "nostrConnectedAmber": "Nostr Conectado (Amber)",
   
   "nostrDisconnected": "Nostr Desconectado",
+  "statusTapToReconnect": "Toca para reconectar a los relays",
   
   "relaysConnectedCount": "Relays: {count}/{total} conectados",
   
