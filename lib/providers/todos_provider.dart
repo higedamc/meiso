@@ -96,6 +96,9 @@ class TodosNotifier
   // Realtime dedupe (groupId -> seen eventIds)
   final Map<String, Set<String>> _mlsGroupTodoSeenEventIds = {};
 
+  // グループ系バックグラウンド同期の多重起動ガード
+  bool _groupBackgroundSyncInProgress = false;
+
   Timer? _mlsRealtimeSaveDebounce;
 
   // Issue #11: UNDO機能（最後に削除した1件のみ復元可能）
@@ -3612,6 +3615,14 @@ class TodosNotifier
 
   /// Phase 8.5.3: グループ系データをバックグラウンドで同期（優先度低）
   Future<void> _syncGroupDataInBackground() async {
+    // 全同期経路（差分/フル/起動時ブートストラップ）から呼ばれるため、
+    // 多重起動をガードする（内容はべき等だが無駄なリレー負荷を避ける）
+    if (_groupBackgroundSyncInProgress) {
+      AppLogger.debug('🔄 [Background] グループ系同期は実行中のためスキップ');
+      return;
+    }
+    _groupBackgroundSyncInProgress = true;
+
     AppLogger.info('🔄 [Background] グループ系同期開始（バックグラウンド）');
 
     // バックグラウンド同期の開始を通知
@@ -3660,6 +3671,8 @@ class TodosNotifier
             'グループ系同期エラー: ${e}',
             shouldRetry: false,
           );
+    } finally {
+      _groupBackgroundSyncInProgress = false;
     }
   }
 
@@ -4238,6 +4251,10 @@ class TodosNotifier
         // 次回の復帰/再起動時に差分同期を行うため、最終成功同期時刻を保存
         await localStorageService.setLastTodoListSyncTime(DateTime.now());
         AppLogger.info(' Nostr同期成功');
+
+        // フル同期成功時もグループ系（MLS/shared-v1）を必ず同期する。
+        // 手動 pull-to-refresh がグループタスクを取りこぼさないようにする。
+        Future.microtask(_syncGroupDataInBackground);
       }).timeout(
         const Duration(seconds: 15),
         onTimeout: () {
@@ -4302,6 +4319,9 @@ class TodosNotifier
         if (encryptedEvents.isEmpty) {
           await localStorageService.setLastTodoListSyncTime(now);
           _ref.read(syncStatusProvider.notifier).syncSuccess();
+          // 個人Todoの差分が空でもグループ系イベントは存在しうるため、
+          // グループ同期は必ずスケジュールする
+          Future.microtask(_syncGroupDataInBackground);
           return;
         }
 
@@ -4399,6 +4419,9 @@ class TodosNotifier
         if (deltaTodos.isEmpty) {
           await localStorageService.setLastTodoListSyncTime(now);
           _ref.read(syncStatusProvider.notifier).syncSuccess();
+          // 個人Todoの差分が空でもグループ系イベントは存在しうるため、
+          // グループ同期は必ずスケジュールする
+          Future.microtask(_syncGroupDataInBackground);
           return;
         }
 
@@ -5849,6 +5872,8 @@ class TodosNotifier
       return;
     }
 
+    final isShared = groupList != null && groupList.isSharedProtocol;
+
     // 参照カウント: 既に購読中ならrefCountだけ増やす
     final existing = _mlsGroupTodoSubscriptions[groupId];
     if (existing != null) {
@@ -5856,12 +5881,18 @@ class TodosNotifier
       AppLogger.debug(
         '📡 [Group] Reusing realtime subscription: $groupId (refCount=${existing.refCount})',
       );
+      // shared-v1: 購読再利用時もバックログ回収のためフルフェッチを発火する。
+      // 購読が張りっぱなしでもポーリング停止中などに溜まった差分を
+      // ここで確定的に取り込む。
+      if (isShared) {
+        unawaited(_syncSharedGroupTodos(groupId: groupId));
+      }
       return;
     }
 
     // shared-v1: kind:35000/35001 を npub_G で購読する。
     // MLS とフィルタが異なるため別経路に分岐する。
-    if (groupList != null && groupList.isSharedProtocol) {
+    if (isShared) {
       final repo = _ref.read(shared_providers.sharedListRepositoryProvider);
       final credsResult = await repo.loadCredentials(groupId: groupId);
       final credentials = credsResult.fold((_) => null, (c) => c);
@@ -5895,10 +5926,8 @@ class TodosNotifier
       _mlsGroupTodoSeenEventIds.putIfAbsent(groupId, () => <String>{});
 
       // 購読確立直後に明示的なフルフェッチを行う。
-      // ポーリング型購読(receive_subscription_events)は毎回 broadcast receiver を
-      // 新規生成するため、購読時点で relay が返す既存イベント(バックログ)を
-      // 取りこぼす。fetch_events は REQ+EOSE で確定的に現在状態を返すので、
-      // バックログ取得はこちらに委ねる。
+      // fetch_events は REQ+EOSE で確定的に現在状態を返すため、
+      // リアルタイム購読の確立タイミングに依存せずバックログを回収できる。
       unawaited(_syncSharedGroupTodos(groupId: groupId));
       return;
     }
