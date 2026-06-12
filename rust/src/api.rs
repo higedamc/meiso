@@ -1554,11 +1554,9 @@ impl MeisoNostrClient {
 
         loop {
             {
-                let mut queue = SUBSCRIPTION_EVENT_QUEUE
-                    .lock()
-                    .expect("subscription event queue poisoned");
-                if !queue.is_empty() {
-                    let events: Vec<ReceivedEvent> = queue.drain(..).collect();
+                let mut queue = lock_recovering(&SUBSCRIPTION_EVENT_QUEUE);
+                if !queue.events.is_empty() {
+                    let events = queue.drain_all();
                     dev_println!("📥 Received {} events via subscription", events.len());
                     return Ok(events);
                 }
@@ -1719,14 +1717,59 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
 /// `receive_subscription_events` がポーリング毎に drain する。
 /// Dart 側は subscription_id でディスパッチ + event_id で dedupe するため、
 /// 複数クライアントのイベントが混在しても問題ない。
-static SUBSCRIPTION_EVENT_QUEUE: once_cell::sync::Lazy<
-    std::sync::Mutex<std::collections::VecDeque<ReceivedEvent>>,
-> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::VecDeque::new()));
+struct SubscriptionEventQueue {
+    events: std::collections::VecDeque<ReceivedEvent>,
+    total_bytes: usize,
+}
 
-/// 常駐リスナーを起動済みの client_id 集合（多重起動防止）
+impl SubscriptionEventQueue {
+    // メモリ保護: Flutter 側のポーリングが止まっても無限に溜めない。
+    // 件数上限に加え、悪意あるリレーが最大サイズのイベントで埋めても
+    // OOM しないようバイト総量にも上限を設ける（古い順に破棄）。
+    const MAX_EVENTS: usize = 2048;
+    const MAX_BYTES: usize = 8 * 1024 * 1024;
+
+    fn push(&mut self, event: ReceivedEvent) {
+        self.total_bytes += event.event_json.len();
+        self.events.push_back(event);
+        while self.events.len() > Self::MAX_EVENTS || self.total_bytes > Self::MAX_BYTES {
+            match self.events.pop_front() {
+                Some(dropped) => {
+                    self.total_bytes = self.total_bytes.saturating_sub(dropped.event_json.len());
+                }
+                None => break,
+            }
+        }
+    }
+
+    fn drain_all(&mut self) -> Vec<ReceivedEvent> {
+        self.total_bytes = 0;
+        self.events.drain(..).collect()
+    }
+}
+
+static SUBSCRIPTION_EVENT_QUEUE: once_cell::sync::Lazy<std::sync::Mutex<SubscriptionEventQueue>> =
+    once_cell::sync::Lazy::new(|| {
+        std::sync::Mutex::new(SubscriptionEventQueue {
+            events: std::collections::VecDeque::new(),
+            total_bytes: 0,
+        })
+    });
+
+/// 常駐リスナーの登録簿: client_id -> 世代トークン（多重起動防止）。
+/// 世代トークンにより、ログアウトで登録簿をクリアした直後に旧リスナーが
+/// 自己クリーンアップで新リスナーの登録を誤って消す競合を防ぐ。
 static SUBSCRIPTION_LISTENERS: once_cell::sync::Lazy<
-    std::sync::Mutex<std::collections::HashSet<String>>,
-> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+    std::sync::Mutex<std::collections::HashMap<String, u64>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+static LISTENER_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// poisoned mutex から安全に復帰してロックを取得する。
+/// （panic 永続化を防ぎ、ログアウト時のキュー破棄が必ず実行されるようにする）
+fn lock_recovering<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 /// notification channel に常駐してイベントをキューへ積むリスナーを起動する。
 ///
@@ -1734,16 +1777,14 @@ static SUBSCRIPTION_LISTENERS: once_cell::sync::Lazy<
 /// ポーリング毎に receiver を作る方式ではポーリング間隙のイベントを恒久的に
 /// 取りこぼす。subscribe 時に一度だけ常駐タスクを起動して解決する。
 fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
-    // メモリ保護: Flutter 側のポーリングが止まっても無限に溜めない
-    const MAX_QUEUED_EVENTS: usize = 2048;
-
+    let my_generation =
+        LISTENER_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
     {
-        let mut listeners = SUBSCRIPTION_LISTENERS
-            .lock()
-            .expect("subscription listeners poisoned");
-        if !listeners.insert(client_id.to_string()) {
+        let mut listeners = lock_recovering(&SUBSCRIPTION_LISTENERS);
+        if listeners.contains_key(client_id) {
             return; // 既に起動済み
         }
+        listeners.insert(client_id.to_string(), my_generation);
     }
 
     let client = client.clone();
@@ -1772,13 +1813,7 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
                         received_at,
                         subscription_id: subscription_id.to_string(),
                     };
-                    let mut queue = SUBSCRIPTION_EVENT_QUEUE
-                        .lock()
-                        .expect("subscription event queue poisoned");
-                    if queue.len() >= MAX_QUEUED_EVENTS {
-                        queue.pop_front();
-                    }
-                    queue.push_back(received);
+                    lock_recovering(&SUBSCRIPTION_EVENT_QUEUE).push(received);
                 }
                 Ok(RelayPoolNotification::Shutdown) => break,
                 Ok(_) => {}
@@ -1788,10 +1823,13 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
             }
         }
-        // クライアント破棄等で channel が閉じたら登録を外し、
-        // 次回 subscribe 時に再起動できるようにする
-        if let Ok(mut listeners) = SUBSCRIPTION_LISTENERS.lock() {
-            listeners.remove(&client_id);
+        // 自分の世代の登録だけを外す（ログアウト後に再ログインした新世代の
+        // リスナー登録を誤って消さない）。
+        {
+            let mut listeners = lock_recovering(&SUBSCRIPTION_LISTENERS);
+            if listeners.get(&client_id) == Some(&my_generation) {
+                listeners.remove(&client_id);
+            }
         }
         dev_println!("📡 Subscription event listener stopped [{}]", client_id);
     });
@@ -4089,14 +4127,24 @@ pub fn stop_all_subscriptions_with_client_id(client_id: Option<String>) -> Resul
 /// 致命的な状況のみ Err を返す。
 pub fn clear_all_session_state() -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
-        // NOSTR_CLIENTS をクリア。各 MeisoNostrClient の Drop 実装で
-        // 内部の nostr-sdk Client が落ちるため、リレー接続も解放される。
+        // NOSTR_CLIENTS をクリア。常駐リスナーが Client の clone を保持している
+        // ため Drop 任せではリレー接続が閉じない。明示的に shutdown して
+        // notification channel を閉じ、リスナーを終了させる。
         {
             let mut clients = NOSTR_CLIENTS.lock().await;
             let count = clients.len();
+            for (id, client) in clients.iter() {
+                if let Err(e) = client.client.shutdown().await {
+                    dev_eprintln!("⚠️ Failed to shutdown client [{}]: {}", id, e);
+                }
+            }
             clients.clear();
             dev_println!("🧹 Cleared {} NOSTR_CLIENTS entries", count);
         }
+
+        // 常駐リスナーの登録簿をクリア（旧リスナーは channel close で自然終了する。
+        // 再ログイン時に新しいリスナーを確実に起動できるようにする）
+        lock_recovering(&SUBSCRIPTION_LISTENERS).clear();
 
         // MLS STORE をクリア (Connection が drop されるため SQLite ファイルの
         // ハンドルも解放され、その後の `mls.db` 物理削除が確実に効く)。
@@ -4112,9 +4160,10 @@ pub fn clear_all_session_state() -> Result<()> {
 
         // 未配信の購読イベントを破棄（アカウント切替時に前ユーザーの
         // イベントが次ユーザーへ流れるのを防ぐ）
-        if let Ok(mut queue) = SUBSCRIPTION_EVENT_QUEUE.lock() {
-            let count = queue.len();
-            queue.clear();
+        {
+            let mut queue = lock_recovering(&SUBSCRIPTION_EVENT_QUEUE);
+            let count = queue.events.len();
+            queue.drain_all();
             dev_println!("🧹 Cleared {} queued subscription events", count);
         }
 
