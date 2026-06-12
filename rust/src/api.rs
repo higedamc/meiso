@@ -1541,71 +1541,34 @@ impl MeisoNostrClient {
     }
 
     /// Subscription経由でイベントを受信（1回のポーリング）
-    /// タイムアウト付きで新しいイベントを取得
+    ///
+    /// 常駐リスナー（subscribe() 時に起動）が蓄積したキューを drain する。
+    /// 旧実装はポーリング毎に broadcast receiver を新規生成していたため、
+    /// ポーリング間隙に届いたイベントを恒久的に取りこぼし、さらに
+    /// event_json を二重エンコードしていて Dart 側のパースが常に失敗していた。
     pub(crate) async fn receive_subscription_events(
         &self,
         timeout_ms: u64,
     ) -> Result<Vec<ReceivedEvent>> {
-        let timeout = Duration::from_millis(timeout_ms);
-
-        // Notification channelから受信
-        let mut events = Vec::new();
-        let mut notifications = self.client.notifications();
-        let deadline = tokio::time::Instant::now() + timeout;
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
 
         loop {
-            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-            if remaining.is_zero() {
-                break;
-            }
-
-            // 通知を受信（タイムアウト付き）
-            match tokio::time::timeout(remaining, notifications.recv()).await {
-                Ok(Ok(notification)) => {
-                    // イベント通知のみ処理
-                    if let RelayPoolNotification::Event {
-                        event,
-                        subscription_id,
-                        ..
-                    } = notification
-                    {
-                        let received_at = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs() as i64;
-
-                        let event_json = serde_json::to_string(&event.as_json())?;
-
-                        events.push(ReceivedEvent {
-                            event_id: event.id.to_hex(),
-                            kind: event.kind.as_u16() as u64,
-                            created_at: event.created_at.as_u64() as i64,
-                            event_json,
-                            received_at,
-                            subscription_id: subscription_id.to_string(),
-                        });
-
-                        // イベントを1つ受信したら即座に返す
-                        break;
-                    }
-                    // 他の通知タイプは無視して次を待つ
-                }
-                Ok(Err(_)) => {
-                    // チャンネルエラー
-                    break;
-                }
-                Err(_) => {
-                    // タイムアウト
-                    break;
+            {
+                let mut queue = SUBSCRIPTION_EVENT_QUEUE
+                    .lock()
+                    .expect("subscription event queue poisoned");
+                if !queue.is_empty() {
+                    let events: Vec<ReceivedEvent> = queue.drain(..).collect();
+                    dev_println!("📥 Received {} events via subscription", events.len());
+                    return Ok(events);
                 }
             }
-        }
 
-        if !events.is_empty() {
-            dev_println!("📥 Received {} events via subscription", events.len());
+            if tokio::time::Instant::now() >= deadline {
+                return Ok(Vec::new());
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
         }
-
-        Ok(events)
     }
 
     /// リレー接続状態をチェック
@@ -1751,6 +1714,88 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
     once_cell::sync::Lazy::new(|| {
         tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime")
     });
+
+/// 常駐リスナーが受信したイベントを蓄積するグローバルキュー。
+/// `receive_subscription_events` がポーリング毎に drain する。
+/// Dart 側は subscription_id でディスパッチ + event_id で dedupe するため、
+/// 複数クライアントのイベントが混在しても問題ない。
+static SUBSCRIPTION_EVENT_QUEUE: once_cell::sync::Lazy<
+    std::sync::Mutex<std::collections::VecDeque<ReceivedEvent>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::VecDeque::new()));
+
+/// 常駐リスナーを起動済みの client_id 集合（多重起動防止）
+static SUBSCRIPTION_LISTENERS: once_cell::sync::Lazy<
+    std::sync::Mutex<std::collections::HashSet<String>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+/// notification channel に常駐してイベントをキューへ積むリスナーを起動する。
+///
+/// broadcast channel は receiver 生成以降のメッセージしか受け取れないため、
+/// ポーリング毎に receiver を作る方式ではポーリング間隙のイベントを恒久的に
+/// 取りこぼす。subscribe 時に一度だけ常駐タスクを起動して解決する。
+fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
+    // メモリ保護: Flutter 側のポーリングが止まっても無限に溜めない
+    const MAX_QUEUED_EVENTS: usize = 2048;
+
+    {
+        let mut listeners = SUBSCRIPTION_LISTENERS
+            .lock()
+            .expect("subscription listeners poisoned");
+        if !listeners.insert(client_id.to_string()) {
+            return; // 既に起動済み
+        }
+    }
+
+    let client = client.clone();
+    let client_id = client_id.to_string();
+    TOKIO_RUNTIME.spawn(async move {
+        dev_println!("📡 Subscription event listener started [{}]", client_id);
+        let mut notifications = client.notifications();
+        loop {
+            match notifications.recv().await {
+                Ok(RelayPoolNotification::Event {
+                    event,
+                    subscription_id,
+                    ..
+                }) => {
+                    let received_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() as i64;
+                    let received = ReceivedEvent {
+                        event_id: event.id.to_hex(),
+                        kind: event.kind.as_u16() as u64,
+                        created_at: event.created_at.as_u64() as i64,
+                        // 単一エンコード。旧実装の serde_json::to_string(&as_json())
+                        // は二重エンコードで Dart 側のパースが常に失敗していた。
+                        event_json: event.as_json(),
+                        received_at,
+                        subscription_id: subscription_id.to_string(),
+                    };
+                    let mut queue = SUBSCRIPTION_EVENT_QUEUE
+                        .lock()
+                        .expect("subscription event queue poisoned");
+                    if queue.len() >= MAX_QUEUED_EVENTS {
+                        queue.pop_front();
+                    }
+                    queue.push_back(received);
+                }
+                Ok(RelayPoolNotification::Shutdown) => break,
+                Ok(_) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    dev_eprintln!("⚠️ Subscription listener lagged: {} notifications", n);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+        // クライアント破棄等で channel が閉じたら登録を外し、
+        // 次回 subscribe 時に再起動できるようにする
+        if let Ok(mut listeners) = SUBSCRIPTION_LISTENERS.lock() {
+            listeners.remove(&client_id);
+        }
+        dev_println!("📡 Subscription event listener stopped [{}]", client_id);
+    });
+}
 
 /// WebSocket `User-Agent` on relay connections (issue #130). Call before any `init_nostr_client*`.
 pub fn set_relay_websocket_user_agent(user_agent: String) {
@@ -3981,12 +4026,18 @@ pub fn start_subscription_with_client_id(
     filters_json: String,
     client_id: Option<String>,
 ) -> Result<SubscriptionInfo> {
+    let resolved_id = client_id
+        .clone()
+        .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
 
         // JSON文字列からFilterのリストをパース
         let filters: Vec<Filter> =
             serde_json::from_str(&filters_json).context("Failed to parse filters JSON")?;
+
+        // subscribe 前に常駐リスナーを確実に起動（イベント取りこぼし防止）
+        ensure_subscription_event_listener(&resolved_id, &client.client);
 
         client.subscribe(filters).await
     })
@@ -4057,6 +4108,14 @@ pub fn clear_all_session_state() -> Result<()> {
                 "🧹 Cleared MLS STORE (was_initialized={})",
                 was_some
             );
+        }
+
+        // 未配信の購読イベントを破棄（アカウント切替時に前ユーザーの
+        // イベントが次ユーザーへ流れるのを防ぐ）
+        if let Ok(mut queue) = SUBSCRIPTION_EVENT_QUEUE.lock() {
+            let count = queue.len();
+            queue.clear();
+            dev_println!("🧹 Cleared {} queued subscription events", count);
         }
 
         Ok(())
