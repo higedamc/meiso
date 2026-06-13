@@ -412,11 +412,50 @@ class _SecretKeyManagementScreenState
   Future<void> _saveSecretKey() async {
     final secretKey = _secretKeyController.text.trim();
 
-    // 暗号化プレースホルダーの場合は保存をスキップ
+    // 暗号化プレースホルダーの場合: パスワードで復号して再接続
     if (secretKey == _encryptedPlaceholder) {
+      final l10n = AppLocalizations.of(context);
+      final password = await _showPasswordDialog(
+        l10n.enterPassword,
+        l10n.enterPasswordToDecrypt,
+      );
+      if (password == null || password.isEmpty) {
+        return;
+      }
+
       setState(() {
-        _errorMessage = '暗号化された秘密鍵は既に保存されています';
+        _isLoading = true;
+        _errorMessage = null;
+        _successMessage = null;
       });
+
+      try {
+        final nostrService = ref.read(nostrServiceProvider);
+        final decryptedKey = await nostrService.getSecretKey(password);
+        if (decryptedKey == null) {
+          setState(() {
+            _errorMessage = l10n.passwordIncorrectOrDecryptFailed;
+          });
+          return;
+        }
+
+        await _autoConnectWithKey(decryptedKey);
+        if (mounted) {
+          setState(() {
+            _successMessage = l10n.connectedToRelay;
+          });
+        }
+      } catch (e) {
+        setState(() {
+          _errorMessage = l10n.secretKeySaveFailed(e.toString());
+        });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
       return;
     }
 

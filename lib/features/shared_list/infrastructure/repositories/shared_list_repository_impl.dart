@@ -68,10 +68,6 @@ class SharedListRepositoryImpl implements SharedListRepository {
     required int keyEpoch,
   }) async {
     try {
-      if (!_isAmberMode) {
-        return Left(ServerFailure('shared-v1 招待は Amber モードが必要です'));
-      }
-
       final senderHex = await _nostrService.getPublicKey();
       if (senderHex == null) {
         return Left(ServerFailure('公開鍵を取得できません'));
@@ -90,31 +86,52 @@ class SharedListRepositoryImpl implements SharedListRepository {
       );
 
       final recipientHex = await _nostrService.npubToHex(recipientNpub);
-      final amber = AmberService();
-      final senderNpub = await _nostrService.hexToNpub(senderHex);
 
-      final encrypted = await amber.encryptNip44WithContentProvider(
-        plaintext: payload,
-        pubkey: recipientHex,
-        npub: senderNpub,
-      );
-
-      final unsigned = await rust_api.createUnsignedSharedInvitationEvent(
-        senderPublicKeyHex: senderHex,
-        recipientNpub: recipientNpub,
-        groupId: groupId,
-        groupName: groupName,
-        encryptedContent: encrypted,
-      );
-
+      String encrypted;
       String signed;
-      try {
-        signed = await amber.signEventWithContentProvider(
-          event: unsigned,
+      if (_isAmberMode) {
+        final amber = AmberService();
+        final senderNpub = await _nostrService.hexToNpub(senderHex);
+
+        encrypted = await amber.encryptNip44WithContentProvider(
+          plaintext: payload,
+          pubkey: recipientHex,
           npub: senderNpub,
         );
-      } on Exception {
-        signed = await amber.signEventWithTimeout(unsigned);
+
+        final unsigned = await rust_api.createUnsignedSharedInvitationEvent(
+          senderPublicKeyHex: senderHex,
+          recipientNpub: recipientNpub,
+          groupId: groupId,
+          groupName: groupName,
+          encryptedContent: encrypted,
+        );
+
+        try {
+          signed = await amber.signEventWithContentProvider(
+            event: unsigned,
+            npub: senderNpub,
+          );
+        } on Exception {
+          signed = await amber.signEventWithTimeout(unsigned);
+        }
+      } else {
+        // 秘密鍵モード: Rust 側のセッション鍵で NIP-44 暗号化と署名を行う
+        // （nsec を Dart 層へ取り出さない）
+        encrypted = await rust_api.clientNip44Encrypt(
+          peerPubkeyHex: recipientHex,
+          plaintext: payload,
+        );
+
+        final unsigned = await rust_api.createUnsignedSharedInvitationEvent(
+          senderPublicKeyHex: senderHex,
+          recipientNpub: recipientNpub,
+          groupId: groupId,
+          groupName: groupName,
+          encryptedContent: encrypted,
+        );
+
+        signed = await rust_api.clientSignEvent(unsignedEventJson: unsigned);
       }
 
       final result = await _nostrService.sendSignedEvent(signed);
@@ -185,7 +202,12 @@ class SharedListRepositoryImpl implements SharedListRepository {
           'key_epoch': parsed.keyEpoch,
         });
       } else {
-        return Left(ServerFailure('招待の復号に必要な鍵がありません'));
+        // 秘密鍵モード: Rust 側のセッション鍵で NIP-44 復号する
+        // （nsec を Dart 層へ取り出さない）
+        payloadJson = await rust_api.clientNip44Decrypt(
+          peerPubkeyHex: invitation.inviterPubkey,
+          ciphertext: invitation.encryptedContent,
+        );
       }
 
       final parsed = await rust_api.sharedParseInvitationPayload(

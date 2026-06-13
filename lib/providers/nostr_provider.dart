@@ -199,8 +199,16 @@ class NostrService {
     AppLogger.debug(' Public key saved via Rust (Amber mode)');
   }
 
-  /// 公開鍵を読み込み（Amber使用時）
+  /// 現在のユーザーの公開鍵（hex）を返す。
+  ///
+  /// まずセッション中の publicKeyProvider を参照し（nsec ログインでは
+  /// ストレージに公開鍵が保存されないため）、無ければ Rust ストレージ
+  /// （Amber モードで保存される）から読み込む。
   Future<String?> getPublicKey() async {
+    final sessionKey = _ref.read(publicKeyProvider);
+    if (sessionKey != null && sessionKey.isNotEmpty) {
+      return sessionKey;
+    }
     final path = await _getKeyStoragePath();
     try {
       return await rust_api.loadPublicKey(storagePath: path);
@@ -292,6 +300,8 @@ class NostrService {
     _ref.read(relayStatusProvider.notifier).initializeAsConnected(relayList);
 
     await localStorageService.setUseAmber(false);
+    // 秘密鍵モードでも公開鍵を永続化（再起動後の getPublicKey 用）
+    unawaited(savePublicKey(publicKey));
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
     await _initializeCacheAndSubscription(publicKey);

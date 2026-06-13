@@ -5359,9 +5359,14 @@ class TodosNotifier
         }
       }
 
-      final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
+      // LWW 決定論化: created_at 昇順（同秒は event id 辞書順）で適用する。
+      // 複数リレー間で per-relay LWW 状態が分岐していると同一タスクの新旧
+      // バージョンが混在して返るため、最新が最後に適用される順序を保証しないと
+      // stale 巻き戻りや削除タスクのゾンビ復活が起きる（issue #138 R1/R2）。
+      final orderedEvents = List<Map<String, dynamic>>.from(events)
+        ..sort(_compareSharedEventMaps);
 
-      for (final eventData in events) {
+      for (final eventData in orderedEvents) {
         try {
           final kind = eventData['kind'] as int?;
           if (kind != 35000) continue;
@@ -5375,7 +5380,6 @@ class TodosNotifier
           final parsed = _parseSharedTaskPayload(
             data: data,
             groupId: groupId,
-            editorPubkey: publicKey,
           );
           if (parsed == null) continue;
 
@@ -5435,10 +5439,26 @@ class TodosNotifier
     }
   }
 
+  /// shared-v1 イベント(JSONマップ)を created_at 昇順 + 同秒は event id 辞書順
+  /// で比較する。リレー側の NIP-01 タイブレークと同じ規則に揃え、
+  /// どの端末でも同一の最終状態に収束させる。
+  static int _compareSharedEventMaps(
+    Map<String, dynamic> a,
+    Map<String, dynamic> b,
+  ) {
+    final createdA = (a['created_at'] as num?)?.toInt() ?? 0;
+    final createdB = (b['created_at'] as num?)?.toInt() ?? 0;
+    if (createdA != createdB) {
+      return createdA.compareTo(createdB);
+    }
+    final idA = a['id'] as String? ?? '';
+    final idB = b['id'] as String? ?? '';
+    return idA.compareTo(idB);
+  }
+
   Todo? _parseSharedTaskPayload({
     required Map<String, dynamic> data,
     required String groupId,
-    String? editorPubkey,
   }) {
     final id = data['id'] as String?;
     if (id == null || id.isEmpty) return null;
@@ -5449,7 +5469,10 @@ class TodosNotifier
     if (dateRaw is String && dateRaw.isNotEmpty) {
       date = DateTime.tryParse(dateRaw);
     }
-    // payload に含まれる editor_pubkey(最後に編集した実 npub hex)を優先採用。
+    // payload に含まれる editor_pubkey(最後に編集した実 npub hex)を採用する。
+    // 欠落時は null(編集者不明)とする。以前は受信者自身の pubkey に
+    // フォールバックしており、他人のタスクが「自分のタスク」として
+    // 表示される可能性があった（issue #138 R4）。
     final payloadEditor = (data['editor_pubkey'] as String?)?.trim();
     return Todo(
       id: id,
@@ -5465,7 +5488,7 @@ class TodosNotifier
       needsSync: false,
       editorPubkey: (payloadEditor != null && payloadEditor.isNotEmpty)
           ? payloadEditor
-          : editorPubkey,
+          : null,
     );
   }
 
@@ -5498,9 +5521,22 @@ class TodosNotifier
     data['order'] = data['order'] ?? FractionalIndex.initial;
     data['list_id'] = groupId;
     data['deleted'] = action == 'delete';
-    data['updated_at'] = DateTime.now().toIso8601String();
-    if (editorPubkey != null) {
-      data['editor_pubkey'] = editorPubkey;
+
+    // クロックスキュー対策（issue #138 R3）: 編集対象の既存 updatedAt が
+    // 自端末の現在時刻より未来（時計の進んだ他端末の編集）の場合、
+    // そのままでは今回の編集が LWW で恒久的に負ける。単調増加を保証する。
+    var updatedAt = DateTime.now();
+    final prevUpdatedAt = todo?.updatedAt;
+    if (prevUpdatedAt != null && !updatedAt.isAfter(prevUpdatedAt)) {
+      updatedAt = prevUpdatedAt.add(const Duration(seconds: 1));
+    }
+    data['updated_at'] = updatedAt.toIso8601String();
+
+    // 帰属表示のため editor_pubkey は常に埋める（issue #138 R4）
+    final editor = editorPubkey ??
+        await _ref.read(nostrServiceProvider).getPublicKey();
+    if (editor != null && editor.isNotEmpty) {
+      data['editor_pubkey'] = editor;
     }
 
     final result = await repo.publishSignedTaskEvent(
@@ -6050,8 +6086,6 @@ class TodosNotifier
         groupId,
         () => <String>{},
       );
-      final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
-
       var changed = false;
       final currentTodos = state.valueOrNull ?? <DateTime?, List<Todo>>{};
       final updated = Map<DateTime?, List<Todo>>.from(currentTodos);
@@ -6064,7 +6098,17 @@ class TodosNotifier
         }
       }
 
-      for (final event in events) {
+      // LWW 決定論化: 1回のポーリングで複数イベントが届いた場合も
+      // created_at 昇順（同秒は event id 辞書順）で適用する（issue #138 R1/R2）。
+      final orderedEvents = List<rust_api.ReceivedEvent>.from(events)
+        ..sort((a, b) {
+          if (a.createdAt != b.createdAt) {
+            return a.createdAt.compareTo(b.createdAt);
+          }
+          return a.eventId.compareTo(b.eventId);
+        });
+
+      for (final event in orderedEvents) {
         try {
           if (seen.contains(event.eventId)) continue;
           seen.add(event.eventId);
@@ -6082,7 +6126,6 @@ class TodosNotifier
           final parsed = _parseSharedTaskPayload(
             data: data,
             groupId: groupId,
-            editorPubkey: publicKey,
           );
           if (parsed == null) continue;
 
