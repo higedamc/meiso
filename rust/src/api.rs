@@ -2448,7 +2448,16 @@ pub fn client_nip44_decrypt(
     })
 }
 
+/// `client_sign_event` の入力上限（誤用・DoS への多層防御）。
+const MAX_SIGN_CONTENT_BYTES: usize = 256 * 1024; // 256 KiB
+const MAX_SIGN_TAG_COUNT: usize = 2_000;
+
 /// セッションクライアントの鍵で未署名イベント JSON に署名（秘密鍵モード専用）。
+///
+/// これはユーザーの実鍵で任意の kind/content/tags に署名できる汎用プリミティブ
+/// （署名オラクル）である。呼び出し側は **信頼できない外部由来のイベント JSON を
+/// 渡してはならない**。現状の利用はローカル生成の招待イベント等に限定される。
+/// 万一の誤用と DoS に備え、入力サイズに上限を設けている。
 pub fn client_sign_event(
     unsigned_event_json: String,
     client_id: Option<String>,
@@ -2467,12 +2476,18 @@ pub fn client_sign_event(
             .as_str()
             .context("Missing or invalid 'content' field")?
             .to_string();
+        if content.len() > MAX_SIGN_CONTENT_BYTES {
+            anyhow::bail!("Refusing to sign: content exceeds size limit");
+        }
         let kind = unsigned_event["kind"]
             .as_u64()
             .context("Missing or invalid 'kind' field")?;
         let tags_array = unsigned_event["tags"]
             .as_array()
             .context("Missing or invalid 'tags' field")?;
+        if tags_array.len() > MAX_SIGN_TAG_COUNT {
+            anyhow::bail!("Refusing to sign: too many tags");
+        }
 
         let mut tags = Vec::new();
         for tag in tags_array {

@@ -275,8 +275,11 @@ class _SecretKeyManagementScreenState
           await _showNsecDialog(decryptedKey);
         }
       } catch (e) {
+        // 復号失敗の詳細はログのみに残し、UI には鍵情報を含みうる生の例外文字列を
+        // 出さない（例外メッセージへの機密混入に対する多層防御）。
+        AppLogger.error('Secret key decrypt failed', error: e);
         setState(() {
-          _errorMessage = l10n.secretKeyDecryptFailed(e.toString());
+          _errorMessage = l10n.secretKeyDecryptFailed(e.runtimeType.toString());
         });
       } finally {
         if (mounted) {
@@ -399,8 +402,9 @@ class _SecretKeyManagementScreenState
       // 自動的にリレーに接続（newKeyを使用）
       await _autoConnectWithKey(newKey);
     } catch (e) {
+      AppLogger.error('Secret key generation failed', error: e);
       setState(() {
-        _errorMessage = l10n.secretKeyGenerationFailed(e.toString());
+        _errorMessage = l10n.secretKeyGenerationFailed(e.runtimeType.toString());
       });
     } finally {
       setState(() {
@@ -446,8 +450,9 @@ class _SecretKeyManagementScreenState
           });
         }
       } catch (e) {
+        AppLogger.error('Secret key reconnect failed', error: e);
         setState(() {
-          _errorMessage = l10n.secretKeySaveFailed(e.toString());
+          _errorMessage = l10n.secretKeySaveFailed(e.runtimeType.toString());
         });
       } finally {
         if (mounted) {
@@ -500,8 +505,9 @@ class _SecretKeyManagementScreenState
       // 自動的にリレーに接続（secretKeyを使用）
       await _autoConnectWithKey(secretKey);
     } catch (e) {
+      AppLogger.error('Secret key save failed', error: e);
       setState(() {
-        _errorMessage = l10n.secretKeySaveFailed(e.toString());
+        _errorMessage = l10n.secretKeySaveFailed(e.runtimeType.toString());
       });
     } finally {
       setState(() {
@@ -551,8 +557,9 @@ class _SecretKeyManagementScreenState
       // 自動同期を実行
       await _autoSync();
     } catch (e) {
+      AppLogger.error('Relay connection failed', error: e);
       setState(() {
-        _errorMessage = l10n.relayConnectionError(e.toString());
+        _errorMessage = l10n.relayConnectionError(e.runtimeType.toString());
       });
     }
   }

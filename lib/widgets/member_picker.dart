@@ -5,6 +5,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../bridge_generated.dart/api.dart' as rust_api;
+import '../models/app_settings.dart';
+import '../providers/app_settings_provider.dart';
 import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
 
@@ -459,6 +461,14 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
   }
 
   Widget _buildContactsArea(ColorScheme colorScheme) {
+    // プロフィール画像は Flutter 既定の HttpClient で取得され、リレー接続用の
+    // SOCKS プロキシを経由しない。Tor モード時にアバターをフェッチすると実 IP が
+    // 漏れるため、Tor が明示的に無効と確認できた場合のみネットワーク取得を許可する
+    // （不明・ロード中は取得しない deny-by-default）。
+    final allowNetworkAvatar = ref.watch(appSettingsProvider).maybeWhen(
+          data: (settings) => settings.torMode == TorMode.disabled,
+          orElse: () => false,
+        );
     if (_loadingContacts) {
       return const Padding(
         padding: EdgeInsets.all(24),
@@ -528,7 +538,11 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
           value: selected,
           onChanged: (_) => _toggle(contact.npub),
           controlAffinity: ListTileControlAffinity.leading,
-          secondary: _buildAvatar(contact, colorScheme),
+          secondary: _buildAvatar(
+            contact,
+            colorScheme,
+            allowNetwork: allowNetworkAvatar,
+          ),
           title: Text(
             contact.label,
             style: const TextStyle(fontSize: 13),
@@ -549,9 +563,13 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
     );
   }
 
-  Widget _buildAvatar(_ContactEntry contact, ColorScheme colorScheme) {
+  Widget _buildAvatar(
+    _ContactEntry contact,
+    ColorScheme colorScheme, {
+    required bool allowNetwork,
+  }) {
     final picture = contact.picture;
-    if (picture != null && picture.startsWith('https://')) {
+    if (allowNetwork && picture != null && picture.startsWith('https://')) {
       return CircleAvatar(
         radius: 16,
         backgroundColor: colorScheme.surfaceContainerHighest,
