@@ -6,9 +6,11 @@ import '../../models/custom_list.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/bootstrap_sync_provider.dart';
 import '../../providers/calendar_provider.dart';
+import '../../providers/custom_lists_provider.dart';
 import '../../providers/date_provider.dart';
 import '../../widgets/add_list_chooser.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/list_settings_sheet.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
 import '../../widgets/expandable_calendar.dart';
@@ -227,7 +229,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
+  /// リネーム等を反映した最新のアクティブリストを provider から解決する。
+  CustomList? _resolveActiveList() {
+    final active = _activeCustomList;
+    if (active == null) {
+      return null;
+    }
+    final lists = ref.read(customListsProvider).valueOrNull;
+    return lists?.where((l) => l.id == active.id).firstOrNull ?? active;
+  }
+
+  /// 設定ボタンのコンテキスト分岐:
+  /// - カスタムリスト詳細表示中: そのリストの設定シート
+  /// - それ以外: 通常の設定画面
   void _openSettings() {
+    final activeList = _detailOpen ? _resolveActiveList() : null;
+    if (activeList != null) {
+      showListSettingsSheet(
+        context,
+        customList: activeList,
+        onDeleted: _closeDetailToSomeday,
+      );
+      return;
+    }
     Navigator.of(context).push(
       slideUpRoute<void>(const SettingsScreen()),
     );
@@ -284,9 +308,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// Home 側がボトムバーを提供するため、embedded で描画する。
   Widget _buildDetailView() {
     if (_activeCustomList != null) {
+      // リネームを即時反映するため provider から最新のリストを解決する
+      final list = _resolveActiveList()!;
       return ListDetailScreen(
-        key: ValueKey('detail-${_activeCustomList!.id}'),
-        customList: _activeCustomList!,
+        key: ValueKey('detail-${list.id}'),
+        customList: list,
         embedded: true,
       );
     }
@@ -368,6 +394,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         final isCustomListModalVisible = ref.watch(customListModalVisibleProvider);
         final appSettingsAsync = ref.watch(appSettingsProvider);
         final bootstrapState = ref.watch(bootstrapSyncProvider);
+        // 詳細表示中のリスト名変更（リスト設定シート経由）を即時反映する
+        if (_activeCustomList != null) {
+          ref.watch(customListsProvider);
+        }
         final weekStartDay = appSettingsAsync.maybeWhen(
           data: (settings) => settings.weekStartDay,
           orElse: () => 1, // デフォルトは月曜日
@@ -483,8 +513,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       onSomedayLongPress: _openSettings,
                       isSomedayActive: _showingSomeday || _detailOpen,
                       somedayMerged: _detailOpen,
-                      mergedLabel:
-                          _activeCustomList?.name ?? _activePlanning?.label,
+                      settingsContextual:
+                          _detailOpen && _activeCustomList != null,
+                      mergedLabel: _resolveActiveList()?.name ??
+                          _activePlanning?.label,
                     ),
                   ],
                 ),

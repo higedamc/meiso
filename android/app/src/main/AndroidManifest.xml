@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- ネットワークアクセスに必要なパーミッション -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- QR コード読み取り（メンバー追加）に必要なパーミッション -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     
     <application
         android:label="meiso"

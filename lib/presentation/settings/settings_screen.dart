@@ -20,6 +20,7 @@ import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
 import '../../services/amber_service.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
+import '../../widgets/member_picker.dart' show showMyNpubQrDialog;
 import 'mls_backup_dialog.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -130,6 +131,13 @@ class SettingsScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  // 自分の npub を QR 表示（対面でのメンバー追加用）
+                  if (isNostrInitialized)
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_2),
+                      tooltip: 'Show my npub QR',
+                      onPressed: () => showMyNpubQrDialog(context, ref),
+                    ),
                 ],
               ),
             ),

@@ -15,6 +15,7 @@ class BottomNavigation extends StatelessWidget {
     this.onSomedayLongPress,
     this.isSomedayActive = false,
     this.somedayMerged = false,
+    this.settingsContextual = false,
     this.mergedLabel,
     super.key,
   });
@@ -29,6 +30,10 @@ class BottomNavigation extends StatelessWidget {
   /// SOMEDAY 配下の詳細（カスタムリスト等）を表示中は true。
   /// TODAY セグメントを収納し、SOMEDAY セグメントが全幅に統合される。
   final bool somedayMerged;
+
+  /// 設定ボタンが「リスト固有の設定」として動作するコンテキストでは true。
+  /// アイコンが settings → tune にモーフし、動的なコンテキスト変化を表現する。
+  final bool settingsContextual;
 
   /// マージ時に SOMEDAY セグメントへ表示するラベル（リスト名など）。
   final String? mergedLabel;
@@ -87,10 +92,12 @@ class BottomNavigation extends StatelessWidget {
               if (onSettingsTap != null) ...[
                 const SizedBox(width: 4),
                 _CircleAction(
-                  icon: Icons.settings_outlined,
+                  icon: settingsContextual
+                      ? Icons.tune
+                      : Icons.settings_outlined,
                   filled: false,
                   onTap: onSettingsTap!,
-                  tooltip: 'Settings',
+                  tooltip: settingsContextual ? 'List settings' : 'Settings',
                 ),
               ],
             ],
@@ -292,7 +299,28 @@ class _CircleAction extends StatelessWidget {
           child: SizedBox(
             width: 46,
             height: 46,
-            child: Icon(icon, color: fg, size: filled ? 26 : 22),
+            // コンテキスト変化（settings ⇄ tune 等）を fade + rotate でモーフ
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: RotationTransition(
+                    turns: Tween<double>(begin: 0.85, end: 1)
+                        .animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: Icon(
+                icon,
+                key: ValueKey(icon.codePoint),
+                color: fg,
+                size: filled ? 26 : 22,
+              ),
+            ),
           ),
         ),
       ),

@@ -4,14 +4,13 @@ import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/app_settings_provider.dart';
-import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/list_settings_sheet.dart';
 import '../../widgets/slide_up_route.dart';
 import '../../widgets/todo_edit_screen.dart';
-import '../settings/settings_screen.dart';
 
 /// カスタムリスト詳細画面
 class ListDetailScreen extends ConsumerStatefulWidget {
@@ -112,10 +111,14 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                 onTodayTap: () => Navigator.of(context).pop(),
                 onAddTap: () => _showAddTodoScreen(context),
                 onSomedayTap: () => Navigator.of(context).pop(),
-                onSettingsTap: () => Navigator.of(context).push(
-                  slideUpRoute<void>(const SettingsScreen()),
+                // リスト詳細表示中はリスト固有の設定シートを開く
+                onSettingsTap: () => showListSettingsSheet(
+                  context,
+                  customList: widget.customList,
+                  onDeleted: () => Navigator.of(context).pop(),
                 ),
                 isSomedayActive: true,
+                settingsContextual: true,
               );
             },
           ),
@@ -149,6 +152,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
             const SizedBox(width: 8),
           ],
           // リスト名
+          // 編集・削除はボトムバーの設定ボタン（リスト設定シート）へ移設済み
           Expanded(
             child: Text(
               widget.customList.name,
@@ -161,32 +165,6 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                 letterSpacing: 1,
               ),
             ),
-          ),
-
-          // 編集ボタン
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            iconSize: 20,
-            color: isDark
-                ? AppTheme.darkTextPrimary.withOpacity(0.7)
-                : AppTheme.lightTextPrimary.withOpacity(0.7),
-            onPressed: () => _showEditDialog(context),
-            tooltip: 'リスト名を編集',
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
-          ),
-
-          // 削除ボタン
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            iconSize: 20,
-            color: isDark
-                ? AppTheme.darkTextPrimary.withOpacity(0.7)
-                : AppTheme.lightTextPrimary.withOpacity(0.7),
-            onPressed: () => _showDeleteDialog(context),
-            tooltip: 'リストを削除',
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -343,86 +321,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
     );
   }
 
-  /// リスト名編集ダイアログ
-  void _showEditDialog(BuildContext context) {
-    final controller = TextEditingController(text: widget.customList.name);
-
-    showDialog<void>(
-      context: context,
-      builder: (context) => Consumer(
-        builder: (context, ref, child) => AlertDialog(
-          title: const Text('リスト名を編集'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'リスト名を入力',
-              border: OutlineInputBorder(),
-            ),
-            textCapitalization: TextCapitalization.characters,
-            onSubmitted: (value) {
-              if (value.trim().isNotEmpty) {
-                ref.read(customListsProvider.notifier).updateList(
-                  widget.customList.copyWith(name: value.trim().toUpperCase()),
-                );
-                Navigator.pop(context);
-              }
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final text = controller.text.trim();
-                if (text.isNotEmpty) {
-                  ref.read(customListsProvider.notifier).updateList(
-                    widget.customList.copyWith(name: text.toUpperCase()),
-                  );
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryPurple,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// リスト削除確認ダイアログ
-  void _showDeleteDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => Consumer(
-        builder: (context, ref, child) => AlertDialog(
-          title: const Text('リストを削除'),
-          content: Text('「${widget.customList.name}」を削除しますか？\n\nこのリストに属するタスクは削除されません。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ),
-            TextButton(
-              onPressed: () {
-                ref.read(customListsProvider.notifier).deleteList(widget.customList.id);
-                Navigator.pop(context); // ダイアログを閉じる
-                Navigator.pop(context); // 詳細画面を閉じる
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('削除'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // リスト名編集・削除ダイアログは ListSettingsSheet へ移植済み
 
   /// Todo追加画面を表示
   void _showAddTodoScreen(BuildContext context) {

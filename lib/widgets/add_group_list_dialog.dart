@@ -4,6 +4,7 @@ import '../app_theme.dart';
 import '../providers/custom_lists_provider.dart';
 import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
+import 'member_picker.dart';
 
 /// グループリスト作成ダイアログ
 class AddGroupListDialog extends ConsumerStatefulWidget {
@@ -40,6 +41,26 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   }
 
   // Phase 8.4: _addLegacyMember() 削除（kind: 30001廃止）
+
+  /// shared-v1: member_picker（フォローリスト/QR/手入力）でメンバーを追加
+  Future<void> _openMemberPicker() async {
+    final existing = _mlsMembers.map((m) => m['npub'] as String).toSet();
+    final picked = await showMemberPicker(
+      context,
+      excludedNpubs: existing,
+    );
+    if (picked == null || picked.isEmpty || !mounted) return;
+    setState(() {
+      for (final npub in picked) {
+        if (_mlsMembers.any((m) => m['npub'] == npub)) continue;
+        _mlsMembers.add({
+          'npub': npub,
+          'keyPackage': null,
+          'hasWarning': false,
+        });
+      }
+    });
+  }
 
   void _addMemberWithoutKeyPackage() {
     final npub = _memberNpubController.text.trim();
@@ -847,6 +868,17 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                 ),
               ),
               const SizedBox(height: 8),
+              // shared-v1: member_picker（フォローリスト/QR/手入力）で追加
+              if (!_useMls)
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: _isLoading ? null : _openMemberPicker,
+                    icon: const Icon(Icons.group_add, size: 18),
+                    label: const Text('Add members'),
+                  ),
+                )
+              else
               Row(
                 children: [
                   Expanded(

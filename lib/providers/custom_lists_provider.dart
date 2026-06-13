@@ -26,6 +26,8 @@ import '../features/shared_list/application/providers/usecase_providers.dart'
 import '../features/shared_list/application/usecases/create_shared_group_usecase.dart';
 import '../features/shared_list/application/usecases/send_shared_invitation_usecase.dart';
 import '../features/shared_list/application/usecases/sync_shared_invitations_usecase.dart';
+import '../features/shared_list/infrastructure/providers/repository_providers.dart'
+    as shared_repo;
 // Issue #102: MLS Repository統合（グループ復元用）
 import '../features/mls/infrastructure/providers/repository_providers.dart'
     as mls_repo;
@@ -1862,6 +1864,77 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         stackTrace: st,
       );
       return null;
+    }
+  }
+
+  /// shared-v1: 既存グループへ後からメンバーを追加する（issue #138 R6）
+  ///
+  /// 既存の `nsec_G` を新メンバーへ招待イベントで再配布するだけで成立する。
+  /// 新メンバーは承認後の `since=0` フルフェッチで全履歴を取得できる。
+  Future<bool> inviteMemberToSharedGroup({
+    required String groupId,
+    required String npub,
+  }) async {
+    final trimmed = npub.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+
+    try {
+      final lists = state.whenData((lists) => lists).value ?? [];
+      final groupList = lists
+          .where((l) => l.id == groupId && l.isSharedProtocol)
+          .firstOrNull;
+      if (groupList == null) {
+        AppLogger.error(
+          '❌ [shared-v1] inviteMember: group not found: $groupId',
+        );
+        return false;
+      }
+
+      final repo = _ref.read(shared_repo.sharedListRepositoryProvider);
+      final credsResult = await repo.loadCredentials(groupId: groupId);
+      final credentials = credsResult.fold((_) => null, (c) => c);
+      if (credentials == null) {
+        AppLogger.error(
+          '❌ [shared-v1] inviteMember: credentials not found: $groupId',
+        );
+        return false;
+      }
+
+      final sendInvitationUseCase = _ref.read(
+        shared_usecase.sendSharedInvitationUseCaseProvider,
+      );
+      final sent = await sendInvitationUseCase(
+        SendSharedInvitationParams(
+          recipientNpub: trimmed,
+          groupId: groupId,
+          groupName: groupList.name,
+          groupNsecHex: credentials.groupNsecHex,
+          keyEpoch: credentials.keyEpoch,
+        ),
+      );
+      return sent.fold(
+        (failure) {
+          AppLogger.error(
+            '❌ [shared-v1] inviteMember failed: ${failure.message}',
+          );
+          return false;
+        },
+        (_) {
+          AppLogger.info(
+            '✅ [shared-v1] Invitation sent to ${trimmed.substring(0, 12)}... for group $groupId',
+          );
+          return true;
+        },
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [shared-v1] inviteMember error',
+        error: e,
+        stackTrace: st,
+      );
+      return false;
     }
   }
 
