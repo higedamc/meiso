@@ -2409,6 +2409,105 @@ pub fn sign_event_with_ephemeral_key(unsigned_event_json: String) -> Result<Stri
     })
 }
 
+/// セッションクライアントの鍵で NIP-44 v2 暗号化（秘密鍵モード専用）。
+///
+/// Amber モード（keys=None）ではエラーを返す。nsec を Dart 側へ渡さずに
+/// 招待ペイロード等を暗号化するために使用する。
+pub fn client_nip44_encrypt(
+    peer_pubkey_hex: String,
+    plaintext: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .clone()
+            .context("秘密鍵がありません（Amber モードでは使用できません）")?;
+        let peer = PublicKey::from_hex(&peer_pubkey_hex).context("Invalid peer public key")?;
+        nip44::encrypt(keys.secret_key(), &peer, &plaintext, nip44::Version::V2)
+            .context("Failed to NIP-44 encrypt with client keys")
+    })
+}
+
+/// セッションクライアントの鍵で NIP-44 復号（秘密鍵モード専用）。
+pub fn client_nip44_decrypt(
+    peer_pubkey_hex: String,
+    ciphertext: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .clone()
+            .context("秘密鍵がありません（Amber モードでは使用できません）")?;
+        let peer = PublicKey::from_hex(&peer_pubkey_hex).context("Invalid peer public key")?;
+        nip44::decrypt(keys.secret_key(), &peer, &ciphertext)
+            .context("Failed to NIP-44 decrypt with client keys")
+    })
+}
+
+/// セッションクライアントの鍵で未署名イベント JSON に署名（秘密鍵モード専用）。
+pub fn client_sign_event(
+    unsigned_event_json: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .clone()
+            .context("秘密鍵がありません（Amber モードでは使用できません）")?;
+
+        let unsigned_event: serde_json::Value = serde_json::from_str(&unsigned_event_json)
+            .context("Failed to parse unsigned event JSON")?;
+
+        let content = unsigned_event["content"]
+            .as_str()
+            .context("Missing or invalid 'content' field")?
+            .to_string();
+        let kind = unsigned_event["kind"]
+            .as_u64()
+            .context("Missing or invalid 'kind' field")?;
+        let tags_array = unsigned_event["tags"]
+            .as_array()
+            .context("Missing or invalid 'tags' field")?;
+
+        let mut tags = Vec::new();
+        for tag in tags_array {
+            let tag_vec: Vec<String> = tag
+                .as_array()
+                .context("Invalid tag format: expected array")?
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            if !tag_vec.is_empty() {
+                tags.push(
+                    Tag::parse(&tag_vec)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse tag: {:?}", e))?,
+                );
+            }
+        }
+
+        let created_at = if let Some(timestamp) = unsigned_event["created_at"].as_u64() {
+            Timestamp::from(timestamp)
+        } else {
+            Timestamp::now()
+        };
+
+        let event = EventBuilder::new(Kind::from(kind as u16), content)
+            .tags(tags)
+            .custom_created_at(created_at)
+            .sign(&keys)
+            .await
+            .context("Failed to sign event with client keys")?;
+
+        // event.as_json() は既に JSON 文字列（二重エンコード禁止）
+        Ok(event.as_json())
+    })
+}
+
 /// 署名済みイベントをリレーに送信
 pub fn send_signed_event(event_json: String) -> Result<EventSendResult> {
     send_signed_event_with_client_id(event_json, None)
@@ -5848,6 +5947,154 @@ pub fn fetch_key_package_by_npub_with_client_id(
         } else {
             Err(anyhow::anyhow!("No Key Package found for npub: {}", npub))
         }
+    })
+}
+
+// ========================================
+// コンタクトリスト / プロフィール取得 API
+// ========================================
+
+/// kind:0 のプロフィールメタデータ（メンバー選択 UI 用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContactProfile {
+    /// 公開鍵（hex）
+    pub pubkey_hex: String,
+    /// name フィールド
+    pub name: Option<String>,
+    /// display_name フィールド
+    pub display_name: Option<String>,
+    /// アバター画像URL
+    pub picture: Option<String>,
+    /// NIP-05 識別子
+    pub nip05: Option<String>,
+}
+
+/// kind:3 コンタクトリスト（フォローリスト）の p タグ pubkey 一覧を取得
+pub fn fetch_contact_list(pubkey_hex: String) -> Result<Vec<String>> {
+    fetch_contact_list_with_client_id(pubkey_hex, None)
+}
+
+/// kind:3 コンタクトリスト取得（client_id 指定可能）
+pub fn fetch_contact_list_with_client_id(
+    pubkey_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let public_key =
+            PublicKey::from_hex(&pubkey_hex).context("Failed to parse pubkey hex")?;
+
+        let filter = Filter::new()
+            .kind(Kind::ContactList)
+            .author(public_key)
+            .limit(1);
+
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        // kind:3 は replaceable なので最新の1件のみを採用する
+        let latest = events.iter().max_by_key(|e| e.created_at);
+        let mut contacts: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        if let Some(event) = latest {
+            for tag in event.tags.iter() {
+                let tag_vec = tag.clone().to_vec();
+                if tag_vec.len() >= 2 && tag_vec[0] == "p" {
+                    // p タグ値は信頼しない入力として hex 検証してから返す
+                    if let Ok(pk) = PublicKey::from_hex(&tag_vec[1]) {
+                        let hex = pk.to_hex();
+                        if seen.insert(hex.clone()) {
+                            contacts.push(hex);
+                        }
+                    }
+                }
+            }
+            dev_println!(
+                "📥 [Contacts] kind:3 found, {} contacts",
+                contacts.len()
+            );
+        } else {
+            dev_println!("⚠️ [Contacts] No kind:3 event found");
+        }
+
+        Ok(contacts)
+    })
+}
+
+/// kind:0 プロフィールメタデータを一括取得（表示名・アバター用）
+pub fn fetch_profiles_metadata(pubkey_hexes: Vec<String>) -> Result<Vec<ContactProfile>> {
+    fetch_profiles_metadata_with_client_id(pubkey_hexes, None)
+}
+
+/// kind:0 プロフィール一括取得（client_id 指定可能）
+pub fn fetch_profiles_metadata_with_client_id(
+    pubkey_hexes: Vec<String>,
+    client_id: Option<String>,
+) -> Result<Vec<ContactProfile>> {
+    TOKIO_RUNTIME.block_on(async {
+        if pubkey_hexes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let client = get_client(client_id).await?;
+
+        let mut authors: Vec<PublicKey> = Vec::new();
+        for hex in &pubkey_hexes {
+            if let Ok(pk) = PublicKey::from_hex(hex) {
+                authors.push(pk);
+            }
+        }
+        if authors.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let filter = Filter::new().kind(Kind::Metadata).authors(authors);
+
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        // author ごとに最新の kind:0 のみを採用する
+        let mut latest_by_author: std::collections::HashMap<String, &Event> =
+            std::collections::HashMap::new();
+        for event in events.iter() {
+            let key = event.pubkey.to_hex();
+            match latest_by_author.get(&key) {
+                Some(existing) if existing.created_at >= event.created_at => {}
+                _ => {
+                    latest_by_author.insert(key, event);
+                }
+            }
+        }
+
+        let mut profiles = Vec::new();
+        for (pubkey_hex, event) in latest_by_author {
+            // content は信頼しない入力。JSON でなければスキップ
+            let parsed: serde_json::Value = match serde_json::from_str(&event.content) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let get_str = |key: &str| -> Option<String> {
+                parsed
+                    .get(key)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.chars().take(256).collect::<String>())
+                    .filter(|s| !s.is_empty())
+            };
+            profiles.push(ContactProfile {
+                pubkey_hex,
+                name: get_str("name"),
+                display_name: get_str("display_name"),
+                picture: get_str("picture"),
+                nip05: get_str("nip05"),
+            });
+        }
+
+        dev_println!("📥 [Contacts] kind:0 profiles fetched: {}", profiles.len());
+        Ok(profiles)
     })
 }
 

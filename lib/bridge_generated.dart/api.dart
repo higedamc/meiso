@@ -9,9 +9,9 @@ import 'group_tasks_mls.dart';
 import 'group_tasks_shared.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `drain_all`, `ensure_subscription_event_listener`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `lock_recovering`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `push`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`, `SubscriptionEventQueue`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// MLS/NIP-17: listen_key(#p) 宛の sealed event(kind=1059) を差分取得
 ///
@@ -281,6 +281,29 @@ Future<String> initNostrClientWithPubkeyAndId({
 /// ```
 Future<String> signEventWithEphemeralKey({required String unsignedEventJson}) =>
     RustLib.instance.api.crateApiSignEventWithEphemeralKey(unsignedEventJson: unsignedEventJson);
+
+/// セッションクライアントの鍵で NIP-44 v2 暗号化（秘密鍵モード専用）。
+///
+/// Amber モード（keys=None）ではエラーを返す。nsec を Dart 側へ渡さずに
+/// 招待ペイロード等を暗号化するために使用する。
+Future<String> clientNip44Encrypt({required String peerPubkeyHex, required String plaintext, String? clientId}) =>
+    RustLib.instance.api.crateApiClientNip44Encrypt(
+      peerPubkeyHex: peerPubkeyHex,
+      plaintext: plaintext,
+      clientId: clientId,
+    );
+
+/// セッションクライアントの鍵で NIP-44 復号（秘密鍵モード専用）。
+Future<String> clientNip44Decrypt({required String peerPubkeyHex, required String ciphertext, String? clientId}) =>
+    RustLib.instance.api.crateApiClientNip44Decrypt(
+      peerPubkeyHex: peerPubkeyHex,
+      ciphertext: ciphertext,
+      clientId: clientId,
+    );
+
+/// セッションクライアントの鍵で未署名イベント JSON に署名（秘密鍵モード専用）。
+Future<String> clientSignEvent({required String unsignedEventJson, String? clientId}) =>
+    RustLib.instance.api.crateApiClientSignEvent(unsignedEventJson: unsignedEventJson, clientId: clientId);
 
 /// 署名済みイベントをリレーに送信
 Future<EventSendResult> sendSignedEvent({required String eventJson}) =>
@@ -1096,6 +1119,22 @@ Future<String> fetchKeyPackageByNpub({required String npub}) =>
 Future<String> fetchKeyPackageByNpubWithClientId({required String npub, String? clientId}) =>
     RustLib.instance.api.crateApiFetchKeyPackageByNpubWithClientId(npub: npub, clientId: clientId);
 
+/// kind:3 コンタクトリスト（フォローリスト）の p タグ pubkey 一覧を取得
+Future<List<String>> fetchContactList({required String pubkeyHex}) =>
+    RustLib.instance.api.crateApiFetchContactList(pubkeyHex: pubkeyHex);
+
+/// kind:3 コンタクトリスト取得（client_id 指定可能）
+Future<List<String>> fetchContactListWithClientId({required String pubkeyHex, String? clientId}) =>
+    RustLib.instance.api.crateApiFetchContactListWithClientId(pubkeyHex: pubkeyHex, clientId: clientId);
+
+/// kind:0 プロフィールメタデータを一括取得（表示名・アバター用）
+Future<List<ContactProfile>> fetchProfilesMetadata({required List<String> pubkeyHexes}) =>
+    RustLib.instance.api.crateApiFetchProfilesMetadata(pubkeyHexes: pubkeyHexes);
+
+/// kind:0 プロフィール一括取得（client_id 指定可能）
+Future<List<ContactProfile>> fetchProfilesMetadataWithClientId({required List<String> pubkeyHexes, String? clientId}) =>
+    RustLib.instance.api.crateApiFetchProfilesMetadataWithClientId(pubkeyHexes: pubkeyHexes, clientId: clientId);
+
 /// Kind 10063 (BUD-03 / NIP-B7) からBlossomサーバーリストを取得
 Future<List<String>> fetchBlossomServerList() => RustLib.instance.api.crateApiFetchBlossomServerList();
 
@@ -1390,6 +1429,46 @@ class CachedEventInfo {
           cachedAt == other.cachedAt &&
           ttlSeconds == other.ttlSeconds &&
           dTag == other.dTag;
+}
+
+/// kind:0 のプロフィールメタデータ（メンバー選択 UI 用）
+class ContactProfile {
+  /// 公開鍵（hex）
+  final String pubkeyHex;
+
+  /// name フィールド
+  final String? name;
+
+  /// display_name フィールド
+  final String? displayName;
+
+  /// アバター画像URL
+  final String? picture;
+
+  /// NIP-05 識別子
+  final String? nip05;
+
+  const ContactProfile({
+    required this.pubkeyHex,
+    this.name,
+    this.displayName,
+    this.picture,
+    this.nip05,
+  });
+
+  @override
+  int get hashCode => pubkeyHex.hashCode ^ name.hashCode ^ displayName.hashCode ^ picture.hashCode ^ nip05.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ContactProfile &&
+          runtimeType == other.runtimeType &&
+          pubkeyHex == other.pubkeyHex &&
+          name == other.name &&
+          displayName == other.displayName &&
+          picture == other.picture &&
+          nip05 == other.nip05;
 }
 
 /// 暗号化されたアプリ設定イベントを取得（Amber復号化用）
