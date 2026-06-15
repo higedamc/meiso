@@ -19,6 +19,7 @@ import '../features/feature_gate/feature_gate_service.dart';
 import 'todo_item.dart';
 import 'subtask_section.dart';
 import 'task_link_section.dart';
+import 'remote_image_gate.dart';
 import '../features/media/presentation/widgets/image_attachment_section.dart';
 
 /// Todo追加/編集用の全画面モーダル
@@ -770,15 +771,19 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(8),
                     ),
-                    child: Image.network(
-                      linkPreview.imageUrl!,
-                      height: 160,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        // 画像読み込み失敗時は非表示
-                        return const SizedBox.shrink();
-                      },
+                    child: RemoteImageGate(
+                      allowed: (context) => Image.network(
+                        linkPreview.imageUrl!,
+                        height: 160,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          // 画像読み込み失敗時は非表示
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                      // Tor モード時はサムネイル取得を抑止（非表示）
+                      blocked: (context) => const SizedBox.shrink(),
                     ),
                   ),
                 
@@ -795,17 +800,25 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                           if (linkPreview.faviconUrl != null)
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
-                              child: Image.network(
-                                linkPreview.faviconUrl!,
-                                width: 16,
-                                height: 16,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.link,
-                                    size: 16,
-                                    color: Colors.grey,
-                                  );
-                                },
+                              child: RemoteImageGate(
+                                allowed: (context) => Image.network(
+                                  linkPreview.faviconUrl!,
+                                  width: 16,
+                                  height: 16,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Icon(
+                                      Icons.link,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    );
+                                  },
+                                ),
+                                // Tor モード時はファビコン取得を抑止し代替アイコン
+                                blocked: (context) => const Icon(
+                                  Icons.link,
+                                  size: 16,
+                                  color: Colors.grey,
+                                ),
                               ),
                             ),
                           

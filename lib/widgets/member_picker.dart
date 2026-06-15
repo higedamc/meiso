@@ -5,7 +5,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../bridge_generated.dart/api.dart' as rust_api;
-import '../models/app_settings.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
@@ -463,12 +462,9 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
   Widget _buildContactsArea(ColorScheme colorScheme) {
     // プロフィール画像は Flutter 既定の HttpClient で取得され、リレー接続用の
     // SOCKS プロキシを経由しない。Tor モード時にアバターをフェッチすると実 IP が
-    // 漏れるため、Tor が明示的に無効と確認できた場合のみネットワーク取得を許可する
-    // （不明・ロード中は取得しない deny-by-default）。
-    final allowNetworkAvatar = ref.watch(appSettingsProvider).maybeWhen(
-          data: (settings) => settings.torMode == TorMode.disabled,
-          orElse: () => false,
-        );
+    // 漏れるため、Tor が無効と確認できた場合のみネットワーク取得を許可する
+    // （ロード中・不明は取得しない deny-by-default）。
+    final allowNetworkAvatar = ref.watch(remoteImageLoadingAllowedProvider);
     if (_loadingContacts) {
       return const Padding(
         padding: EdgeInsets.all(24),
