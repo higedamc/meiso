@@ -464,7 +464,7 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
     // SOCKS プロキシを経由しない。Tor モード時にアバターをフェッチすると実 IP が
     // 漏れるため、Tor が無効と確認できた場合のみネットワーク取得を許可する
     // （ロード中・不明は取得しない deny-by-default）。
-    final allowNetworkAvatar = ref.watch(remoteImageLoadingAllowedProvider);
+    final allowNetworkAvatar = ref.watch(remoteContentFetchAllowedProvider);
     if (_loadingContacts) {
       return const Padding(
         padding: EdgeInsets.all(24),

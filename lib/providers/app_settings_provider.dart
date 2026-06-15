@@ -75,13 +75,14 @@ final appSettingsProvider =
   return AppSettingsNotifier(ref);
 });
 
-/// リモート画像（プロフィール・添付・リンクプレビュー等）の取得可否。
+/// クリアネット上のリモートコンテンツ（プロフィール/添付/リンクプレビューの
+/// 画像、およびリンクプレビュー生成のための HTML 取得など）を取得してよいか。
 ///
-/// Flutter 既定の画像ローダーはリレー接続用の SOCKS プロキシを経由しないため、
-/// Tor モード時にリモート画像を取得すると実 IP が漏れる。設定がロード済みで
-/// `torMode == TorMode.disabled` と確認できた場合のみ true を返し、ロード中・
-/// 不明・Tor 有効時は false（deny-by-default）とする。
-final Provider<bool> remoteImageLoadingAllowedProvider = Provider<bool>((ref) {
+/// これらは Flutter 既定の HttpClient で取得され、リレー接続用の SOCKS プロキシを
+/// 経由しないため、Tor モード時に取得すると実 IP が第三者ホストへ漏れる。設定が
+/// ロード済みで `torMode == TorMode.disabled` と確認できた場合のみ true を返し、
+/// ロード中・不明・Tor 有効時は false（deny-by-default）とする。
+final Provider<bool> remoteContentFetchAllowedProvider = Provider<bool>((ref) {
   return ref.watch(appSettingsProvider).maybeWhen(
         data: (settings) => settings.torMode == TorMode.disabled,
         orElse: () => false,

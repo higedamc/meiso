@@ -667,6 +667,15 @@ class TodosNotifier
     DateTime? date,
     String url,
   ) async {
+    // リンクプレビュー生成は対象 URL のホストへ直接 HTTP アクセスする。これは
+    // リレー用 SOCKS プロキシを経由しないため、Tor モード時に実 IP が第三者へ
+    // 漏れる。リモート取得が許可された場合（Tor 無効）のみ実行する。
+    if (!_ref.read(remoteContentFetchAllowedProvider)) {
+      AppLogger.debug(
+        ' Skip link preview fetch (remote content fetch disabled / Tor mode)',
+      );
+      return;
+    }
     try {
       AppLogger.debug(' Fetching link preview for: $url');
       final linkPreview = await LinkPreviewService.fetchLinkPreview(url);
@@ -1710,8 +1719,11 @@ class TodosNotifier
         // Widgetを更新
         await _updateWidget();
 
-        // バックグラウンドでメタデータを取得
-        if (detectedUrl != null) {
+        // バックグラウンドでメタデータを取得。
+        // リンクプレビュー生成は対象ホストへ直接 HTTP アクセスし、SOCKS プロキシを
+        // 経由しないため、Tor モード時は実 IP 漏洩を避けるためスキップする。
+        if (detectedUrl != null &&
+            _ref.read(remoteContentFetchAllowedProvider)) {
           Future<void>.microtask(() async {
             try {
               final linkPreview = await LinkPreviewService.fetchLinkPreview(
