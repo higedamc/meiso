@@ -1480,11 +1480,14 @@ class TodosNotifier
             finalTitle = domainName;
           }
 
-          // 一時的なリンクプレビューを作成（取得中を示す）
+          // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
+          // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
+          final showPreviewLoading =
+              _ref.read(remoteContentFetchAllowedProvider);
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName, // ドメイン名を表示
-            description: '読み込み中...', // 取得中を日本語で表示
+            description: showPreviewLoading ? '読み込み中...' : null,
           );
 
           AppLogger.debug(
@@ -1671,11 +1674,14 @@ class TodosNotifier
             finalTitle = domainName;
           }
 
-          // 一時的なリンクプレビューを作成（取得中を示す）
+          // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
+          // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
+          final showPreviewLoading =
+              _ref.read(remoteContentFetchAllowedProvider);
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName,
-            description: '読み込み中...',
+            description: showPreviewLoading ? '読み込み中...' : null,
           );
 
           AppLogger.debug(
