@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-25
+
+### Added
+- **Shared-Key Collaborative Lists (`shared-v1`)**: New E2E collaborative list model that replaces MLS for task sharing. A dedicated Nostr key `G` is generated per list, distributed to members, and signs all task events. Tasks are addressable events (`kind:35000`, `d=task-id`) with NIP-44 self-encrypted content, giving relay-level Last-Write-Wins per task without MLS state management. See `docs/SHARED_LIST_STRATEGY.md`.
+- **Real-time shared task sync**: Live subscription to `kind:35000` / `kind:35001` for shared lists, with an immediate full fetch on subscribe to deliver backlog.
+- **Collaborator attribution**: `editor_pubkey` is carried on shared tasks and stored as `Todo.editorPubkey`. Tasks added/edited by another member show a person icon, and the task detail screen displays the editor's npub.
+- **Material 3 design renewal**: Full UI refresh to Material 3 (purple seed) — persistent floating bottom bar, seamless TODAY↔SOMEDAY transition, vertical slide-up routes for list/add/settings (slide-down to dismiss), and App Settings rebuilt as M3 section cards.
+- **Member management**: Member picker (follow list / QR scan / npub input) with your own npub QR code, a list settings sheet (rename / add member / delete), and inviting members to existing shared groups.
+- **Relay connectivity badge**: Connection status badge with tap-to-reconnect and a distinct color when connected via Tor; Rust WebSocket state is now the single source of truth for connectivity.
+- **Cross-device joined-group sync**: Accepted shared groups are tracked in `meiso-settings` (`joined_group_ids`) and synced across devices, so a newly set-up device restores membership automatically instead of re-showing accepted lists as pending. Only the `groupId` is synced — never the group secret key.
+- **Secret-key-mode invites**: Send and accept shared-list invitations via NIP-44 when operating in secret-key mode.
+
+### Changed
+- Shared task events are applied in `created_at` ascending order with an `event_id` tiebreak, preventing stale rollbacks and the revival of deleted tasks.
+
+### Security
+- **Tor real-IP leak**: Remote images, profile avatars, and link-preview HTML fetches go through Flutter's default `HttpClient`, which bypasses the relay SOCKS proxy and would leak the real IP while Tor is active. All remote content fetching is now gated deny-by-default and only proceeds when Tor is confirmed disabled.
+- **Reduced error disclosure**: the Secret Key screen now logs only exception types (not raw exceptions) on decrypt/save/generate/connect paths, and `client_sign_event` bounds content/tag sizes against misuse and DoS.
+
+### Fixed
+- **`NotSubscribed` on startup**: `client.connect()` does not block until relays are connected; added short-retry to the Rust subscribe path and reconciliation that retries failed subscriptions once Nostr is initialized.
+- **Lossy real-time backlog**: poll-based subscription delivery dropped events that arrived before the receiver was attached; an explicit `REQ+EOSE` full fetch now runs on subscribe.
+- **Clock-skew sync gaps**: shared-v1 tasks now full-fetch (`since=0`) instead of incremental `since`, which is robust for addressable LWW events.
+- **Truncated group ID parsing**: invitation `d`-tag parsing no longer truncates the UUID; a startup migration repairs and de-duplicates affected lists.
+- **Group creation whiteout / ANR**: removed nested scrollable widgets in the group creation dialog.
+- **Ghost lists**: the MLS "deleted" filter no longer removes shared-v1 lists from the creator's view.
+- **SOMEDAY add button & list detail transition**: restored the ADD LIST dialog on the SOMEDAY `+` button and fixed the embedded list/planning detail transition above the persistent bottom bar.
+- **Stuck link-preview under Tor**: previews now finalize to a domain-only card instead of an unresolved loading state when remote fetching is disabled.
+
 ## [1.3.1] - 2026-05-29
 
 ### Fixed
