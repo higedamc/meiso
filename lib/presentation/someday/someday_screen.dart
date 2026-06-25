@@ -8,6 +8,7 @@ import '../../providers/calendar_provider.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../providers/nostr_provider.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../services/logger_service.dart';
 import '../../utils/error_handler.dart';
 import '../../widgets/bottom_navigation.dart';
@@ -1123,6 +1124,17 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             await ref
                 .read(customListsProvider.notifier)
                 .updateList(updatedList);
+            // 端末間で承諾状態を同期（meiso-settings に groupId を記録）。
+            // これにより別端末では再度の承諾操作なしに参加済みとして復元できる。
+            try {
+              await ref
+                  .read(appSettingsProvider.notifier)
+                  .addJoinedGroup(list.id);
+            } catch (e) {
+              AppLogger.warning(
+                '⚠️ [SharedInvitation] Failed to record joined group: $e',
+              );
+            }
             try {
               await ref.read(todosProvider.notifier).syncGroupTodos(list.id);
             } catch (e) {

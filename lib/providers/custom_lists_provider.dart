@@ -23,6 +23,8 @@ import '../features/mls/application/usecases/send_group_invitation_usecase.dart'
 import '../features/mls/application/usecases/sync_group_invitations_usecase.dart';
 import '../features/shared_list/application/providers/usecase_providers.dart'
     as shared_usecase;
+import '../features/shared_list/application/usecases/accept_shared_invitation_usecase.dart';
+import '../features/shared_list/domain/entities/shared_invitation.dart';
 import '../features/shared_list/application/usecases/create_shared_group_usecase.dart';
 import '../features/shared_list/application/usecases/send_shared_invitation_usecase.dart';
 import '../features/shared_list/application/usecases/sync_shared_invitations_usecase.dart';
@@ -296,6 +298,15 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           await _restoreMlsGroupStates();
         } catch (e) {
           AppLogger.warning('🔄 [MLSRestore] MLS group restoration failed: $e');
+        }
+
+        // タスク3: 旧バージョンで承諾済みの shared-v1 グループを joinedGroupIds に
+        // バックフィルして端末間同期する。これがないと既存ユーザーは新端末で
+        // 再び招待バッジが出てしまう。差分があるときだけ 1 回発行される。
+        try {
+          await _backfillJoinedGroupIds();
+        } catch (e) {
+          AppLogger.warning('🔄 [JoinedGroups] Backfill failed: $e');
         }
       });
     } catch (e) {
@@ -1217,6 +1228,19 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         return;
       }
 
+      // 招待処理の前に承諾済みグループ集合(meiso-settings.joinedGroupIds)を
+      // リレーから取り込む。新端末で「既に承諾済み」を判定して自動承諾するために
+      // 必要。skipIfFresh により直近同期済みなら no-op で過剰な通信は避ける（タスク3）。
+      try {
+        await _ref
+            .read(appSettingsProvider.notifier)
+            .syncFromNostr(skipIfFresh: true);
+      } catch (e) {
+        AppLogger.warning(
+          '📥 [GroupInvitations] AppSettings pre-sync failed (continuing): $e',
+        );
+      }
+
       // NIP-17最小構成の招待を先に同期（MLSと併存）
       await _syncGw17Invitations(recipientPublicKey: userPubkey);
 
@@ -1958,6 +1982,12 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         (invitations) async {
           if (invitations.isEmpty) return;
 
+          // 端末間同期された承諾済みグループ集合（meiso-settings）。新端末では
+          // この集合に含まれる招待を自動承諾し、再度の手動承諾を不要にする（タスク3）。
+          final joinedGroupIds =
+              _ref.read(appSettingsProvider).valueOrNull?.joinedGroupIds ??
+                  const <String>[];
+
           final currentLists = state.valueOrNull ?? <CustomList>[];
           final updatedLists = List<CustomList>.from(currentLists);
           var hasChanges = false;
@@ -1979,6 +2009,33 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             final existingIndex = updatedLists.indexWhere(
               (list) => list.id == invitation.groupId,
             );
+            final existingAcceptedAt = existingIndex == -1
+                ? null
+                : updatedLists[existingIndex].acceptedAt;
+
+            // 別端末で承諾済みのグループは、招待イベントの暗号化 payload を
+            // 再復号して資格情報を復元し、自動承諾する（バッジを出さない）。
+            if (joinedGroupIds.contains(invitation.groupId) &&
+                existingAcceptedAt == null) {
+              final accepted = await _autoAcceptSharedInvitation(
+                invitation: invitation,
+                recipientPublicKey: recipientPublicKey,
+                existing: existingIndex == -1
+                    ? null
+                    : updatedLists[existingIndex],
+                order: _getNextOrder(updatedLists),
+              );
+              if (accepted != null) {
+                if (existingIndex == -1) {
+                  updatedLists.add(accepted);
+                } else {
+                  updatedLists[existingIndex] = accepted;
+                }
+                hasChanges = true;
+                continue;
+              }
+              // 自動承諾に失敗した場合は従来どおり pending として扱う。
+            }
 
             if (existingIndex == -1) {
               updatedLists.add(
@@ -2033,6 +2090,94 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       );
       final currentLists = state.valueOrNull ?? <CustomList>[];
       state = AsyncValue.data(currentLists);
+    }
+  }
+
+  /// ローカルで承諾済みの shared-v1 グループを meiso-settings.joinedGroupIds に
+  /// 反映する（旧バージョンで承諾済みのグループ向けバックフィル）。
+  Future<void> _backfillJoinedGroupIds() async {
+    final lists = state.valueOrNull ?? const <CustomList>[];
+    final acceptedSharedIds = lists
+        .where(
+          (l) =>
+              l.isGroup &&
+              l.acceptedAt != null &&
+              !l.isPendingInvitation &&
+              l.protocolVersion == CustomListHelpers.protocolSharedV1,
+        )
+        .map((l) => l.id)
+        .toList();
+    if (acceptedSharedIds.isEmpty) return;
+    await _ref
+        .read(appSettingsProvider.notifier)
+        .addJoinedGroups(acceptedSharedIds);
+    AppLogger.info(
+      '🔄 [JoinedGroups] Backfilled ${acceptedSharedIds.length} accepted '
+      'shared-v1 group(s) into joinedGroupIds',
+    );
+  }
+
+  /// meiso-settings の joinedGroupIds に含まれる shared-v1 招待を自動承諾する。
+  ///
+  /// 招待イベント(kind 30078)の暗号化 payload を再復号して group 資格情報を
+  /// ローカルに復元し、承諾済みの [CustomList] を返す。新端末で再度の手動承諾を
+  /// 不要にする（タスク3）。失敗時は null を返し、呼び出し側で pending 扱いにする。
+  Future<CustomList?> _autoAcceptSharedInvitation({
+    required SharedInvitation invitation,
+    required String recipientPublicKey,
+    required CustomList? existing,
+    required int order,
+  }) async {
+    try {
+      final acceptUseCase =
+          _ref.read(shared_usecase.acceptSharedInvitationUseCaseProvider);
+      final result = await acceptUseCase(
+        AcceptSharedInvitationParams(
+          invitation: invitation,
+          recipientPublicKeyHex: recipientPublicKey,
+        ),
+      );
+      return result.fold(
+        (failure) {
+          AppLogger.warning(
+            '⚠️ [SharedInvitations] Auto-accept failed for '
+            '${invitation.groupId}: ${failure.message}',
+          );
+          return null;
+        },
+        (_) {
+          AppLogger.info(
+            '✅ [SharedInvitations] Auto-accepted joined group '
+            '${invitation.groupId} on this device',
+          );
+          final base = existing ??
+              CustomList(
+                id: invitation.groupId,
+                name: invitation.groupName.toUpperCase(),
+                order: order,
+                createdAt: invitation.createdAt,
+                updatedAt: invitation.createdAt,
+                isGroup: true,
+              );
+          return base.copyWith(
+            name: invitation.groupName.toUpperCase(),
+            isGroup: true,
+            isPendingInvitation: false,
+            inviterNpub: null,
+            inviterName: null,
+            welcomeMsg: null,
+            acceptedAt: DateTime.now(),
+            protocolVersion: CustomListHelpers.protocolSharedV1,
+          );
+        },
+      );
+    } catch (e, st) {
+      AppLogger.warning(
+        '⚠️ [SharedInvitations] Auto-accept error for ${invitation.groupId}: $e',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
     }
   }
 

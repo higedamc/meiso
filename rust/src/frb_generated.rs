@@ -6759,6 +6759,7 @@ impl SseDecode for crate::api::AppSettings {
         let mut var_torMode = <crate::api::TorMode>::sse_decode(deserializer);
         let mut var_proxyUrl = <String>::sse_decode(deserializer);
         let mut var_customListOrder = <Vec<String>>::sse_decode(deserializer);
+        let mut var_joinedGroupIds = <Vec<String>>::sse_decode(deserializer);
         let mut var_lastViewedCustomListId = <Option<String>>::sse_decode(deserializer);
         let mut var_nip89ClientTagEnabled = <bool>::sse_decode(deserializer);
         let mut var_updatedAt = <String>::sse_decode(deserializer);
@@ -6771,6 +6772,7 @@ impl SseDecode for crate::api::AppSettings {
             tor_mode: var_torMode,
             proxy_url: var_proxyUrl,
             custom_list_order: var_customListOrder,
+            joined_group_ids: var_joinedGroupIds,
             last_viewed_custom_list_id: var_lastViewedCustomListId,
             nip89_client_tag_enabled: var_nip89ClientTagEnabled,
             updated_at: var_updatedAt,
@@ -8201,6 +8203,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::AppSettings {
             self.tor_mode.into_into_dart().into_dart(),
             self.proxy_url.into_into_dart().into_dart(),
             self.custom_list_order.into_into_dart().into_dart(),
+            self.joined_group_ids.into_into_dart().into_dart(),
             self.last_viewed_custom_list_id.into_into_dart().into_dart(),
             self.nip89_client_tag_enabled.into_into_dart().into_dart(),
             self.updated_at.into_into_dart().into_dart(),
@@ -8780,6 +8783,7 @@ impl SseEncode for crate::api::AppSettings {
         <crate::api::TorMode>::sse_encode(self.tor_mode, serializer);
         <String>::sse_encode(self.proxy_url, serializer);
         <Vec<String>>::sse_encode(self.custom_list_order, serializer);
+        <Vec<String>>::sse_encode(self.joined_group_ids, serializer);
         <Option<String>>::sse_encode(self.last_viewed_custom_list_id, serializer);
         <bool>::sse_encode(self.nip89_client_tag_enabled, serializer);
         <String>::sse_encode(self.updated_at, serializer);

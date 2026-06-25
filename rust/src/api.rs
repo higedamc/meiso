@@ -179,6 +179,13 @@ pub struct AppSettings {
     /// カスタムリストの順番（リストIDの配列）
     #[serde(default)]
     pub custom_list_order: Vec<String>,
+    /// 承諾済み共有グループの ID 集合。
+    /// 招待イベント(kind 30078)はリレー上に残り続けるため、端末間で承諾状態を
+    /// 同期しないと新端末で再度「招待中」表示になる。ここには承諾済みの groupId
+    /// のみを保持し、group_nsec 等の秘密情報はリレーに出さない（新端末では既存の
+    /// 招待イベントを再復号して資格情報を復元する）。
+    #[serde(default)]
+    pub joined_group_ids: Vec<String>,
     /// 最後に見ていたカスタムリストID
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_viewed_custom_list_id: Option<String>,

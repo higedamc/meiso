@@ -5462,7 +5462,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AppSettings dco_decode_app_settings(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11) throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 12) throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return AppSettings(
       darkMode: dco_decode_bool(arr[0]),
       weekStartDay: dco_decode_i_32(arr[1]),
@@ -5472,9 +5472,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       torMode: dco_decode_tor_mode(arr[5]),
       proxyUrl: dco_decode_String(arr[6]),
       customListOrder: dco_decode_list_String(arr[7]),
-      lastViewedCustomListId: dco_decode_opt_String(arr[8]),
-      nip89ClientTagEnabled: dco_decode_bool(arr[9]),
-      updatedAt: dco_decode_String(arr[10]),
+      joinedGroupIds: dco_decode_list_String(arr[8]),
+      lastViewedCustomListId: dco_decode_opt_String(arr[9]),
+      nip89ClientTagEnabled: dco_decode_bool(arr[10]),
+      updatedAt: dco_decode_String(arr[11]),
     );
   }
 
@@ -6084,6 +6085,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_torMode = sse_decode_tor_mode(deserializer);
     var var_proxyUrl = sse_decode_String(deserializer);
     var var_customListOrder = sse_decode_list_String(deserializer);
+    var var_joinedGroupIds = sse_decode_list_String(deserializer);
     var var_lastViewedCustomListId = sse_decode_opt_String(deserializer);
     var var_nip89ClientTagEnabled = sse_decode_bool(deserializer);
     var var_updatedAt = sse_decode_String(deserializer);
@@ -6096,6 +6098,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       torMode: var_torMode,
       proxyUrl: var_proxyUrl,
       customListOrder: var_customListOrder,
+      joinedGroupIds: var_joinedGroupIds,
       lastViewedCustomListId: var_lastViewedCustomListId,
       nip89ClientTagEnabled: var_nip89ClientTagEnabled,
       updatedAt: var_updatedAt,
@@ -6848,6 +6851,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_tor_mode(self.torMode, serializer);
     sse_encode_String(self.proxyUrl, serializer);
     sse_encode_list_String(self.customListOrder, serializer);
+    sse_encode_list_String(self.joinedGroupIds, serializer);
     sse_encode_opt_String(self.lastViewedCustomListId, serializer);
     sse_encode_bool(self.nip89ClientTagEnabled, serializer);
     sse_encode_String(self.updatedAt, serializer);

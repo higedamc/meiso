@@ -302,6 +302,11 @@ Future<String> clientNip44Decrypt({required String peerPubkeyHex, required Strin
     );
 
 /// セッションクライアントの鍵で未署名イベント JSON に署名（秘密鍵モード専用）。
+///
+/// これはユーザーの実鍵で任意の kind/content/tags に署名できる汎用プリミティブ
+/// （署名オラクル）である。呼び出し側は **信頼できない外部由来のイベント JSON を
+/// 渡してはならない**。現状の利用はローカル生成の招待イベント等に限定される。
+/// 万一の誤用と DoS に備え、入力サイズに上限を設けている。
 Future<String> clientSignEvent({required String unsignedEventJson, String? clientId}) =>
     RustLib.instance.api.crateApiClientSignEvent(unsignedEventJson: unsignedEventJson, clientId: clientId);
 
@@ -1314,6 +1319,13 @@ class AppSettings {
   /// カスタムリストの順番（リストIDの配列）
   final List<String> customListOrder;
 
+  /// 承諾済み共有グループの ID 集合。
+  /// 招待イベント(kind 30078)はリレー上に残り続けるため、端末間で承諾状態を
+  /// 同期しないと新端末で再度「招待中」表示になる。ここには承諾済みの groupId
+  /// のみを保持し、group_nsec 等の秘密情報はリレーに出さない（新端末では既存の
+  /// 招待イベントを再復号して資格情報を復元する）。
+  final List<String> joinedGroupIds;
+
   /// 最後に見ていたカスタムリストID
   final String? lastViewedCustomListId;
 
@@ -1332,6 +1344,7 @@ class AppSettings {
     required this.torMode,
     required this.proxyUrl,
     required this.customListOrder,
+    required this.joinedGroupIds,
     this.lastViewedCustomListId,
     required this.nip89ClientTagEnabled,
     required this.updatedAt,
@@ -1347,6 +1360,7 @@ class AppSettings {
       torMode.hashCode ^
       proxyUrl.hashCode ^
       customListOrder.hashCode ^
+      joinedGroupIds.hashCode ^
       lastViewedCustomListId.hashCode ^
       nip89ClientTagEnabled.hashCode ^
       updatedAt.hashCode;
@@ -1364,6 +1378,7 @@ class AppSettings {
           torMode == other.torMode &&
           proxyUrl == other.proxyUrl &&
           customListOrder == other.customListOrder &&
+          joinedGroupIds == other.joinedGroupIds &&
           lastViewedCustomListId == other.lastViewedCustomListId &&
           nip89ClientTagEnabled == other.nip89ClientTagEnabled &&
           updatedAt == other.updatedAt;

@@ -186,6 +186,47 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
     });
   }
 
+  /// 共有グループの承諾を記録し、端末間同期のため Nostr(meiso-settings) に反映する。
+  /// 招待イベントはリレーに残り続けるため、承諾済み groupId を同期しておくことで
+  /// 新端末では再度の承諾操作なしに参加済みとして復元できる。
+  Future<void> addJoinedGroup(String groupId) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    if (current.joinedGroupIds.contains(groupId)) return;
+    await updateSettings(
+      current.copyWith(
+        joinedGroupIds: [...current.joinedGroupIds, groupId],
+      ),
+    );
+  }
+
+  /// 複数の承諾済みグループをまとめて記録する（既存承諾済みグループの
+  /// バックフィル等）。差分があるときだけ 1 回同期し、過剰な発行を避ける。
+  Future<void> addJoinedGroups(Iterable<String> groupIds) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final merged = {...current.joinedGroupIds};
+    final before = merged.length;
+    merged.addAll(groupIds);
+    if (merged.length == before) return;
+    await updateSettings(
+      current.copyWith(joinedGroupIds: merged.toList()),
+    );
+  }
+
+  /// 共有グループからの離脱（または承諾取り消し）を記録する。
+  Future<void> removeJoinedGroup(String groupId) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    if (!current.joinedGroupIds.contains(groupId)) return;
+    await updateSettings(
+      current.copyWith(
+        joinedGroupIds:
+            current.joinedGroupIds.where((id) => id != groupId).toList(),
+      ),
+    );
+  }
+
   /// リレーリストを更新（ローカルのみ）
   Future<void> updateRelays(List<String> relays) async {
     state.whenData((settings) async {
@@ -407,6 +448,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           'tor_mode': settings.torMode.name,
           'proxy_url': settings.proxyUrl,
           'custom_list_order': settings.customListOrder,
+          'joined_group_ids': settings.joinedGroupIds,
           'task_ui_mode': settings.taskUiMode.name,
           'feature_flags': settings.featureFlags,
           'hide_completed_tasks': settings.hideCompletedTasks,
@@ -503,6 +545,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           torMode: _toBridgeTorMode(settings.torMode),
           proxyUrl: settings.proxyUrl,
           customListOrder: settings.customListOrder,
+          joinedGroupIds: settings.joinedGroupIds,
           lastViewedCustomListId: settings.lastViewedCustomListId,
           nip89ClientTagEnabled: settings.nip89ClientTagEnabled,
           updatedAt: settings.updatedAt.toIso8601String(),
@@ -644,6 +687,9 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           customListOrder: settingsMap['custom_list_order'] is List
               ? List<String>.from(settingsMap['custom_list_order'] as List)
               : (state.valueOrNull?.customListOrder ?? const []),
+          joinedGroupIds: settingsMap['joined_group_ids'] is List
+              ? List<String>.from(settingsMap['joined_group_ids'] as List)
+              : (state.valueOrNull?.joinedGroupIds ?? const []),
           lastViewedCustomListId:
               settingsMap['last_viewed_custom_list_id'] as String? ??
                   state.valueOrNull?.lastViewedCustomListId,
@@ -689,6 +735,7 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           torMode: _parseTorMode(bridgeSettings.torMode),
           proxyUrl: bridgeSettings.proxyUrl,
           customListOrder: bridgeSettings.customListOrder,
+          joinedGroupIds: bridgeSettings.joinedGroupIds,
           lastViewedCustomListId: bridgeSettings.lastViewedCustomListId,
           taskUiMode: state.valueOrNull?.taskUiMode ?? TaskUiMode.reminders,
           featureFlags: state.valueOrNull?.featureFlags ?? const <String, bool>{},
