@@ -21,6 +21,15 @@ import '../features/mls/application/providers/usecase_providers.dart'
 import '../features/mls/application/usecases/create_mls_group_usecase.dart';
 import '../features/mls/application/usecases/send_group_invitation_usecase.dart';
 import '../features/mls/application/usecases/sync_group_invitations_usecase.dart';
+import '../features/shared_list/application/providers/usecase_providers.dart'
+    as shared_usecase;
+import '../features/shared_list/application/usecases/accept_shared_invitation_usecase.dart';
+import '../features/shared_list/domain/entities/shared_invitation.dart';
+import '../features/shared_list/application/usecases/create_shared_group_usecase.dart';
+import '../features/shared_list/application/usecases/send_shared_invitation_usecase.dart';
+import '../features/shared_list/application/usecases/sync_shared_invitations_usecase.dart';
+import '../features/shared_list/infrastructure/providers/repository_providers.dart'
+    as shared_repo;
 // Issue #102: MLS Repository統合（グループ復元用）
 import '../features/mls/infrastructure/providers/repository_providers.dart'
     as mls_repo;
@@ -147,6 +156,105 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           } else {
             // AppSettingsから保存された順番を適用
             await _applySavedListOrder(localLists);
+
+            // Migration: 旧バグで `_deletedMlsGroupListIds` に shared-v1 / gw17-v1
+            // グループ ID が誤って追加されているケースを救済する。
+            // hive にまだ残っている (= まだ filter で消されていない) シェアード系
+            // グループ ID は、削除済みリストから取り除いてから filter にかける。
+            final salvagedIds = localLists
+                .where(
+                  (l) =>
+                      l.isGroup &&
+                      (l.isSharedProtocol || l.isGw17Protocol) &&
+                      _deletedMlsGroupListIds.contains(l.id),
+                )
+                .map((l) => l.id)
+                .toList();
+            if (salvagedIds.isNotEmpty) {
+              _deletedMlsGroupListIds.removeAll(salvagedIds);
+              await _repository.saveDeletedMlsGroupListIds(
+                _deletedMlsGroupListIds,
+              );
+              AppLogger.info(
+                '♻️ [CustomLists] Salvaged ${salvagedIds.length} shared/gw17 group IDs '
+                'from deletedMlsGroupListIds: $salvagedIds',
+              );
+            }
+
+            // Migration: 旧 Rust バグで shared-v1 招待の d タグから抽出した group_id が
+            // UUID の最初のセグメント(8文字)に切り詰められていたケースの救済。
+            // 既に存在する Full UUID エントリとの重複も同時に解消する。
+            try {
+              final credsMap = localStorageService.loadSharedGroupCredentials();
+              final fullIds = credsMap.keys.toSet();
+              // hive 上に存在する全 list.id の集合 (重複検出用)
+              final allCurrentIds = localLists.map((l) => l.id).toSet();
+
+              final toRemoveIds = <String>{};
+              var migratedCount = 0;
+              var dedupedCount = 0;
+
+              for (var i = 0; i < localLists.length; i++) {
+                final list = localLists[i];
+                if (!list.isSharedProtocol && !list.isGw17Protocol) continue;
+                if (fullIds.contains(list.id)) continue; // 既に正しい full UUID
+                // list.id が hex 8 chars(UUID prefix)で、対応する full UUID が
+                // credentials map もしくは別の hive エントリに存在する場合に救済。
+                final matchedFromCreds = fullIds.firstWhere(
+                  (fid) => fid.startsWith('${list.id}-'),
+                  orElse: () => '',
+                );
+                final matchedFromHive = allCurrentIds.firstWhere(
+                  (id) =>
+                      id != list.id &&
+                      id.startsWith('${list.id}-') &&
+                      id.length > list.id.length,
+                  orElse: () => '',
+                );
+                final matched =
+                    matchedFromCreds.isNotEmpty ? matchedFromCreds : matchedFromHive;
+                if (matched.isEmpty) continue;
+
+                if (allCurrentIds.contains(matched)) {
+                  // 既に full UUID エントリが別途存在する場合は、short 側を破棄する。
+                  toRemoveIds.add(list.id);
+                  dedupedCount++;
+                  AppLogger.info(
+                    '🧹 [CustomLists] Removed duplicate truncated shared-v1 list: '
+                    '"${list.name}" ${list.id} (full=$matched already present)',
+                  );
+                } else {
+                  // full UUID エントリが存在しない場合は ID 差し替えで救済。
+                  localLists[i] = list.copyWith(id: matched);
+                  allCurrentIds
+                    ..remove(list.id)
+                    ..add(matched);
+                  migratedCount++;
+                  AppLogger.info(
+                    '♻️ [CustomLists] Migrated truncated shared-v1 list ID: '
+                    '"${list.name}" ${list.id} -> $matched',
+                  );
+                }
+              }
+
+              if (toRemoveIds.isNotEmpty) {
+                localLists.removeWhere((l) => toRemoveIds.contains(l.id));
+              }
+              if (migratedCount > 0 || dedupedCount > 0) {
+                await _repository.saveCustomListsToLocal(localLists);
+                AppLogger.info(
+                  '✅ [CustomLists] Truncated-ID migration done: '
+                  'migrated=$migratedCount, deduped=$dedupedCount',
+                );
+              }
+            } catch (e, st) {
+              AppLogger.warning(
+                '⚠️ [CustomLists] Truncated-ID migration skipped: $e',
+                error: e,
+                stackTrace: st,
+              );
+            }
+
             final filteredLists = await _filterDeletedLists(localLists);
             final normalizedLists = filteredLists.map((list) {
               if (list.protocolVersion != CustomListHelpers.protocolNone) {
@@ -190,6 +298,15 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           await _restoreMlsGroupStates();
         } catch (e) {
           AppLogger.warning('🔄 [MLSRestore] MLS group restoration failed: $e');
+        }
+
+        // タスク3: 旧バージョンで承諾済みの shared-v1 グループを joinedGroupIds に
+        // バックフィルして端末間同期する。これがないと既存ユーザーは新端末で
+        // 再び招待バッジが出てしまう。差分があるときだけ 1 回発行される。
+        try {
+          await _backfillJoinedGroupIds();
+        } catch (e) {
+          AppLogger.warning('🔄 [JoinedGroups] Backfill failed: $e');
         }
       });
     } catch (e) {
@@ -773,70 +890,56 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
 
   /// 削除済みメタデータをチェックして、リストをフィルタリング
   /// Issue #101: tombstone は明示再作成まで保持する
+  ///
+  /// Performance: Rust FFI 呼び出し(`mlsGetGroupInfo` / `findPersonalListEventId`)
+  /// は各リレー I/O で 2〜3 秒掛かるため、 直列 `await` だと N 件で N×3 秒分
+  /// UI フレームが詰まり ANR を誘発する。 各リストの解決は `Future.wait` で
+  /// 並列実行し、 サイドエフェクト(state 書き込み)はその後で一括処理する。
   Future<List<CustomList>> _filterDeletedLists(List<CustomList> lists) async {
     AppLogger.debug(
       '🗑️ [CustomLists] Filtering lists (LWW + MLS key check)...',
     );
 
-    // eventIdがない場合、Rustから検索して設定する
     final publicKey = await _ref.read(nostrServiceProvider).getPublicKey();
 
-    final filtered = <CustomList>[];
-    for (final list in lists) {
-      // MLSグループリストの特別処理
-      if (list.isGroup) {
-        // 1. ローカル削除フラグをチェック
-        if (_deletedMlsGroupListIds.contains(list.id)) {
-          AppLogger.debug(
-            '🚫 [MLS] Filtered out locally deleted MLS group: "${list.name}"',
-          );
-          continue;
-        }
+    // 削除メタデータが無ければ tombstone 解決用の Rust 呼び出しは不要。
+    // `findPersonalListEventId` は `TOKIO_RUNTIME.block_on` + 10 秒タイムアウト
+    // でワーカースレッドを長時間占有し、N 件並列化してもワーカー枯渇で全 sync
+    // が詰まる(wipe-data 直後の初回起動でホワイトアウト + ANR を誘発)。
+    // 削除イベントが local cache にロード済みのときだけ event id 解決を行う。
+    final shouldResolveEventIds = _deletedEventMetadata.isNotEmpty;
 
-        // 2. MLS鍵の有効性をチェック
-        if (publicKey != null) {
+    final resolutions = await Future.wait(
+      lists.map((list) async {
+        if (list.isGroup) {
+          if (_deletedMlsGroupListIds.contains(list.id)) {
+            return _FilterResolution.locallyDeletedGroup();
+          }
+          // shared-v1 / gw17-v1 グループは MLS group store を持たないため、
+          // mlsGetGroupInfo の整合性チェックは適用しない。
+          // (旧バグ: 失敗時に `_deletedMlsGroupListIds` へ自動追加されてしまい、
+          //  自分が作ったグループや受信した招待が即座に UI から消えていた)
+          if (list.isSharedProtocol || list.isGw17Protocol) {
+            return _FilterResolution.keepAsIs();
+          }
+          if (publicKey == null) {
+            return _FilterResolution.keepAsIs();
+          }
           try {
             await rust_api.mlsGetGroupInfo(
               nostrId: publicKey,
               groupId: list.id,
             );
-            // 成功 = 鍵が有効
-            AppLogger.debug('✅ [MLS] Valid key for group: "${list.name}"');
-            filtered.add(list);
-          } catch (e) {
-            // 失敗 = 鍵が無効（再インストール後など）
-            AppLogger.warning(
-              '🔑 [MLS] Invalid key for group: "${list.name}" (auto-removing)',
-            );
-            // 自動的に削除フラグに追加
-            _deletedMlsGroupListIds.add(list.id);
-            await _repository.saveDeletedMlsGroupListIds(
-              _deletedMlsGroupListIds,
-            );
+            return _FilterResolution.validMlsGroup();
+          } catch (_) {
+            return _FilterResolution.invalidMlsGroup();
           }
-        } else {
-          // publicKeyがない場合は保持
-          filtered.add(list);
         }
-        continue;
-      }
 
-      var isDeleted = false;
-
-      // 1. list_idベースの削除メタデータをチェック
-      if (_deletedListMetadata.containsKey(list.id)) {
-        isDeleted = true;
-        AppLogger.debug(
-          '🗑️ [CustomLists] Tombstone blocked by listId: "${list.name}"',
-        );
-      }
-
-      // 2. eventIdベースの削除メタデータをチェック
-      if (!isDeleted) {
         String? eventId = list.eventId;
-
-        // eventIdがない場合、Rustから検索
-        if (eventId == null && publicKey != null) {
+        if (eventId == null &&
+            publicKey != null &&
+            shouldResolveEventIds) {
           try {
             eventId = await rust_api.findPersonalListEventId(
               listId: list.id,
@@ -848,18 +951,65 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             );
           }
         }
+        return _FilterResolution.personalList(eventId: eventId);
+      }),
+    );
 
-        if (eventId != null && _deletedEventMetadata.containsKey(eventId)) {
-          isDeleted = true;
-          AppLogger.debug(
-            '🗑️ [CustomLists] Tombstone blocked by eventId: "${list.name}"',
-          );
+    final filtered = <CustomList>[];
+    var mlsDeletionPersisted = false;
+
+    for (var i = 0; i < lists.length; i++) {
+      final list = lists[i];
+      final r = resolutions[i];
+
+      if (list.isGroup) {
+        switch (r.kind) {
+          case _FilterResolutionKind.locallyDeletedGroup:
+            AppLogger.debug(
+              '🚫 [MLS] Filtered out locally deleted MLS group: "${list.name}"',
+            );
+            break;
+          case _FilterResolutionKind.invalidMlsGroup:
+            AppLogger.warning(
+              '🔑 [MLS] Invalid key for group: "${list.name}" (auto-removing)',
+            );
+            _deletedMlsGroupListIds.add(list.id);
+            mlsDeletionPersisted = true;
+            break;
+          case _FilterResolutionKind.validMlsGroup:
+            AppLogger.debug('✅ [MLS] Valid key for group: "${list.name}"');
+            filtered.add(list);
+            break;
+          case _FilterResolutionKind.keepAsIs:
+          case _FilterResolutionKind.personalList:
+            filtered.add(list);
+            break;
         }
+        continue;
       }
 
+      var isDeleted = false;
+      if (_deletedListMetadata.containsKey(list.id)) {
+        isDeleted = true;
+        AppLogger.debug(
+          '🗑️ [CustomLists] Tombstone blocked by listId: "${list.name}"',
+        );
+      }
+      if (!isDeleted &&
+          r.eventId != null &&
+          _deletedEventMetadata.containsKey(r.eventId)) {
+        isDeleted = true;
+        AppLogger.debug(
+          '🗑️ [CustomLists] Tombstone blocked by eventId: "${list.name}"',
+        );
+      }
       if (!isDeleted) {
         filtered.add(list);
       }
+    }
+
+    if (mlsDeletionPersisted) {
+      await _repository.saveDeletedMlsGroupListIds(_deletedMlsGroupListIds);
     }
 
     if (filtered.length < lists.length) {
@@ -1078,8 +1228,23 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         return;
       }
 
+      // 招待処理の前に承諾済みグループ集合(meiso-settings.joinedGroupIds)を
+      // リレーから取り込む。新端末で「既に承諾済み」を判定して自動承諾するために
+      // 必要。skipIfFresh により直近同期済みなら no-op で過剰な通信は避ける（タスク3）。
+      try {
+        await _ref
+            .read(appSettingsProvider.notifier)
+            .syncFromNostr(skipIfFresh: true);
+      } catch (e) {
+        AppLogger.warning(
+          '📥 [GroupInvitations] AppSettings pre-sync failed (continuing): $e',
+        );
+      }
+
       // NIP-17最小構成の招待を先に同期（MLSと併存）
       await _syncGw17Invitations(recipientPublicKey: userPubkey);
+
+      await _syncSharedInvitations(recipientPublicKey: userPubkey);
 
       AppLogger.info('📥 [GroupInvitations] Syncing group invitations...');
 
@@ -1622,6 +1787,393 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     } catch (e, st) {
       AppLogger.error(
         '❌ [GW17] Failed to create group list',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
+
+  /// shared-v1: 共有鍵グループリスト作成 + 招待送信
+  Future<CustomList?> createSharedGroupList({
+    required String name,
+    required List<String> memberNpubs,
+  }) async {
+    if (name.trim().isEmpty) return null;
+
+    try {
+      final lists = state.whenData((lists) => lists).value ?? [];
+      final now = DateTime.now();
+      final normalizedName = name.trim().toUpperCase();
+      const uuid = Uuid();
+      final groupId = uuid.v4();
+
+      AppLogger.info('🔐 [CustomLists] Creating shared-v1 group: "$normalizedName"');
+
+      // 旧バグで `_deletedMlsGroupListIds` に誤って shared-v1 グループ ID が
+      // 含まれていることがある。今回作るグループ ID と同じものが残っていた場合は
+      // 救済(再有効化)する。
+      if (_deletedMlsGroupListIds.remove(groupId)) {
+        await _repository.saveDeletedMlsGroupListIds(_deletedMlsGroupListIds);
+        AppLogger.info(
+          '♻️ [CustomLists] Removed groupId=$groupId from deletedMlsGroupListIds (re-enable)',
+        );
+      }
+
+      final createUseCase = _ref.read(
+        shared_usecase.createSharedGroupUseCaseProvider,
+      );
+      final credentialsResult = await createUseCase(
+        CreateSharedGroupParams(groupName: normalizedName, groupId: groupId),
+      );
+
+      final credentials = credentialsResult.fold(
+        (failure) => throw Exception(failure.message),
+        (c) => c,
+      );
+
+      final sendInvitationUseCase = _ref.read(
+        shared_usecase.sendSharedInvitationUseCaseProvider,
+      );
+
+      var successCount = 0;
+      for (final npub in memberNpubs) {
+        final sent = await sendInvitationUseCase(
+          SendSharedInvitationParams(
+            recipientNpub: npub,
+            groupId: groupId,
+            groupName: normalizedName,
+            groupNsecHex: credentials.groupNsecHex,
+          ),
+        );
+        sent.fold(
+          (_) {},
+          (_) => successCount++,
+        );
+      }
+
+      if (successCount == 0 && memberNpubs.isNotEmpty) {
+        throw Exception('招待送信が全て失敗しました');
+      }
+
+      final newGroupList = CustomList(
+        id: groupId,
+        name: normalizedName,
+        order: _getNextOrder(lists),
+        createdAt: now,
+        updatedAt: now,
+        isGroup: true,
+        protocolVersion: CustomListHelpers.protocolSharedV1,
+      );
+
+      final updatedLists = [...lists, newGroupList];
+      final result = await _repository.saveCustomListsToLocal(updatedLists);
+      return result.fold(
+        (failure) {
+          AppLogger.error(
+            '❌ [CustomLists] Failed to save shared group: ${failure.message}',
+          );
+          return null;
+        },
+        (_) {
+          state = AsyncValue.data(updatedLists);
+          _updateCustomListOrderInSettings(updatedLists);
+          return newGroupList;
+        },
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [CustomLists] Failed to create shared group',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
+
+  /// shared-v1: 既存グループへ後からメンバーを追加する（issue #138 R6）
+  ///
+  /// 既存の `nsec_G` を新メンバーへ招待イベントで再配布するだけで成立する。
+  /// 新メンバーは承認後の `since=0` フルフェッチで全履歴を取得できる。
+  Future<bool> inviteMemberToSharedGroup({
+    required String groupId,
+    required String npub,
+  }) async {
+    final trimmed = npub.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+
+    try {
+      final lists = state.whenData((lists) => lists).value ?? [];
+      final groupList = lists
+          .where((l) => l.id == groupId && l.isSharedProtocol)
+          .firstOrNull;
+      if (groupList == null) {
+        AppLogger.error(
+          '❌ [shared-v1] inviteMember: group not found: $groupId',
+        );
+        return false;
+      }
+
+      final repo = _ref.read(shared_repo.sharedListRepositoryProvider);
+      final credsResult = await repo.loadCredentials(groupId: groupId);
+      final credentials = credsResult.fold((_) => null, (c) => c);
+      if (credentials == null) {
+        AppLogger.error(
+          '❌ [shared-v1] inviteMember: credentials not found: $groupId',
+        );
+        return false;
+      }
+
+      final sendInvitationUseCase = _ref.read(
+        shared_usecase.sendSharedInvitationUseCaseProvider,
+      );
+      final sent = await sendInvitationUseCase(
+        SendSharedInvitationParams(
+          recipientNpub: trimmed,
+          groupId: groupId,
+          groupName: groupList.name,
+          groupNsecHex: credentials.groupNsecHex,
+          keyEpoch: credentials.keyEpoch,
+        ),
+      );
+      return sent.fold(
+        (failure) {
+          AppLogger.error(
+            '❌ [shared-v1] inviteMember failed: ${failure.message}',
+          );
+          return false;
+        },
+        (_) {
+          AppLogger.info(
+            '✅ [shared-v1] Invitation sent to ${trimmed.substring(0, 12)}... for group $groupId',
+          );
+          return true;
+        },
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [shared-v1] inviteMember error',
+        error: e,
+        stackTrace: st,
+      );
+      return false;
+    }
+  }
+
+  Future<void> _syncSharedInvitations({
+    required String recipientPublicKey,
+  }) async {
+    try {
+      final syncUseCase = _ref.read(
+        shared_usecase.syncSharedInvitationsUseCaseProvider,
+      );
+      final result = await syncUseCase(
+        SyncSharedInvitationsParams(recipientPublicKeyHex: recipientPublicKey),
+      );
+
+      await result.fold(
+        (failure) async {
+          AppLogger.error(
+            '❌ [SharedInvitations] Sync failed: ${failure.message}',
+          );
+        },
+        (invitations) async {
+          if (invitations.isEmpty) return;
+
+          // 端末間同期された承諾済みグループ集合（meiso-settings）。新端末では
+          // この集合に含まれる招待を自動承諾し、再度の手動承諾を不要にする（タスク3）。
+          final joinedGroupIds =
+              _ref.read(appSettingsProvider).valueOrNull?.joinedGroupIds ??
+                  const <String>[];
+
+          final currentLists = state.valueOrNull ?? <CustomList>[];
+          final updatedLists = List<CustomList>.from(currentLists);
+          var hasChanges = false;
+          var deletedIdsChanged = false;
+
+          for (final invitation in invitations) {
+            // 旧バグで `_deletedMlsGroupListIds` に shared-v1 グループ ID が
+            // 含まれていると、ここで追加した招待が `_filterDeletedLists` で
+            // 「locallyDeletedGroup」判定されて即時除外されてしまう。
+            // 招待を再受信したタイミングで削除済みリストから救済する。
+            if (_deletedMlsGroupListIds.remove(invitation.groupId)) {
+              deletedIdsChanged = true;
+              AppLogger.info(
+                '♻️ [SharedInvitations] Removed groupId=${invitation.groupId} '
+                'from deletedMlsGroupListIds (re-enable)',
+              );
+            }
+
+            final existingIndex = updatedLists.indexWhere(
+              (list) => list.id == invitation.groupId,
+            );
+            final existingAcceptedAt = existingIndex == -1
+                ? null
+                : updatedLists[existingIndex].acceptedAt;
+
+            // 別端末で承諾済みのグループは、招待イベントの暗号化 payload を
+            // 再復号して資格情報を復元し、自動承諾する（バッジを出さない）。
+            if (joinedGroupIds.contains(invitation.groupId) &&
+                existingAcceptedAt == null) {
+              final accepted = await _autoAcceptSharedInvitation(
+                invitation: invitation,
+                recipientPublicKey: recipientPublicKey,
+                existing: existingIndex == -1
+                    ? null
+                    : updatedLists[existingIndex],
+                order: _getNextOrder(updatedLists),
+              );
+              if (accepted != null) {
+                if (existingIndex == -1) {
+                  updatedLists.add(accepted);
+                } else {
+                  updatedLists[existingIndex] = accepted;
+                }
+                hasChanges = true;
+                continue;
+              }
+              // 自動承諾に失敗した場合は従来どおり pending として扱う。
+            }
+
+            if (existingIndex == -1) {
+              updatedLists.add(
+                CustomList(
+                  id: invitation.groupId,
+                  name: invitation.groupName.toUpperCase(),
+                  order: _getNextOrder(updatedLists),
+                  createdAt: invitation.createdAt,
+                  updatedAt: invitation.createdAt,
+                  isGroup: true,
+                  isPendingInvitation: true,
+                  inviterNpub: invitation.inviterPubkey,
+                  inviterName: invitation.inviterName,
+                  welcomeMsg: invitation.encryptedContent,
+                  protocolVersion: CustomListHelpers.protocolSharedV1,
+                ),
+              );
+              hasChanges = true;
+            } else {
+              final existing = updatedLists[existingIndex];
+              if (existing.acceptedAt != null) continue;
+              updatedLists[existingIndex] = existing.copyWith(
+                name: invitation.groupName.toUpperCase(),
+                updatedAt: invitation.createdAt,
+                isGroup: true,
+                inviterNpub: invitation.inviterPubkey,
+                inviterName: invitation.inviterName,
+                welcomeMsg: invitation.encryptedContent,
+                protocolVersion: CustomListHelpers.protocolSharedV1,
+              );
+              hasChanges = true;
+            }
+          }
+
+          if (deletedIdsChanged) {
+            await _repository.saveDeletedMlsGroupListIds(
+              _deletedMlsGroupListIds,
+            );
+          }
+
+          if (hasChanges) {
+            await _repository.saveCustomListsToLocal(updatedLists);
+            state = AsyncValue.data(updatedLists);
+          }
+        },
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '❌ [SharedInvitations] Failed to sync',
+        error: e,
+        stackTrace: st,
+      );
+      final currentLists = state.valueOrNull ?? <CustomList>[];
+      state = AsyncValue.data(currentLists);
+    }
+  }
+
+  /// ローカルで承諾済みの shared-v1 グループを meiso-settings.joinedGroupIds に
+  /// 反映する（旧バージョンで承諾済みのグループ向けバックフィル）。
+  Future<void> _backfillJoinedGroupIds() async {
+    final lists = state.valueOrNull ?? const <CustomList>[];
+    final acceptedSharedIds = lists
+        .where(
+          (l) =>
+              l.isGroup &&
+              l.acceptedAt != null &&
+              !l.isPendingInvitation &&
+              l.protocolVersion == CustomListHelpers.protocolSharedV1,
+        )
+        .map((l) => l.id)
+        .toList();
+    if (acceptedSharedIds.isEmpty) return;
+    await _ref
+        .read(appSettingsProvider.notifier)
+        .addJoinedGroups(acceptedSharedIds);
+    AppLogger.info(
+      '🔄 [JoinedGroups] Backfilled ${acceptedSharedIds.length} accepted '
+      'shared-v1 group(s) into joinedGroupIds',
+    );
+  }
+
+  /// meiso-settings の joinedGroupIds に含まれる shared-v1 招待を自動承諾する。
+  ///
+  /// 招待イベント(kind 30078)の暗号化 payload を再復号して group 資格情報を
+  /// ローカルに復元し、承諾済みの [CustomList] を返す。新端末で再度の手動承諾を
+  /// 不要にする（タスク3）。失敗時は null を返し、呼び出し側で pending 扱いにする。
+  Future<CustomList?> _autoAcceptSharedInvitation({
+    required SharedInvitation invitation,
+    required String recipientPublicKey,
+    required CustomList? existing,
+    required int order,
+  }) async {
+    try {
+      final acceptUseCase =
+          _ref.read(shared_usecase.acceptSharedInvitationUseCaseProvider);
+      final result = await acceptUseCase(
+        AcceptSharedInvitationParams(
+          invitation: invitation,
+          recipientPublicKeyHex: recipientPublicKey,
+        ),
+      );
+      return result.fold(
+        (failure) {
+          AppLogger.warning(
+            '⚠️ [SharedInvitations] Auto-accept failed for '
+            '${invitation.groupId}: ${failure.message}',
+          );
+          return null;
+        },
+        (_) {
+          AppLogger.info(
+            '✅ [SharedInvitations] Auto-accepted joined group '
+            '${invitation.groupId} on this device',
+          );
+          final base = existing ??
+              CustomList(
+                id: invitation.groupId,
+                name: invitation.groupName.toUpperCase(),
+                order: order,
+                createdAt: invitation.createdAt,
+                updatedAt: invitation.createdAt,
+                isGroup: true,
+              );
+          return base.copyWith(
+            name: invitation.groupName.toUpperCase(),
+            isGroup: true,
+            isPendingInvitation: false,
+            inviterNpub: null,
+            inviterName: null,
+            welcomeMsg: null,
+            acceptedAt: DateTime.now(),
+            protocolVersion: CustomListHelpers.protocolSharedV1,
+          );
+        },
+      );
+    } catch (e, st) {
+      AppLogger.warning(
+        '⚠️ [SharedInvitations] Auto-accept error for ${invitation.groupId}: $e',
         error: e,
         stackTrace: st,
       );
@@ -2307,4 +2859,36 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       // 復元失敗してもアプリは継続（ユーザーは手動で再招待可能）
     }
   }
+}
+
+/// `_filterDeletedLists` の並列解決結果を表す内部 helper。
+/// Network I/O を `Future.wait` で並列化しつつ、 後段のシーケンシャル
+/// フィルタ判定に必要な情報だけを伝搬する。
+enum _FilterResolutionKind {
+  keepAsIs,
+  locallyDeletedGroup,
+  validMlsGroup,
+  invalidMlsGroup,
+  personalList,
+}
+
+class _FilterResolution {
+  const _FilterResolution._({required this.kind, this.eventId});
+
+  factory _FilterResolution.keepAsIs() =>
+      const _FilterResolution._(kind: _FilterResolutionKind.keepAsIs);
+  factory _FilterResolution.locallyDeletedGroup() =>
+      const _FilterResolution._(kind: _FilterResolutionKind.locallyDeletedGroup);
+  factory _FilterResolution.validMlsGroup() =>
+      const _FilterResolution._(kind: _FilterResolutionKind.validMlsGroup);
+  factory _FilterResolution.invalidMlsGroup() =>
+      const _FilterResolution._(kind: _FilterResolutionKind.invalidMlsGroup);
+  factory _FilterResolution.personalList({String? eventId}) =>
+      _FilterResolution._(
+        kind: _FilterResolutionKind.personalList,
+        eventId: eventId,
+      );
+
+  final _FilterResolutionKind kind;
+  final String? eventId;
 }

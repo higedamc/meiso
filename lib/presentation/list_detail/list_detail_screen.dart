@@ -4,21 +4,27 @@ import '../../app_theme.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/app_settings_provider.dart';
-import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../services/logger_service.dart';
 import '../../widgets/todo_item.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/list_settings_sheet.dart';
+import '../../widgets/slide_up_route.dart';
 import '../../widgets/todo_edit_screen.dart';
 
 /// カスタムリスト詳細画面
 class ListDetailScreen extends ConsumerStatefulWidget {
   const ListDetailScreen({
     required this.customList,
+    this.embedded = false,
     super.key,
   });
 
   final CustomList customList;
+
+  /// Home のコンテンツ領域に埋め込む場合は true。Scaffold と独自の
+  /// ボトムナビゲーションを描画せず、ヘッダー + Todo リストのみを返す。
+  final bool embedded;
 
   @override
   ConsumerState<ListDetailScreen> createState() => _ListDetailScreenState();
@@ -75,149 +81,29 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   
   @override
   Widget build(BuildContext context) {
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
+
+    // Home に埋め込まれる場合は、Scaffold も独自のボトムバーも描画しない。
+    // Home 側がボトムバー（永続）とコンテンツ領域を提供するため、ここでは
+    // ヘッダー + Todo リストのみを返し、ボトムバーの上に収める。
+    if (widget.embedded) {
+      return ColoredBox(
+        color: theme.scaffoldBackgroundColor,
+        child: Column(
+          children: [
+            _buildHeader(context),
+            Expanded(child: _buildTodoArea(context)),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Column(
         children: [
-          // ヘッダー（戻るボタンなし）
-          Container(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 12,
-              top: statusBarHeight + 12,
-              bottom: 16,
-            ),
-            color: theme.cardTheme.color,
-            child: Row(
-              children: [
-                // グループアイコン（グループリストの場合）
-                if (widget.customList.isGroup) ...[
-                  const Icon(
-                    Icons.group,
-                    size: 20,
-                    color: AppTheme.primaryColor,
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                // リスト名
-                Expanded(
-                  child: Text(
-                    widget.customList.name,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: isDark
-                          ? AppTheme.darkTextPrimary
-                          : AppTheme.lightTextPrimary,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-
-                // 編集ボタン
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  iconSize: 20,
-                  color: isDark
-                      ? AppTheme.darkTextPrimary.withOpacity(0.7)
-                      : AppTheme.lightTextPrimary.withOpacity(0.7),
-                  onPressed: () => _showEditDialog(context),
-                  tooltip: 'リスト名を編集',
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                ),
-
-                // 削除ボタン
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  iconSize: 20,
-                  color: isDark
-                      ? AppTheme.darkTextPrimary.withOpacity(0.7)
-                      : AppTheme.lightTextPrimary.withOpacity(0.7),
-                  onPressed: () => _showDeleteDialog(context),
-                  tooltip: 'リストを削除',
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          ),
-
-          // Todoリスト
-          Expanded(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final todosAsync = ref.watch(todosProvider);
-                final expandedParents = ref.watch(subtaskExpansionProvider);
-                final hideCompleted = ref.watch(appSettingsProvider).valueOrNull?.hideCompletedTasks ?? false;
-                
-                return todosAsync.when(
-                  data: (allTodos) {
-                    // このリストに属するTodoを抽出
-                    final listTodos = <Todo>[];
-                    for (final dateGroup in allTodos.values) {
-                      for (final todo in dateGroup) {
-                        if (todo.customListId == widget.customList.id) {
-                          if (hideCompleted && todo.completed) continue;
-                          listTodos.add(todo);
-                        }
-                      }
-                    }
-
-                    final sortedTodos = _arrangeTodosForDisplay(
-                      listTodos,
-                      expandedParents,
-                    );
-
-                    if (sortedTodos.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'タスクがありません',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: isDark
-                                ? AppTheme.darkTextSecondary
-                                : AppTheme.lightTextSecondary,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return ReorderableListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      buildDefaultDragHandles: false,
-                      itemCount: sortedTodos.length,
-                      onReorder: (oldIndex, newIndex) {
-                        _handleReorder(
-                          context,
-                          ref,
-                          sortedTodos,
-                          oldIndex,
-                          newIndex,
-                        );
-                      },
-                      itemBuilder: (context, index) {
-                        final todo = sortedTodos[index];
-                        
-                        return TodoItem(
-                          key: ValueKey(todo.id),
-                          todo: todo,
-                          index: index,
-                        );
-                      },
-                    );
-                  },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (_, __) => const Center(child: Text('エラーが発生しました')),
-                );
-              },
-            ),
-          ),
-
+          _buildHeader(context),
+          Expanded(child: _buildTodoArea(context)),
           // ボトムナビゲーション
           Consumer(
             builder: (context, ref, child) {
@@ -225,12 +111,135 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                 onTodayTap: () => Navigator.of(context).pop(),
                 onAddTap: () => _showAddTodoScreen(context),
                 onSomedayTap: () => Navigator.of(context).pop(),
+                // リスト詳細表示中はリスト固有の設定シートを開く
+                onSettingsTap: () => showListSettingsSheet(
+                  context,
+                  customList: widget.customList,
+                  onDeleted: () => Navigator.of(context).pop(),
+                ),
                 isSomedayActive: true,
+                settingsContextual: true,
               );
             },
           ),
         ],
       ),
+    );
+  }
+
+  /// リスト名・編集・削除のヘッダー。
+  Widget _buildHeader(BuildContext context) {
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 12,
+        top: statusBarHeight + 12,
+        bottom: 16,
+      ),
+      color: theme.cardTheme.color,
+      child: Row(
+        children: [
+          // グループアイコン（グループリストの場合）
+          if (widget.customList.isGroup) ...[
+            const Icon(
+              Icons.group,
+              size: 20,
+              color: AppTheme.primaryColor,
+            ),
+            const SizedBox(width: 8),
+          ],
+          // リスト名
+          // 編集・削除はボトムバーの設定ボタン（リスト設定シート）へ移設済み
+          Expanded(
+            child: Text(
+              widget.customList.name,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: isDark
+                    ? AppTheme.darkTextPrimary
+                    : AppTheme.lightTextPrimary,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// このリストの Todo 一覧領域。
+  Widget _buildTodoArea(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Consumer(
+      builder: (context, ref, child) {
+        final todosAsync = ref.watch(todosProvider);
+        final expandedParents = ref.watch(subtaskExpansionProvider);
+        final hideCompleted = ref.watch(appSettingsProvider).valueOrNull?.hideCompletedTasks ?? false;
+
+        return todosAsync.when(
+          data: (allTodos) {
+            // このリストに属するTodoを抽出
+            final listTodos = <Todo>[];
+            for (final dateGroup in allTodos.values) {
+              for (final todo in dateGroup) {
+                if (todo.customListId == widget.customList.id) {
+                  if (hideCompleted && todo.completed) continue;
+                  listTodos.add(todo);
+                }
+              }
+            }
+
+            final sortedTodos = _arrangeTodosForDisplay(
+              listTodos,
+              expandedParents,
+            );
+
+            if (sortedTodos.isEmpty) {
+              return Center(
+                child: Text(
+                  'タスクがありません',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isDark
+                        ? AppTheme.darkTextSecondary
+                        : AppTheme.lightTextSecondary,
+                  ),
+                ),
+              );
+            }
+
+            return ReorderableListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              buildDefaultDragHandles: false,
+              itemCount: sortedTodos.length,
+              onReorder: (oldIndex, newIndex) {
+                _handleReorder(
+                  context,
+                  ref,
+                  sortedTodos,
+                  oldIndex,
+                  newIndex,
+                );
+              },
+              itemBuilder: (context, index) {
+                final todo = sortedTodos[index];
+
+                return TodoItem(
+                  key: ValueKey(todo.id),
+                  todo: todo,
+                  index: index,
+                );
+              },
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => const Center(child: Text('エラーが発生しました')),
+        );
+      },
     );
   }
 
@@ -312,92 +321,13 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
     );
   }
 
-  /// リスト名編集ダイアログ
-  void _showEditDialog(BuildContext context) {
-    final controller = TextEditingController(text: widget.customList.name);
-
-    showDialog<void>(
-      context: context,
-      builder: (context) => Consumer(
-        builder: (context, ref, child) => AlertDialog(
-          title: const Text('リスト名を編集'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'リスト名を入力',
-              border: OutlineInputBorder(),
-            ),
-            textCapitalization: TextCapitalization.characters,
-            onSubmitted: (value) {
-              if (value.trim().isNotEmpty) {
-                ref.read(customListsProvider.notifier).updateList(
-                  widget.customList.copyWith(name: value.trim().toUpperCase()),
-                );
-                Navigator.pop(context);
-              }
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final text = controller.text.trim();
-                if (text.isNotEmpty) {
-                  ref.read(customListsProvider.notifier).updateList(
-                    widget.customList.copyWith(name: text.toUpperCase()),
-                  );
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryPurple,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// リスト削除確認ダイアログ
-  void _showDeleteDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => Consumer(
-        builder: (context, ref, child) => AlertDialog(
-          title: const Text('リストを削除'),
-          content: Text('「${widget.customList.name}」を削除しますか？\n\nこのリストに属するタスクは削除されません。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ),
-            TextButton(
-              onPressed: () {
-                ref.read(customListsProvider.notifier).deleteList(widget.customList.id);
-                Navigator.pop(context); // ダイアログを閉じる
-                Navigator.pop(context); // 詳細画面を閉じる
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('削除'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // リスト名編集・削除ダイアログは ListSettingsSheet へ移植済み
 
   /// Todo追加画面を表示
   void _showAddTodoScreen(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => TodoEditScreen(
+      slideUpRoute<void>(
+        TodoEditScreen(
           customListId: widget.customList.id,
           customListName: widget.customList.name,
           isGroupList: widget.customList.isGroup,

@@ -44,6 +44,10 @@ class Todo with _$Todo {
 
     /// 添付画像のURL（Blossom/NIP-96経由でアップロード済み）
     String? imageUrl,
+
+    /// 共有リスト(shared-v1)で、このタスクを最後に追加/編集した実 npub(hex)。
+    /// 自分以外が編集したタスクを UI 上で区別するために使用する。
+    String? editorPubkey,
   }) = _Todo;
 
   factory Todo.fromJson(Map<String, dynamic> json) => _$TodoFromJson(json);

@@ -45,6 +45,11 @@ mixin _$AppSettings {
   /// カスタムリストの順番（リストIDの配列）
   List<String> get customListOrder => throw _privateConstructorUsedError;
 
+  /// 承諾済み共有グループの ID 集合（端末間で承諾状態を同期するため）。
+  /// 招待イベント(kind 30078)はリレー上に残るため、これを同期しないと新端末で
+  /// 再び「招待中」表示になる。group_nsec 等の秘密はリレーに出さず groupId のみ保持。
+  List<String> get joinedGroupIds => throw _privateConstructorUsedError;
+
   /// 最後に見ていたカスタムリストID
   String? get lastViewedCustomListId => throw _privateConstructorUsedError;
 
@@ -89,6 +94,7 @@ abstract class $AppSettingsCopyWith<$Res> {
     TorMode torMode,
     String proxyUrl,
     List<String> customListOrder,
+    List<String> joinedGroupIds,
     String? lastViewedCustomListId,
     TaskUiMode taskUiMode,
     Map<String, bool> featureFlags,
@@ -121,6 +127,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? torMode = null,
     Object? proxyUrl = null,
     Object? customListOrder = null,
+    Object? joinedGroupIds = null,
     Object? lastViewedCustomListId = freezed,
     Object? taskUiMode = null,
     Object? featureFlags = null,
@@ -161,6 +168,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
             customListOrder: null == customListOrder
                 ? _value.customListOrder
                 : customListOrder // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
+            joinedGroupIds: null == joinedGroupIds
+                ? _value.joinedGroupIds
+                : joinedGroupIds // ignore: cast_nullable_to_non_nullable
                       as List<String>,
             lastViewedCustomListId: freezed == lastViewedCustomListId
                 ? _value.lastViewedCustomListId
@@ -210,6 +221,7 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
     TorMode torMode,
     String proxyUrl,
     List<String> customListOrder,
+    List<String> joinedGroupIds,
     String? lastViewedCustomListId,
     TaskUiMode taskUiMode,
     Map<String, bool> featureFlags,
@@ -241,6 +253,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? torMode = null,
     Object? proxyUrl = null,
     Object? customListOrder = null,
+    Object? joinedGroupIds = null,
     Object? lastViewedCustomListId = freezed,
     Object? taskUiMode = null,
     Object? featureFlags = null,
@@ -281,6 +294,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
         customListOrder: null == customListOrder
             ? _value.customListOrder
             : customListOrder // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
+        joinedGroupIds: null == joinedGroupIds
+            ? _value.joinedGroupIds
+            : joinedGroupIds // ignore: cast_nullable_to_non_nullable
                   as List<String>,
         lastViewedCustomListId: freezed == lastViewedCustomListId
             ? _value.lastViewedCustomListId
@@ -323,6 +340,7 @@ class _$AppSettingsImpl implements _AppSettings {
     this.torMode = TorMode.disabled,
     this.proxyUrl = 'socks5://127.0.0.1:9050',
     this.customListOrder = const [],
+    this.joinedGroupIds = const [],
     this.lastViewedCustomListId,
     this.taskUiMode = TaskUiMode.reminders,
     this.featureFlags = const <String, bool>{},
@@ -374,6 +392,13 @@ class _$AppSettingsImpl implements _AppSettings {
   @JsonKey()
   final List<String> customListOrder;
 
+  /// 承諾済み共有グループの ID 集合（端末間で承諾状態を同期するため）。
+  /// 招待イベント(kind 30078)はリレー上に残るため、これを同期しないと新端末で
+  /// 再び「招待中」表示になる。group_nsec 等の秘密はリレーに出さず groupId のみ保持。
+  @override
+  @JsonKey()
+  final List<String> joinedGroupIds;
+
   /// 最後に見ていたカスタムリストID
   @override
   final String? lastViewedCustomListId;
@@ -404,7 +429,7 @@ class _$AppSettingsImpl implements _AppSettings {
 
   @override
   String toString() {
-    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, lastViewedCustomListId: $lastViewedCustomListId, taskUiMode: $taskUiMode, featureFlags: $featureFlags, hideCompletedTasks: $hideCompletedTasks, nip89ClientTagEnabled: $nip89ClientTagEnabled, updatedAt: $updatedAt)';
+    return 'AppSettings(darkMode: $darkMode, weekStartDay: $weekStartDay, calendarView: $calendarView, notificationsEnabled: $notificationsEnabled, relays: $relays, torMode: $torMode, proxyUrl: $proxyUrl, customListOrder: $customListOrder, joinedGroupIds: $joinedGroupIds, lastViewedCustomListId: $lastViewedCustomListId, taskUiMode: $taskUiMode, featureFlags: $featureFlags, hideCompletedTasks: $hideCompletedTasks, nip89ClientTagEnabled: $nip89ClientTagEnabled, updatedAt: $updatedAt)';
   }
 
   @override
@@ -427,6 +452,10 @@ class _$AppSettingsImpl implements _AppSettings {
             const DeepCollectionEquality().equals(
               other.customListOrder,
               customListOrder,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other.joinedGroupIds,
+              joinedGroupIds,
             ) &&
             (identical(other.lastViewedCustomListId, lastViewedCustomListId) ||
                 other.lastViewedCustomListId == lastViewedCustomListId) &&
@@ -456,6 +485,7 @@ class _$AppSettingsImpl implements _AppSettings {
     torMode,
     proxyUrl,
     const DeepCollectionEquality().hash(customListOrder),
+    const DeepCollectionEquality().hash(joinedGroupIds),
     lastViewedCustomListId,
     taskUiMode,
     const DeepCollectionEquality().hash(featureFlags),
@@ -488,6 +518,7 @@ abstract class _AppSettings implements AppSettings {
     final TorMode torMode,
     final String proxyUrl,
     final List<String> customListOrder,
+    final List<String> joinedGroupIds,
     final String? lastViewedCustomListId,
     final TaskUiMode taskUiMode,
     final Map<String, bool> featureFlags,
@@ -530,6 +561,12 @@ abstract class _AppSettings implements AppSettings {
   /// カスタムリストの順番（リストIDの配列）
   @override
   List<String> get customListOrder;
+
+  /// 承諾済み共有グループの ID 集合（端末間で承諾状態を同期するため）。
+  /// 招待イベント(kind 30078)はリレー上に残るため、これを同期しないと新端末で
+  /// 再び「招待中」表示になる。group_nsec 等の秘密はリレーに出さず groupId のみ保持。
+  @override
+  List<String> get joinedGroupIds;
 
   /// 最後に見ていたカスタムリストID
   @override

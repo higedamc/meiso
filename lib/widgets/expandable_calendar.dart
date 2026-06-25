@@ -72,6 +72,7 @@ class _ExpandableCalendarState extends State<ExpandableCalendar> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return ClipRect(
       child: AnimatedAlign(
         duration: const Duration(milliseconds: 300),
@@ -88,19 +89,14 @@ class _ExpandableCalendarState extends State<ExpandableCalendar> {
         child: !_mountCalendar
             ? const SizedBox.shrink()
             : Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppTheme.darkPurple,
-                      AppTheme.darkPurple,
-                    ],
-                  ),
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.sectionCardColor(context),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusCard),
                 ),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
+                  horizontal: 12,
+                  vertical: 12,
                 ),
                 child: TableCalendar<void>(
                   firstDay: DateTime.utc(2020, 1),
@@ -124,63 +120,63 @@ class _ExpandableCalendarState extends State<ExpandableCalendar> {
                       _focusedDay = focusedDay;
                     });
                   },
-                  headerStyle: const HeaderStyle(
+                  headerStyle: HeaderStyle(
                     formatButtonVisible: false,
                     titleCentered: true,
                     titleTextStyle: TextStyle(
-                      color: Colors.white,
+                      color: colorScheme.onSurface,
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
+                      letterSpacing: 0.5,
                     ),
                     leftChevronIcon: Icon(
                       Icons.chevron_left,
-                      color: Colors.white,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                     rightChevronIcon: Icon(
                       Icons.chevron_right,
-                      color: Colors.white,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  daysOfWeekStyle: const DaysOfWeekStyle(
+                  daysOfWeekStyle: DaysOfWeekStyle(
                     weekdayStyle: TextStyle(
-                      color: Colors.white70,
+                      color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
                     weekendStyle: TextStyle(
-                      color: Colors.white70,
+                      color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   calendarStyle: CalendarStyle(
                     // 今日
                     todayDecoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: colorScheme.primary.withValues(alpha: 0.18),
                       shape: BoxShape.circle,
                     ),
-                    todayTextStyle: const TextStyle(
-                      color: Colors.white,
+                    todayTextStyle: TextStyle(
+                      color: colorScheme.primary,
                       fontWeight: FontWeight.w700,
                     ),
                     // 選択された日
-                    selectedDecoration: const BoxDecoration(
-                      color: Colors.white,
+                    selectedDecoration: BoxDecoration(
+                      color: colorScheme.primary,
                       shape: BoxShape.circle,
                     ),
-                    selectedTextStyle: const TextStyle(
-                      color: AppTheme.darkPurple,
+                    selectedTextStyle: TextStyle(
+                      color: colorScheme.onPrimary,
                       fontWeight: FontWeight.w700,
                     ),
                     // 通常の日
-                    defaultTextStyle: const TextStyle(
-                      color: Colors.white,
+                    defaultTextStyle: TextStyle(
+                      color: colorScheme.onSurface,
                     ),
-                    weekendTextStyle: const TextStyle(
-                      color: Colors.white,
+                    weekendTextStyle: TextStyle(
+                      color: colorScheme.onSurface,
                     ),
                     // 範囲外の日
-                    outsideTextStyle: const TextStyle(
-                      color: Colors.white30,
+                    outsideTextStyle: TextStyle(
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                     ),
                   ),
                 ),

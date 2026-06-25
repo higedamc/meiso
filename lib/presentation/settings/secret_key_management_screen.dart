@@ -275,8 +275,11 @@ class _SecretKeyManagementScreenState
           await _showNsecDialog(decryptedKey);
         }
       } catch (e) {
+        // 復号失敗の詳細はログのみに残し、UI には鍵情報を含みうる生の例外文字列を
+        // 出さない（例外メッセージへの機密混入に対する多層防御）。
+        AppLogger.error('Secret key decrypt failed', error: e);
         setState(() {
-          _errorMessage = l10n.secretKeyDecryptFailed(e.toString());
+          _errorMessage = l10n.secretKeyDecryptFailed(e.runtimeType.toString());
         });
       } finally {
         if (mounted) {
@@ -399,8 +402,9 @@ class _SecretKeyManagementScreenState
       // 自動的にリレーに接続（newKeyを使用）
       await _autoConnectWithKey(newKey);
     } catch (e) {
+      AppLogger.error('Secret key generation failed', error: e);
       setState(() {
-        _errorMessage = l10n.secretKeyGenerationFailed(e.toString());
+        _errorMessage = l10n.secretKeyGenerationFailed(e.runtimeType.toString());
       });
     } finally {
       setState(() {
@@ -412,11 +416,51 @@ class _SecretKeyManagementScreenState
   Future<void> _saveSecretKey() async {
     final secretKey = _secretKeyController.text.trim();
 
-    // 暗号化プレースホルダーの場合は保存をスキップ
+    // 暗号化プレースホルダーの場合: パスワードで復号して再接続
     if (secretKey == _encryptedPlaceholder) {
+      final l10n = AppLocalizations.of(context);
+      final password = await _showPasswordDialog(
+        l10n.enterPassword,
+        l10n.enterPasswordToDecrypt,
+      );
+      if (password == null || password.isEmpty) {
+        return;
+      }
+
       setState(() {
-        _errorMessage = '暗号化された秘密鍵は既に保存されています';
+        _isLoading = true;
+        _errorMessage = null;
+        _successMessage = null;
       });
+
+      try {
+        final nostrService = ref.read(nostrServiceProvider);
+        final decryptedKey = await nostrService.getSecretKey(password);
+        if (decryptedKey == null) {
+          setState(() {
+            _errorMessage = l10n.passwordIncorrectOrDecryptFailed;
+          });
+          return;
+        }
+
+        await _autoConnectWithKey(decryptedKey);
+        if (mounted) {
+          setState(() {
+            _successMessage = l10n.connectedToRelay;
+          });
+        }
+      } catch (e) {
+        AppLogger.error('Secret key reconnect failed', error: e);
+        setState(() {
+          _errorMessage = l10n.secretKeySaveFailed(e.runtimeType.toString());
+        });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
       return;
     }
 
@@ -461,8 +505,9 @@ class _SecretKeyManagementScreenState
       // 自動的にリレーに接続（secretKeyを使用）
       await _autoConnectWithKey(secretKey);
     } catch (e) {
+      AppLogger.error('Secret key save failed', error: e);
       setState(() {
-        _errorMessage = l10n.secretKeySaveFailed(e.toString());
+        _errorMessage = l10n.secretKeySaveFailed(e.runtimeType.toString());
       });
     } finally {
       setState(() {
@@ -512,8 +557,9 @@ class _SecretKeyManagementScreenState
       // 自動同期を実行
       await _autoSync();
     } catch (e) {
+      AppLogger.error('Relay connection failed', error: e);
       setState(() {
-        _errorMessage = l10n.relayConnectionError(e.toString());
+        _errorMessage = l10n.relayConnectionError(e.runtimeType.toString());
       });
     }
   }
@@ -810,9 +856,12 @@ class _SecretKeyManagementScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 公開鍵表示カード（接続中の場合）
+                  // 背景は半透明グリーンにして、ライト/ダーク双方で
+                  // 文字（テーマ追従色）の視認性を確保する。
                   if (isNostrInitialized && publicKeyHex != null)
                     Card(
-                      color: Colors.green.shade50,
+                      elevation: 0,
+                      color: Colors.green.withValues(alpha: 0.12),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(

@@ -12,6 +12,7 @@ import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
 import 'circular_checkbox.dart';
+import 'remote_image_gate.dart';
 import '../features/media/presentation/widgets/image_thumbnail.dart';
 
 /// リカーリングタスクアクションオプション（削除・更新共通）
@@ -219,15 +220,19 @@ class TodoItem extends StatelessWidget {
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(8),
                   ),
-                  child: Image.network(
-                    linkPreview.imageUrl!,
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      // 画像読み込み失敗時は非表示
-                      return const SizedBox.shrink();
-                    },
+                  child: RemoteImageGate(
+                    allowed: (context) => Image.network(
+                      linkPreview.imageUrl!,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        // 画像読み込み失敗時は非表示
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                    // Tor モード時はサムネイル取得を抑止（非表示）
+                    blocked: (context) => const SizedBox.shrink(),
                   ),
                 ),
               
@@ -244,17 +249,25 @@ class TodoItem extends StatelessWidget {
                         if (linkPreview.faviconUrl != null)
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: Image.network(
-                              linkPreview.faviconUrl!,
-                              width: 16,
-                              height: 16,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.link,
-                                  size: 16,
-                                  color: Colors.grey,
-                                );
-                              },
+                            child: RemoteImageGate(
+                              allowed: (context) => Image.network(
+                                linkPreview.faviconUrl!,
+                                width: 16,
+                                height: 16,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.link,
+                                    size: 16,
+                                    color: Colors.grey,
+                                  );
+                                },
+                              ),
+                              // Tor モード時はファビコン取得を抑止し代替アイコン表示
+                              blocked: (context) => const Icon(
+                                Icons.link,
+                                size: 16,
+                                color: Colors.grey,
+                              ),
                             ),
                           ),
                         
@@ -683,6 +696,24 @@ class TodoItem extends StatelessWidget {
                               
                               if (todo.imageUrl != null)
                                 ImageThumbnail(imageUrl: todo.imageUrl!),
+
+                              // 共有リストで自分以外が追加/編集したタスクを示すアイコン
+                              if (todo.editorPubkey != null &&
+                                  todo.editorPubkey !=
+                                      ref.watch(publicKeyProvider))
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 6),
+                                  child: Tooltip(
+                                    message: AppLocalizations.of(context)
+                                        .addedByCollaborator,
+                                    child: Icon(
+                                      Icons.person_outline,
+                                      size: 16,
+                                      color: AppTheme.primaryColor
+                                          .withOpacity(0.75),
+                                    ),
+                                  ),
+                                ),
 
                               if (!todo.isSubtask)
                                 Consumer(

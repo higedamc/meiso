@@ -68,6 +68,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get nostrDisconnected => 'Nostr未接続';
 
   @override
+  String get statusTapToReconnect => 'タップしてリレーに再接続';
+
+  @override
   String relaysConnectedCount(int count, int total) {
     return 'リレー: $count/$total 接続中';
   }
@@ -1641,4 +1644,19 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get cannotDemoteHasSubtasks => '先にサブタスクを削除してください';
+
+  @override
+  String get addedByCollaborator => '他のメンバーが追加したタスク';
+
+  @override
+  String get addedBy => '追加者';
+
+  @override
+  String get settingsSectionStatus => 'ステータス';
+
+  @override
+  String get settingsSectionGeneral => '一般';
+
+  @override
+  String get settingsSectionAbout => 'アプリ情報';
 }

@@ -20,6 +20,7 @@ import 'models/app_settings.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/bootstrap_sync_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
+import 'providers/relay_connectivity_monitor_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/locale_provider.dart';
 import 'widgets/sync_loading_overlay.dart'; // Phase 8.5.1
@@ -104,6 +105,8 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
     // これによりフォアグラウンド復帰時の自動再接続・同期が有効になります
     ref.read(appLifecycleProvider);
     ref.read(bootstrapSyncProvider.notifier);
+    // リレー接続性の定期監視を起動（実 WebSocket 状態を UI へ反映）
+    ref.read(relayConnectivityMonitorProvider);
     
     // アプリ起動時にNostr接続を復元
     _restoreNostrConnection();

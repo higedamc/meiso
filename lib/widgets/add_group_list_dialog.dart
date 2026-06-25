@@ -4,6 +4,7 @@ import '../app_theme.dart';
 import '../providers/custom_lists_provider.dart';
 import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
+import 'member_picker.dart';
 
 /// グループリスト作成ダイアログ
 class AddGroupListDialog extends ConsumerStatefulWidget {
@@ -21,6 +22,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   final TextEditingController _memberNpubController = TextEditingController();
   final List<Map<String, dynamic>> _mlsMembers =
       []; // {npub, keyPackage, hasWarning}
+  /// true = legacy MLS, false = shared-v1 (default)
   bool _useMls = false;
   bool _isLoading = false;
   bool _isFetchingKeyPackage = false;
@@ -40,8 +42,31 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
 
   // Phase 8.4: _addLegacyMember() 削除（kind: 30001廃止）
 
+  /// shared-v1: member_picker（フォローリスト/QR/手入力）でメンバーを追加
+  Future<void> _openMemberPicker() async {
+    final existing = _mlsMembers.map((m) => m['npub'] as String).toSet();
+    final picked = await showMemberPicker(
+      context,
+      excludedNpubs: existing,
+    );
+    if (picked == null || picked.isEmpty || !mounted) return;
+    setState(() {
+      for (final npub in picked) {
+        if (_mlsMembers.any((m) => m['npub'] == npub)) continue;
+        _mlsMembers.add({
+          'npub': npub,
+          'keyPackage': null,
+          'hasWarning': false,
+        });
+      }
+    });
+  }
+
   void _addMemberWithoutKeyPackage() {
     final npub = _memberNpubController.text.trim();
+    AppLogger.debug(
+      '👤 [AddGroupListDialog] _addMemberWithoutKeyPackage called with npub.length=${npub.length}',
+    );
     if (npub.isEmpty || !npub.startsWith('npub')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('有効なnpubを入力してください')),
@@ -62,6 +87,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       });
       _memberNpubController.clear();
     });
+    AppLogger.debug(
+      '👤 [AddGroupListDialog] member added, total=${_mlsMembers.length}',
+    );
   }
 
   /// Phase 8.1: Key Package取得
@@ -605,29 +633,25 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       final memberNpubs = _mlsMembers.map((m) => m['npub'] as String).toList();
 
       AppLogger.info(
-        '📤 [AddGroupListDialog] Creating group: mode=${_useMls ? "mls-v1" : "gw17-v1"}, members=${memberNpubs.length}',
+        '📤 [AddGroupListDialog] Creating group: mode=${_useMls ? "mls-v1" : "shared-v1"}, members=${memberNpubs.length}',
       );
 
       final groupList = _useMls
-          ? await ref
-                .read(customListsProvider.notifier)
-                .createMlsGroupList(
-                  name: _groupNameController.text.trim(),
-                  keyPackages: _mlsMembers
-                      .where((m) => m['keyPackage'] != null)
-                      .map((m) => m['keyPackage'] as String)
-                      .toList(),
-                  memberNpubs: _mlsMembers
-                      .where((m) => m['keyPackage'] != null)
-                      .map((m) => m['npub'] as String)
-                      .toList(),
-                )
-          : await ref
-                .read(customListsProvider.notifier)
-                .createGw17GroupList(
-                  name: _groupNameController.text.trim(),
-                  memberNpubs: memberNpubs,
-                );
+          ? await ref.read(customListsProvider.notifier).createMlsGroupList(
+                name: _groupNameController.text.trim(),
+                keyPackages: _mlsMembers
+                    .where((m) => m['keyPackage'] != null)
+                    .map((m) => m['keyPackage'] as String)
+                    .toList(),
+                memberNpubs: _mlsMembers
+                    .where((m) => m['keyPackage'] != null)
+                    .map((m) => m['npub'] as String)
+                    .toList(),
+              )
+          : await ref.read(customListsProvider.notifier).createSharedGroupList(
+                name: _groupNameController.text.trim(),
+                memberNpubs: memberNpubs,
+              );
 
       AppLogger.info(
         '🔍 [AddGroupListDialog] Debug: createMlsGroupList returned: ${groupList != null ? "SUCCESS" : "NULL"}',
@@ -653,7 +677,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
       if (mounted) {
         final errorHint = _useMls
             ? 'MLS: Key Package取得状況を確認して再試行してください。'
-            : 'NIP-17: npubとリレー接続を確認して再試行してください。';
+            : '共有鍵: npubとリレー接続を確認して再試行してください。';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ グループ作成失敗: $errorHint'),
@@ -674,6 +698,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isNostrInitialized = ref.watch(nostrInitializedProvider);
+    AppLogger.debug(
+      '🏗️ [AddGroupListDialog] build: members=${_mlsMembers.length}, useMls=$_useMls, nostrInit=$isNostrInitialized',
+    );
 
     return AlertDialog(
       backgroundColor: isDark
@@ -841,6 +868,17 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                 ),
               ),
               const SizedBox(height: 8),
+              // shared-v1: member_picker（フォローリスト/QR/手入力）で追加
+              if (!_useMls)
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: _isLoading ? null : _openMemberPicker,
+                    icon: const Icon(Icons.group_add, size: 18),
+                    label: const Text('Add members'),
+                  ),
+                )
+              else
               Row(
                 children: [
                   Expanded(
@@ -917,8 +955,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                   ),
                 ),
                 const SizedBox(height: 4),
+                // NOTE: 親が SingleChildScrollView なので、ここでは ListView を使わず
+                // Column で展開する(ネストしたスクロールビューでホワイトアウトを誘発するため)
                 Container(
-                  constraints: const BoxConstraints(maxHeight: 120),
                   decoration: BoxDecoration(
                     border: Border.all(
                       color: isDark
@@ -927,10 +966,9 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                     ),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _mlsMembers.length,
-                    itemBuilder: (context, index) {
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(_mlsMembers.length, (index) {
                       final member = _mlsMembers[index];
                       final npub = member['npub'] as String;
                       final hasWarning = member['hasWarning'] == true;
@@ -996,7 +1034,7 @@ class _AddGroupListDialogState extends ConsumerState<AddGroupListDialog> {
                           ],
                         ),
                       );
-                    },
+                    }),
                   ),
                 ),
               ],
