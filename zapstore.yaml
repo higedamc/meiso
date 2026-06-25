@@ -20,19 +20,22 @@ summary: A simple Nostr-based task management app
 
 # Full description (supports markdown)
 description: |
-  Meiso is a minimalist task management app built on the Nostr protocol. 
-  Inspired by TeuxDeux's clean design, it provides a simple three-column layout 
-  (Today/Tomorrow/Someday) with end-to-end NIP-44 encryption.
-  
+  Meiso is a minimalist task management app built on the Nostr protocol.
+  Inspired by TeuxDeux's clean design, it provides a simple three-column layout
+  (Today/Tomorrow/Someday) with end-to-end NIP-44 encryption — for your own
+  tasks and, now, for lists you share with others.
+
   ## Features
   - Three-column task layout (Today/Tomorrow/Someday)
+  - Shared collaborative lists: invite people and edit a list together in real time, end-to-end encrypted so relays only ever see ciphertext
+  - Collaborator attribution: see who added or edited each shared task
   - Recurring tasks (daily, weekly, monthly, yearly)
   - Personal custom lists for organization
   - Multi-device synchronization via Nostr relays
   - NIP-44 end-to-end encryption for privacy
   - Amber signer integration for secure key management
   - Tor connection support via Orbot proxy
-  - Dark mode support
+  - Material 3 design with light & dark mode
   - Multi-language support (English, Japanese, Spanish)
   - Pull-to-refresh sync
   - Drag and drop task reordering
@@ -51,6 +54,7 @@ tags:
   - amber
   - decentralized
   - sync
+  - collaboration
 
 # SPDX license identifier
 license: MIT
