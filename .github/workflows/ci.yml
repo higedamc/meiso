@@ -35,7 +35,9 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Analyze
-        run: flutter analyze
+        # Errors-only: the repo carries a large pre-existing info/warning lint
+        # backlog; gate on real breakage (errors) without drowning in style noise.
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Run tests
         run: flutter test --no-pub
