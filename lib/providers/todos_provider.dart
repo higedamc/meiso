@@ -1379,6 +1379,9 @@ class TodosNotifier
       final index = list.indexWhere((t) => t.id == id);
 
       if (index != -1) {
+        // 移動元リストIDを保持（移動先がグループか／移動元がグループかで同期先を分岐）
+        final oldCustomListId = list[index].customListId;
+
         list[index] = list[index].copyWith(
           customListId: customListId,
           updatedAt: DateTime.now(),
@@ -1398,7 +1401,34 @@ class TodosNotifier
 
         // 【楽観的UI更新】即座に同期（バックグラウンド）
         _updateUnsyncedCount();
-        _syncToNostrBackground();
+
+        // 移動先/移動元がグループリストかを判定。
+        // 個人同期(_syncAllTodosToNostr)はグループTodoを除外するため、
+        // グループへ移動した場合は明示的に _syncGroupToNostr を呼ばないと
+        // リレーへ届かない（次のグループ操作まで取りこぼされる）。
+        final customLists =
+            _ref.read(customListsProvider).valueOrNull ??
+            const <CustomList>[];
+        bool isGroupId(String? listId) =>
+            listId != null &&
+            customLists.any((l) => l.id == listId && l.isGroup);
+
+        final newIsGroup = isGroupId(customListId);
+        final oldIsGroup = isGroupId(oldCustomListId);
+
+        // 移動先がグループ → グループタスクとして即時同期
+        if (newIsGroup) {
+          AppLogger.info('📤 Moving todo into group list: $customListId');
+          _syncToNostr(() async {
+            await _syncGroupToNostr(customListId!);
+          });
+        }
+
+        // 個人リスト側に変化がある場合（移動元 or 移動先が個人）のみ個人同期。
+        // 両方グループのときは個人リストに変化がないのでスキップ（無駄な全再送を回避）。
+        if (!newIsGroup || !oldIsGroup) {
+          _syncToNostrBackground();
+        }
       }
     }).value;
   }
