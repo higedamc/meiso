@@ -951,6 +951,11 @@ impl MeisoNostrClient {
         }
 
         self.client.unsubscribe(sub_id).await;
+
+        // 新しい順（created_at 降順）に整列。
+        // replaceable event を `.first()` で参照する呼び出し側が「最新」を得られるように。
+        // d-tag dedup する呼び出し側は順序非依存なので影響なし。
+        events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         Ok(events)
     }
 
@@ -1355,9 +1360,9 @@ impl MeisoNostrClient {
                 vec!["meiso-settings".to_string()],
             );
 
+        // 施策2: 設定(kind30078, replaceable)も EOSE 早期終了で取得（起動時 Phase1 高速化）
         let events = self
-            .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
             .await?;
 
         // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
@@ -1436,9 +1441,9 @@ impl MeisoNostrClient {
         let filter = Filter::new().kind(Kind::RelayList).author(pubkey);
 
         dev_println!("🔍 Fetching Kind 10002 events from relays...");
+        // 施策2: リレーリスト(kind10002, replaceable)も EOSE 早期終了
         let events = self
-            .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
             .await?;
 
         dev_println!("📥 Received {} Kind 10002 events", events.len());
@@ -3555,9 +3560,9 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
             .kind(Kind::Custom(30001))
             .author(keys.public_key());
 
+        // 施策2: メタデータ取得(kind30001, replaceable)も EOSE 早期終了（起動時 Phase1 高速化）
         let events = client
-            .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
             .await?;
 
         if events.is_empty() {
@@ -3956,9 +3961,9 @@ pub fn fetch_encrypted_app_settings_for_pubkey_with_client_id(
                 vec!["meiso-settings".to_string()],
             );
 
+        // 施策2: Amber設定取得(kind30078, replaceable)も EOSE 早期終了（モード・パリティ）
         let events = client
-            .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
             .await?;
 
         // 最新のイベント（Replaceable eventなので1つだけのはず）
