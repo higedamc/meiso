@@ -70,10 +70,18 @@ func runStatus(svc *app.Service) error {
 	}
 	if session == nil {
 		fmt.Println("status: not logged in")
+		if proxy := svc.SocksProxy(); proxy != "" {
+			fmt.Printf("socks5: %s (all relay traffic proxied)\n", proxy)
+		}
 		return nil
 	}
 	fmt.Printf("status: logged in (%s)\n", session.SignerName)
 	fmt.Printf("pubkey: %s\n", session.PubKey)
+	if proxy := svc.SocksProxy(); proxy != "" {
+		fmt.Printf("socks5: %s (all relay traffic proxied)\n", proxy)
+	} else {
+		fmt.Printf("socks5: disabled (direct connection)\n")
+	}
 	if len(session.RelayURLs) > 0 {
 		fmt.Printf("relays: %s\n", strings.Join(session.RelayURLs, ", "))
 	} else {

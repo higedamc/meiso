@@ -45,6 +45,29 @@ go run ./cmd/meiso status
 - `MEISO_CUI_AUTH_URL` (default: `auto`; uses local NIP-07 bridge page)
 - `MEISO_CUI_RELAY_URL` (default: `wss://relay.damus.io`, supports comma-separated values)
 - `MEISO_CUI_MASTER_KEY` (optional; required outside macOS if Keychain is unavailable)
+- `MEISO_CUI_SOCKS_PROXY` (optional; route all relay traffic through Tor/Orbot — see below)
+
+## Tor / SOCKS5 proxy
+
+Set `MEISO_CUI_SOCKS_PROXY` to send every outbound connection (relay
+WebSockets, NIP-65 resolution, remote signer calls) through a SOCKS5 proxy:
+
+```bash
+# Tor daemon
+export MEISO_CUI_SOCKS_PROXY="127.0.0.1:9050"
+# Orbot (Android tethering / desktop) often uses 9050 as well
+meiso status        # shows the active proxy
+meiso shared sync
+```
+
+Accepted forms: `host:port`, `socks5://host:port`, or `socks5h://host:port`.
+The scheme is normalized to `socks5h`, so **hostnames are resolved by the proxy
+(no local DNS leak)**. When unset, the CLI connects directly.
+
+Implementation note: go-nostr v0.52 has no per-connection dialer hook, so the
+proxy is applied to `http.DefaultTransport`, which the relay WebSocket dials
+fall back to. This is process-wide and intentional — in Tor mode nothing should
+bypass the proxy.
 
 ## Commands
 

@@ -34,6 +34,11 @@ func NewService(cfg Config) *Service {
 	}
 }
 
+// SocksProxy returns the configured SOCKS5 proxy address (empty if disabled).
+func (s *Service) SocksProxy() string {
+	return s.cfg.SocksProxy
+}
+
 func (s *Service) Login(ctx context.Context) (*model.Session, error) {
 	session, err := s.authBroker.Login(ctx, s.cfg.AuthURL, s.cfg.DefaultRelayURLs)
 	if err != nil {
