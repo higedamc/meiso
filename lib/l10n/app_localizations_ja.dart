@@ -1393,6 +1393,78 @@ class AppLocalizationsJa extends AppLocalizations {
   String get cryptoTocItem8 => '8. 脅威モデルと制限事項';
 
   @override
+  String get cryptoTocItem9 => '9. 共有リスト - ハイブリッド暗号化';
+
+  @override
+  String get cryptoCollabListsTitle => '9. 共有リスト — ハイブリッド暗号化';
+
+  @override
+  String get cryptoCollabListsIntro =>
+      '共有リストは2層のハイブリッド暗号化方式を採用しています。タスクデータは一度だけ暗号化されますが、'
+      '許可されたメンバーは全員、自身のNostrキーペアのみを使って独立して復号できます。'
+      '信頼できる鍵サーバーは不要です。';
+
+  @override
+  String get cryptoCollabHybridTitle => 'ハイブリッド方式の仕組み';
+
+  @override
+  String get cryptoCollabHybridDesc =>
+      'ランダムな256ビットのAES鍵がリストのペイロードを暗号化します（AES-256-GCM）。'
+      'その鍵はメンバーごとにNIP-44 v2（ECDH over secp256k1 → HKDF-SHA256 → ChaCha20-Poly1305）'
+      'を使って個別にラップされます。各メンバーは小さな暗号化ブロブを1つ保持し、'
+      'バルク暗号文は共有されます。';
+
+  @override
+  String get cryptoCollabEncryptionFlow =>
+      '暗号化\n'
+      '  tasks (JSON) ──AES-256-GCM (ランダム鍵 + 12バイトnonce)──► 暗号文\n'
+      '\n'
+      'メンバーごとに鍵をラップ\n'
+      '  owner_sk × member_pk ──ECDH──► 共有シークレット\n'
+      '  共有シークレット ──HKDF-SHA256──► ラップ鍵\n'
+      '  ラップ鍵 ──NIP-44 v2──► encrypted_aes_key\n'
+      '\n'
+      'Nostrイベントを公開\n'
+      '  { encrypted_data, members[], encrypted_keys[] }';
+
+  @override
+  String get cryptoCollabMembershipTitle => 'メンバーシップの変更';
+
+  @override
+  String get cryptoCollabAddMember => 'メンバーの追加';
+
+  @override
+  String get cryptoCollabAddMemberDesc =>
+      '既存のAES鍵をNIP-44 v2で新メンバー用にラップするだけです。'
+      'リストのペイロードの再暗号化は不要です。';
+
+  @override
+  String get cryptoCollabRemoveMember => 'メンバーの削除（前方秘匿性）';
+
+  @override
+  String get cryptoCollabRemoveMemberDesc =>
+      '新しいランダムなAES鍵を生成し、リスト全体を再暗号化して、'
+      '残りの全メンバー用に新しい鍵を再ラップします。'
+      '削除されたメンバーの古いencrypted_aes_keyは永続的に無効になります。';
+
+  @override
+  String get cryptoCollabPrimitivesTitle => '使用する暗号プリミティブ';
+
+  @override
+  String get cryptoCollabPrimitivesTable =>
+      'レイヤー               アルゴリズム\n'
+      '─────────────────────────────────────────────\n'
+      'リスト暗号化           AES-256-GCM\n'
+      '鍵共有                 ECDH / secp256k1 (NIP-44 v2)\n'
+      '鍵導出                 HKDF-SHA256 (NIP-44内部)\n'
+      'RNG                    OsRng (OS提供のCSPRNG)\n'
+      'イベント真正性          Schnorr / secp256k1 (Nostr)';
+
+  @override
+  String get cryptoCollabReference =>
+      '📚 設計文書: docs/COLLABORATIVE_LISTS_ENCRYPTION.md';
+
+  @override
   String get cryptoFooterSecurityTitle => '🔒 セキュリティに関する質問や報告';
 
   @override
