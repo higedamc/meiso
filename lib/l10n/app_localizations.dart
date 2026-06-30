@@ -2626,6 +2626,51 @@ abstract class AppLocalizations {
   /// **'8. Threat Model and Limitations'**
   String get cryptoTocItem8;
 
+  /// ToC item 9 - Collaborative Lists
+  ///
+  /// In en, this message translates to:
+  /// **'9. Collaborative Lists - Hybrid Encryption'**
+  String get cryptoTocItem9;
+
+  /// Collaborative lists section title
+  String get cryptoCollabListsTitle;
+
+  /// Collaborative lists intro paragraph
+  String get cryptoCollabListsIntro;
+
+  /// Collaborative lists hybrid scheme subheading
+  String get cryptoCollabHybridTitle;
+
+  /// Collaborative lists hybrid scheme description
+  String get cryptoCollabHybridDesc;
+
+  /// Collaborative lists encryption flow code block
+  String get cryptoCollabEncryptionFlow;
+
+  /// Collaborative lists membership changes subheading
+  String get cryptoCollabMembershipTitle;
+
+  /// Add member description
+  String get cryptoCollabAddMember;
+
+  /// Add member detail
+  String get cryptoCollabAddMemberDesc;
+
+  /// Remove member description (forward secrecy)
+  String get cryptoCollabRemoveMember;
+
+  /// Remove member detail
+  String get cryptoCollabRemoveMemberDesc;
+
+  /// Collaborative lists primitives subheading
+  String get cryptoCollabPrimitivesTitle;
+
+  /// Collaborative lists primitives code block
+  String get cryptoCollabPrimitivesTable;
+
+  /// Collaborative lists reference link text
+  String get cryptoCollabReference;
+
   /// Footer security title
   ///
   /// In en, this message translates to:

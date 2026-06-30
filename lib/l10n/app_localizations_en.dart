@@ -1439,6 +1439,79 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cryptoTocItem8 => '8. Threat Model and Limitations';
 
   @override
+  String get cryptoTocItem9 => '9. Collaborative Lists - Hybrid Encryption';
+
+  @override
+  String get cryptoCollabListsTitle =>
+      '9. Collaborative Lists — Hybrid Encryption';
+
+  @override
+  String get cryptoCollabListsIntro =>
+      'Shared lists use a two-layer hybrid encryption scheme so that task data '
+      'is encrypted once, yet any authorised member can independently decrypt '
+      'it using only their own Nostr keypair — no trusted key server required.';
+
+  @override
+  String get cryptoCollabHybridTitle => 'How the Hybrid Scheme Works';
+
+  @override
+  String get cryptoCollabHybridDesc =>
+      'A random 256-bit AES key encrypts the list payload (AES-256-GCM). That '
+      'AES key is then wrapped individually for every member using NIP-44 v2 '
+      '(ECDH over secp256k1 → HKDF-SHA256 → ChaCha20-Poly1305). Each member '
+      'stores one small encrypted blob; the bulk ciphertext is shared.';
+
+  @override
+  String get cryptoCollabEncryptionFlow =>
+      'Encrypt\n'
+      '  tasks (JSON) ──AES-256-GCM (random key + 12-byte nonce)──► ciphertext\n'
+      '\n'
+      'Wrap key per member\n'
+      '  owner_sk × member_pk ──ECDH──► shared_secret\n'
+      '  shared_secret ──HKDF-SHA256──► wrap_key\n'
+      '  wrap_key ──NIP-44 v2──► encrypted_aes_key\n'
+      '\n'
+      'Publish Nostr event\n'
+      '  { encrypted_data, members[], encrypted_keys[] }';
+
+  @override
+  String get cryptoCollabMembershipTitle => 'Membership Changes';
+
+  @override
+  String get cryptoCollabAddMember => 'Adding a member';
+
+  @override
+  String get cryptoCollabAddMemberDesc =>
+      'Wrap the existing AES key for the new member with NIP-44 v2. '
+      'No re-encryption of the list payload is required.';
+
+  @override
+  String get cryptoCollabRemoveMember => 'Removing a member (forward secrecy)';
+
+  @override
+  String get cryptoCollabRemoveMemberDesc =>
+      'Generate a fresh random AES key, re-encrypt the entire list, and '
+      're-wrap the new key for all remaining members. The removed member\'s '
+      'old encrypted_aes_key becomes permanently useless.';
+
+  @override
+  String get cryptoCollabPrimitivesTitle => 'Cryptographic Primitives';
+
+  @override
+  String get cryptoCollabPrimitivesTable =>
+      'Layer               Algorithm\n'
+      '─────────────────────────────────────────────\n'
+      'List encryption     AES-256-GCM\n'
+      'Key agreement       ECDH / secp256k1 (NIP-44 v2)\n'
+      'Key derivation      HKDF-SHA256 (inside NIP-44)\n'
+      'RNG                 OsRng (OS-provided CSPRNG)\n'
+      'Event authenticity  Schnorr / secp256k1 (Nostr)';
+
+  @override
+  String get cryptoCollabReference =>
+      '📚 Design doc: docs/COLLABORATIVE_LISTS_ENCRYPTION.md';
+
+  @override
   String get cryptoFooterSecurityTitle => '🔒 Security Questions and Reports';
 
   @override

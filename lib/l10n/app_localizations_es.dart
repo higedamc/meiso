@@ -1458,6 +1458,81 @@ class AppLocalizationsEs extends AppLocalizations {
   String get cryptoTocItem8 => '8. Modelo de Amenazas y Limitaciones';
 
   @override
+  String get cryptoTocItem9 => '9. Listas Colaborativas - Cifrado Híbrido';
+
+  @override
+  String get cryptoCollabListsTitle =>
+      '9. Listas Colaborativas — Cifrado Híbrido';
+
+  @override
+  String get cryptoCollabListsIntro =>
+      'Las listas compartidas utilizan un esquema de cifrado híbrido de dos capas: '
+      'los datos de tareas se cifran una sola vez, pero cualquier miembro autorizado '
+      'puede descifrarlos de forma independiente usando únicamente su propio par de '
+      'claves Nostr, sin necesidad de un servidor de claves de confianza.';
+
+  @override
+  String get cryptoCollabHybridTitle => 'Cómo Funciona el Esquema Híbrido';
+
+  @override
+  String get cryptoCollabHybridDesc =>
+      'Una clave AES aleatoria de 256 bits cifra el payload de la lista (AES-256-GCM). '
+      'Esa clave AES se envuelve individualmente para cada miembro usando NIP-44 v2 '
+      '(ECDH sobre secp256k1 → HKDF-SHA256 → ChaCha20-Poly1305). Cada miembro '
+      'almacena un pequeño blob cifrado; el texto cifrado principal es compartido.';
+
+  @override
+  String get cryptoCollabEncryptionFlow =>
+      'Cifrar\n'
+      '  tareas (JSON) ──AES-256-GCM (clave aleatoria + nonce 12 bytes)──► cifrado\n'
+      '\n'
+      'Envolver clave por miembro\n'
+      '  owner_sk × member_pk ──ECDH──► secreto_compartido\n'
+      '  secreto_compartido ──HKDF-SHA256──► clave_envoltura\n'
+      '  clave_envoltura ──NIP-44 v2──► encrypted_aes_key\n'
+      '\n'
+      'Publicar evento Nostr\n'
+      '  { encrypted_data, members[], encrypted_keys[] }';
+
+  @override
+  String get cryptoCollabMembershipTitle => 'Cambios de Membresía';
+
+  @override
+  String get cryptoCollabAddMember => 'Agregar un miembro';
+
+  @override
+  String get cryptoCollabAddMemberDesc =>
+      'Envuelve la clave AES existente para el nuevo miembro con NIP-44 v2. '
+      'No se requiere re-cifrado del payload de la lista.';
+
+  @override
+  String get cryptoCollabRemoveMember =>
+      'Eliminar un miembro (secreto hacia adelante)';
+
+  @override
+  String get cryptoCollabRemoveMemberDesc =>
+      'Genera una nueva clave AES aleatoria, re-cifra toda la lista y '
+      're-envuelve la nueva clave para todos los miembros restantes. '
+      'El encrypted_aes_key antiguo del miembro eliminado queda permanentemente inútil.';
+
+  @override
+  String get cryptoCollabPrimitivesTitle => 'Primitivas Criptográficas';
+
+  @override
+  String get cryptoCollabPrimitivesTable =>
+      'Capa                  Algoritmo\n'
+      '─────────────────────────────────────────────\n'
+      'Cifrado de lista      AES-256-GCM\n'
+      'Acuerdo de clave      ECDH / secp256k1 (NIP-44 v2)\n'
+      'Derivación de clave   HKDF-SHA256 (dentro de NIP-44)\n'
+      'RNG                   OsRng (CSPRNG del SO)\n'
+      'Autenticidad evento   Schnorr / secp256k1 (Nostr)';
+
+  @override
+  String get cryptoCollabReference =>
+      '📚 Documento de diseño: docs/COLLABORATIVE_LISTS_ENCRYPTION.md';
+
+  @override
   String get cryptoFooterSecurityTitle =>
       '🔒 Preguntas y Reportes de Seguridad';
 
