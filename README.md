@@ -68,6 +68,19 @@ fvm flutter build apk --flavor production --release
 - **Architecture**: Feature-based Clean Architecture
 - **CUI**: Go (terminal companion app with Nostr sync)
 
+## Architecture
+
+### Collaborative Lists Encryption
+
+Shared lists use a hybrid encryption scheme: task data is encrypted with a
+random AES-256-GCM key, and that key is distributed to each member via NIP-44
+v2 (ECDH over secp256k1). Members can be added or revoked without
+re-encrypting the payload for every change; revocation triggers a full key
+rotation to enforce forward secrecy. Event authenticity is guaranteed by
+Nostr's Schnorr signatures.
+
+→ **[Full design doc: docs/COLLABORATIVE_LISTS_ENCRYPTION.md](docs/COLLABORATIVE_LISTS_ENCRYPTION.md)**
+
 ## Documentation
 
 - **[Development Roadmap](docs/MLS_BETA_ROADMAP.md)** - Upcoming features and MLS group lists
