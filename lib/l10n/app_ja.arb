@@ -834,7 +834,7 @@
   "cryptoCollabListsIntro": "共有リストは2層のハイブリッド暗号化方式を採用しています。タスクデータは一度だけ暗号化されますが、許可されたメンバーは全員、自身のNostrキーペアのみを使って独立して復号できます。信頼できる鍵サーバーは不要です。",
   "cryptoCollabHybridTitle": "ハイブリッド方式の仕組み",
   "cryptoCollabHybridDesc": "ランダムな256ビットのAES鍵がリストのペイロードを暗号化します（AES-256-GCM）。その鍵はメンバーごとにNIP-44 v2（ECDH over secp256k1 → HKDF-SHA256 → ChaCha20-Poly1305）を使って個別にラップされます。各メンバーは小さな暗号化ブロブを1つ保持し、バルク暗号文は共有されます。",
-  "cryptoCollabEncryptionFlow": "暗号化\n  tasks (JSON) ──AES-256-GCM (ランダム鍵 + 12バイトnonce)──► 暗号文\n\nメンバーごとに鍵をラップ\n  owner_sk × member_pk ──ECDH──► 共有シークレット\n  共有シークレット ──HKDF-SHA256──► ラップ鍵\n  ラップ鍵 ──NIP-44 v2──► encrypted_aes_key\n\nNostrイベントを公開\n  '{' encrypted_data, members[], encrypted_keys[] '}'",
+  "cryptoCollabEncryptionFlow": "暗号化\n  tasks (JSON) ──AES-256-GCM (ランダム鍵 + 12バイトnonce)──► 暗号文\n\nメンバーごとに鍵をラップ\n  owner_sk × member_pk ──ECDH──► 共有シークレット\n  共有シークレット ──HKDF-SHA256──► ラップ鍵\n  ラップ鍵 ──NIP-44 v2──► encrypted_aes_key\n\nNostrイベントを公開\n  フィールド: encrypted_data, members[], encrypted_keys[]",
   "cryptoCollabMembershipTitle": "メンバーシップの変更",
   "cryptoCollabAddMember": "メンバーの追加",
   "cryptoCollabAddMemberDesc": "既存のAES鍵をNIP-44 v2で新メンバー用にラップするだけです。リストのペイロードの再暗号化は不要です。",

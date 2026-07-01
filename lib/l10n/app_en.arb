@@ -2257,7 +2257,7 @@
     "description": "Collaborative lists hybrid scheme description"
   },
 
-  "cryptoCollabEncryptionFlow": "Encrypt\n  tasks (JSON) ──AES-256-GCM (random key + 12-byte nonce)──► ciphertext\n\nWrap key per member\n  owner_sk × member_pk ──ECDH──► shared_secret\n  shared_secret ──HKDF-SHA256──► wrap_key\n  wrap_key ──NIP-44 v2──► encrypted_aes_key\n\nPublish Nostr event\n  '{' encrypted_data, members[], encrypted_keys[] '}'",
+  "cryptoCollabEncryptionFlow": "Encrypt\n  tasks (JSON) ──AES-256-GCM (random key + 12-byte nonce)──► ciphertext\n\nWrap key per member\n  owner_sk × member_pk ──ECDH──► shared_secret\n  shared_secret ──HKDF-SHA256──► wrap_key\n  wrap_key ──NIP-44 v2──► encrypted_aes_key\n\nPublish Nostr event\n  fields: encrypted_data, members[], encrypted_keys[]",
   "@cryptoCollabEncryptionFlow": {
     "description": "Collaborative lists encryption flow code block"
   },
