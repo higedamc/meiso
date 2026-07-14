@@ -3991,102 +3991,109 @@ class TodosNotifier
 
           AppLogger.debug(' 公開鍵: ${publicKey.substring(0, 16)}...');
 
-          // すべてのリストを復号化してマージ
+          // すべてのリストを並列復号してマージ
+          // ContentProvider 復号はネイティブ側スレッドプールで並列実行され、
+          // Intent フォールバックは AmberService 内のロックで直列化される
           final allSyncedTodos = <Todo>[];
+          final decryptPk = publicKey;
+          final decryptNpub = npub;
 
-          for (final encryptedEvent in encryptedEvents) {
-            try {
-              AppLogger.debug(
-                ' リストを復号化中 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId})',
-              );
-
-              // Amberで復号化
-              String decryptedJson;
+          final decryptedLists = await Future.wait(
+            encryptedEvents.map((encryptedEvent) async {
               try {
-                // まずContentProvider経由で試す（バックグラウンド処理）
-                decryptedJson = await amberService
-                    .decryptNip44WithContentProvider(
-                      ciphertext: encryptedEvent.encryptedContent,
-                      pubkey: publicKey,
-                      npub: npub,
-                    );
-                AppLogger.info(' 復号化完了（バックグラウンド）');
-              } on PlatformException catch (e) {
-                // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-                AppLogger.warning(
-                  ' ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...',
+                AppLogger.debug(
+                  ' リストを復号化中 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId})',
                 );
-                decryptedJson = await amberService.decryptNip44(
-                  encryptedEvent.encryptedContent,
-                  publicKey,
+
+                // Amberで復号化
+                String decryptedJson;
+                try {
+                  // まずContentProvider経由で試す（バックグラウンド処理）
+                  decryptedJson = await amberService
+                      .decryptNip44WithContentProvider(
+                        ciphertext: encryptedEvent.encryptedContent,
+                        pubkey: decryptPk,
+                        npub: decryptNpub,
+                      );
+                  AppLogger.info(' 復号化完了（バックグラウンド）');
+                } on PlatformException catch (e) {
+                  // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+                  AppLogger.warning(
+                    ' ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...',
+                  );
+                  decryptedJson = await amberService.decryptNip44(
+                    encryptedEvent.encryptedContent,
+                    decryptPk,
+                  );
+                  AppLogger.info(' 復号化完了（UI経由）');
+                }
+
+                // JSONをパース（Todoリスト配列）
+                final todoList = jsonDecode(decryptedJson) as List<dynamic>;
+
+                final syncedTodos = todoList.map((todoMap) {
+                  final map = todoMap as Map<String, dynamic>;
+                  final eventListKey = _customListIdFromDTag(
+                    encryptedEvent.listId,
+                  );
+                  return Todo(
+                    id: map['id'] as String,
+                    title: map['title'] as String,
+                    completed: map['completed'] as bool,
+                    date: map['date'] != null
+                        ? _normalizeDateForGrouping(
+                            DateTime.parse(map['date'] as String),
+                          )
+                        : null,
+                    order: map['order'] as int,
+                    createdAt: DateTime.parse(map['created_at'] as String),
+                    updatedAt: DateTime.parse(map['updated_at'] as String),
+                    eventId:
+                        map['event_id'] as String? ?? encryptedEvent.eventId,
+                    linkPreview: map['link_preview'] != null
+                        ? LinkPreview.fromJson(
+                            map['link_preview'] as Map<String, dynamic>,
+                          )
+                        : null,
+                    // d tag由来のlist keyを優先し、payload側の旧形式IDは互換正規化する。
+                    customListId:
+                        eventListKey ??
+                        CustomListHelpers.normalizeListIdFromNostr(
+                          map['custom_list_id'] as String?,
+                        ),
+                    recurrence: map['recurrence'] != null
+                        ? RecurrencePattern.fromJson(
+                            map['recurrence'] as Map<String, dynamic>,
+                          )
+                        : null,
+                    parentRecurringId: map['parent_recurring_id'] as String?,
+                    parentTaskId: map['parent_task_id'] as String?,
+                    depth: (map['depth'] as int?) ?? 0,
+                    taskLinks: _parseTaskLinksFromMap(map['task_links']),
+                    imageUrl: map['image_url'] as String?,
+                    needsSync: false,
+                  );
+                }).toList();
+
+                AppLogger.info(
+                  ' リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})',
                 );
-                AppLogger.info(' 復号化完了（UI経由）');
+                return syncedTodos;
+              } catch (e, stackTrace) {
+                // 復号化・パースエラー：このリストをスキップして次へ
+                AppLogger.error(
+                  '❌ リスト復号化失敗 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId}): $e',
+                  error: e,
+                  stackTrace: stackTrace,
+                );
+                AppLogger.warning('⚠️ このリストをスキップして続行します');
+                return const <Todo>[];
               }
-
-              // JSONをパース（Todoリスト配列）
-              final todoList = jsonDecode(decryptedJson) as List<dynamic>;
-
-              final syncedTodos = todoList.map((todoMap) {
-                final map = todoMap as Map<String, dynamic>;
-                final eventListKey = _customListIdFromDTag(
-                  encryptedEvent.listId,
-                );
-                return Todo(
-                  id: map['id'] as String,
-                  title: map['title'] as String,
-                  completed: map['completed'] as bool,
-                  date: map['date'] != null
-                      ? _normalizeDateForGrouping(
-                          DateTime.parse(map['date'] as String),
-                        )
-                      : null,
-                  order: map['order'] as int,
-                  createdAt: DateTime.parse(map['created_at'] as String),
-                  updatedAt: DateTime.parse(map['updated_at'] as String),
-                  eventId: map['event_id'] as String? ?? encryptedEvent.eventId,
-                  linkPreview: map['link_preview'] != null
-                      ? LinkPreview.fromJson(
-                          map['link_preview'] as Map<String, dynamic>,
-                        )
-                      : null,
-                  // d tag由来のlist keyを優先し、payload側の旧形式IDは互換正規化する。
-                  customListId:
-                      eventListKey ??
-                      CustomListHelpers.normalizeListIdFromNostr(
-                        map['custom_list_id'] as String?,
-                      ),
-                  recurrence: map['recurrence'] != null
-                      ? RecurrencePattern.fromJson(
-                          map['recurrence'] as Map<String, dynamic>,
-                        )
-                      : null,
-                  parentRecurringId: map['parent_recurring_id'] as String?,
-                  parentTaskId: map['parent_task_id'] as String?,
-                  depth: (map['depth'] as int?) ?? 0,
-                  taskLinks: _parseTaskLinksFromMap(map['task_links']),
-                  imageUrl: map['image_url'] as String?,
-                  needsSync: false,
-                );
-              }).toList();
-
-              AppLogger.info(
-                ' リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})',
-              );
-              allSyncedTodos.addAll(syncedTodos);
-            } catch (e, stackTrace) {
-              // 復号化・パースエラー：このリストをスキップして次へ
-              AppLogger.error(
-                '❌ リスト復号化失敗 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId}): $e',
-                error: e,
-                stackTrace: stackTrace,
-              );
-              AppLogger.warning('⚠️ このリストをスキップして続行します');
-            }
-          }
-
-          AppLogger.info(
-            '🎉 [DEBUG] For loop completed! About to log sync status...',
+            }),
           );
+          for (final syncedTodos in decryptedLists) {
+            allSyncedTodos.addAll(syncedTodos);
+          }
           AppLogger.info(' [Sync] 3/3: Todoを同期中...');
           AppLogger.info(' すべてのリスト復号化完了: 合計${allSyncedTodos.length}件のTodo');
 
@@ -4363,71 +4370,82 @@ class TodosNotifier
         }
 
         // 差分イベントは「変更のあったリストのみ」なので、リスト単位で置換する
-        for (final event in encryptedEvents) {
-          final dTag = event.listId;
-          final listKey = _customListIdFromDTag(dTag); // null=default
+        // 復号は並列実行し、updatedFlat への反映は順序を保って直列に行う
+        final deltaPk = publicKey;
+        final deltaNpub = npub;
+        final decryptedDeltas = await Future.wait(
+          encryptedEvents.map((event) async {
+            final dTag = event.listId;
+            final listKey = _customListIdFromDTag(dTag); // null=default
 
-          try {
-            String decryptedJson;
             try {
-              decryptedJson = await amberService
-                  .decryptNip44WithContentProvider(
-                    ciphertext: event.encryptedContent,
-                    pubkey: publicKey,
-                    npub: npub,
-                  );
-            } on PlatformException {
-              decryptedJson = await amberService.decryptNip44(
-                event.encryptedContent,
-                publicKey,
+              String decryptedJson;
+              try {
+                decryptedJson = await amberService
+                    .decryptNip44WithContentProvider(
+                      ciphertext: event.encryptedContent,
+                      pubkey: deltaPk,
+                      npub: deltaNpub,
+                    );
+              } on PlatformException {
+                decryptedJson = await amberService.decryptNip44(
+                  event.encryptedContent,
+                  deltaPk,
+                );
+              }
+
+              final todoList = jsonDecode(decryptedJson) as List<dynamic>;
+              final replacementTodos = todoList.map((todoMap) {
+                final map = todoMap as Map<String, dynamic>;
+                return Todo(
+                  id: map['id'] as String,
+                  title: map['title'] as String,
+                  completed: map['completed'] as bool,
+                  date: map['date'] != null
+                      ? _normalizeDateForGrouping(
+                          DateTime.parse(map['date'] as String),
+                        )
+                      : null,
+                  order: map['order'] as int,
+                  createdAt: DateTime.parse(map['created_at'] as String),
+                  updatedAt: DateTime.parse(map['updated_at'] as String),
+                  eventId: map['event_id'] as String? ?? event.eventId,
+                  linkPreview: map['link_preview'] != null
+                      ? LinkPreview.fromJson(
+                          map['link_preview'] as Map<String, dynamic>,
+                        )
+                      : null,
+                  customListId: listKey,
+                  recurrence: map['recurrence'] != null
+                      ? RecurrencePattern.fromJson(
+                          map['recurrence'] as Map<String, dynamic>,
+                        )
+                      : null,
+                  parentRecurringId: map['parent_recurring_id'] as String?,
+                  parentTaskId: map['parent_task_id'] as String?,
+                  depth: (map['depth'] as int?) ?? 0,
+                  taskLinks: _parseTaskLinksFromMap(map['task_links']),
+                  imageUrl: map['image_url'] as String?,
+                  needsSync: false,
+                );
+              }).toList();
+
+              return (listKey: listKey, todos: replacementTodos);
+            } catch (e) {
+              AppLogger.warning(
+                ' [Todos] Delta decrypt failed for list=$dTag: $e',
               );
+              // このリストは更新しない（ローカルを保持）
+              return null;
             }
+          }),
+        );
 
-            final todoList = jsonDecode(decryptedJson) as List<dynamic>;
-            final replacementTodos = todoList.map((todoMap) {
-              final map = todoMap as Map<String, dynamic>;
-              return Todo(
-                id: map['id'] as String,
-                title: map['title'] as String,
-                completed: map['completed'] as bool,
-                date: map['date'] != null
-                    ? _normalizeDateForGrouping(
-                        DateTime.parse(map['date'] as String),
-                      )
-                    : null,
-                order: map['order'] as int,
-                createdAt: DateTime.parse(map['created_at'] as String),
-                updatedAt: DateTime.parse(map['updated_at'] as String),
-                eventId: map['event_id'] as String? ?? event.eventId,
-                linkPreview: map['link_preview'] != null
-                    ? LinkPreview.fromJson(
-                        map['link_preview'] as Map<String, dynamic>,
-                      )
-                    : null,
-                customListId: listKey,
-                recurrence: map['recurrence'] != null
-                    ? RecurrencePattern.fromJson(
-                        map['recurrence'] as Map<String, dynamic>,
-                      )
-                    : null,
-                parentRecurringId: map['parent_recurring_id'] as String?,
-                parentTaskId: map['parent_task_id'] as String?,
-                depth: (map['depth'] as int?) ?? 0,
-                taskLinks: _parseTaskLinksFromMap(map['task_links']),
-                imageUrl: map['image_url'] as String?,
-                needsSync: false,
-              );
-            }).toList();
-
-            // 影響リストのみ置換
-            updatedFlat.removeWhere((t) => t.customListId == listKey);
-            updatedFlat.addAll(replacementTodos);
-          } catch (e) {
-            AppLogger.warning(
-              ' [Todos] Delta decrypt failed for list=$dTag: $e',
-            );
-            // このリストは更新しない（ローカルを保持）
-          }
+        // 影響リストのみ置換
+        for (final delta in decryptedDeltas) {
+          if (delta == null) continue;
+          updatedFlat.removeWhere((t) => t.customListId == delta.listKey);
+          updatedFlat.addAll(delta.todos);
         }
       } else {
         final deltaTodos = await nostrService.syncTodoListFromNostrSince(
@@ -6704,30 +6722,36 @@ class TodosNotifier
 
       AppLogger.info('📥 Found ${groupLists.length} group lists');
 
-      // 全グループのタスクを復号化
+      // 全グループのタスクを並列復号
+      // Amber ContentProvider 復号はネイティブ側スレッドプールで並列実行され、
+      // Intent フォールバックは AmberService 内のロックで直列化される
       final groupTodosMap = <String, List<Todo>>{};
 
-      for (final groupList in groupLists) {
-        try {
-          AppLogger.debug(
-            '🔓 Decrypting tasks for group: ${groupList.groupName}',
-          );
-          final groupTodos = await groupTaskService.decryptGroupTaskList(
-            groupList: groupList,
-            publicKey: publicKey,
-            npub: npub,
-          );
-          groupTodosMap[groupList.groupId] = groupTodos;
-          AppLogger.debug(
-            '✅ Decrypted ${groupTodos.length} todos from ${groupList.groupName}',
-          );
-        } catch (e) {
-          AppLogger.error(
-            '❌ Failed to decrypt group ${groupList.groupName}: $e',
-          );
-          // エラーでも他のグループは処理続行
-        }
-      }
+      final pk = publicKey;
+      final np = npub;
+      await Future.wait(
+        groupLists.map((groupList) async {
+          try {
+            AppLogger.debug(
+              '🔓 Decrypting tasks for group: ${groupList.groupName}',
+            );
+            final groupTodos = await groupTaskService.decryptGroupTaskList(
+              groupList: groupList,
+              publicKey: pk,
+              npub: np,
+            );
+            groupTodosMap[groupList.groupId] = groupTodos;
+            AppLogger.debug(
+              '✅ Decrypted ${groupTodos.length} todos from ${groupList.groupName}',
+            );
+          } catch (e) {
+            AppLogger.error(
+              '❌ Failed to decrypt group ${groupList.groupName}: $e',
+            );
+            // エラーでも他のグループは処理続行
+          }
+        }),
+      );
 
       final totalTodos = groupTodosMap.values.fold<int>(
         0,
