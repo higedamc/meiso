@@ -982,9 +982,9 @@ impl MeisoNostrClient {
             dev_println!("  - List '{}': {} todos", list_id, list_todos.len());
         }
 
-        let mut last_result: Option<EventSendResult> = None;
+        // 各リストごとにイベントを作成（署名・暗号化はローカル処理なので直列で十分）
+        let mut events: Vec<Event> = Vec::with_capacity(grouped_todos.len());
 
-        // 各リストごとにイベントを作成・送信
         for (list_id, list_todos) in grouped_todos {
             let todos_json = serde_json::to_string(&list_todos)?;
 
@@ -1029,17 +1029,27 @@ impl MeisoNostrClient {
                 .await?;
 
             dev_println!(
-                "📤 Sending TODO list event (d='{}', {} todos)",
+                "📤 Prepared TODO list event (d='{}', {} todos)",
                 d_tag_value,
                 list_todos.len()
             );
 
-            // リレーに送信
-            let result = self.send_event_with_result(event).await?;
-            last_result = Some(result);
+            events.push(event);
         }
 
-        // 最後のイベントの結果を返す（複数リストの場合）
+        // 全リストのイベントを並列送信（各送信は個別に3秒タイムアウト）
+        let results = futures::future::join_all(
+            events
+                .into_iter()
+                .map(|event| self.send_event_with_result(event)),
+        )
+        .await;
+
+        // 最後のイベントの結果を返す（複数リストの場合、従来のセマンティクスを維持）
+        let mut last_result: Option<EventSendResult> = None;
+        for result in results {
+            last_result = Some(result?);
+        }
         last_result.ok_or_else(|| anyhow::anyhow!("No lists to send"))
     }
 
