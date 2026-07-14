@@ -6230,8 +6230,9 @@ class TodosNotifier
       await state.whenData((todos) async {
         final updated = Map<DateTime?, List<Todo>>.from(todos);
 
-        // 既存のグループタスクを全て削除
-        final allGroupIds = groupLists.map((g) => g.groupId).toSet();
+        // 復号に成功したグループのタスクのみ置き換える
+        // （復号失敗グループの既存タスクを消さないため）
+        final allGroupIds = groupTodosMap.keys.toSet();
         for (final dateKey in updated.keys) {
           updated[dateKey] = updated[dateKey]!
               .where(
