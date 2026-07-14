@@ -234,7 +234,11 @@ class NostrService {
       final enabled = s?.nip89ClientTagEnabled ?? true;
       await rust_api.setNip89ClientTagEnabled(enabled: enabled);
     } catch (e, st) {
-      AppLogger.warning('NIP-89 client tag flag not set', error: e, stackTrace: st);
+      AppLogger.warning(
+        'NIP-89 client tag flag not set',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 
@@ -759,11 +763,21 @@ class NostrService {
       if (pubkey == null) {
         throw Exception('Public key is not initialized');
       }
-      await _applyRelayConnectionMetadata();
-      await rust_api.initNostrClientWithPubkey(
-        publicKeyHex: pubkey,
-        relays: uniqueRelays,
-      );
+      // 既存クライアントがあればリレーの差分更新のみ行う。
+      // クライアント再生成は全リレーの再接続（数秒〜十数秒）を伴うため、
+      // 未初期化でupdateRelayListが失敗した場合のみフォールバックする。
+      try {
+        await rust_api.updateRelayList(relays: uniqueRelays);
+      } catch (e) {
+        AppLogger.debug(
+          ' [Relays] updateRelayList failed, re-initializing client: $e',
+        );
+        await _applyRelayConnectionMetadata();
+        await rust_api.initNostrClientWithPubkey(
+          publicKeyHex: pubkey,
+          relays: uniqueRelays,
+        );
+      }
     } else {
       await rust_api.updateRelayList(relays: uniqueRelays);
     }
