@@ -10,22 +10,28 @@ import '../services/logger_service.dart';
 class AmberService {
   // Amberのパッケージ名（将来の実装で使用予定）
   // static const String _amberPackage = 'com.greenart7c3.nostrsigner';
-  static const MethodChannel _channel = MethodChannel('jp.godzhigella.meiso/amber');
-  static const EventChannel _eventChannel = EventChannel('jp.godzhigella.meiso/amber_events');
-  
+  static const MethodChannel _channel = MethodChannel(
+    'jp.godzhigella.meiso/amber',
+  );
+  static const EventChannel _eventChannel = EventChannel(
+    'jp.godzhigella.meiso/amber_events',
+  );
+
   // Amberからの応答を受け取るためのStreamController
-  final _amberResponseController = StreamController<Map<String, dynamic>>.broadcast();
-  Stream<Map<String, dynamic>> get amberResponseStream => _amberResponseController.stream;
-  
+  final _amberResponseController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get amberResponseStream =>
+      _amberResponseController.stream;
+
   StreamSubscription<dynamic>? _eventSubscription;
-  
+
   /// EventChannelのリスニングを開始
   void startListening() {
     if (_eventSubscription != null) {
       AppLogger.warning(' EventChannel already listening');
       return;
     }
-    
+
     AppLogger.debug('👂 Starting EventChannel listening...');
     _eventSubscription = _eventChannel.receiveBroadcastStream().listen(
       (dynamic event) {
@@ -44,18 +50,32 @@ class AmberService {
       },
     );
   }
-  
+
   /// EventChannelのリスニングを停止
   void stopListening() {
     AppLogger.debug(' Stopping EventChannel listening...');
     _eventSubscription?.cancel();
     _eventSubscription = null;
   }
-  
+
   /// リソースをクリーンアップ
   void dispose() {
     stopListening();
     _amberResponseController.close();
+  }
+
+  // Intent 経由の Amber フロー（署名/暗号化/復号化）を直列化するロック。
+  // Intent フローはネイティブ側の pendingResult（単一スロット）と
+  // 共有 broadcast stream の「最初に届いた result」に依存しているため、
+  // 並行実行するとレスポンスを取り違える。
+  // AmberService は複数箇所で都度 new されるため static で共有する。
+  static Future<void> _intentFlowTail = Future<void>.value();
+
+  Future<T> _runIntentFlow<T>(Future<T> Function() action) {
+    final completer = Completer<void>();
+    final previous = _intentFlowTail;
+    _intentFlowTail = completer.future;
+    return previous.then((_) => action()).whenComplete(completer.complete);
   }
 
   /// Amberがインストールされているか確認
@@ -77,17 +97,23 @@ class AmberService {
 
     try {
       AppLogger.debug(' Requesting public key from Amber...');
-      final publicKey = await _channel.invokeMethod<String>('getPublicKeyFromAmber');
-      
+      final publicKey = await _channel.invokeMethod<String>(
+        'getPublicKeyFromAmber',
+      );
+
       if (publicKey != null && publicKey.isNotEmpty) {
-        AppLogger.info(' Received public key from Amber: ${publicKey.substring(0, 10)}...');
+        AppLogger.info(
+          ' Received public key from Amber: ${publicKey.substring(0, 10)}...',
+        );
         return publicKey;
       }
-      
+
       AppLogger.warning(' No public key received from Amber');
       return null;
     } on PlatformException catch (e) {
-      AppLogger.error(' Failed to get public key from Amber: ${e.code} - ${e.message}');
+      AppLogger.error(
+        ' Failed to get public key from Amber: ${e.code} - ${e.message}',
+      );
       if (e.code == 'AMBER_USER_REJECTED') {
         throw Exception('ユーザーがAmberでの認証をキャンセルしました');
       }
@@ -110,16 +136,18 @@ class AmberService {
         'signEventWithAmber',
         {'event': eventJson},
       );
-      
+
       if (signedEvent != null && signedEvent.isNotEmpty) {
         AppLogger.info(' Received signed event from Amber');
         return signedEvent;
       }
-      
+
       AppLogger.warning(' No signed event received from Amber');
       return null;
     } on PlatformException catch (e) {
-      AppLogger.error(' Failed to sign event with Amber: ${e.code} - ${e.message}');
+      AppLogger.error(
+        ' Failed to sign event with Amber: ${e.code} - ${e.message}',
+      );
       if (e.code == 'AMBER_USER_REJECTED') {
         throw Exception('ユーザーがAmberでの署名をキャンセルしました');
       }
@@ -165,12 +193,21 @@ class AmberService {
   Future<String> signEventWithTimeout(
     String unsignedEventJson, {
     Duration timeout = const Duration(minutes: 2),
+  }) => _runIntentFlow(
+    () => _signEventWithTimeoutUnlocked(unsignedEventJson, timeout: timeout),
+  );
+
+  Future<String> _signEventWithTimeoutUnlocked(
+    String unsignedEventJson, {
+    Duration timeout = const Duration(minutes: 2),
   }) async {
     if (!Platform.isAndroid) {
       throw UnsupportedError('Amber is only available on Android');
     }
 
-    AppLogger.debug(' Signing event with Amber (timeout: ${timeout.inSeconds}s)...');
+    AppLogger.debug(
+      ' Signing event with Amber (timeout: ${timeout.inSeconds}s)...',
+    );
 
     // EventChannelのリスニングを開始（まだの場合）
     startListening();
@@ -184,7 +221,9 @@ class AmberService {
       if (!completer.isCompleted) {
         subscription?.cancel();
         completer.completeError(
-          TimeoutException('Amber signature timeout after ${timeout.inSeconds}s'),
+          TimeoutException(
+            'Amber signature timeout after ${timeout.inSeconds}s',
+          ),
         );
       }
     });
@@ -199,7 +238,9 @@ class AmberService {
           if (!completer.isCompleted) {
             timeoutTimer.cancel();
             subscription?.cancel();
-            completer.completeError(Exception('Amber error: ${response['error']}'));
+            completer.completeError(
+              Exception('Amber error: ${response['error']}'),
+            );
           }
           return;
         }
@@ -251,12 +292,22 @@ class AmberService {
     String plaintext,
     String pubkey, {
     Duration timeout = const Duration(minutes: 2),
+  }) => _runIntentFlow(
+    () => _encryptNip44Unlocked(plaintext, pubkey, timeout: timeout),
+  );
+
+  Future<String> _encryptNip44Unlocked(
+    String plaintext,
+    String pubkey, {
+    Duration timeout = const Duration(minutes: 2),
   }) async {
     if (!Platform.isAndroid) {
       throw UnsupportedError('Amber is only available on Android');
     }
 
-    AppLogger.debug(' Encrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...');
+    AppLogger.debug(
+      ' Encrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...',
+    );
 
     // EventChannelのリスニングを開始（まだの場合）
     startListening();
@@ -269,7 +320,9 @@ class AmberService {
       if (!completer.isCompleted) {
         subscription?.cancel();
         completer.completeError(
-          TimeoutException('Amber encryption timeout after ${timeout.inSeconds}s'),
+          TimeoutException(
+            'Amber encryption timeout after ${timeout.inSeconds}s',
+          ),
         );
       }
     });
@@ -283,7 +336,9 @@ class AmberService {
           if (!completer.isCompleted) {
             timeoutTimer.cancel();
             subscription?.cancel();
-            completer.completeError(Exception('Amber error: ${response['error']}'));
+            completer.completeError(
+              Exception('Amber error: ${response['error']}'),
+            );
           }
           return;
         }
@@ -334,12 +389,22 @@ class AmberService {
     String ciphertext,
     String pubkey, {
     Duration timeout = const Duration(minutes: 2),
+  }) => _runIntentFlow(
+    () => _decryptNip44Unlocked(ciphertext, pubkey, timeout: timeout),
+  );
+
+  Future<String> _decryptNip44Unlocked(
+    String ciphertext,
+    String pubkey, {
+    Duration timeout = const Duration(minutes: 2),
   }) async {
     if (!Platform.isAndroid) {
       throw UnsupportedError('Amber is only available on Android');
     }
 
-    AppLogger.debug(' Decrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...');
+    AppLogger.debug(
+      ' Decrypting with Amber NIP-44 (timeout: ${timeout.inSeconds}s)...',
+    );
 
     // EventChannelのリスニングを開始（まだの場合）
     startListening();
@@ -352,7 +417,9 @@ class AmberService {
       if (!completer.isCompleted) {
         subscription?.cancel();
         completer.completeError(
-          TimeoutException('Amber decryption timeout after ${timeout.inSeconds}s'),
+          TimeoutException(
+            'Amber decryption timeout after ${timeout.inSeconds}s',
+          ),
         );
       }
     });
@@ -366,7 +433,9 @@ class AmberService {
           if (!completer.isCompleted) {
             timeoutTimer.cancel();
             subscription?.cancel();
-            completer.completeError(Exception('Amber error: ${response['error']}'));
+            completer.completeError(
+              Exception('Amber error: ${response['error']}'),
+            );
           }
           return;
         }
@@ -414,9 +483,9 @@ class AmberService {
   // ==================== ContentProvider経由のバックグラウンド処理 ====================
   // これらのメソッドはAmberのパーミッションが「常に許可」に設定されている場合、
   // UIを一切表示せずにバックグラウンドで処理を行います。
-  
+
   /// ContentProvider経由でAmberにイベント署名を依頼（バックグラウンド処理）
-  /// 
+  ///
   /// パーミッションが未承認の場合は`PlatformException`（code: 'AMBER_REJECTED'）をスロー
   Future<String> signEventWithContentProvider({
     required String event,
@@ -435,25 +504,29 @@ class AmberService {
           'npub': npub,
         },
       );
-      
+
       if (signedEvent == null) {
         throw Exception('Amber returned null');
       }
-      
+
       AppLogger.info(' Event signed via ContentProvider (no UI shown)');
       return signedEvent;
     } on PlatformException catch (e) {
       if (e.code == 'AMBER_REJECTED') {
-        AppLogger.warning(' Permission not granted - need to show UI for approval');
+        AppLogger.warning(
+          ' Permission not granted - need to show UI for approval',
+        );
         rethrow;
       }
-      AppLogger.error(' Failed to sign event via ContentProvider: ${e.code} - ${e.message}');
+      AppLogger.error(
+        ' Failed to sign event via ContentProvider: ${e.code} - ${e.message}',
+      );
       rethrow;
     }
   }
 
   /// ContentProvider経由でAmberにNIP-44暗号化を依頼（バックグラウンド処理）
-  /// 
+  ///
   /// パーミッションが未承認の場合は`PlatformException`（code: 'AMBER_REJECTED'）をスロー
   Future<String> encryptNip44WithContentProvider({
     required String plaintext,
@@ -474,25 +547,29 @@ class AmberService {
           'npub': npub,
         },
       );
-      
+
       if (encrypted == null) {
         throw Exception('Amber returned null');
       }
-      
+
       AppLogger.info(' Content encrypted via ContentProvider (no UI shown)');
       return encrypted;
     } on PlatformException catch (e) {
       if (e.code == 'AMBER_REJECTED') {
-        AppLogger.warning(' Permission not granted - need to show UI for approval');
+        AppLogger.warning(
+          ' Permission not granted - need to show UI for approval',
+        );
         rethrow;
       }
-      AppLogger.error(' Failed to encrypt via ContentProvider: ${e.code} - ${e.message}');
+      AppLogger.error(
+        ' Failed to encrypt via ContentProvider: ${e.code} - ${e.message}',
+      );
       rethrow;
     }
   }
 
   /// ContentProvider経由でAmberにNIP-44復号化を依頼（バックグラウンド処理）
-  /// 
+  ///
   /// パーミッションが未承認の場合は`PlatformException`（code: 'AMBER_REJECTED'）をスロー
   Future<String> decryptNip44WithContentProvider({
     required String ciphertext,
@@ -513,21 +590,24 @@ class AmberService {
           'npub': npub,
         },
       );
-      
+
       if (decrypted == null) {
         throw Exception('Amber returned null');
       }
-      
+
       AppLogger.info(' Content decrypted via ContentProvider (no UI shown)');
       return decrypted;
     } on PlatformException catch (e) {
       if (e.code == 'AMBER_REJECTED') {
-        AppLogger.warning(' Permission not granted - need to show UI for approval');
+        AppLogger.warning(
+          ' Permission not granted - need to show UI for approval',
+        );
         rethrow;
       }
-      AppLogger.error(' Failed to decrypt via ContentProvider: ${e.code} - ${e.message}');
+      AppLogger.error(
+        ' Failed to decrypt via ContentProvider: ${e.code} - ${e.message}',
+      );
       rethrow;
     }
   }
 }
-
