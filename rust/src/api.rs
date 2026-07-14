@@ -8,6 +8,11 @@ use std::time::Duration;
 use crate::group_tasks;
 use crate::{DEFAULT_CLIENT_ID, NOSTR_CLIENTS};
 
+/// 同期・起動経路の fetch_events タイムアウト。
+/// fetch_events は全リレーの EOSE で早期リターンするため、
+/// この値が効くのは無応答リレーがいる場合の上限待ち時間のみ。
+const SYNC_FETCH_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// クライアントモード
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMode {
@@ -1016,7 +1021,7 @@ impl MeisoNostrClient {
 
         let events = self
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(vec![filter], Some(SYNC_FETCH_TIMEOUT))
             .await?;
 
         // EventsをVec<Event>に変換
@@ -1298,7 +1303,7 @@ impl MeisoNostrClient {
 
         let events = self
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(vec![filter], Some(SYNC_FETCH_TIMEOUT))
             .await?;
 
         // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
@@ -1379,7 +1384,7 @@ impl MeisoNostrClient {
         dev_println!("🔍 Fetching Kind 10002 events from relays...");
         let events = self
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(vec![filter], Some(SYNC_FETCH_TIMEOUT))
             .await?;
 
         dev_println!("📥 Received {} Kind 10002 events", events.len());
@@ -2531,7 +2536,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
         
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(vec![filter], Some(SYNC_FETCH_TIMEOUT))
             .await?;
         
         if events.is_empty() {
@@ -2544,7 +2549,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
             .author(public_key);
         let deletion_events = client
             .client
-            .fetch_events(vec![deletion_filter], Some(Duration::from_secs(10)))
+            .fetch_events(vec![deletion_filter], Some(SYNC_FETCH_TIMEOUT))
             .await;
 
         use std::collections::HashMap;
