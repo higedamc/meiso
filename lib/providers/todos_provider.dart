@@ -5059,10 +5059,6 @@ class TodosNotifier
       // 1. Group Event(kind:445 + #h) を取得（NIP-EE準拠）
       final nostrService = _ref.read(nostrServiceProvider);
 
-      // 🔥 TEMPORARY DEBUG: 同期時刻を強制リセット（初回同期として扱う）
-      // TODO: Phase 8.4で削除
-      await localStorageService.setLastMlsGroupTodosSyncTime(groupId, null);
-
       final last = localStorageService.getLastMlsGroupTodosSyncTime(groupId);
 
       // 🔥 Phase 8.3 Fix: 初回同期時は since:0 で全イベントを取得
