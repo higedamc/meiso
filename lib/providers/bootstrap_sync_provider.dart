@@ -33,12 +33,12 @@ class BootstrapSyncState {
   });
 
   const BootstrapSyncState.initial()
-      : isBlocking = false,
-        isRunning = false,
-        phase = BootstrapSyncPhase.none,
-        errorMessage = null,
-        canFallbackToLocal = false,
-        hasCompleted = false;
+    : isBlocking = false,
+      isRunning = false,
+      phase = BootstrapSyncPhase.none,
+      errorMessage = null,
+      canFallbackToLocal = false,
+      hasCompleted = false;
 
   final bool isBlocking;
   final bool isRunning;
@@ -60,7 +60,9 @@ class BootstrapSyncState {
       isBlocking: isBlocking ?? this.isBlocking,
       isRunning: isRunning ?? this.isRunning,
       phase: phase ?? this.phase,
-      errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
+      errorMessage: clearErrorMessage
+          ? null
+          : (errorMessage ?? this.errorMessage),
       canFallbackToLocal: canFallbackToLocal ?? this.canFallbackToLocal,
       hasCompleted: hasCompleted ?? this.hasCompleted,
     );
@@ -169,11 +171,15 @@ class BootstrapSyncNotifier extends StateNotifier<BootstrapSyncState> {
           ? globalRelays
           : defaultRelays;
 
-      // Phase 1: Fetch from global relays (reliable, always available)
+      // Phase 1: Fetch from all relays (global + local Citrine) in one pass
+      // 以前は global 同期 → local relay 追加 → 全同期をもう一度、という
+      // 二段構えだったが、TODO 同期とグループ同期が丸ごと二重に走り
+      // 起動が遅くなるため、最初から全リレーに接続して 1 回で同期する
       state = state.copyWith(
         phase: BootstrapSyncPhase.fetchingGlobalTodos,
       );
-      await nostrService.updateActiveRelays(primaryRelays);
+      final allRelays = [...primaryRelays, ...localRelays];
+      await nostrService.updateActiveRelays(allRelays);
       await todosNotifier.syncFromNostr(
         isInitialSync: true,
         trigger: TodoSyncTrigger.appStart,
@@ -183,30 +189,6 @@ class BootstrapSyncNotifier extends StateNotifier<BootstrapSyncState> {
         phase: BootstrapSyncPhase.fetchingGlobalGroupTodos,
       );
       await todosNotifier.syncAllGroupTodos();
-
-      // Phase 2: Fetch from local relay (Citrine) if available — supplementary
-      if (localRelays.isNotEmpty) {
-        state = state.copyWith(
-          phase: BootstrapSyncPhase.fetchingLocalTodos,
-        );
-        try {
-          final allRelays = [...primaryRelays, ...localRelays];
-          await nostrService.updateActiveRelays(allRelays);
-          await todosNotifier.syncFromNostr(
-            isInitialSync: true,
-            trigger: TodoSyncTrigger.appStart,
-          );
-
-          state = state.copyWith(
-            phase: BootstrapSyncPhase.fetchingLocalGroupTodos,
-          );
-          await todosNotifier.syncAllGroupTodos();
-        } catch (e) {
-          AppLogger.warning(
-            ' [Bootstrap] Local relay sync failed (non-fatal): $e',
-          );
-        }
-      }
 
       // Phase 3: Invitations and pending backfill
       state = state.copyWith(
