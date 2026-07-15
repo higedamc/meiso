@@ -229,6 +229,31 @@ const NEGENTROPY_OVERALL_TIMEOUT: std::time::Duration = std::time::Duration::fro
 static NOSTR_DB: once_cell::sync::OnceCell<std::sync::Arc<nostr_lmdb::NostrLMDB>> =
     once_cell::sync::OnceCell::new();
 
+/// Rust 側の同期メタデータログ（negentropy 等）を Dart（Talker）へ流すストリーム。
+/// ⚠️ ここにはリレー数・件数などのメタデータのみを流すこと。
+/// イベント内容・鍵・トークン等の機微情報は絶対に流さない（security audit C-1）。
+static SYNC_LOG_SINK: once_cell::sync::Lazy<
+    std::sync::Mutex<Option<crate::frb_generated::StreamSink<String>>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
+/// Dart 側から購読する同期ログストリームを登録する。
+/// ホットリスタート等での再登録は新しい sink で上書きされる。
+pub fn init_sync_log_stream(sink: crate::frb_generated::StreamSink<String>) {
+    if let Ok(mut guard) = SYNC_LOG_SINK.lock() {
+        *guard = Some(sink);
+    }
+}
+
+/// 同期メタデータログ。debug ビルドでは stdout にも出す。
+fn sync_log(msg: String) {
+    dev_println!("{}", msg);
+    if let Ok(guard) = SYNC_LOG_SINK.lock() {
+        if let Some(sink) = guard.as_ref() {
+            let _ = sink.add(msg);
+        }
+    }
+}
+
 /// 永続イベントキャッシュを初期化する。
 /// アプリ起動時に initNostrClient* より前に一度だけ呼ぶこと。
 /// 2 回目以降の呼び出しは no-op（成功を返す）。
@@ -954,6 +979,13 @@ impl MeisoNostrClient {
         // 永続 DB がなければ差分同期の結果を読み出せない
         NOSTR_DB.get()?;
 
+        // ログ用: 対象 kind（経路の識別のため。内容は含めない）
+        let kinds: Vec<u16> = filter
+            .kinds
+            .as_ref()
+            .map(|k| k.iter().map(|kind| kind.as_u16()).collect())
+            .unwrap_or_default();
+
         let opts = SyncOptions::default()
             .initial_timeout(NEGENTROPY_INITIAL_TIMEOUT)
             .direction(SyncDirection::Down);
@@ -967,10 +999,11 @@ impl MeisoNostrClient {
         {
             Ok(result) => result,
             Err(_) => {
-                dev_println!(
-                    "ℹ️ negentropy sync timed out ({}s), falling back to EOSE fetch",
+                sync_log(format!(
+                    "⏱️ negentropy kinds={:?}: timed out ({}s), falling back to EOSE fetch",
+                    kinds,
                     NEGENTROPY_OVERALL_TIMEOUT.as_secs(),
-                );
+                ));
                 return None;
             }
         };
@@ -979,28 +1012,37 @@ impl MeisoNostrClient {
             Ok(output) if !output.success.is_empty() => {
                 match self.client.database().query(filter).await {
                     Ok(events) => {
-                        dev_println!(
-                            "✅ negentropy sync: {} relay(s) reconciled, {} received, reading local DB",
+                        sync_log(format!(
+                            "✅ negentropy kinds={:?}: {} relay(s) reconciled, {} received, {} events from local DB",
+                            kinds,
                             output.success.len(),
                             output.received.len(),
-                        );
+                            events.len(),
+                        ));
                         Some(events.into_iter().collect())
                     }
                     Err(e) => {
-                        dev_eprintln!("⚠️ local DB query failed after negentropy sync: {}", e);
+                        sync_log(format!(
+                            "⚠️ negentropy kinds={:?}: local DB query failed: {}",
+                            kinds, e,
+                        ));
                         None
                     }
                 }
             }
             Ok(output) => {
-                dev_println!(
-                    "ℹ️ negentropy unsupported/failed on all relays ({} failed), falling back to EOSE fetch",
+                sync_log(format!(
+                    "ℹ️ negentropy kinds={:?}: unsupported/failed on all relays ({} failed), falling back to EOSE fetch",
+                    kinds,
                     output.failed.len(),
-                );
+                ));
                 None
             }
             Err(e) => {
-                dev_println!("ℹ️ negentropy sync error: {}, falling back to EOSE fetch", e);
+                sync_log(format!(
+                    "ℹ️ negentropy kinds={:?}: sync error: {}, falling back to EOSE fetch",
+                    kinds, e,
+                ));
                 None
             }
         }

@@ -75,6 +75,18 @@ void main() async {
     } catch (e) {
       AppLogger.error('Nostr DB 初期化エラー (in-memory で継続)', error: e, tag: 'INIT');
     }
+
+    // Rust 側の同期メタデータログ（negentropy 等）を Talker に転送する。
+    // メタデータ（リレー数・件数）のみでイベント内容や鍵は含まれない。
+    try {
+      rust_api.initSyncLogStream().listen(
+        (msg) => AppLogger.info(msg, tag: 'RUST_SYNC'),
+        onError: (Object e) =>
+            AppLogger.warning('Rust sync log stream error: $e', tag: 'INIT'),
+      );
+    } catch (e) {
+      AppLogger.warning('Rust sync log stream 初期化失敗: $e', tag: 'INIT');
+    }
   } catch (e, stackTrace) {
     AppLogger.error(
       'Rust初期化エラー',
