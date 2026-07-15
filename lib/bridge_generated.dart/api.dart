@@ -4,14 +4,13 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import 'frb_generated.dart';
-import 'group_tasks.dart';
 import 'group_tasks_mls.dart';
 import 'group_tasks_shared.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_nostr_client`, `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `drain_all`, `ensure_subscription_event_listener`, `fetch_events_eose`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `lock_recovering`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `push`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`, `SubscriptionEventQueue`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// 永続イベントキャッシュを初期化する。
 /// アプリ起動時に initNostrClient* より前に一度だけ呼ぶこと。
@@ -678,122 +677,6 @@ Future<CachedEventInfo> createCacheInfo({required String eventJson, required Big
 /// キャッシュが有効かチェック
 Future<bool> isCacheValid({required CachedEventInfo cacheInfo}) =>
     RustLib.instance.api.crateApiIsCacheValid(cacheInfo: cacheInfo);
-
-/// グループタスクリストを暗号化（マルチパーティ暗号化）
-///
-/// # Parameters
-/// - `tasks`: グループタスクのリスト
-/// - `group_id`: グループID（UUID）
-/// - `group_name`: グループ名
-/// - `member_pubkeys`: メンバーの公開鍵リスト（hex形式）
-Future<GroupTodoList> encryptGroupTaskList({
-  required List<GroupTodoData> tasks,
-  required String groupId,
-  required String groupName,
-  required List<String> memberPubkeys,
-}) => RustLib.instance.api.crateApiEncryptGroupTaskList(
-  tasks: tasks,
-  groupId: groupId,
-  groupName: groupName,
-  memberPubkeys: memberPubkeys,
-);
-
-/// グループタスクリストを復号化
-///
-/// # Parameters
-/// - `group_list`: 暗号化されたグループタスクリスト
-Future<List<GroupTodoData>> decryptGroupTaskList({required GroupTodoList groupList}) =>
-    RustLib.instance.api.crateApiDecryptGroupTaskList(groupList: groupList);
-
-/// グループにメンバーを追加
-///
-/// # Parameters
-/// - `group_list`: 既存のグループタスクリスト
-/// - `new_member_pubkey`: 追加するメンバーの公開鍵（hex形式）
-Future<GroupTodoList> addMemberToGroupTaskList({required GroupTodoList groupList, required String newMemberPubkey}) =>
-    RustLib.instance.api.crateApiAddMemberToGroupTaskList(groupList: groupList, newMemberPubkey: newMemberPubkey);
-
-/// グループからメンバーを削除（Forward Secrecy: 全体を再暗号化）
-///
-/// # Parameters
-/// - `group_list`: 既存のグループタスクリスト
-/// - `member_to_remove`: 削除するメンバーの公開鍵（hex形式）
-Future<GroupTodoList> removeMemberFromGroupTaskList({
-  required GroupTodoList groupList,
-  required String memberToRemove,
-}) => RustLib.instance.api.crateApiRemoveMemberFromGroupTaskList(groupList: groupList, memberToRemove: memberToRemove);
-
-/// グループタスクリストをNostrに保存（Kind 30001 - NIP-51）
-///
-/// # Parameters
-/// - `group_list`: 暗号化されたグループタスクリスト
-Future<EventSendResult> saveGroupTaskListToNostr({required GroupTodoList groupList}) =>
-    RustLib.instance.api.crateApiSaveGroupTaskListToNostr(groupList: groupList);
-
-/// グループタスクリストの未署名イベントを作成（Amberモード用）
-///
-/// GroupTodoListを受け取り、暗号化済みcontentで未署名イベントJSONを作成
-///
-/// # Arguments
-/// * `group_list_json` - GroupTodoListのJSON文字列（暗号化前）
-/// * `encrypted_content` - Amberで暗号化済みのcontent
-/// * `public_key_hex` - 作成者の公開鍵（hex）
-///
-/// # Returns
-/// 未署名イベントのJSON文字列
-Future<String> createUnsignedGroupTaskListEvent({
-  required String groupListJson,
-  required String encryptedContent,
-  required String publicKeyHex,
-}) => RustLib.instance.api.crateApiCreateUnsignedGroupTaskListEvent(
-  groupListJson: groupListJson,
-  encryptedContent: encryptedContent,
-  publicKeyHex: publicKeyHex,
-);
-
-/// 公開鍵だけで暗号化されたグループタスクイベントを取得（Amber復号化用）
-/// 復号化はAmber側で行うため、暗号化されたままのイベントを返す
-Future<List<EncryptedGroupTodoListEvent>> fetchEncryptedGroupTaskListsForPubkey({required String publicKeyHex}) =>
-    RustLib.instance.api.crateApiFetchEncryptedGroupTaskListsForPubkey(publicKeyHex: publicKeyHex);
-
-Future<List<EncryptedGroupTodoListEvent>> fetchEncryptedGroupTaskListsForPubkeyWithClientId({
-  required String publicKeyHex,
-  String? clientId,
-}) => RustLib.instance.api.crateApiFetchEncryptedGroupTaskListsForPubkeyWithClientId(
-  publicKeyHex: publicKeyHex,
-  clientId: clientId,
-);
-
-/// タスクデータをAES-256-GCMで暗号化（Amberモード用）
-///
-/// # Arguments
-/// * `tasks_json` - タスクデータのJSON文字列
-/// * `aes_key_base64` - base64エンコードされたAES-256鍵（32バイト）
-///
-/// # Returns
-/// base64エンコードされた暗号化データ（ノンス12バイト + 暗号文）
-Future<String> encryptGroupDataWithAesKey({required String tasksJson, required String aesKeyBase64}) =>
-    RustLib.instance.api.crateApiEncryptGroupDataWithAesKey(tasksJson: tasksJson, aesKeyBase64: aesKeyBase64);
-
-/// AES鍵を使ってグループタスクデータを復号化（Amberモード用）
-///
-/// Amberで復号化済みのAES鍵を使ってデータを復号化する
-///
-/// # Arguments
-/// * `encrypted_data_base64` - base64エンコードされた暗号化データ
-/// * `aes_key_base64` - base64エンコードされたAES鍵（すでに復号化済み）
-///
-/// # Returns
-/// 復号化されたJSON文字列
-Future<String> decryptGroupDataWithAesKey({required String encryptedDataBase64, required String aesKeyBase64}) =>
-    RustLib.instance.api.crateApiDecryptGroupDataWithAesKey(
-      encryptedDataBase64: encryptedDataBase64,
-      aesKeyBase64: aesKeyBase64,
-    );
-
-/// 自分がメンバーになっているグループタスクリストを取得（非推奨 - Amberモードでは動作しない）
-/// 代わりに fetch_encrypted_group_task_lists_for_pubkey を使用してください
-Future<List<GroupTodoList>> fetchMyGroupTaskLists() => RustLib.instance.api.crateApiFetchMyGroupTaskLists();
 
 /// MLS: データベース初期化
 Future<void> mlsInitDb({required String dbPath, required String nostrId}) =>
@@ -1514,76 +1397,6 @@ class EncryptedAppSettingsEvent {
           eventId == other.eventId &&
           encryptedContent == other.encryptedContent &&
           createdAt == other.createdAt;
-}
-
-/// 暗号化されたグループタスクイベント（Amber復号化用）
-class EncryptedGroupTodoListEvent {
-  final String eventId;
-  final String encryptedContent;
-  final PlatformInt64 createdAt;
-  final String listId;
-  final String? groupName;
-  final String encryptedData;
-  final List<String> members;
-  final List<EncryptedKeyData> encryptedKeys;
-
-  const EncryptedGroupTodoListEvent({
-    required this.eventId,
-    required this.encryptedContent,
-    required this.createdAt,
-    required this.listId,
-    this.groupName,
-    required this.encryptedData,
-    required this.members,
-    required this.encryptedKeys,
-  });
-
-  @override
-  int get hashCode =>
-      eventId.hashCode ^
-      encryptedContent.hashCode ^
-      createdAt.hashCode ^
-      listId.hashCode ^
-      groupName.hashCode ^
-      encryptedData.hashCode ^
-      members.hashCode ^
-      encryptedKeys.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is EncryptedGroupTodoListEvent &&
-          runtimeType == other.runtimeType &&
-          eventId == other.eventId &&
-          encryptedContent == other.encryptedContent &&
-          createdAt == other.createdAt &&
-          listId == other.listId &&
-          groupName == other.groupName &&
-          encryptedData == other.encryptedData &&
-          members == other.members &&
-          encryptedKeys == other.encryptedKeys;
-}
-
-/// メンバー用に暗号化されたAES鍵（Flutter互換）
-class EncryptedKeyData {
-  final String memberPubkey;
-  final String encryptedAesKey;
-
-  const EncryptedKeyData({
-    required this.memberPubkey,
-    required this.encryptedAesKey,
-  });
-
-  @override
-  int get hashCode => memberPubkey.hashCode ^ encryptedAesKey.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is EncryptedKeyData &&
-          runtimeType == other.runtimeType &&
-          memberPubkey == other.memberPubkey &&
-          encryptedAesKey == other.encryptedAesKey;
 }
 
 /// 公開鍵だけで暗号化されたTodoイベントを取得（Amber復号化用 - 旧実装 Kind 30078）

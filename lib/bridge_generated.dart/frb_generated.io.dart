@@ -8,7 +8,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'frb_generated.dart';
-import 'group_tasks.dart';
 import 'group_tasks_mls.dart';
 import 'group_tasks_shared.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
@@ -64,9 +63,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EncryptedTodoListEvent dco_decode_box_autoadd_encrypted_todo_list_event(dynamic raw);
 
   @protected
-  GroupTodoList dco_decode_box_autoadd_group_todo_list(dynamic raw);
-
-  @protected
   KeyPackageResult dco_decode_box_autoadd_key_package_result(dynamic raw);
 
   @protected
@@ -79,15 +75,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EncryptedAppSettingsEvent dco_decode_encrypted_app_settings_event(dynamic raw);
 
   @protected
-  EncryptedGroupTodoListEvent dco_decode_encrypted_group_todo_list_event(dynamic raw);
-
-  @protected
-  EncryptedKey dco_decode_encrypted_key(dynamic raw);
-
-  @protected
-  EncryptedKeyData dco_decode_encrypted_key_data(dynamic raw);
-
-  @protected
   EncryptedTodoEvent dco_decode_encrypted_todo_event(dynamic raw);
 
   @protected
@@ -98,12 +85,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupKey dco_decode_group_key(dynamic raw);
-
-  @protected
-  GroupTodoData dco_decode_group_todo_data(dynamic raw);
-
-  @protected
-  GroupTodoList dco_decode_group_todo_list(dynamic raw);
 
   @protected
   int dco_decode_i_32(dynamic raw);
@@ -127,25 +108,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ContactProfile> dco_decode_list_contact_profile(dynamic raw);
 
   @protected
-  List<EncryptedGroupTodoListEvent> dco_decode_list_encrypted_group_todo_list_event(dynamic raw);
-
-  @protected
-  List<EncryptedKey> dco_decode_list_encrypted_key(dynamic raw);
-
-  @protected
-  List<EncryptedKeyData> dco_decode_list_encrypted_key_data(dynamic raw);
-
-  @protected
   List<EncryptedTodoEvent> dco_decode_list_encrypted_todo_event(dynamic raw);
 
   @protected
   List<EncryptedTodoListEvent> dco_decode_list_encrypted_todo_list_event(dynamic raw);
-
-  @protected
-  List<GroupTodoData> dco_decode_list_group_todo_data(dynamic raw);
-
-  @protected
-  List<GroupTodoList> dco_decode_list_group_todo_list(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
@@ -268,9 +234,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EncryptedTodoListEvent sse_decode_box_autoadd_encrypted_todo_list_event(SseDeserializer deserializer);
 
   @protected
-  GroupTodoList sse_decode_box_autoadd_group_todo_list(SseDeserializer deserializer);
-
-  @protected
   KeyPackageResult sse_decode_box_autoadd_key_package_result(SseDeserializer deserializer);
 
   @protected
@@ -283,15 +246,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EncryptedAppSettingsEvent sse_decode_encrypted_app_settings_event(SseDeserializer deserializer);
 
   @protected
-  EncryptedGroupTodoListEvent sse_decode_encrypted_group_todo_list_event(SseDeserializer deserializer);
-
-  @protected
-  EncryptedKey sse_decode_encrypted_key(SseDeserializer deserializer);
-
-  @protected
-  EncryptedKeyData sse_decode_encrypted_key_data(SseDeserializer deserializer);
-
-  @protected
   EncryptedTodoEvent sse_decode_encrypted_todo_event(SseDeserializer deserializer);
 
   @protected
@@ -302,12 +256,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupKey sse_decode_group_key(SseDeserializer deserializer);
-
-  @protected
-  GroupTodoData sse_decode_group_todo_data(SseDeserializer deserializer);
-
-  @protected
-  GroupTodoList sse_decode_group_todo_list(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -331,25 +279,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ContactProfile> sse_decode_list_contact_profile(SseDeserializer deserializer);
 
   @protected
-  List<EncryptedGroupTodoListEvent> sse_decode_list_encrypted_group_todo_list_event(SseDeserializer deserializer);
-
-  @protected
-  List<EncryptedKey> sse_decode_list_encrypted_key(SseDeserializer deserializer);
-
-  @protected
-  List<EncryptedKeyData> sse_decode_list_encrypted_key_data(SseDeserializer deserializer);
-
-  @protected
   List<EncryptedTodoEvent> sse_decode_list_encrypted_todo_event(SseDeserializer deserializer);
 
   @protected
   List<EncryptedTodoListEvent> sse_decode_list_encrypted_todo_list_event(SseDeserializer deserializer);
-
-  @protected
-  List<GroupTodoData> sse_decode_list_group_todo_data(SseDeserializer deserializer);
-
-  @protected
-  List<GroupTodoList> sse_decode_list_group_todo_list(SseDeserializer deserializer);
 
   @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
@@ -477,9 +410,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_encrypted_todo_list_event(EncryptedTodoListEvent self, SseSerializer serializer);
 
   @protected
-  void sse_encode_box_autoadd_group_todo_list(GroupTodoList self, SseSerializer serializer);
-
-  @protected
   void sse_encode_box_autoadd_key_package_result(KeyPackageResult self, SseSerializer serializer);
 
   @protected
@@ -492,15 +422,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_encrypted_app_settings_event(EncryptedAppSettingsEvent self, SseSerializer serializer);
 
   @protected
-  void sse_encode_encrypted_group_todo_list_event(EncryptedGroupTodoListEvent self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_encrypted_key(EncryptedKey self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_encrypted_key_data(EncryptedKeyData self, SseSerializer serializer);
-
-  @protected
   void sse_encode_encrypted_todo_event(EncryptedTodoEvent self, SseSerializer serializer);
 
   @protected
@@ -511,12 +432,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_group_key(GroupKey self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_group_todo_data(GroupTodoData self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_group_todo_list(GroupTodoList self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
@@ -540,28 +455,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_contact_profile(List<ContactProfile> self, SseSerializer serializer);
 
   @protected
-  void sse_encode_list_encrypted_group_todo_list_event(
-    List<EncryptedGroupTodoListEvent> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_encrypted_key(List<EncryptedKey> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_encrypted_key_data(List<EncryptedKeyData> self, SseSerializer serializer);
-
-  @protected
   void sse_encode_list_encrypted_todo_event(List<EncryptedTodoEvent> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_encrypted_todo_list_event(List<EncryptedTodoListEvent> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_group_todo_data(List<GroupTodoData> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_group_todo_list(List<GroupTodoList> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);

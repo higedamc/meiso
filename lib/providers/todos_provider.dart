@@ -14,7 +14,6 @@ import '../services/logger_service.dart';
 import '../services/amber_service.dart';
 import '../services/link_preview_service.dart';
 import '../services/widget_service.dart';
-import '../services/group_task_service.dart';
 import 'nostr_provider.dart';
 import 'sync_status_provider.dart';
 import 'custom_lists_provider.dart';
@@ -1482,8 +1481,9 @@ class TodosNotifier
 
           // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
           // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
-          final showPreviewLoading =
-              _ref.read(remoteContentFetchAllowedProvider);
+          final showPreviewLoading = _ref.read(
+            remoteContentFetchAllowedProvider,
+          );
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName, // ドメイン名を表示
@@ -1676,8 +1676,9 @@ class TodosNotifier
 
           // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
           // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
-          final showPreviewLoading =
-              _ref.read(remoteContentFetchAllowedProvider);
+          final showPreviewLoading = _ref.read(
+            remoteContentFetchAllowedProvider,
+          );
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName,
@@ -5361,17 +5362,20 @@ class TodosNotifier
         since: effectiveSince,
       );
 
-      final events = eventsResult.fold((failure) {
-        AppLogger.error(
-          '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
-        );
-        return <Map<String, dynamic>>[];
-      }, (e) {
-        AppLogger.info(
-          '📦 [shared-v1] fetched ${e.length} events from relays',
-        );
-        return e;
-      });
+      final events = eventsResult.fold(
+        (failure) {
+          AppLogger.error(
+            '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
+          );
+          return <Map<String, dynamic>>[];
+        },
+        (e) {
+          AppLogger.info(
+            '📦 [shared-v1] fetched ${e.length} events from relays',
+          );
+          return e;
+        },
+      );
       if (events.isEmpty) {
         await localStorageService.setLastSharedGroupTodosSyncTime(
           groupId,
@@ -5512,9 +5516,11 @@ class TodosNotifier
       completed: completed,
       date: date,
       order: (data['order'] as num?)?.toInt() ?? 0,
-      createdAt: DateTime.tryParse(data['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(data['created_at'] as String? ?? '') ??
           DateTime.now(),
-      updatedAt: DateTime.tryParse(data['updated_at'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(data['updated_at'] as String? ?? '') ??
           DateTime.now(),
       customListId: groupId,
       needsSync: false,
@@ -5565,8 +5571,8 @@ class TodosNotifier
     data['updated_at'] = updatedAt.toIso8601String();
 
     // 帰属表示のため editor_pubkey は常に埋める（issue #138 R4）
-    final editor = editorPubkey ??
-        await _ref.read(nostrServiceProvider).getPublicKey();
+    final editor =
+        editorPubkey ?? await _ref.read(nostrServiceProvider).getPublicKey();
     if (editor != null && editor.isNotEmpty) {
       data['editor_pubkey'] = editor;
     }
@@ -6145,8 +6151,7 @@ class TodosNotifier
           if (seen.contains(event.eventId)) continue;
           seen.add(event.eventId);
 
-          final eventData =
-              jsonDecode(event.eventJson) as Map<String, dynamic>;
+          final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
           final kind = eventData['kind'] as int?;
           if (kind != 35000) continue; // meta(35001) はここでは無視
 
@@ -6173,8 +6178,9 @@ class TodosNotifier
           if (data['deleted'] == true) {
             byId.remove(parsed.id);
             for (final dateKey in updated.keys.toList()) {
-              updated[dateKey] =
-                  updated[dateKey]!.where((t) => t.id != parsed.id).toList();
+              updated[dateKey] = updated[dateKey]!
+                  .where((t) => t.id != parsed.id)
+                  .toList();
             }
             changed = true;
             continue;
@@ -6515,14 +6521,44 @@ class TodosNotifier
           groupList: groupList,
           todos: todos,
         );
+      } else if (groupList.isSharedProtocol) {
+        // shared-v1: needsSync のタスクを差分イベント(update)としてフラッシュする。
+        // 旧実装はここで kind:30001 のレガシーイベントを発行していたが、
+        // 作成者以外は復号できない欠陥があり shared-v1 の同期にも不要なため廃止。
+        final targets = todos.where((t) => t.needsSync).toList();
+        AppLogger.info(
+          '📤 [GroupSync] shared-v1 group: flushing ${targets.length} changed todos',
+        );
+        String? lastEventId;
+        for (final todo in targets) {
+          final payload = jsonEncode({
+            'id': todo.id,
+            'title': todo.title,
+            'completed': todo.completed,
+            'date': todo.date?.toIso8601String(),
+            'order': todo.order,
+            'created_at': todo.createdAt.toIso8601String(),
+            'updated_at': todo.updatedAt.toIso8601String(),
+            'custom_list_id': groupId,
+            'recurrence': todo.recurrence?.toJson(),
+            'parent_recurring_id': todo.parentRecurringId,
+          });
+          final sentId = await _sendSharedGroupTodoAction(
+            groupId: groupId,
+            action: 'update',
+            payload: payload,
+            todo: todo,
+            editorPubkey: publicKey,
+          );
+          lastEventId = sentId ?? lastEventId;
+        }
+        eventId = lastEventId;
       } else {
-        // 旧実装（Phase 8.4で廃止予定）
-        AppLogger.info('📦 [GroupSync] Legacy group, using old encryption');
-        eventId = await groupTaskService.createGroupTaskList(
-          tasks: todos,
-          customList: groupList,
-          publicKey: publicKey,
-          npub: npub,
+        // 旧 kind:30001 グループ（レガシーマルチパーティ暗号化）は廃止済み。
+        // 作成者以外は AES 鍵を復号できない欠陥があり、機能として成立して
+        // いなかったため送信も行わない。
+        AppLogger.warning(
+          '⚠️ [GroupSync] Legacy kind:30001 group is no longer supported, skipping publish: $groupId',
         );
       }
 
@@ -6673,134 +6709,16 @@ class TodosNotifier
     }
   }
 
-  /// 全グループのタスクを一括同期（復号化してローカルに追加）
+  /// 全グループのタスクを一括同期
   Future<void> syncAllGroupTodos() async {
     // shared-v1 グループは MLS の fetchMyGroupTaskLists(kind:445)経路に
     // 含まれないため、別途フルフェッチで同期する。バックグラウンド/起動時
     // 同期でも shared-v1 タスクが確実に取り込まれるようにする。
     await _syncAllSharedGroupTodos();
 
-    try {
-      AppLogger.info('🔄 [Batch] Syncing all group todos...');
-
-      // 公開鍵を取得
-      var publicKey = _ref.read(publicKeyProvider);
-      var npub = _ref.read(nostrPublicKeyProvider);
-
-      // 公開鍵がnullの場合、復元を試みる
-      if (publicKey == null || npub == null) {
-        AppLogger.warning(' 公開鍵が未設定、復元を試みます...');
-        try {
-          final nostrService = _ref.read(nostrServiceProvider);
-          publicKey = await nostrService.getPublicKey();
-          if (publicKey != null) {
-            AppLogger.info(' hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
-            _ref.read(publicKeyProvider.notifier).state = publicKey;
-
-            npub = await nostrService.hexToNpub(publicKey);
-            _ref.read(nostrPublicKeyProvider.notifier).state = npub;
-            AppLogger.info(' npub公開鍵も復元: ${npub.substring(0, 16)}...');
-          } else {
-            throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
-          }
-        } catch (e) {
-          AppLogger.error(' 公開鍵の復元に失敗: $e');
-          throw Exception('公開鍵が設定されていません: $e');
-        }
-      }
-
-      // 全グループリストを一括取得
-      final groupLists = await groupTaskService.fetchMyGroupTaskLists(
-        publicKey: publicKey,
-        npub: npub,
-      );
-
-      if (groupLists.isEmpty) {
-        AppLogger.info('ℹ️ No group lists found');
-        return;
-      }
-
-      AppLogger.info('📥 Found ${groupLists.length} group lists');
-
-      // 全グループのタスクを並列復号
-      // Amber ContentProvider 復号はネイティブ側スレッドプールで並列実行され、
-      // Intent フォールバックは AmberService 内のロックで直列化される
-      final groupTodosMap = <String, List<Todo>>{};
-
-      final pk = publicKey;
-      final np = npub;
-      await Future.wait(
-        groupLists.map((groupList) async {
-          try {
-            AppLogger.debug(
-              '🔓 Decrypting tasks for group: ${groupList.groupName}',
-            );
-            final groupTodos = await groupTaskService.decryptGroupTaskList(
-              groupList: groupList,
-              publicKey: pk,
-              npub: np,
-            );
-            groupTodosMap[groupList.groupId] = groupTodos;
-            AppLogger.debug(
-              '✅ Decrypted ${groupTodos.length} todos from ${groupList.groupName}',
-            );
-          } catch (e) {
-            AppLogger.error(
-              '❌ Failed to decrypt group ${groupList.groupName}: $e',
-            );
-            // エラーでも他のグループは処理続行
-          }
-        }),
-      );
-
-      final totalTodos = groupTodosMap.values.fold<int>(
-        0,
-        (sum, list) => sum + list.length,
-      );
-      AppLogger.info(
-        '✅ [Batch] Decrypted $totalTodos todos from ${groupLists.length} groups',
-      );
-
-      // ローカルストレージに反映
-      await state.whenData((todos) async {
-        final updated = Map<DateTime?, List<Todo>>.from(todos);
-
-        // 復号に成功したグループのタスクのみ置き換える
-        // （復号失敗グループの既存タスクを消さないため）
-        final allGroupIds = groupTodosMap.keys.toSet();
-        for (final dateKey in updated.keys) {
-          updated[dateKey] = updated[dateKey]!
-              .where(
-                (t) =>
-                    t.customListId == null ||
-                    !allGroupIds.contains(t.customListId),
-              )
-              .toList();
-        }
-
-        // 全グループの新しいタスクを追加
-        for (final groupTodos in groupTodosMap.values) {
-          for (final todo in groupTodos) {
-            final dateKey = todo.date;
-            updated[dateKey] = (updated[dateKey] ?? [])..add(todo);
-          }
-        }
-
-        // 状態を更新
-        state = AsyncValue.data(updated);
-
-        // ローカルストレージに保存
-        await _saveAllTodosToLocal();
-
-        AppLogger.info('✅ [Batch] Updated state with group todos');
-      }).value;
-    } catch (e, stackTrace) {
-      AppLogger.error(
-        '❌ Failed to sync all group todos: $e',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
+    // 旧 kind:30001 グループ（レガシーマルチパーティ暗号化）の一括取得は廃止。
+    // NIP-44 復号に相手（作成者）でなく自分の公開鍵を渡す欠陥により、
+    // 作成者以外は一度も復号できたことがなく、shared-v1/MLS に移行済みのため。
   }
 
   // ========================================

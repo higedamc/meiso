@@ -211,8 +211,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
                       id.length > list.id.length,
                   orElse: () => '',
                 );
-                final matched =
-                    matchedFromCreds.isNotEmpty ? matchedFromCreds : matchedFromHive;
+                final matched = matchedFromCreds.isNotEmpty
+                    ? matchedFromCreds
+                    : matchedFromHive;
                 if (matched.isEmpty) continue;
 
                 if (allCurrentIds.contains(matched)) {
@@ -937,9 +938,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
         }
 
         String? eventId = list.eventId;
-        if (eventId == null &&
-            publicKey != null &&
-            shouldResolveEventIds) {
+        if (eventId == null && publicKey != null && shouldResolveEventIds) {
           try {
             eventId = await rust_api.findPersonalListEventId(
               listId: list.id,
@@ -1808,7 +1807,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
       const uuid = Uuid();
       final groupId = uuid.v4();
 
-      AppLogger.info('🔐 [CustomLists] Creating shared-v1 group: "$normalizedName"');
+      AppLogger.info(
+        '🔐 [CustomLists] Creating shared-v1 group: "$normalizedName"',
+      );
 
       // 旧バグで `_deletedMlsGroupListIds` に誤って shared-v1 グループ ID が
       // 含まれていることがある。今回作るグループ ID と同じものが残っていた場合は
@@ -1986,7 +1987,7 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
           // この集合に含まれる招待を自動承諾し、再度の手動承諾を不要にする（タスク3）。
           final joinedGroupIds =
               _ref.read(appSettingsProvider).valueOrNull?.joinedGroupIds ??
-                  const <String>[];
+              const <String>[];
 
           final currentLists = state.valueOrNull ?? <CustomList>[];
           final updatedLists = List<CustomList>.from(currentLists);
@@ -2129,8 +2130,9 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     required int order,
   }) async {
     try {
-      final acceptUseCase =
-          _ref.read(shared_usecase.acceptSharedInvitationUseCaseProvider);
+      final acceptUseCase = _ref.read(
+        shared_usecase.acceptSharedInvitationUseCaseProvider,
+      );
       final result = await acceptUseCase(
         AcceptSharedInvitationParams(
           invitation: invitation,
@@ -2150,7 +2152,8 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
             '✅ [SharedInvitations] Auto-accepted joined group '
             '${invitation.groupId} on this device',
           );
-          final base = existing ??
+          final base =
+              existing ??
               CustomList(
                 id: invitation.groupId,
                 name: invitation.groupName.toUpperCase(),
@@ -2465,133 +2468,6 @@ class CustomListsNotifier extends StateNotifier<AsyncValue<List<CustomList>>> {
     );
   }
 
-  /// Nostrからグループリストを同期
-  ///
-  /// ⚠️ Phase 8.4: kind: 30001グループは廃止されました
-  /// MLSグループのみを使用します（Phase 8.1で完全統合済み）
-  @Deprecated('kind: 30001 group sync is disabled. Use MLS groups only.')
-  Future<void> syncGroupListsFromNostr() async {
-    // Phase 8.4: kind: 30001グループの同期を無効化
-    // パフォーマンス問題の原因となっていたため、MLSグループのみを使用
-    AppLogger.info(
-      'ℹ️ [Phase 8.4] kind: 30001 group sync is disabled. Use MLS groups only.',
-    );
-    return;
-
-    // 以下のコードは参考用に残す（将来の互換性レイヤー実装時に使用可能）
-    /*
-    try {
-      // Issue #80: 最初に削除イベントを同期
-      await syncDeletionEvents();
-      
-      AppLogger.info('🔄 Syncing group lists from Nostr...');
-      
-      // 公開鍵を取得
-      var publicKey = _ref.read(publicKeyProvider);
-      var npub = _ref.read(nostrPublicKeyProvider);
-      
-      // 公開鍵がnullの場合、復元を試みる
-      if (publicKey == null || npub == null) {
-        AppLogger.warning(' 公開鍵が未設定、復元を試みます...');
-        try {
-          final nostrService = _ref.read(nostrServiceProvider);
-          publicKey = await nostrService.getPublicKey();
-          if (publicKey != null) {
-            AppLogger.info(' hex公開鍵を復元: ${publicKey.substring(0, 16)}...');
-            _ref.read(publicKeyProvider.notifier).state = publicKey;
-            
-            npub = await nostrService.hexToNpub(publicKey);
-            _ref.read(nostrPublicKeyProvider.notifier).state = npub;
-            AppLogger.info(' npub公開鍵も復元: ${npub.substring(0, 16)}...');
-          } else {
-            throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
-          }
-        } catch (e) {
-          AppLogger.error(' 公開鍵の復元に失敗: $e');
-          throw Exception('公開鍵が設定されていません: $e');
-        }
-      }
-      
-      // Nostrからグループリストを取得
-      final groupLists = await groupTaskService.syncGroupLists(
-        publicKey: publicKey,
-        npub: npub,
-      );
-      
-      if (groupLists.isEmpty) {
-        AppLogger.info('ℹ️ No group lists found on Nostr');
-        return;
-      }
-      
-      final currentState = state;
-      
-      // 現在のリストを取得
-      List<CustomList> currentLists;
-      bool needsStateUpdate = false; // stateの更新が必要かどうか
-      
-      if (currentState is AsyncData<List<CustomList>>) {
-        // 既にデータがロードされている場合
-        currentLists = currentState.value;
-        AppLogger.debug(' [CustomLists] Using current state for group sync');
-      } else {
-        // AsyncLoadingやAsyncErrorの場合は、ローカルストレージから直接読み込む
-        AppLogger.warning(' [CustomLists] State is ${currentState.runtimeType} for group sync, loading from local storage');
-        currentLists = await localStorageService.loadCustomLists();
-        AppLogger.info(' [CustomLists] Loaded ${currentLists.length} lists from local storage for group sync');
-        needsStateUpdate = true; // AsyncLoadingから読み込んだので、stateの更新が必要
-      }
-      final updatedLists = List<CustomList>.from(currentLists);
-      bool hasChanges = false;
-      
-      for (final groupList in groupLists) {
-        // 既に存在するか確認（IDで）
-        final existingIndex = updatedLists.indexWhere((l) => l.id == groupList.id);
-        
-        if (existingIndex == -1) {
-          // 新しいグループリストを追加
-          AppLogger.debug('📥 Adding synced group list: "${groupList.name}"');
-          updatedLists.add(groupList);
-          hasChanges = true;
-        } else {
-          // 既存のグループリストを更新（メンバーが変更されている可能性）
-          final existing = updatedLists[existingIndex];
-          if (existing.groupMembers.length != groupList.groupMembers.length ||
-              !existing.groupMembers.every((m) => groupList.groupMembers.contains(m))) {
-            AppLogger.debug('🔄 Updating group list members: "${groupList.name}"');
-            updatedLists[existingIndex] = groupList.copyWith(
-              order: existing.order, // 既存の順番を維持
-            );
-            hasChanges = true;
-          }
-        }
-      }
-      
-      // Issue #80: 削除済みリストをフィルタリング
-      final filteredLists = await _filterDeletedLists(updatedLists);
-      
-      // 変更があった場合、または stateの更新が必要な場合
-      if (hasChanges || needsStateUpdate) {
-        if (hasChanges) {
-          // ローカルストレージに保存
-          await localStorageService.saveCustomLists(filteredLists);
-          
-          // AppSettingsのcustomListOrderも更新
-          await _updateCustomListOrderInSettings(filteredLists);
-        }
-        
-        // 状態を更新（UIに確実に通知）
-        // hasChangesがfalseでも、AsyncLoadingから読み込んだ場合は更新が必要
-        state = AsyncValue.data(filteredLists);
-        
-        AppLogger.info('✅ Synced ${groupLists.length} group lists from Nostr');
-        AppLogger.info('📱 State updated successfully! UI should now reflect ${filteredLists.length} total lists');
-      }
-    } catch (e, st) {
-      AppLogger.error('❌ Failed to sync group lists from Nostr: $e', error: e, stackTrace: st);
-    }
-    */
-  }
-
   /// Personal ListをNostrから削除（Phase E.6）
   ///
   /// 動作:
@@ -2877,8 +2753,9 @@ class _FilterResolution {
 
   factory _FilterResolution.keepAsIs() =>
       const _FilterResolution._(kind: _FilterResolutionKind.keepAsIs);
-  factory _FilterResolution.locallyDeletedGroup() =>
-      const _FilterResolution._(kind: _FilterResolutionKind.locallyDeletedGroup);
+  factory _FilterResolution.locallyDeletedGroup() => const _FilterResolution._(
+    kind: _FilterResolutionKind.locallyDeletedGroup,
+  );
   factory _FilterResolution.validMlsGroup() =>
       const _FilterResolution._(kind: _FilterResolutionKind.validMlsGroup);
   factory _FilterResolution.invalidMlsGroup() =>
