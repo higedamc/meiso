@@ -13,6 +13,8 @@ import 'presentation/settings/secret_key_management_screen.dart';
 import 'presentation/settings/relay_management_screen.dart';
 import 'presentation/settings/app_settings_detail_screen.dart';
 import 'presentation/settings/cryptography_detail_screen.dart';
+import 'package:path_provider/path_provider.dart';
+import 'bridge_generated.dart/api.dart' as rust_api;
 import 'bridge_generated.dart/frb_generated.dart';
 import 'services/local_storage_service.dart';
 import 'services/logger_service.dart';
@@ -31,7 +33,7 @@ import 'features/mls/domain/value_objects/key_package_publish_policy.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // リリースビルドでもウィジェットエラーを視覚的に表示
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return Material(
@@ -46,10 +48,10 @@ void main() async {
       ),
     );
   };
-  
+
   // 英語ロケール初期化
   await initializeDateFormatting('en_US');
-  
+
   // ローカルストレージの初期化
   try {
     await localStorageService.initialize();
@@ -57,29 +59,47 @@ void main() async {
   } catch (e) {
     AppLogger.error('ローカルストレージ初期化エラー', error: e, tag: 'INIT');
   }
-  
+
   // Rustブリッジの初期化
   try {
     await RustLib.init();
     AppLogger.info('Rust初期化成功', tag: 'INIT');
+
+    // 永続イベントキャッシュ (nostr-lmdb) の初期化。
+    // Nostr クライアント生成より前に一度だけ呼ぶ。
+    // 失敗しても in-memory DB で動作するため致命的エラーにはしない。
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      await rust_api.initNostrDb(dbDir: appDocDir.path);
+      AppLogger.info('Nostr DB (lmdb) 初期化成功', tag: 'INIT');
+    } catch (e) {
+      AppLogger.error('Nostr DB 初期化エラー (in-memory で継続)', error: e, tag: 'INIT');
+    }
   } catch (e, stackTrace) {
-    AppLogger.error('Rust初期化エラー', error: e, stackTrace: stackTrace, tag: 'INIT');
-    runApp(MaterialApp(
-      home: Scaffold(
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Rust init failed:\n$e\n\n$stackTrace',
-              style: const TextStyle(fontSize: 12, color: Colors.red),
+    AppLogger.error(
+      'Rust初期化エラー',
+      error: e,
+      stackTrace: stackTrace,
+      tag: 'INIT',
+    );
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Rust init failed:\n$e\n\n$stackTrace',
+                style: const TextStyle(fontSize: 12, color: Colors.red),
+              ),
             ),
           ),
         ),
       ),
-    ));
+    );
     return;
   }
-  
+
   runApp(
     const ProviderScope(
       child: MeisoApp(),
@@ -100,17 +120,17 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
   @override
   void initState() {
     super.initState();
-    
+
     // AppLifecycleProviderを初期化（アプリのライフサイクル監視を開始）
     // これによりフォアグラウンド復帰時の自動再接続・同期が有効になります
     ref.read(appLifecycleProvider);
     ref.read(bootstrapSyncProvider.notifier);
     // リレー接続性の定期監視を起動（実 WebSocket 状態を UI へ反映）
     ref.read(relayConnectivityMonitorProvider);
-    
+
     // アプリ起動時にNostr接続を復元
     _restoreNostrConnection();
-    
+
     // GoRouterの初期化
     _router = GoRouter(
       initialLocation: '/',
@@ -119,13 +139,22 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
         final currentLocation = state.matchedLocation;
         final isOnboarding = currentLocation == '/onboarding';
         final isLogin = currentLocation == '/login';
-        
+
         AppLogger.debug('GoRouter redirect called:', tag: 'ROUTER');
-        AppLogger.debug('  - Current location: $currentLocation', tag: 'ROUTER');
-        AppLogger.debug('  - Onboarding completed: $hasCompleted', tag: 'ROUTER');
-        AppLogger.debug('  - Is onboarding screen: $isOnboarding', tag: 'ROUTER');
+        AppLogger.debug(
+          '  - Current location: $currentLocation',
+          tag: 'ROUTER',
+        );
+        AppLogger.debug(
+          '  - Onboarding completed: $hasCompleted',
+          tag: 'ROUTER',
+        );
+        AppLogger.debug(
+          '  - Is onboarding screen: $isOnboarding',
+          tag: 'ROUTER',
+        );
         AppLogger.debug('  - Is login screen: $isLogin', tag: 'ROUTER');
-        
+
         // オンボーディング未完了の場合
         if (!hasCompleted) {
           // ログイン画面またはオンボーディング画面以外にアクセスした場合
@@ -134,7 +163,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             return '/onboarding';
           }
         }
-        
+
         // リダイレクト不要
         AppLogger.debug('  → No redirect needed', tag: 'ROUTER');
         return null;
@@ -203,11 +232,17 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
         // Amberモード: Rust側から公開鍵を取得
         AppLogger.debug('Rust側から公開鍵を読み込み中...', tag: 'AMBER');
         final publicKey = await nostrService.getPublicKey();
-        AppLogger.debug('公開鍵の取得結果: ${publicKey != null ? "取得成功 (${publicKey.substring(0, 16)}...)" : "null"}', tag: 'AMBER');
-        
+        AppLogger.debug(
+          '公開鍵の取得結果: ${publicKey != null ? "取得成功 (${publicKey.substring(0, 16)}...)" : "null"}',
+          tag: 'AMBER',
+        );
+
         if (publicKey != null) {
-          AppLogger.info('Amberモードで公開鍵を復元しました: ${publicKey.substring(0, 16)}...', tag: 'AMBER');
-          
+          AppLogger.info(
+            'Amberモードで公開鍵を復元しました: ${publicKey.substring(0, 16)}...',
+            tag: 'AMBER',
+          );
+
           // アプリ設定からリレーリストとプロキシURLを取得
           final appSettingsAsync = ref.read(appSettingsProvider);
           final relays = appSettingsAsync.value?.relays.isNotEmpty == true
@@ -218,10 +253,10 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           final proxyUrl = torMode == TorMode.orbot
               ? appSettingsAsync.value?.proxyUrl ?? 'socks5://127.0.0.1:9050'
               : null;
-          
+
           AppLogger.debug('リレー設定: ${relays ?? "デフォルトリレー"}', tag: 'NOSTR');
           AppLogger.debug('プロキシ: ${proxyUrl ?? "なし"}', tag: 'NOSTR');
-          
+
           // Nostrクライアントを初期化（Amberモード）
           AppLogger.debug('Nostrクライアントを初期化中...', tag: 'NOSTR');
           await nostrService.initializeNostrWithPubkey(
@@ -230,35 +265,53 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             torMode: torMode,
             proxyUrl: proxyUrl,
           );
-          
+
           // 復元後のProvider状態を確認
           final restoredHex = ref.read(nostrProvider.publicKeyProvider);
           final restoredNpub = ref.read(nostrProvider.nostrPublicKeyProvider);
           AppLogger.info('Amberモードでノstr接続を復元しました', tag: 'NOSTR');
-          AppLogger.debug('復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
-          AppLogger.debug('復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}', tag: 'NOSTR');
-          
+          AppLogger.debug(
+            '復元後のhex公開鍵: ${restoredHex != null ? "${restoredHex.substring(0, 16)}..." : "null"}',
+            tag: 'NOSTR',
+          );
+          AppLogger.debug(
+            '復元後のnpub公開鍵: ${restoredNpub != null ? "${restoredNpub.substring(0, 16)}..." : "null"}',
+            tag: 'NOSTR',
+          );
+
           // 起動時ブートストラップ（初回はブロック、既存データありは非ブロック）
           Future.microtask(() async {
-            await ref.read(bootstrapSyncProvider.notifier).runBootstrapIfNeeded();
+            await ref
+                .read(bootstrapSyncProvider.notifier)
+                .runBootstrapIfNeeded();
           });
-          
+
           // Phase 8.1 + Phase D.5: Key Package自動公開（UseCase統合）
           try {
             AppLogger.info('[復元] Key Package自動公開チェック...', tag: 'MLS');
-            final autoPublishUseCase = ref.read(autoPublishKeyPackageUseCaseProvider);
-            final result = await autoPublishUseCase(AutoPublishKeyPackageParams(
-              publicKey: publicKey,
-              trigger: KeyPackagePublishTrigger.appStart,
-            ));
-            
+            final autoPublishUseCase = ref.read(
+              autoPublishKeyPackageUseCaseProvider,
+            );
+            final result = await autoPublishUseCase(
+              AutoPublishKeyPackageParams(
+                publicKey: publicKey,
+                trigger: KeyPackagePublishTrigger.appStart,
+              ),
+            );
+
             result.fold(
               (failure) {
-                AppLogger.warning('[復元] Key Package自動公開エラー: ${failure.message}', tag: 'MLS');
+                AppLogger.warning(
+                  '[復元] Key Package自動公開エラー: ${failure.message}',
+                  tag: 'MLS',
+                );
               },
               (eventId) {
                 if (eventId != null) {
-                  AppLogger.info('[復元] Key Package自動公開成功: ${eventId.substring(0, 16)}...', tag: 'MLS');
+                  AppLogger.info(
+                    '[復元] Key Package自動公開成功: ${eventId.substring(0, 16)}...',
+                    tag: 'MLS',
+                  );
                 } else {
                   AppLogger.debug('[復元] Key Package は最新（公開スキップ）', tag: 'MLS');
                 }
@@ -270,12 +323,15 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           }
         } else {
           AppLogger.warning('公開鍵が見つかりませんでした（Amberモード）', tag: 'AMBER');
-          AppLogger.debug('公開鍵ファイルが存在するか: ${await nostrService.hasPublicKey()}', tag: 'AMBER');
+          AppLogger.debug(
+            '公開鍵ファイルが存在するか: ${await nostrService.hasPublicKey()}',
+            tag: 'AMBER',
+          );
         }
       } else {
         // 秘密鍵モード: 暗号化された秘密鍵が存在するかチェック
         final hasKey = await nostrService.hasEncryptedKey();
-        
+
         if (hasKey) {
           AppLogger.info('秘密鍵モードで暗号化された秘密鍵が見つかりました', tag: 'NOSTR');
           AppLogger.debug('パスワード入力が必要なため、自動復元をスキップします', tag: 'NOSTR');
@@ -286,7 +342,12 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
         }
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Nostr接続の復元に失敗しました', error: e, stackTrace: stackTrace, tag: 'NOSTR');
+      AppLogger.error(
+        'Nostr接続の復元に失敗しました',
+        error: e,
+        stackTrace: stackTrace,
+        tag: 'NOSTR',
+      );
       // エラーは無視（ユーザーは手動でログインできる）
     }
   }
@@ -297,7 +358,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
     final appSettingsAsync = ref.watch(appSettingsProvider);
     // ロケール設定を監視
     final locale = ref.watch(localeProvider);
-    
+
     return appSettingsAsync.when(
       data: (settings) {
         return MaterialApp.router(
@@ -326,19 +387,20 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             if (locale != null) {
               return locale;
             }
-            
+
             // システムのロケールリスト（App languages設定を含む）から
             // サポートしている言語を探す
             if (systemLocales != null) {
               for (final systemLocale in systemLocales) {
                 for (final supportedLocale in supportedLocales) {
-                  if (systemLocale.languageCode == supportedLocale.languageCode) {
+                  if (systemLocale.languageCode ==
+                      supportedLocale.languageCode) {
                     return supportedLocale;
                   }
                 }
               }
             }
-            
+
             // マッチする言語がない場合は英語をデフォルトとする
             return const Locale('en');
           },
@@ -377,17 +439,18 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             if (locale != null) {
               return locale;
             }
-            
+
             if (systemLocales != null) {
               for (final systemLocale in systemLocales) {
                 for (final supportedLocale in supportedLocales) {
-                  if (systemLocale.languageCode == supportedLocale.languageCode) {
+                  if (systemLocale.languageCode ==
+                      supportedLocale.languageCode) {
                     return supportedLocale;
                   }
                 }
               }
             }
-            
+
             return const Locale('en');
           },
           builder: (context, child) {
@@ -424,17 +487,18 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
             if (locale != null) {
               return locale;
             }
-            
+
             if (systemLocales != null) {
               for (final systemLocale in systemLocales) {
                 for (final supportedLocale in supportedLocales) {
-                  if (systemLocale.languageCode == supportedLocale.languageCode) {
+                  if (systemLocale.languageCode ==
+                      supportedLocale.languageCode) {
                     return supportedLocale;
                   }
                 }
               }
             }
-            
+
             return const Locale('en');
           },
           builder: (context, child) {

@@ -213,6 +213,40 @@ const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 /// replaceable event は 1 リレーの EOSE で十分なので短くてよい。
 const EOSE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2500);
 
+/// 永続イベントキャッシュ (nostr-lmdb)。
+/// init_nostr_db() で一度だけ開き、全クライアントで共有する
+/// （LMDB は同一プロセスから同じ環境を複数回開くべきではないため）。
+/// 未初期化の場合は従来どおり in-memory DB で動作する。
+static NOSTR_DB: once_cell::sync::OnceCell<std::sync::Arc<nostr_lmdb::NostrLMDB>> =
+    once_cell::sync::OnceCell::new();
+
+/// 永続イベントキャッシュを初期化する。
+/// アプリ起動時に initNostrClient* より前に一度だけ呼ぶこと。
+/// 2 回目以降の呼び出しは no-op（成功を返す）。
+pub fn init_nostr_db(db_dir: String) -> Result<()> {
+    if NOSTR_DB.get().is_some() {
+        dev_println!("📦 Nostr DB already initialized");
+        return Ok(());
+    }
+    let path = std::path::Path::new(&db_dir).join("nostr-lmdb");
+    std::fs::create_dir_all(&path).context("Failed to create nostr-lmdb directory")?;
+    let db = nostr_lmdb::NostrLMDB::open(&path).context("Failed to open nostr-lmdb")?;
+    let _ = NOSTR_DB.set(std::sync::Arc::new(db));
+    dev_println!("📦 Nostr DB initialized at {}", path.display());
+    Ok(())
+}
+
+/// Client を構築する。永続 DB が初期化済みならそれを接続する。
+fn build_nostr_client(keys: &Keys) -> Client {
+    match NOSTR_DB.get() {
+        Some(db) => Client::builder()
+            .signer(keys.clone())
+            .database(db.clone())
+            .build(),
+        None => build_nostr_client(&keys),
+    }
+}
+
 /// キャッシュされたイベント情報（Hive保存用）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedEventInfo {
@@ -461,12 +495,12 @@ impl MeisoNostrClient {
         let client = match tor_mode {
             TorMode::Disabled => {
                 dev_println!("🔓 Direct connection (no Tor)");
-                Client::new(keys.clone())
+                build_nostr_client(&keys)
             }
             TorMode::Internal => {
                 // Embedded Tor: tor featureが有効な場合、.onion リレーへの接続時に自動的に使用される
                 dev_println!("🔐 Embedded Tor を有効化 (自動: .onion リレー検出時)");
-                Client::new(keys.clone())
+                build_nostr_client(&keys)
             }
             TorMode::Orbot => {
                 // Orbotモード: SOCKS5プロキシ経由（環境変数で設定）
@@ -483,7 +517,7 @@ impl MeisoNostrClient {
                 std::env::set_var("SOCKS_PROXY", proxy);
 
                 dev_println!("✅ Proxy environment variables set: {}", proxy);
-                Client::new(keys.clone())
+                build_nostr_client(&keys)
             }
         };
 
@@ -577,7 +611,7 @@ impl MeisoNostrClient {
             dev_println!("✅ プロキシ環境変数を設定: {}", proxy);
         }
 
-        let client = Client::new(keys.clone());
+        let client = build_nostr_client(&keys);
 
         // リレー追加
         for relay_url in &relays {
@@ -644,12 +678,12 @@ impl MeisoNostrClient {
         let client = match tor_mode {
             TorMode::Disabled => {
                 dev_println!("🔓 Direct connection (no Tor, Amber mode)");
-                Client::new(dummy_keys)
+                build_nostr_client(&dummy_keys)
             }
             TorMode::Internal => {
                 // Embedded Tor: tor featureが有効な場合、.onion リレーへの接続時に自動的に使用される
                 dev_println!("🔐 Embedded Tor を有効化 (Amber mode, 自動: .onion リレー検出時)");
-                Client::new(dummy_keys)
+                build_nostr_client(&dummy_keys)
             }
             TorMode::Orbot => {
                 let proxy = proxy_url
@@ -665,7 +699,7 @@ impl MeisoNostrClient {
                 std::env::set_var("SOCKS_PROXY", proxy);
 
                 dev_println!("✅ Proxy environment variables set (Amber mode): {}", proxy);
-                Client::new(dummy_keys)
+                build_nostr_client(&dummy_keys)
             }
         };
 
@@ -746,7 +780,7 @@ impl MeisoNostrClient {
         // Keysをpublic keyだけから作成する方法がないため、
         // ダミーの秘密鍵を生成するが、使わないことを明示
         let dummy_keys = Keys::generate();
-        let client = Client::new(dummy_keys);
+        let client = build_nostr_client(&dummy_keys);
 
         // リレー追加
         for relay_url in &relays {

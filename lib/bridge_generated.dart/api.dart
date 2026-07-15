@@ -9,9 +9,14 @@ import 'group_tasks_mls.dart';
 import 'group_tasks_shared.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `drain_all`, `ensure_subscription_event_listener`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `lock_recovering`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `push`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
+// These functions are ignored because they are not marked as `pub`: `build_nostr_client`, `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `drain_all`, `ensure_subscription_event_listener`, `fetch_events_eose`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `lock_recovering`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `push`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`, `SubscriptionEventQueue`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+
+/// 永続イベントキャッシュを初期化する。
+/// アプリ起動時に initNostrClient* より前に一度だけ呼ぶこと。
+/// 2 回目以降の呼び出しは no-op（成功を返す）。
+Future<void> initNostrDb({required String dbDir}) => RustLib.instance.api.crateApiInitNostrDb(dbDir: dbDir);
 
 /// MLS/NIP-17: listen_key(#p) 宛の sealed event(kind=1059) を差分取得
 ///
