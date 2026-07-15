@@ -1919,40 +1919,73 @@ impl MeisoNostrClient {
 
     /// リレーに再接続
     pub(crate) async fn reconnect(&self) -> Result<()> {
-        dev_println!("🔄 Reconnecting to relays...");
-
-        // 一度切断
-        self.client.disconnect().await;
-
-        // 再接続（タイムアウト付き）
-        match tokio::time::timeout(Duration::from_secs(10), self.client.connect()).await {
-            Ok(_) => {
-                dev_println!("✅ Reconnected to relays");
-                Ok(())
-            }
-            Err(_) => {
-                dev_eprintln!("⚠️ Reconnection timeout");
-                Err(anyhow::anyhow!("Reconnection timeout"))
-            }
-        }
+        self.reconnect_with_timeout(10).await
     }
 
-    /// リレーに再接続（タイムアウト秒を指定）
+    /// リレーへの接続を確立する（nostr-sdk 0.44 対応）。
+    ///
+    /// 0.44 では `Client::connect()` は接続タスクを起動するだけで即座に返り、
+    /// `Client::disconnect()` は全リレーを Terminated（自動再接続なし）にする。
+    /// 旧実装の「disconnect → connect をタイムアウト付きで待つ」は、
+    /// 進行中の接続試行と自動再接続タスクを殺した上で、接続完了を待たずに
+    /// 成功を返してしまうため、次の方針に改める:
+    /// - Connected はそのまま維持（無駄な切断をしない）
+    /// - Pending / Connecting は進行中の接続タスクに任せる
+    /// - Disconnected は自動再接続のバックオフ待ちの可能性があるため、
+    ///   そのリレーだけ切断→接続で即時再試行させる
+    /// - Initialized / Terminated は接続タスクを起動する
+    ///
+    /// その後、1 つ以上のリレーが実際に Connected になるまで待つ。
     pub(crate) async fn reconnect_with_timeout(&self, timeout_secs: u64) -> Result<()> {
         dev_println!(
-            "🔄 Reconnecting to relays with timeout: {}s...",
+            "🔄 Ensuring relay connections (timeout: {}s)...",
             timeout_secs
         );
 
-        self.client.disconnect().await;
+        let relays = self.client.relays().await;
+        if relays.is_empty() {
+            return Err(anyhow::anyhow!("No relays configured"));
+        }
 
-        let timeout = Duration::from_secs(timeout_secs.max(1));
-        match tokio::time::timeout(timeout, self.client.connect()).await {
-            Ok(_) => {
-                dev_println!("✅ Reconnected to relays");
-                Ok(())
+        for (url, relay) in &relays {
+            match relay.status() {
+                nostr_sdk::RelayStatus::Connected => {}
+                nostr_sdk::RelayStatus::Pending | nostr_sdk::RelayStatus::Connecting => {
+                    dev_println!("  ⏳ {} connection already in progress", url);
+                }
+                nostr_sdk::RelayStatus::Disconnected => {
+                    // バックオフ待ちを打ち切り、即時再試行させる
+                    relay.disconnect();
+                    relay.connect();
+                    dev_println!("  🔁 {} retrying immediately", url);
+                }
+                nostr_sdk::RelayStatus::Initialized | nostr_sdk::RelayStatus::Terminated => {
+                    relay.connect();
+                    dev_println!("  🔌 {} connecting", url);
+                }
+                nostr_sdk::RelayStatus::Banned | nostr_sdk::RelayStatus::Sleeping => {
+                    dev_println!("  💤 {} skipped (status={})", url, relay.status());
+                }
             }
-            Err(_) => Err(anyhow::anyhow!("Reconnection timeout")),
+        }
+
+        // 1 つ以上のリレーが接続されるまで実際に待つ
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let connected = relays
+                .values()
+                .filter(|r| r.status() == nostr_sdk::RelayStatus::Connected)
+                .count();
+            if connected > 0 {
+                dev_println!("✅ {}/{} relays connected", connected, relays.len());
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                dev_eprintln!("⚠️ Reconnection timeout ({}s)", timeout_secs);
+                return Err(anyhow::anyhow!("Reconnection timeout"));
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
     }
 }
