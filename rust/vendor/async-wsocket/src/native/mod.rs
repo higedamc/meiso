@@ -11,71 +11,56 @@ use std::time::Duration;
 
 #[cfg(feature = "tor")]
 use arti_client::DataStream;
-use async_utility::time;
-use futures_util::StreamExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "socks")]
 use tokio::net::TcpStream;
+use tokio::time;
+use tokio_tungstenite::tungstenite::protocol::Role;
 pub use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 pub use tokio_tungstenite::WebSocketStream;
 use url::Url;
 
 mod error;
 #[cfg(feature = "socks")]
 mod socks;
-mod stream;
 #[cfg(feature = "tor")]
 pub mod tor;
 
 pub use self::error::Error;
 #[cfg(feature = "socks")]
 use self::socks::TcpSocks5Stream;
-use self::stream::WebSocket;
-pub use self::stream::{Sink, Stream};
+use crate::socket::WebSocket;
 use crate::ConnectionMode;
 
 pub async fn connect(
     url: &Url,
     mode: &ConnectionMode,
     timeout: Duration,
-) -> Result<(Sink, Stream), Error> {
-    let stream: WebSocket = match mode {
-        ConnectionMode::Direct => connect_direct(url, timeout).await?,
+) -> Result<WebSocket, Error> {
+    match mode {
+        ConnectionMode::Direct => connect_direct(url, timeout).await,
         #[cfg(feature = "socks")]
-        ConnectionMode::Proxy(proxy) => connect_proxy(url, *proxy, timeout).await?,
+        ConnectionMode::Proxy(proxy) => connect_proxy(url, *proxy, timeout).await,
         #[cfg(feature = "tor")]
         ConnectionMode::Tor { custom_path } => {
-            connect_tor(url, timeout, custom_path.as_ref()).await?
-        }
-    };
-
-    match stream {
-        WebSocket::Std(stream) => {
-            let (tx, rx) = stream.split();
-            Ok((Sink::Std(tx), Stream::Std(rx)))
-        }
-        #[cfg(feature = "tor")]
-        WebSocket::Tor(stream) => {
-            let (tx, rx) = stream.split();
-            Ok((Sink::Tor(tx), Stream::Tor(rx)))
+            connect_tor(url, timeout, custom_path.as_ref()).await
         }
     }
 }
 
-fn ws_request_for_url(url: &Url) -> Result<tokio_tungstenite::tungstenite::http::Request<()>, Error> {
-    let mut request = url
-        .as_str()
-        .into_client_request()
-        .map_err(Error::Ws)?;
+// Meiso patch (issue #130): optional User-Agent on the WS handshake.
+// tungstenite accepts anything implementing IntoClientRequest, so we build the
+// request from the URL and inject the header when one is configured.
+fn ws_request_for_url(
+    url: &Url,
+) -> Result<tokio_tungstenite::tungstenite::handshake::client::Request, Error> {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let mut request = url.as_str().into_client_request()?;
     if let Some(ua) = crate::user_agent::get() {
-        if let Ok(val) =
-            tokio_tungstenite::tungstenite::http::HeaderValue::from_str(&ua)
-        {
-            request.headers_mut().insert(
-                tokio_tungstenite::tungstenite::http::header::USER_AGENT,
-                val,
-            );
+        if let Ok(val) = tokio_tungstenite::tungstenite::http::HeaderValue::from_str(&ua) {
+            request
+                .headers_mut()
+                .insert(tokio_tungstenite::tungstenite::http::header::USER_AGENT, val);
         }
     }
     Ok(request)
@@ -86,12 +71,12 @@ async fn connect_direct(url: &Url, timeout: Duration) -> Result<WebSocket, Error
     // NOT REMOVE `Box::pin`!
     // Use `Box::pin` to fix stack overflow on windows targets due to large `Future`
     let (stream, _) = Box::pin(time::timeout(
-        Some(timeout),
+        timeout,
         tokio_tungstenite::connect_async(request),
     ))
     .await
-    .ok_or(Error::Timeout)??;
-    Ok(WebSocket::Std(stream))
+    .map_err(|_| Error::Timeout)??;
+    Ok(WebSocket::Tokio(stream))
 }
 
 #[cfg(feature = "socks")]
@@ -111,12 +96,12 @@ async fn connect_proxy(
     // NOT REMOVE `Box::pin`!
     // Use `Box::pin` to fix stack overflow on windows targets due to large `Future`
     let (stream, _) = Box::pin(time::timeout(
-        Some(timeout),
+        timeout,
         tokio_tungstenite::client_async_tls(request, conn),
     ))
     .await
-    .ok_or(Error::Timeout)??;
-    Ok(WebSocket::Std(stream))
+    .map_err(|_| Error::Timeout)??;
+    Ok(WebSocket::Tokio(stream))
 }
 
 #[cfg(feature = "tor")]
@@ -135,11 +120,11 @@ async fn connect_tor(
     // NOT REMOVE `Box::pin`!
     // Use `Box::pin` to fix stack overflow on windows targets due to large `Future`
     let (stream, _) = Box::pin(time::timeout(
-        Some(timeout),
+        timeout,
         tokio_tungstenite::client_async_tls(request, conn),
     ))
     .await
-    .ok_or(Error::Timeout)??;
+    .map_err(|_| Error::Timeout)??;
     Ok(WebSocket::Tor(stream))
 }
 
@@ -149,4 +134,15 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     Ok(tokio_tungstenite::accept_async(raw_stream).await?)
+}
+
+/// Take an already upgraded websocket connection
+///
+/// Useful for when using [hyper] or [warp] or any other HTTP server
+#[inline]
+pub async fn take_upgraded<S>(raw_stream: S) -> WebSocketStream<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    WebSocketStream::from_raw_socket(raw_stream, Role::Server, None).await
 }

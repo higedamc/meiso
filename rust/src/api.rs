@@ -316,7 +316,7 @@ pub fn fetch_mls_group_events_by_group_id_with_client_id(
             .kind(Kind::Custom(445)) // NIP-EE: MLS Group Event
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::H),
-                vec![group_id.clone()],
+                group_id.clone(),
             );
 
         if since > 0 {
@@ -338,7 +338,7 @@ pub fn fetch_mls_group_events_by_group_id_with_client_id(
         let timeout = Duration::from_secs(timeout_secs.max(1));
         let events = client
             .client
-            .fetch_events(vec![filter], Some(timeout))
+            .fetch_events(filter, timeout)
             .await?;
 
         dev_println!(
@@ -357,7 +357,7 @@ pub fn fetch_mls_group_events_by_group_id_with_client_id(
             .map(|event| ReceivedEvent {
                 event_id: event.id.to_hex(),
                 kind: event.kind.as_u16() as u64,
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 event_json: event.as_json(),
                 received_at: now,
                 subscription_id: String::new(), // fetch用途なので空文字
@@ -379,7 +379,7 @@ pub fn fetch_mls_group_todo_events_since_with_client_id(
 
         let mut filter = Filter::new()
             .kind(Kind::Custom(1059)) // NIP-17 Seal
-            .custom_tag(SingleLetterTag::lowercase(Alphabet::P), vec![listen_key]);
+            .custom_tag(SingleLetterTag::lowercase(Alphabet::P), listen_key);
 
         if since > 0 {
             let since_u64 = since.max(0) as u64;
@@ -389,7 +389,7 @@ pub fn fetch_mls_group_todo_events_since_with_client_id(
         let timeout = Duration::from_secs(timeout_secs.max(1));
         let events = client
             .client
-            .fetch_events(vec![filter], Some(timeout))
+            .fetch_events(filter, timeout)
             .await?;
 
         let now = std::time::SystemTime::now()
@@ -402,7 +402,7 @@ pub fn fetch_mls_group_todo_events_since_with_client_id(
             .map(|event| ReceivedEvent {
                 event_id: event.id.to_hex(),
                 kind: event.kind.as_u16() as u64,
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 event_json: event.as_json(),
                 received_at: now,
                 subscription_id: String::new(),
@@ -840,7 +840,7 @@ impl MeisoNostrClient {
     async fn send_event_with_result(&self, event: Event) -> Result<EventSendResult> {
         let event_id = event.id.to_hex();
 
-        match tokio::time::timeout(Duration::from_secs(3), self.client.send_event(event)).await {
+        match tokio::time::timeout(Duration::from_secs(3), self.client.send_event(&event)).await {
             Ok(Ok(send_output)) => {
                 // 成功: nostr-sdkのSendEventOutputから情報を取得
                 let successful = send_output.success.len();
@@ -900,10 +900,10 @@ impl MeisoNostrClient {
     /// `timeout` は最悪ケースの上限。
     async fn fetch_events_eose(
         &self,
-        filters: Vec<Filter>,
+        filter: Filter,
         timeout: Duration,
     ) -> Result<Vec<Event>> {
-        let output = self.client.subscribe(filters, None).await?;
+        let output = self.client.subscribe(filter, None).await?;
         let sub_id = output.id().clone();
         let mut notifications = self.client.notifications();
 
@@ -950,7 +950,7 @@ impl MeisoNostrClient {
             }
         }
 
-        self.client.unsubscribe(sub_id).await;
+        self.client.unsubscribe(&sub_id).await;
 
         // 新しい順（created_at 降順）に整列。
         // replaceable event を `.first()` で参照する呼び出し側が「最新」を得られるように。
@@ -1098,7 +1098,7 @@ impl MeisoNostrClient {
 
         // A2: fetch_events の固定 10 秒待ちを避け、EOSE 早期終了で取得
         let events_vec = self
-            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         if events_vec.is_empty() {
@@ -1127,7 +1127,7 @@ impl MeisoNostrClient {
                 "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
                 d_tag,
                 event.id.to_hex(),
-                event.created_at.as_u64()
+                event.created_at.as_secs()
             );
 
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
@@ -1139,15 +1139,15 @@ impl MeisoNostrClient {
                             dev_println!(
                                 "🔄 Replacing older event for d='{}' (old: {}, new: {})",
                                 d_value,
-                                existing_event.created_at.as_u64(),
-                                event.created_at.as_u64()
+                                existing_event.created_at.as_secs(),
+                                event.created_at.as_secs()
                             );
                             latest_events.insert(d_value.clone(), event);
                         } else {
                             dev_println!(
                                 "⏭️  Skipping older event for d='{}' (keeping: {})",
                                 d_value,
-                                existing_event.created_at.as_u64()
+                                existing_event.created_at.as_secs()
                             );
                         }
                     } else {
@@ -1155,7 +1155,7 @@ impl MeisoNostrClient {
                             "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
                             d_value,
                             event.id.to_hex(),
-                            event.created_at.as_u64()
+                            event.created_at.as_secs()
                         );
                         latest_events.insert(d_value.clone(), event);
                     }
@@ -1180,7 +1180,7 @@ impl MeisoNostrClient {
                 "✅ Processing TODO list event: d='{}', event_id={}, created_at={}",
                 d_tag,
                 event.id.to_hex(),
-                event.created_at.as_u64()
+                event.created_at.as_secs()
             );
 
             // NIP-44で復号化
@@ -1253,7 +1253,7 @@ impl MeisoNostrClient {
 
         // A2: EOSE 早期終了で取得（caller の timeout_secs は最悪ケース上限として尊重）
         let timeout = Duration::from_secs(timeout_secs.max(1));
-        let events_vec = self.fetch_events_eose(vec![filter], timeout).await?;
+        let events_vec = self.fetch_events_eose(filter, timeout).await?;
 
         if events_vec.is_empty() {
             return Ok(Vec::new());
@@ -1367,12 +1367,12 @@ impl MeisoNostrClient {
             .author(keys.public_key())
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
-                vec!["meiso-settings".to_string()],
+                "meiso-settings".to_string(),
             );
 
         // 施策2: 設定(kind30078, replaceable)も EOSE 早期終了で取得（起動時 Phase1 高速化）
         let events = self
-            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
@@ -1453,7 +1453,7 @@ impl MeisoNostrClient {
         dev_println!("🔍 Fetching Kind 10002 events from relays...");
         // 施策2: リレーリスト(kind10002, replaceable)も EOSE 早期終了
         let events = self
-            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         dev_println!("📥 Received {} Kind 10002 events", events.len());
@@ -1561,6 +1561,19 @@ impl MeisoNostrClient {
     pub(crate) async fn subscribe(&self, filters: Vec<Filter>) -> Result<SubscriptionInfo> {
         dev_println!("📡 Starting subscription with {} filters", filters.len());
 
+        // nostr-sdk 0.39+ は subscribe が単一 Filter のみ。
+        // Dart 側の全呼び出しは単一 filter なので契約として明示する。
+        let filter = match filters.as_slice() {
+            [single] => single.clone(),
+            [] => return Err(anyhow::anyhow!("subscribe requires exactly 1 filter, got 0")),
+            many => {
+                return Err(anyhow::anyhow!(
+                    "subscribe requires exactly 1 filter, got {} (nostr-sdk 0.39+ constraint)",
+                    many.len()
+                ))
+            }
+        };
+
         // 起動直後 (リレー接続前) は全 relay subscribe が失敗して
         // nostr-relay-pool が `NotSubscribed` を返す。リレーが接続を確立するまで
         // 短期リトライ (最大 ~3s) する。
@@ -1568,7 +1581,7 @@ impl MeisoNostrClient {
         const BACKOFF_MS: u64 = 500;
         let mut last_error: Option<anyhow::Error> = None;
         for attempt in 1..=MAX_ATTEMPTS {
-            match self.client.subscribe(filters.clone(), None).await {
+            match self.client.subscribe(filter.clone(), None).await {
                 Ok(output) => {
                     let subscription_id = output;
                     let filters_json = serde_json::to_string(&filters)?;
@@ -1610,7 +1623,7 @@ impl MeisoNostrClient {
         dev_println!("🛑 Stopping subscription: {}", subscription_id);
 
         let sub_id = SubscriptionId::new(subscription_id);
-        self.client.unsubscribe(sub_id).await;
+        self.client.unsubscribe(&sub_id).await;
 
         dev_println!("✅ Subscription stopped");
         Ok(())
@@ -1697,7 +1710,7 @@ impl MeisoNostrClient {
 
         match tokio::time::timeout(
             Duration::from_secs(5),
-            self.client.send_event_to(urls, event),
+            self.client.send_event_to(urls, &event),
         )
         .await
         {
@@ -1752,7 +1765,7 @@ impl MeisoNostrClient {
         dev_println!("🔄 Reconnecting to relays...");
 
         // 一度切断
-        self.client.disconnect().await?;
+        self.client.disconnect().await;
 
         // 再接続（タイムアウト付き）
         match tokio::time::timeout(Duration::from_secs(10), self.client.connect()).await {
@@ -1774,7 +1787,7 @@ impl MeisoNostrClient {
             timeout_secs
         );
 
-        self.client.disconnect().await?;
+        self.client.disconnect().await;
 
         let timeout = Duration::from_secs(timeout_secs.max(1));
         match tokio::time::timeout(timeout, self.client.connect()).await {
@@ -1890,7 +1903,7 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
                     let received = ReceivedEvent {
                         event_id: event.id.to_hex(),
                         kind: event.kind.as_u16() as u64,
-                        created_at: event.created_at.as_u64() as i64,
+                        created_at: event.created_at.as_secs() as i64,
                         // 単一エンコード。旧実装の serde_json::to_string(&as_json())
                         // は二重エンコードで Dart 側のパースが常に失敗していた。
                         event_json: event.as_json(),
@@ -2464,7 +2477,7 @@ pub fn sign_event_with_ephemeral_key(unsigned_event_json: String) -> Result<Stri
         dev_println!("📝 [NIP-17] Signing event with ephemeral key");
         dev_println!("   Kind: {}", kind);
         dev_println!("   Tags: {}", tags.len());
-        dev_println!("   Created at: {}", created_at.as_u64());
+        dev_println!("   Created at: {}", created_at.as_secs());
 
         // 4. イベントを構築して署名（エフェメラル鍵使用）
         let event = EventBuilder::new(Kind::from(kind as u16), content)
@@ -2835,10 +2848,10 @@ pub fn fetch_todo_list_names_only_with_client_id(
         // kind:5 墓石は取りこぼすとゾンビリストが復活するため全リレー待ちのまま。
         // 直列だと最悪 FETCH_TIMEOUT×2 かかるので並行フェッチする。
         let (events, deletion_events) = tokio::join!(
-            client.fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT),
+            client.fetch_events_eose(filter, EOSE_FETCH_TIMEOUT),
             client
                 .client
-                .fetch_events(vec![deletion_filter], Some(FETCH_TIMEOUT)),
+                .fetch_events(deletion_filter, FETCH_TIMEOUT),
         );
         let events = events?;
 
@@ -2852,7 +2865,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
         match deletion_events {
             Ok(events) => {
                 for deletion_event in events {
-                    let deleted_at = deletion_event.created_at.as_u64();
+                    let deleted_at = deletion_event.created_at.as_secs();
                     for tag in deletion_event.tags.iter() {
                         if let Some(TagStandard::Event { event_id, .. }) = tag.as_standardized() {
                             let event_id_hex = event_id.to_hex();
@@ -2894,7 +2907,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
         let mut latest_events: HashMap<String, Event> = HashMap::new();
         
         for event in events {
-            let event_created_at = event.created_at.as_u64();
+            let event_created_at = event.created_at.as_secs();
             let event_id_hex = event.id.to_hex();
             let d_tag = event.tags.iter()
                 .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
@@ -2955,7 +2968,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
                     list_id: d_tag,
                     title,
                     event_id: event.id.to_hex(),
-                    created_at: event.created_at.as_u64(),
+                    created_at: event.created_at.as_secs(),
                 }
             })
             .collect();
@@ -2996,7 +3009,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
         dev_println!("📡 [Phase 2] Starting subscription for TODO lists (Kind 30001)");
 
         // Phase 2: subscribe()でストリーミング受信開始
-        let output = client.client.subscribe(vec![filter], None).await?;
+        let output = client.client.subscribe(filter, None).await?;
         let sub_id = output.id();
         let mut notifications = client.client.notifications();
 
@@ -3035,7 +3048,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
                                                 Alphabet::D
                                             )))
                                         .and_then(|tag| tag.content()),
-                                    event.created_at.as_u64()
+                                    event.created_at.as_secs()
                                 );
                                 events.push(*event);
                             }
@@ -3080,7 +3093,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
         }
 
         // クリーンアップ
-        client.client.unsubscribe(sub_id.clone()).await;
+        client.client.unsubscribe(&sub_id).await;
 
         if events.is_empty() {
             dev_println!("⚠️ [Phase 2] No encrypted TODO list events found");
@@ -3142,7 +3155,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3208,7 +3221,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
         );
 
         // Phase 2: subscribe()でストリーミング受信開始
-        let output = client.client.subscribe(vec![filter], None).await?;
+        let output = client.client.subscribe(filter, None).await?;
         let sub_id = output.id();
         let mut notifications = client.client.notifications();
 
@@ -3275,7 +3288,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
         }
 
         // クリーンアップ
-        client.client.unsubscribe(sub_id.clone()).await;
+        client.client.unsubscribe(&sub_id).await;
 
         if events.is_empty() {
             return Ok(Vec::new());
@@ -3326,7 +3339,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3365,7 +3378,7 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
 
         // 施策1: Amberモードの差分取得も EOSE 早期終了に統一（モード・パリティ）
         let timeout = Duration::from_secs(timeout_secs.max(1));
-        let events = client.fetch_events_eose(vec![filter], timeout).await?;
+        let events = client.fetch_events_eose(filter, timeout).await?;
 
         if events.is_empty() {
             return Ok(Vec::new());
@@ -3411,7 +3424,7 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3438,7 +3451,7 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
 
         // 施策1: Amberモードの取得も EOSE 早期終了に統一（モード・パリティ）
         let events = client
-            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         if events.is_empty() {
@@ -3467,7 +3480,7 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                 "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
                 d_tag,
                 event.id.to_hex(),
-                event.created_at.as_u64()
+                event.created_at.as_secs()
             );
 
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
@@ -3479,15 +3492,15 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                             dev_println!(
                                 "🔄 Replacing older event for d='{}' (old: {}, new: {})",
                                 d_value,
-                                existing_event.created_at.as_u64(),
-                                event.created_at.as_u64()
+                                existing_event.created_at.as_secs(),
+                                event.created_at.as_secs()
                             );
                             latest_events.insert(d_value.clone(), event);
                         } else {
                             dev_println!(
                                 "⏭️  Skipping older event for d='{}' (keeping: {})",
                                 d_value,
-                                existing_event.created_at.as_u64()
+                                existing_event.created_at.as_secs()
                             );
                         }
                     } else {
@@ -3495,7 +3508,7 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                             "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
                             d_value,
                             event.id.to_hex(),
-                            event.created_at.as_u64()
+                            event.created_at.as_secs()
                         );
                         latest_events.insert(d_value.clone(), event);
                     }
@@ -3529,13 +3542,13 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                     d_tag,
                     title,
                     event.id.to_hex(),
-                    event.created_at.as_u64()
+                    event.created_at.as_secs()
                 );
 
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3574,7 +3587,7 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
 
         // 施策2: メタデータ取得(kind30001, replaceable)も EOSE 早期終了（起動時 Phase1 高速化）
         let events = client
-            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         if events.is_empty() {
@@ -3603,7 +3616,7 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                 "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
                 d_tag,
                 event.id.to_hex(),
-                event.created_at.as_u64()
+                event.created_at.as_secs()
             );
 
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
@@ -3615,15 +3628,15 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                             dev_println!(
                                 "🔄 Replacing older event for d='{}' (old: {}, new: {})",
                                 d_value,
-                                existing_event.created_at.as_u64(),
-                                event.created_at.as_u64()
+                                existing_event.created_at.as_secs(),
+                                event.created_at.as_secs()
                             );
                             latest_events.insert(d_value.clone(), event);
                         } else {
                             dev_println!(
                                 "⏭️  Skipping older event for d='{}' (keeping: {})",
                                 d_value,
-                                existing_event.created_at.as_u64()
+                                existing_event.created_at.as_secs()
                             );
                         }
                     } else {
@@ -3631,7 +3644,7 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                             "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
                             d_value,
                             event.id.to_hex(),
-                            event.created_at.as_u64()
+                            event.created_at.as_secs()
                         );
                         latest_events.insert(d_value.clone(), event);
                     }
@@ -3665,12 +3678,12 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                     d_tag,
                     title,
                     event.id.to_hex(),
-                    event.created_at.as_u64()
+                    event.created_at.as_secs()
                 );
 
                 TodoListMetadata {
                     event_id: event.id.to_hex(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3705,12 +3718,12 @@ pub fn fetch_encrypted_todo_list_for_pubkey_with_client_id(
             .author(public_key)
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
-                vec!["meiso-todos".to_string()],
+                "meiso-todos".to_string(),
             );
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         // 最新のイベント（Replaceable eventなので1つだけのはず）
@@ -3719,7 +3732,7 @@ pub fn fetch_encrypted_todo_list_for_pubkey_with_client_id(
             Ok(Some(EncryptedTodoListEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 list_id: Some("meiso-todos".to_string()),
                 title: Some("My TODO List".to_string()),
             }))
@@ -3759,7 +3772,7 @@ pub fn fetch_encrypted_todos_for_pubkey_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         let mut encrypted_todos = Vec::new();
@@ -3788,7 +3801,7 @@ pub fn fetch_encrypted_todos_for_pubkey_with_client_id(
             encrypted_todos.push(EncryptedTodoEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 d_tag,
             });
         }
@@ -3970,12 +3983,12 @@ pub fn fetch_encrypted_app_settings_for_pubkey_with_client_id(
             .author(public_key)
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
-                vec!["meiso-settings".to_string()],
+                "meiso-settings".to_string(),
             );
 
         // 施策2: Amber設定取得(kind30078, replaceable)も EOSE 早期終了（モード・パリティ）
         let events = client
-            .fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT)
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         // 最新のイベント（Replaceable eventなので1つだけのはず）
@@ -3984,7 +3997,7 @@ pub fn fetch_encrypted_app_settings_for_pubkey_with_client_id(
             Ok(Some(EncryptedAppSettingsEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
             }))
         } else {
             dev_println!("⚠️ No encrypted app settings event found");
@@ -4139,7 +4152,7 @@ pub fn fetch_deletion_events_for_pubkey_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         dev_println!("📥 Found {} deletion events", events.len());
@@ -4152,7 +4165,7 @@ pub fn fetch_deletion_events_for_pubkey_with_client_id(
         let mut deleted_events = Vec::new();
 
         for event in events {
-            let deletion_created_at = event.created_at.as_u64();
+            let deletion_created_at = event.created_at.as_secs();
 
             // eタグを探す
             for tag in event.tags.iter() {
@@ -4221,7 +4234,7 @@ pub fn find_personal_list_event_id_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         dev_println!("📥 [Rust] Found {} events for d={}", events.len(), d_tag);
@@ -4332,9 +4345,9 @@ pub fn clear_all_session_state() -> Result<()> {
             let mut clients = NOSTR_CLIENTS.lock().await;
             let count = clients.len();
             for (id, client) in clients.iter() {
-                if let Err(e) = client.client.shutdown().await {
-                    dev_eprintln!("⚠️ Failed to shutdown client [{}]: {}", id, e);
-                }
+                // nostr-sdk 0.39+ で shutdown() は Result を返さない
+                client.client.shutdown().await;
+                dev_println!("🛑 Client [{}] shutdown", id);
             }
             clients.clear();
             dev_println!("🧹 Cleared {} NOSTR_CLIENTS entries", count);
@@ -4824,16 +4837,19 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
         // pタグで自分がメンバーとして含まれるKind 30001イベントを検索
         let filter_p = Filter::new().kind(Kind::Custom(30001)).custom_tag(
             SingleLetterTag::lowercase(Alphabet::P),
-            vec![public_key_hex.clone()],
+            public_key_hex.clone(),
         );
 
         // 全てのKind 30001を取得（旧形式のmemberタグ対応）
         let filter_all = Filter::new().kind(Kind::Custom(30001)).author(public_key);
 
-        let events = client
-            .client
-            .fetch_events(vec![filter_p, filter_all], Some(FETCH_TIMEOUT))
-            .await?;
+        // nostr-sdk 0.39+ は fetch_events が単一 Filter のみのため並行フェッチしてマージ
+        let (events_p, events_all) = tokio::join!(
+            client.client.fetch_events(filter_p, FETCH_TIMEOUT),
+            client.client.fetch_events(filter_all, FETCH_TIMEOUT),
+        );
+        let mut events: Vec<Event> = events_p?.into_iter().collect();
+        events.extend(events_all?);
 
         if events.is_empty() {
             dev_println!("⚠️ No encrypted group task list events found");
@@ -4862,7 +4878,7 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
                 if d_value.starts_with("meiso-group-") {
                     // 既存のイベントと比較して、より新しい場合のみ保持
                     if let Some(existing_event) = latest_events.get(&d_value) {
-                        if event.created_at.as_u64() > existing_event.created_at.as_u64() {
+                        if event.created_at.as_secs() > existing_event.created_at.as_secs() {
                             dev_println!(
                                 "🔄 Updating latest event for d='{}' (newer timestamp)",
                                 d_value
@@ -4920,7 +4936,7 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
             encrypted_lists.push(EncryptedGroupTodoListEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 list_id: d_tag.clone(),
                 group_name,
                 encrypted_data: String::new(), // 後でcontentを復号化してから取得
@@ -4996,16 +5012,19 @@ pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
         // まずpタグで検索（新形式）
         let filter_p = Filter::new().kind(Kind::Custom(30001)).custom_tag(
             nostr_sdk::SingleLetterTag::lowercase(nostr_sdk::Alphabet::P),
-            vec![my_pubkey.clone()],
+            my_pubkey.clone(),
         );
 
         // 次に全てのKind 30001を取得（旧形式のmemberタグ対応）
         let filter_all = Filter::new().kind(Kind::Custom(30001));
 
-        let events = client
-            .client
-            .fetch_events(vec![filter_p, filter_all], Some(FETCH_TIMEOUT))
-            .await?;
+        // nostr-sdk 0.39+ は fetch_events が単一 Filter のみのため並行フェッチしてマージ
+        let (events_p, events_all) = tokio::join!(
+            client.client.fetch_events(filter_p, FETCH_TIMEOUT),
+            client.client.fetch_events(filter_all, FETCH_TIMEOUT),
+        );
+        let mut events: Vec<Event> = events_p?.into_iter().collect();
+        events.extend(events_all?);
 
         if events.is_empty() {
             dev_println!("⚠️ No group task lists found");
@@ -5332,7 +5351,7 @@ pub fn fetch_shared_events_by_author_with_client_id(
         }
 
         let timeout = Duration::from_secs(timeout_secs.max(1));
-        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+        let events = client.client.fetch_events(filter, timeout).await?;
 
         dev_println!(
             "📨 [shared-v1] Fetched {} events for author {}",
@@ -5350,7 +5369,7 @@ pub fn fetch_shared_events_by_author_with_client_id(
             .map(|event| ReceivedEvent {
                 event_id: event.id.to_hex(),
                 kind: event.kind.as_u16() as u64,
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 event_json: event.as_json(),
                 received_at: now,
                 subscription_id: String::new(),
@@ -5423,13 +5442,13 @@ pub fn sync_shared_invitations(
             .kind(Kind::Custom(30078))
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::P),
-                vec![recipient_pubkey.to_hex()],
+                recipient_pubkey.to_hex(),
             )
             .limit(50);
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         let mut invitations = Vec::new();
@@ -5518,7 +5537,7 @@ pub fn sync_shared_invitations(
                 "group_name": group_name,
                 "encrypted_content": event.content,
                 "inviter_name": inviter_name,
-                "created_at": event.created_at.as_u64(),
+                "created_at": event.created_at.as_secs(),
             }));
         }
 
@@ -5772,13 +5791,13 @@ pub fn sync_group_invitations(
             .kind(Kind::Custom(30078))
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::P),
-                vec![recipient_pubkey.to_hex()],
+                recipient_pubkey.to_hex(),
             )
             .limit(50);
         
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
         
         dev_println!("✅ Found {} group invitation events", events.len());
@@ -5789,7 +5808,7 @@ pub fn sync_group_invitations(
             for (i, event) in events.iter().enumerate() {
                 dev_println!("  [{}] Event ID: {}", i + 1, event.id.to_hex().chars().take(16).collect::<String>());
                 dev_println!("      From: {}", event.pubkey.to_hex().chars().take(16).collect::<String>());
-                dev_println!("      Created: {}", event.created_at.as_u64());
+                dev_println!("      Created: {}", event.created_at.as_secs());
                 dev_println!("      Kind: {}", event.kind.as_u16());
                 dev_println!("      Tags:");
                 for tag in event.tags.iter() {
@@ -5858,7 +5877,7 @@ pub fn sync_group_invitations(
                                 "welcome_msg": welcome_msg,
                                 "inviter_name": content_json.get("inviter_name").and_then(|v| v.as_str()),
                                 "invited_at": content_json.get("invited_at").and_then(|v| v.as_u64()).unwrap_or(0),
-                                "created_at": event.created_at.as_u64(),
+                                "created_at": event.created_at.as_secs(),
                             });
                             
                             invitations.push(invitation);
@@ -6023,7 +6042,7 @@ pub fn fetch_key_package_by_npub_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         // 最新のKey Packageを取得
@@ -6090,7 +6109,7 @@ pub fn fetch_contact_list_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         // kind:3 は replaceable なので最新の1件のみを採用する
@@ -6153,7 +6172,7 @@ pub fn fetch_profiles_metadata_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         // author ごとに最新の kind:0 のみを採用する
@@ -6217,7 +6236,7 @@ pub fn fetch_blossom_server_list_with_client_id(client_id: Option<String>) -> Re
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         let mut server_urls = Vec::new();
@@ -6260,7 +6279,7 @@ pub fn sign_blossom_auth_event_with_client_id(
             .as_ref()
             .context("Secret key required for Blossom auth signing")?;
 
-        let expiration = Timestamp::now().as_u64() + 600; // 10 min
+        let expiration = Timestamp::now().as_secs() + 600; // 10 min
         let size_str = file_size.to_string();
         let exp_str = expiration.to_string();
 
