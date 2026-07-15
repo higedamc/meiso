@@ -2825,24 +2825,26 @@ pub fn fetch_todo_list_names_only_with_client_id(
         let filter = Filter::new()
             .kind(Kind::Custom(30001))
             .author(public_key);
-        
-        let events = client
-            .client
-            .fetch_events(vec![filter], Some(FETCH_TIMEOUT))
-            .await?;
-        
-        if events.is_empty() {
-            return Ok(Vec::new());
-        }
 
         // Kind 5削除イベントを併読して、墓石化されたイベント/座標を候補から除外する
         let deletion_filter = Filter::new()
             .kind(Kind::EventDeletion)
             .author(public_key);
-        let deletion_events = client
-            .client
-            .fetch_events(vec![deletion_filter], Some(FETCH_TIMEOUT))
-            .await;
+
+        // 30001（replaceable・名前用）は EOSE 早期終了で十分。
+        // kind:5 墓石は取りこぼすとゾンビリストが復活するため全リレー待ちのまま。
+        // 直列だと最悪 FETCH_TIMEOUT×2 かかるので並行フェッチする。
+        let (events, deletion_events) = tokio::join!(
+            client.fetch_events_eose(vec![filter], EOSE_FETCH_TIMEOUT),
+            client
+                .client
+                .fetch_events(vec![deletion_filter], Some(FETCH_TIMEOUT)),
+        );
+        let events = events?;
+
+        if events.is_empty() {
+            return Ok(Vec::new());
+        }
 
         use std::collections::HashMap;
         let mut deleted_event_timestamps: HashMap<String, u64> = HashMap::new();
