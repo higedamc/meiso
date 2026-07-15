@@ -213,6 +213,15 @@ const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 /// replaceable event は 1 リレーの EOSE で十分なので短くてよい。
 const EOSE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2500);
 
+/// NIP-77 negentropy 対応確認のタイムアウト。
+/// 非対応リレーはこの時間内に NEG-ERR 等で判明し、EOSE フェッチへ
+/// フォールバックする。
+const NEGENTROPY_INITIAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// negentropy reconciliation 全体の上限時間。
+/// 超過時は従来の EOSE フェッチにフォールバックする。
+const NEGENTROPY_OVERALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+
 /// 永続イベントキャッシュ (nostr-lmdb)。
 /// init_nostr_db() で一度だけ開き、全クライアントで共有する
 /// （LMDB は同一プロセスから同じ環境を複数回開くべきではないため）。
@@ -932,12 +941,83 @@ impl MeisoNostrClient {
     /// `fetch_events` は全リレーの EOSE かタイムアウトまで待つため、無応答リレーが
     /// 1 本でもあると固定タイムアウト分ブロックする。replaceable event は 1 リレー
     /// の EOSE で十分なので、最初の EOSE（または短い無通信）で打ち切って高速化する。
+    /// NIP-77 negentropy でリレーと差分同期し、ローカルDBから読み出す。
+    ///
+    /// - 対応リレーが 1 つ以上あれば不足イベントのみダウンロードされ
+    ///   （差分ゼロなら 1 往復 ~100 バイト）、受信イベントは通常の
+    ///   ingest 経路で永続 DB (nostr-lmdb) に保存される。
+    /// - 永続 DB 未初期化時は None（in-memory の MemoryDatabase は
+    ///   デフォルトでイベント本体を保存しないため query が空になる）。
+    /// - 全リレー非対応/失敗/タイムアウト時も None を返し、呼び出し側が
+    ///   従来の EOSE フェッチにフォールバックする。
+    async fn try_negentropy_sync(&self, filter: Filter) -> Option<Vec<Event>> {
+        // 永続 DB がなければ差分同期の結果を読み出せない
+        NOSTR_DB.get()?;
+
+        let opts = SyncOptions::default()
+            .initial_timeout(NEGENTROPY_INITIAL_TIMEOUT)
+            .direction(SyncDirection::Down);
+
+        // 応答しないリレーで reconciliation が長引くケースの上限
+        let sync_result = match tokio::time::timeout(
+            NEGENTROPY_OVERALL_TIMEOUT,
+            self.client.sync(filter.clone(), &opts),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                dev_println!(
+                    "ℹ️ negentropy sync timed out ({}s), falling back to EOSE fetch",
+                    NEGENTROPY_OVERALL_TIMEOUT.as_secs(),
+                );
+                return None;
+            }
+        };
+
+        match sync_result {
+            Ok(output) if !output.success.is_empty() => {
+                match self.client.database().query(filter).await {
+                    Ok(events) => {
+                        dev_println!(
+                            "✅ negentropy sync: {} relay(s) reconciled, {} received, reading local DB",
+                            output.success.len(),
+                            output.received.len(),
+                        );
+                        Some(events.into_iter().collect())
+                    }
+                    Err(e) => {
+                        dev_eprintln!("⚠️ local DB query failed after negentropy sync: {}", e);
+                        None
+                    }
+                }
+            }
+            Ok(output) => {
+                dev_println!(
+                    "ℹ️ negentropy unsupported/failed on all relays ({} failed), falling back to EOSE fetch",
+                    output.failed.len(),
+                );
+                None
+            }
+            Err(e) => {
+                dev_println!("ℹ️ negentropy sync error: {}, falling back to EOSE fetch", e);
+                None
+            }
+        }
+    }
+
     /// `timeout` は最悪ケースの上限。
     async fn fetch_events_eose(
         &self,
         filter: Filter,
         timeout: Duration,
     ) -> Result<Vec<Event>> {
+        // まず NIP-77 negentropy 差分同期を試す（対応リレー + 永続DBがある場合）
+        if let Some(mut events) = self.try_negentropy_sync(filter.clone()).await {
+            events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            return Ok(events);
+        }
+
         let output = self.client.subscribe(filter, None).await?;
         let sub_id = output.id().clone();
         let mut notifications = self.client.notifications();
