@@ -242,7 +242,8 @@ fn build_nostr_client(keys: &Keys) -> Client {
             .signer(keys.clone())
             .database(db.clone())
             .build(),
-        None => build_nostr_client(&keys),
+        // 永続 DB 未初期化時は in-memory のまま構築する
+        None => Client::new(keys.clone()),
     }
 }
 

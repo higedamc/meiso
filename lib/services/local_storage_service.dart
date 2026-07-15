@@ -29,6 +29,8 @@ class LocalStorageService {
   static const String _processedGw17EventIdsKey =
       'processed_gw17_event_ids'; // GW17: 処理済みイベントID（重複排除用）
   static const int _maxProcessedGw17EventIds = 2000;
+  static const String _publishedListSignaturesKey =
+      'published_list_signatures'; // 変更リストのみ送信: 前回publish時のリスト内容署名
 
   // === Sync state (Joplin-like) ===
   // 背景復帰/再起動時に「全履歴fetch」を避けるため、最終成功同期時刻を永続化する。
@@ -157,9 +159,7 @@ class LocalStorageService {
   /// （forensic ツールで復元可能）。よって `close()` → `deleteBoxFromDisk()`
   /// → 同名で `openBox()` し直す手順で物理的にファイルを再生成する。
   Future<void> clearAllData() async {
-    if (_todosBox == null ||
-        _settingsBox == null ||
-        _customListsBox == null) {
+    if (_todosBox == null || _settingsBox == null || _customListsBox == null) {
       throw Exception('LocalStorageService not initialized');
     }
 
@@ -175,8 +175,9 @@ class LocalStorageService {
 
     await _customListsBox!.close();
     await Hive.deleteBoxFromDisk(_customListsBoxName);
-    _customListsBox =
-        await Hive.openBox<Map<dynamic, dynamic>>(_customListsBoxName);
+    _customListsBox = await Hive.openBox<Map<dynamic, dynamic>>(
+      _customListsBoxName,
+    );
     AppLogger.info(' カスタムリストデータを物理削除しました');
 
     await _settingsBox!.close();
@@ -563,6 +564,30 @@ class LocalStorageService {
     AppLogger.info(
       '🗑️ [Issue#101] Cleared deleted list metadata from storage',
     );
+  }
+
+  // === 変更リストのみ送信: 前回publish時のリスト内容署名 ===
+
+  /// 前回publish時のリスト内容署名を保存（listKey -> signature）
+  Future<void> savePublishedListSignatures(
+    Map<String, String> signatures,
+  ) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_publishedListSignaturesKey, signatures);
+  }
+
+  /// 前回publish時のリスト内容署名を取得
+  Map<String, String> loadPublishedListSignatures() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final dynamic stored = _settingsBox!.get(_publishedListSignaturesKey);
+    if (stored is Map) {
+      return stored.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+    return {};
   }
 
   // === Issue #101: 削除済みタスクID（リスト再作成時の復活防止） ===
