@@ -1836,18 +1836,31 @@ impl MeisoNostrClient {
         let total = relays.len();
         let mut statuses = Vec::with_capacity(total);
 
+        let mut detail: Vec<String> = Vec::with_capacity(total);
         for (url, relay) in &relays {
-            let is_connected = relay.status() == nostr_sdk::RelayStatus::Connected;
+            let status = relay.status();
+            let is_connected = status == nostr_sdk::RelayStatus::Connected;
             if is_connected {
                 connected += 1;
             }
+            detail.push(format!("{}={}", url, status));
             statuses.push(RelayStatusInfo {
                 url: url.to_string(),
                 connected: is_connected,
             });
         }
 
-        dev_println!("🔌 Relay status: {}/{} connected", connected, total);
+        // 全接続が健全なときは静かに、不健全なときだけ Talker に実状態を出す
+        if connected < total {
+            sync_log(format!(
+                "🔌 relay status {}/{} connected: {}",
+                connected,
+                total,
+                detail.join(", "),
+            ));
+        } else {
+            dev_println!("🔌 Relay status: {}/{} connected", connected, total);
+        }
         Ok(RelayConnectionInfo {
             connected,
             total,
@@ -1937,10 +1950,10 @@ impl MeisoNostrClient {
     ///
     /// その後、1 つ以上のリレーが実際に Connected になるまで待つ。
     pub(crate) async fn reconnect_with_timeout(&self, timeout_secs: u64) -> Result<()> {
-        dev_println!(
-            "🔄 Ensuring relay connections (timeout: {}s)...",
+        sync_log(format!(
+            "🔄 ensuring relay connections (timeout: {}s)...",
             timeout_secs
-        );
+        ));
 
         let relays = self.client.relays().await;
         if relays.is_empty() {
@@ -1951,20 +1964,20 @@ impl MeisoNostrClient {
             match relay.status() {
                 nostr_sdk::RelayStatus::Connected => {}
                 nostr_sdk::RelayStatus::Pending | nostr_sdk::RelayStatus::Connecting => {
-                    dev_println!("  ⏳ {} connection already in progress", url);
+                    sync_log(format!("  ⏳ {} connection already in progress", url));
                 }
                 nostr_sdk::RelayStatus::Disconnected => {
                     // バックオフ待ちを打ち切り、即時再試行させる
                     relay.disconnect();
                     relay.connect();
-                    dev_println!("  🔁 {} retrying immediately", url);
+                    sync_log(format!("  🔁 {} retrying immediately", url));
                 }
                 nostr_sdk::RelayStatus::Initialized | nostr_sdk::RelayStatus::Terminated => {
                     relay.connect();
-                    dev_println!("  🔌 {} connecting", url);
+                    sync_log(format!("  🔌 {} connecting", url));
                 }
                 nostr_sdk::RelayStatus::Banned | nostr_sdk::RelayStatus::Sleeping => {
-                    dev_println!("  💤 {} skipped (status={})", url, relay.status());
+                    sync_log(format!("  💤 {} skipped (status={})", url, relay.status()));
                 }
             }
         }
@@ -1978,11 +1991,11 @@ impl MeisoNostrClient {
                 .filter(|r| r.status() == nostr_sdk::RelayStatus::Connected)
                 .count();
             if connected > 0 {
-                dev_println!("✅ {}/{} relays connected", connected, relays.len());
+                sync_log(format!("✅ reconnect: {}/{} relays connected", connected, relays.len()));
                 return Ok(());
             }
             if tokio::time::Instant::now() >= deadline {
-                dev_eprintln!("⚠️ Reconnection timeout ({}s)", timeout_secs);
+                sync_log(format!("⚠️ reconnect timeout ({}s)", timeout_secs));
                 return Err(anyhow::anyhow!("Reconnection timeout"));
             }
             tokio::time::sleep(Duration::from_millis(200)).await;
