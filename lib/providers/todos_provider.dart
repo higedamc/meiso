@@ -4288,6 +4288,14 @@ class TodosNotifier
           throw Exception('データ同期がタイムアウトしました（15秒）');
         },
       );
+
+      // 手動同期（pull-to-refresh）では、マージで温存した needsSync 差分を
+      // 即時プッシュして「ローカルファーストな強制同期」を完結させる。
+      // kind:30001 はリスト丸ごと置換イベントのため、他端末の追加分を
+      // 取り込む前に送ると上書きで消してしまう。必ず fetch→マージ後に送る。
+      if (trigger == TodoSyncTrigger.manual) {
+        await _pushPendingTodosAfterMerge();
+      }
     } catch (e, stackTrace) {
       _ref
           .read(syncStatusProvider.notifier)
@@ -4299,6 +4307,27 @@ class TodosNotifier
       AppLogger.error(
         'Stack trace: ${stackTrace.toString().split('\n').take(5).join('\n')}',
       );
+    }
+  }
+
+  /// フェッチ＆マージ後に残った未同期タスクをリレーへプッシュする。
+  /// 未同期タスクがなければ何もしない（Amber の署名要求を増やさないため）。
+  Future<void> _pushPendingTodosAfterMerge() async {
+    final pendingTodos = _getUnsyncedTodos();
+    if (pendingTodos.isEmpty) {
+      AppLogger.debug(' [Sync] No pending todos to push after merge');
+      return;
+    }
+
+    AppLogger.info(
+      '📤 [Sync] Pushing ${pendingTodos.length} pending todos after merge',
+    );
+    try {
+      await _syncToNostr(_syncAllTodosToNostr);
+    } catch (e) {
+      // プッシュ失敗はフェッチ成功を無効にしない。needsSync は残っているので
+      // 次回の編集時同期 or 手動同期で再送される。
+      AppLogger.warning('⚠️ [Sync] Pending push after merge failed: $e');
     }
   }
 
@@ -4778,9 +4807,11 @@ class TodosNotifier
       await _saveAllTodosToLocal();
       await _updateWidget();
 
-      // ローカルが新しいタスクがある場合、自動的に再同期
+      // ローカルが新しいタスクがある場合、未同期バッジを更新する。
+      // 実際の送信は呼び出し元が行う（手動同期では syncFromNostr が
+      // マージ後に _pushPendingTodosAfterMerge で即時プッシュする）。
       if (localWinsCount > 0 || localOnlyCount > 0) {
-        AppLogger.info(' Scheduling resync due to local changes');
+        AppLogger.info(' Local changes detected after merge (will be pushed)');
         _updateUnsyncedCount();
       }
     } catch (e, stackTrace) {
