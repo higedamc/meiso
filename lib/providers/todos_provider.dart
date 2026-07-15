@@ -1482,8 +1482,9 @@ class TodosNotifier
 
           // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
           // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
-          final showPreviewLoading =
-              _ref.read(remoteContentFetchAllowedProvider);
+          final showPreviewLoading = _ref.read(
+            remoteContentFetchAllowedProvider,
+          );
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName, // ドメイン名を表示
@@ -1676,8 +1677,9 @@ class TodosNotifier
 
           // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
           // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
-          final showPreviewLoading =
-              _ref.read(remoteContentFetchAllowedProvider);
+          final showPreviewLoading = _ref.read(
+            remoteContentFetchAllowedProvider,
+          );
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName,
@@ -4287,6 +4289,14 @@ class TodosNotifier
           throw Exception('データ同期がタイムアウトしました（15秒）');
         },
       );
+
+      // 手動同期（pull-to-refresh）では、マージで温存した needsSync 差分を
+      // 即時プッシュして「ローカルファーストな強制同期」を完結させる。
+      // kind:30001 はリスト丸ごと置換イベントのため、他端末の追加分を
+      // 取り込む前に送ると上書きで消してしまう。必ず fetch→マージ後に送る。
+      if (trigger == TodoSyncTrigger.manual) {
+        await _pushPendingTodosAfterMerge();
+      }
     } catch (e, stackTrace) {
       _ref
           .read(syncStatusProvider.notifier)
@@ -4298,6 +4308,27 @@ class TodosNotifier
       AppLogger.error(
         'Stack trace: ${stackTrace.toString().split('\n').take(5).join('\n')}',
       );
+    }
+  }
+
+  /// フェッチ＆マージ後に残った未同期タスクをリレーへプッシュする。
+  /// 未同期タスクがなければ何もしない（Amber の署名要求を増やさないため）。
+  Future<void> _pushPendingTodosAfterMerge() async {
+    final pendingTodos = _getUnsyncedTodos();
+    if (pendingTodos.isEmpty) {
+      AppLogger.debug(' [Sync] No pending todos to push after merge');
+      return;
+    }
+
+    AppLogger.info(
+      '📤 [Sync] Pushing ${pendingTodos.length} pending todos after merge',
+    );
+    try {
+      await _syncToNostr(_syncAllTodosToNostr);
+    } catch (e) {
+      // プッシュ失敗はフェッチ成功を無効にしない。needsSync は残っているので
+      // 次回の編集時同期 or 手動同期で再送される。
+      AppLogger.warning('⚠️ [Sync] Pending push after merge failed: $e');
     }
   }
 
@@ -4777,9 +4808,11 @@ class TodosNotifier
       await _saveAllTodosToLocal();
       await _updateWidget();
 
-      // ローカルが新しいタスクがある場合、自動的に再同期
+      // ローカルが新しいタスクがある場合、未同期バッジを更新する。
+      // 実際の送信は呼び出し元が行う（手動同期では syncFromNostr が
+      // マージ後に _pushPendingTodosAfterMerge で即時プッシュする）。
       if (localWinsCount > 0 || localOnlyCount > 0) {
-        AppLogger.info(' Scheduling resync due to local changes');
+        AppLogger.info(' Local changes detected after merge (will be pushed)');
         _updateUnsyncedCount();
       }
     } catch (e, stackTrace) {
@@ -5361,17 +5394,20 @@ class TodosNotifier
         since: effectiveSince,
       );
 
-      final events = eventsResult.fold((failure) {
-        AppLogger.error(
-          '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
-        );
-        return <Map<String, dynamic>>[];
-      }, (e) {
-        AppLogger.info(
-          '📦 [shared-v1] fetched ${e.length} events from relays',
-        );
-        return e;
-      });
+      final events = eventsResult.fold(
+        (failure) {
+          AppLogger.error(
+            '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
+          );
+          return <Map<String, dynamic>>[];
+        },
+        (e) {
+          AppLogger.info(
+            '📦 [shared-v1] fetched ${e.length} events from relays',
+          );
+          return e;
+        },
+      );
       if (events.isEmpty) {
         await localStorageService.setLastSharedGroupTodosSyncTime(
           groupId,
@@ -5512,9 +5548,11 @@ class TodosNotifier
       completed: completed,
       date: date,
       order: (data['order'] as num?)?.toInt() ?? 0,
-      createdAt: DateTime.tryParse(data['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(data['created_at'] as String? ?? '') ??
           DateTime.now(),
-      updatedAt: DateTime.tryParse(data['updated_at'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(data['updated_at'] as String? ?? '') ??
           DateTime.now(),
       customListId: groupId,
       needsSync: false,
@@ -5565,8 +5603,8 @@ class TodosNotifier
     data['updated_at'] = updatedAt.toIso8601String();
 
     // 帰属表示のため editor_pubkey は常に埋める（issue #138 R4）
-    final editor = editorPubkey ??
-        await _ref.read(nostrServiceProvider).getPublicKey();
+    final editor =
+        editorPubkey ?? await _ref.read(nostrServiceProvider).getPublicKey();
     if (editor != null && editor.isNotEmpty) {
       data['editor_pubkey'] = editor;
     }
@@ -6145,8 +6183,7 @@ class TodosNotifier
           if (seen.contains(event.eventId)) continue;
           seen.add(event.eventId);
 
-          final eventData =
-              jsonDecode(event.eventJson) as Map<String, dynamic>;
+          final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
           final kind = eventData['kind'] as int?;
           if (kind != 35000) continue; // meta(35001) はここでは無視
 
@@ -6173,8 +6210,9 @@ class TodosNotifier
           if (data['deleted'] == true) {
             byId.remove(parsed.id);
             for (final dateKey in updated.keys.toList()) {
-              updated[dateKey] =
-                  updated[dateKey]!.where((t) => t.id != parsed.id).toList();
+              updated[dateKey] = updated[dateKey]!
+                  .where((t) => t.id != parsed.id)
+                  .toList();
             }
             changed = true;
             continue;
