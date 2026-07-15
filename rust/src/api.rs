@@ -213,12 +213,46 @@ const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 /// replaceable event は 1 リレーの EOSE で十分なので短くてよい。
 const EOSE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2500);
 
+/// NIP-77 negentropy 対応確認のタイムアウト。
+/// 非対応リレーはこの時間内に NEG-ERR 等で判明し、EOSE フェッチへ
+/// フォールバックする。
+const NEGENTROPY_INITIAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// negentropy reconciliation 全体の上限時間。
+/// 超過時は従来の EOSE フェッチにフォールバックする。
+const NEGENTROPY_OVERALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+
 /// 永続イベントキャッシュ (nostr-lmdb)。
 /// init_nostr_db() で一度だけ開き、全クライアントで共有する
 /// （LMDB は同一プロセスから同じ環境を複数回開くべきではないため）。
 /// 未初期化の場合は従来どおり in-memory DB で動作する。
 static NOSTR_DB: once_cell::sync::OnceCell<std::sync::Arc<nostr_lmdb::NostrLMDB>> =
     once_cell::sync::OnceCell::new();
+
+/// Rust 側の同期メタデータログ（negentropy 等）を Dart（Talker）へ流すストリーム。
+/// ⚠️ ここにはリレー数・件数などのメタデータのみを流すこと。
+/// イベント内容・鍵・トークン等の機微情報は絶対に流さない（security audit C-1）。
+static SYNC_LOG_SINK: once_cell::sync::Lazy<
+    std::sync::Mutex<Option<crate::frb_generated::StreamSink<String>>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
+/// Dart 側から購読する同期ログストリームを登録する。
+/// ホットリスタート等での再登録は新しい sink で上書きされる。
+pub fn init_sync_log_stream(sink: crate::frb_generated::StreamSink<String>) {
+    if let Ok(mut guard) = SYNC_LOG_SINK.lock() {
+        *guard = Some(sink);
+    }
+}
+
+/// 同期メタデータログ。debug ビルドでは stdout にも出す。
+fn sync_log(msg: String) {
+    dev_println!("{}", msg);
+    if let Ok(guard) = SYNC_LOG_SINK.lock() {
+        if let Some(sink) = guard.as_ref() {
+            let _ = sink.add(msg);
+        }
+    }
+}
 
 /// 永続イベントキャッシュを初期化する。
 /// アプリ起動時に initNostrClient* より前に一度だけ呼ぶこと。
@@ -932,12 +966,100 @@ impl MeisoNostrClient {
     /// `fetch_events` は全リレーの EOSE かタイムアウトまで待つため、無応答リレーが
     /// 1 本でもあると固定タイムアウト分ブロックする。replaceable event は 1 リレー
     /// の EOSE で十分なので、最初の EOSE（または短い無通信）で打ち切って高速化する。
+    /// NIP-77 negentropy でリレーと差分同期し、ローカルDBから読み出す。
+    ///
+    /// - 対応リレーが 1 つ以上あれば不足イベントのみダウンロードされ
+    ///   （差分ゼロなら 1 往復 ~100 バイト）、受信イベントは通常の
+    ///   ingest 経路で永続 DB (nostr-lmdb) に保存される。
+    /// - 永続 DB 未初期化時は None（in-memory の MemoryDatabase は
+    ///   デフォルトでイベント本体を保存しないため query が空になる）。
+    /// - 全リレー非対応/失敗/タイムアウト時も None を返し、呼び出し側が
+    ///   従来の EOSE フェッチにフォールバックする。
+    async fn try_negentropy_sync(&self, filter: Filter) -> Option<Vec<Event>> {
+        // 永続 DB がなければ差分同期の結果を読み出せない
+        NOSTR_DB.get()?;
+
+        // ログ用: 対象 kind（経路の識別のため。内容は含めない）
+        let kinds: Vec<u16> = filter
+            .kinds
+            .as_ref()
+            .map(|k| k.iter().map(|kind| kind.as_u16()).collect())
+            .unwrap_or_default();
+
+        let opts = SyncOptions::default()
+            .initial_timeout(NEGENTROPY_INITIAL_TIMEOUT)
+            .direction(SyncDirection::Down);
+
+        // 応答しないリレーで reconciliation が長引くケースの上限
+        let sync_result = match tokio::time::timeout(
+            NEGENTROPY_OVERALL_TIMEOUT,
+            self.client.sync(filter.clone(), &opts),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                sync_log(format!(
+                    "⏱️ negentropy kinds={:?}: timed out ({}s), falling back to EOSE fetch",
+                    kinds,
+                    NEGENTROPY_OVERALL_TIMEOUT.as_secs(),
+                ));
+                return None;
+            }
+        };
+
+        match sync_result {
+            Ok(output) if !output.success.is_empty() => {
+                match self.client.database().query(filter).await {
+                    Ok(events) => {
+                        sync_log(format!(
+                            "✅ negentropy kinds={:?}: {} relay(s) reconciled, {} received, {} events from local DB",
+                            kinds,
+                            output.success.len(),
+                            output.received.len(),
+                            events.len(),
+                        ));
+                        Some(events.into_iter().collect())
+                    }
+                    Err(e) => {
+                        sync_log(format!(
+                            "⚠️ negentropy kinds={:?}: local DB query failed: {}",
+                            kinds, e,
+                        ));
+                        None
+                    }
+                }
+            }
+            Ok(output) => {
+                sync_log(format!(
+                    "ℹ️ negentropy kinds={:?}: unsupported/failed on all relays ({} failed), falling back to EOSE fetch",
+                    kinds,
+                    output.failed.len(),
+                ));
+                None
+            }
+            Err(e) => {
+                sync_log(format!(
+                    "ℹ️ negentropy kinds={:?}: sync error: {}, falling back to EOSE fetch",
+                    kinds, e,
+                ));
+                None
+            }
+        }
+    }
+
     /// `timeout` は最悪ケースの上限。
     async fn fetch_events_eose(
         &self,
         filter: Filter,
         timeout: Duration,
     ) -> Result<Vec<Event>> {
+        // まず NIP-77 negentropy 差分同期を試す（対応リレー + 永続DBがある場合）
+        if let Some(mut events) = self.try_negentropy_sync(filter.clone()).await {
+            events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            return Ok(events);
+        }
+
         let output = self.client.subscribe(filter, None).await?;
         let sub_id = output.id().clone();
         let mut notifications = self.client.notifications();
@@ -1714,18 +1836,31 @@ impl MeisoNostrClient {
         let total = relays.len();
         let mut statuses = Vec::with_capacity(total);
 
+        let mut detail: Vec<String> = Vec::with_capacity(total);
         for (url, relay) in &relays {
-            let is_connected = relay.status() == nostr_sdk::RelayStatus::Connected;
+            let status = relay.status();
+            let is_connected = status == nostr_sdk::RelayStatus::Connected;
             if is_connected {
                 connected += 1;
             }
+            detail.push(format!("{}={}", url, status));
             statuses.push(RelayStatusInfo {
                 url: url.to_string(),
                 connected: is_connected,
             });
         }
 
-        dev_println!("🔌 Relay status: {}/{} connected", connected, total);
+        // 全接続が健全なときは静かに、不健全なときだけ Talker に実状態を出す
+        if connected < total {
+            sync_log(format!(
+                "🔌 relay status {}/{} connected: {}",
+                connected,
+                total,
+                detail.join(", "),
+            ));
+        } else {
+            dev_println!("🔌 Relay status: {}/{} connected", connected, total);
+        }
         Ok(RelayConnectionInfo {
             connected,
             total,
@@ -1815,10 +1950,10 @@ impl MeisoNostrClient {
     ///
     /// その後、1 つ以上のリレーが実際に Connected になるまで待つ。
     pub(crate) async fn reconnect_with_timeout(&self, timeout_secs: u64) -> Result<()> {
-        dev_println!(
-            "🔄 Ensuring relay connections (timeout: {}s)...",
+        sync_log(format!(
+            "🔄 ensuring relay connections (timeout: {}s)...",
             timeout_secs
-        );
+        ));
 
         let relays = self.client.relays().await;
         if relays.is_empty() {
@@ -1829,20 +1964,20 @@ impl MeisoNostrClient {
             match relay.status() {
                 nostr_sdk::RelayStatus::Connected => {}
                 nostr_sdk::RelayStatus::Pending | nostr_sdk::RelayStatus::Connecting => {
-                    dev_println!("  ⏳ {} connection already in progress", url);
+                    sync_log(format!("  ⏳ {} connection already in progress", url));
                 }
                 nostr_sdk::RelayStatus::Disconnected => {
                     // バックオフ待ちを打ち切り、即時再試行させる
                     relay.disconnect();
                     relay.connect();
-                    dev_println!("  🔁 {} retrying immediately", url);
+                    sync_log(format!("  🔁 {} retrying immediately", url));
                 }
                 nostr_sdk::RelayStatus::Initialized | nostr_sdk::RelayStatus::Terminated => {
                     relay.connect();
-                    dev_println!("  🔌 {} connecting", url);
+                    sync_log(format!("  🔌 {} connecting", url));
                 }
                 nostr_sdk::RelayStatus::Banned | nostr_sdk::RelayStatus::Sleeping => {
-                    dev_println!("  💤 {} skipped (status={})", url, relay.status());
+                    sync_log(format!("  💤 {} skipped (status={})", url, relay.status()));
                 }
             }
         }
@@ -1856,11 +1991,11 @@ impl MeisoNostrClient {
                 .filter(|r| r.status() == nostr_sdk::RelayStatus::Connected)
                 .count();
             if connected > 0 {
-                dev_println!("✅ {}/{} relays connected", connected, relays.len());
+                sync_log(format!("✅ reconnect: {}/{} relays connected", connected, relays.len()));
                 return Ok(());
             }
             if tokio::time::Instant::now() >= deadline {
-                dev_eprintln!("⚠️ Reconnection timeout ({}s)", timeout_secs);
+                sync_log(format!("⚠️ reconnect timeout ({}s)", timeout_secs));
                 return Err(anyhow::anyhow!("Reconnection timeout"));
             }
             tokio::time::sleep(Duration::from_millis(200)).await;

@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1949297025;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1730542590;
 
 // Section: executor
 
@@ -4243,6 +4243,44 @@ fn wire__crate__api__init_nostr_db_impl(
         },
     )
 }
+fn wire__crate__api__init_sync_log_stream_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "init_sync_log_stream",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_sink =
+                <StreamSink<String, flutter_rust_bridge::for_generated::SseCodec>>::sse_decode(
+                    &mut deserializer,
+                );
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok({
+                        crate::api::init_sync_log_stream(api_sink);
+                    })?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__is_cache_valid_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -6775,6 +6813,14 @@ impl SseDecode
     }
 }
 
+impl SseDecode for StreamSink<String, flutter_rust_bridge::for_generated::SseCodec> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <String>::sse_decode(deserializer);
+        return StreamSink::deserialize(inner);
+    }
+}
+
 impl SseDecode for String {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8005,195 +8051,196 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         104 => wire__crate__api__init_nostr_db_impl(port, ptr, rust_vec_len, data_len),
-        105 => wire__crate__api__is_cache_valid_impl(port, ptr, rust_vec_len, data_len),
-        106 => wire__crate__api__load_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        107 => wire__crate__api__load_public_key_impl(port, ptr, rust_vec_len, data_len),
-        108 => wire__crate__api__mls_add_todo_impl(port, ptr, rust_vec_len, data_len),
-        109 => wire__crate__api__mls_create_key_package_impl(port, ptr, rust_vec_len, data_len),
-        110 => wire__crate__api__mls_create_todo_group_impl(port, ptr, rust_vec_len, data_len),
-        111 => wire__crate__api__mls_decrypt_todo_impl(port, ptr, rust_vec_len, data_len),
-        112 => wire__crate__api__mls_encrypt_group_event_content_impl(
+        105 => wire__crate__api__init_sync_log_stream_impl(port, ptr, rust_vec_len, data_len),
+        106 => wire__crate__api__is_cache_valid_impl(port, ptr, rust_vec_len, data_len),
+        107 => wire__crate__api__load_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        108 => wire__crate__api__load_public_key_impl(port, ptr, rust_vec_len, data_len),
+        109 => wire__crate__api__mls_add_todo_impl(port, ptr, rust_vec_len, data_len),
+        110 => wire__crate__api__mls_create_key_package_impl(port, ptr, rust_vec_len, data_len),
+        111 => wire__crate__api__mls_create_todo_group_impl(port, ptr, rust_vec_len, data_len),
+        112 => wire__crate__api__mls_decrypt_todo_impl(port, ptr, rust_vec_len, data_len),
+        113 => wire__crate__api__mls_encrypt_group_event_content_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        113 => wire__crate__api__mls_get_group_info_impl(port, ptr, rust_vec_len, data_len),
-        114 => wire__crate__api__mls_get_listen_key_impl(port, ptr, rust_vec_len, data_len),
-        115 => wire__crate__api__mls_init_db_impl(port, ptr, rust_vec_len, data_len),
-        116 => wire__crate__api__mls_join_group_impl(port, ptr, rust_vec_len, data_len),
-        117 => wire__crate__api__npub_to_hex_impl(port, ptr, rust_vec_len, data_len),
-        118 => {
+        114 => wire__crate__api__mls_get_group_info_impl(port, ptr, rust_vec_len, data_len),
+        115 => wire__crate__api__mls_get_listen_key_impl(port, ptr, rust_vec_len, data_len),
+        116 => wire__crate__api__mls_init_db_impl(port, ptr, rust_vec_len, data_len),
+        117 => wire__crate__api__mls_join_group_impl(port, ptr, rust_vec_len, data_len),
+        118 => wire__crate__api__npub_to_hex_impl(port, ptr, rust_vec_len, data_len),
+        119 => {
             wire__crate__api__receive_subscription_events_impl(port, ptr, rust_vec_len, data_len)
         }
-        119 => wire__crate__api__receive_subscription_events_with_client_id_impl(
+        120 => wire__crate__api__receive_subscription_events_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        120 => wire__crate__api__reconnect_to_relays_impl(port, ptr, rust_vec_len, data_len),
-        121 => wire__crate__api__reconnect_to_relays_with_client_id_impl(
+        121 => wire__crate__api__reconnect_to_relays_impl(port, ptr, rust_vec_len, data_len),
+        122 => wire__crate__api__reconnect_to_relays_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        122 => wire__crate__api__reconnect_to_relays_with_timeout_impl(
+        123 => wire__crate__api__reconnect_to_relays_with_timeout_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        123 => wire__crate__api__reconnect_to_relays_with_timeout_and_client_id_impl(
+        124 => wire__crate__api__reconnect_to_relays_with_timeout_and_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        124 => wire__crate__api__remove_member_from_group_task_list_impl(
+        125 => wire__crate__api__remove_member_from_group_task_list_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        125 => wire__crate__api__save_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        126 => wire__crate__api__save_app_settings_with_client_id_impl(
+        126 => wire__crate__api__save_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        127 => wire__crate__api__save_app_settings_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        127 => wire__crate__api__save_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
-        128 => {
+        128 => wire__crate__api__save_encrypted_secret_key_impl(port, ptr, rust_vec_len, data_len),
+        129 => {
             wire__crate__api__save_group_task_list_to_nostr_impl(port, ptr, rust_vec_len, data_len)
         }
-        129 => wire__crate__api__save_public_key_impl(port, ptr, rust_vec_len, data_len),
-        130 => wire__crate__api__save_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        131 => {
+        130 => wire__crate__api__save_public_key_impl(port, ptr, rust_vec_len, data_len),
+        131 => wire__crate__api__save_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        132 => {
             wire__crate__api__save_relay_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        132 => wire__crate__api__send_signed_event_impl(port, ptr, rust_vec_len, data_len),
-        133 => {
+        133 => wire__crate__api__send_signed_event_impl(port, ptr, rust_vec_len, data_len),
+        134 => {
             wire__crate__api__send_signed_event_to_relays_impl(port, ptr, rust_vec_len, data_len)
         }
-        134 => wire__crate__api__send_signed_event_with_client_id_impl(
+        135 => wire__crate__api__send_signed_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        135 => {
+        136 => {
             wire__crate__api__set_nip89_client_tag_enabled_impl(port, ptr, rust_vec_len, data_len)
         }
-        136 => {
+        137 => {
             wire__crate__api__set_relay_websocket_user_agent_impl(port, ptr, rust_vec_len, data_len)
         }
-        137 => wire__crate__api__shared_build_invitation_payload_impl(
+        138 => wire__crate__api__shared_build_invitation_payload_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        138 => {
+        139 => {
             wire__crate__api__shared_build_signed_meta_event_impl(port, ptr, rust_vec_len, data_len)
         }
-        139 => {
+        140 => {
             wire__crate__api__shared_build_signed_task_event_impl(port, ptr, rust_vec_len, data_len)
         }
-        140 => wire__crate__api__shared_decrypt_invitation_from_sender_impl(
+        141 => wire__crate__api__shared_decrypt_invitation_from_sender_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        141 => wire__crate__api__shared_decrypt_meta_event_impl(port, ptr, rust_vec_len, data_len),
-        142 => wire__crate__api__shared_decrypt_task_event_impl(port, ptr, rust_vec_len, data_len),
-        143 => wire__crate__api__shared_encrypt_invitation_for_recipient_impl(
+        142 => wire__crate__api__shared_decrypt_meta_event_impl(port, ptr, rust_vec_len, data_len),
+        143 => wire__crate__api__shared_decrypt_task_event_impl(port, ptr, rust_vec_len, data_len),
+        144 => wire__crate__api__shared_encrypt_invitation_for_recipient_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        144 => wire__crate__api__shared_generate_group_key_impl(port, ptr, rust_vec_len, data_len),
-        145 => wire__crate__api__shared_npub_from_nsec_impl(port, ptr, rust_vec_len, data_len),
-        146 => wire__crate__api__shared_parse_invitation_payload_impl(
+        145 => wire__crate__api__shared_generate_group_key_impl(port, ptr, rust_vec_len, data_len),
+        146 => wire__crate__api__shared_npub_from_nsec_impl(port, ptr, rust_vec_len, data_len),
+        147 => wire__crate__api__shared_parse_invitation_payload_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        147 => wire__crate__api__sign_blossom_auth_event_impl(port, ptr, rust_vec_len, data_len),
-        148 => wire__crate__api__sign_blossom_auth_event_with_client_id_impl(
+        148 => wire__crate__api__sign_blossom_auth_event_impl(port, ptr, rust_vec_len, data_len),
+        149 => wire__crate__api__sign_blossom_auth_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        149 => {
+        150 => {
             wire__crate__api__sign_event_with_ephemeral_key_impl(port, ptr, rust_vec_len, data_len)
         }
-        150 => wire__crate__api__sign_nip98_auth_event_impl(port, ptr, rust_vec_len, data_len),
-        151 => wire__crate__api__sign_nip98_auth_event_with_client_id_impl(
+        151 => wire__crate__api__sign_nip98_auth_event_impl(port, ptr, rust_vec_len, data_len),
+        152 => wire__crate__api__sign_nip98_auth_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        152 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
-        153 => wire__crate__api__start_subscription_with_client_id_impl(
+        153 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
+        154 => wire__crate__api__start_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        154 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
-        155 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
+        155 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
+        156 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        156 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
-        157 => wire__crate__api__stop_subscription_with_client_id_impl(
+        157 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
+        158 => wire__crate__api__stop_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        158 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        159 => wire__crate__api__sync_app_settings_with_client_id_impl(
+        159 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        160 => wire__crate__api__sync_app_settings_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        160 => wire__crate__api__sync_group_invitations_impl(port, ptr, rust_vec_len, data_len),
-        161 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        162 => {
+        161 => wire__crate__api__sync_group_invitations_impl(port, ptr, rust_vec_len, data_len),
+        162 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        163 => {
             wire__crate__api__sync_relay_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        163 => wire__crate__api__sync_shared_invitations_impl(port, ptr, rust_vec_len, data_len),
-        164 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
-        165 => wire__crate__api__sync_todo_list_since_impl(port, ptr, rust_vec_len, data_len),
-        166 => wire__crate__api__sync_todo_list_since_with_client_id_impl(
+        164 => wire__crate__api__sync_shared_invitations_impl(port, ptr, rust_vec_len, data_len),
+        165 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
+        166 => wire__crate__api__sync_todo_list_since_impl(port, ptr, rust_vec_len, data_len),
+        167 => wire__crate__api__sync_todo_list_since_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        167 => {
+        168 => {
             wire__crate__api__sync_todo_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        168 => wire__crate__api__tor_mode_default_impl(port, ptr, rust_vec_len, data_len),
-        169 => wire__crate__api__update_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        170 => wire__crate__api__update_relay_list_with_client_id_impl(
+        169 => wire__crate__api__tor_mode_default_impl(port, ptr, rust_vec_len, data_len),
+        170 => wire__crate__api__update_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        171 => wire__crate__api__update_relay_list_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        171 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
+        172 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -8798,6 +8845,13 @@ impl SseEncode
         let (ptr, size) = self.sse_encode_raw();
         <usize>::sse_encode(ptr, serializer);
         <i32>::sse_encode(size, serializer);
+    }
+}
+
+impl SseEncode for StreamSink<String, flutter_rust_bridge::for_generated::SseCodec> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        unimplemented!("")
     }
 }
 
