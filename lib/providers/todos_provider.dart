@@ -2742,6 +2742,106 @@ class TodosNotifier
         );
   }
 
+  // === 変更リストのみ送信（内容署名による変更検出） ===
+
+  static const String _defaultPublishListKey = '__default__';
+
+  String _publishListKey(Todo todo) =>
+      todo.customListId ?? _defaultPublishListKey;
+
+  /// リスト内容の署名。id / updatedAt / completed から導出する。
+  /// needsSync や eventId 等の同期メタデータは含めない
+  /// （publish 後に書き換わっても署名が変わらないようにするため）。
+  String _listContentSignature(List<Todo> listTodos) {
+    final parts =
+        listTodos
+            .map(
+              (t) =>
+                  '${t.id}:${t.updatedAt.millisecondsSinceEpoch}:${t.completed ? 1 : 0}',
+            )
+            .toList()
+          ..sort();
+    return parts.join('|');
+  }
+
+  /// 送信が必要なリスト（publish listKey）を返す。
+  /// needsSync を含むリストに加え、前回 publish 時の内容署名と異なるリスト
+  /// （削除・リスト間移動など needsSync が残らない変更）を検出する。
+  ///
+  /// 既知の制限: 最後のタスクを削除して空になったリストは、空リストを
+  /// publish する手段が現状ないため送信対象にできない（従来と同じ挙動）。
+  Set<String> _computeChangedListKeys(List<Todo> flatTodos) {
+    final byList = <String, List<Todo>>{};
+    for (final t in flatTodos) {
+      byList.putIfAbsent(_publishListKey(t), () => []).add(t);
+    }
+
+    final Map<String, String> published;
+    try {
+      published = localStorageService.loadPublishedListSignatures();
+    } catch (e) {
+      // 読めない場合は全リスト送信（従来挙動）にフォールバック
+      AppLogger.warning(' Failed to load published list signatures: $e');
+      return byList.keys.toSet();
+    }
+
+    final changed = <String>{};
+    for (final entry in byList.entries) {
+      if (entry.value.any((t) => t.needsSync)) {
+        changed.add(entry.key);
+        continue;
+      }
+      if (published[entry.key] != _listContentSignature(entry.value)) {
+        changed.add(entry.key);
+      }
+    }
+    return changed;
+  }
+
+  /// publish 成功したタスク群のリスト署名を保存する。
+  /// 失敗しても次回に余分な再送が起きるだけで実害はない。
+  Future<void> _recordPublishedListSignatures(List<Todo> sentTodos) async {
+    if (sentTodos.isEmpty) return;
+    try {
+      final byList = <String, List<Todo>>{};
+      for (final t in sentTodos) {
+        byList.putIfAbsent(_publishListKey(t), () => []).add(t);
+      }
+      final published = Map<String, String>.from(
+        localStorageService.loadPublishedListSignatures(),
+      );
+      for (final entry in byList.entries) {
+        published[entry.key] = _listContentSignature(entry.value);
+      }
+      await localStorageService.savePublishedListSignatures(published);
+    } catch (e) {
+      AppLogger.warning(' Failed to save published list signatures: $e');
+    }
+  }
+
+  /// フェッチ＆マージ後、needsSync がゼロのリストの署名を基準として記録する。
+  /// リモート由来の変更（マージで取り込んだだけの内容）を「未 publish の変更」と
+  /// 誤検出して無駄に再送しないようにするため。
+  Future<void> _recordSignaturesForCleanLists(
+    Map<DateTime?, List<Todo>> mergedTodos,
+  ) async {
+    final flat = <Todo>[];
+    for (final group in mergedTodos.values) {
+      flat.addAll(group);
+    }
+    final byList = <String, List<Todo>>{};
+    for (final t in flat) {
+      byList.putIfAbsent(_publishListKey(t), () => []).add(t);
+    }
+    final cleanTodos = <Todo>[];
+    for (final entry in byList.entries) {
+      if (entry.value.every((t) => !t.needsSync)) {
+        cleanTodos.addAll(entry.value);
+      }
+    }
+    await _recordPublishedListSignatures(cleanTodos);
+  }
+
   /// 同期成功後、needsSync/eventIdをまとめて更新（1回の保存で反映）
   Future<void> _markTodosSyncedWithEventId(
     List<Todo> targetTodos,
@@ -3066,12 +3166,30 @@ class TodosNotifier
       AppLogger.debug(' _syncAllTodosToNostr: state.whenData callback STARTED');
 
       // 全TODOをフラット化
-      final allTodos = <Todo>[];
+      final flatTodos = <Todo>[];
       for (final dateGroup in todos.values) {
-        allTodos.addAll(dateGroup);
+        flatTodos.addAll(dateGroup);
       }
 
-      AppLogger.debug(' Total todos to sync: ${allTodos.length}');
+      // 変更のあったリストのみ送信する。
+      // kind:30001 はリスト丸ごと置換イベントなので、変更リストは
+      // 「全タスク」を送る必要がある一方、無変更リストの再送は
+      // 帯域と Amber 署名の無駄になる。変更検出は needsSync に加えて
+      // 「前回 publish 時の内容署名との差分」で行い、削除・リスト間移動
+      // （needsSync が残らない変更）も漏れなく拾う。
+      final changedListKeys = _computeChangedListKeys(flatTodos);
+      if (changedListKeys.isEmpty) {
+        AppLogger.info(' 変更のあるリストがないため送信をスキップします');
+        return;
+      }
+      final allTodos = flatTodos
+          .where((t) => changedListKeys.contains(_publishListKey(t)))
+          .toList();
+
+      AppLogger.info(
+        ' Changed lists: ${changedListKeys.length} '
+        '(${allTodos.length}/${flatTodos.length} todos to sync)',
+      );
 
       // カスタムリストに属するTodoをログ出力
       final customListTodos = allTodos
@@ -3369,6 +3487,7 @@ class TodosNotifier
               sendResult.primarySendResult.eventId,
               globalBackfillPending: sendResult.localBackfillQueued,
             );
+            await _recordPublishedListSignatures(listTodos);
             AppLogger.info(
               ' Updated eventId for ${listTodos.length} todos in list "$listId"',
             );
@@ -3403,6 +3522,13 @@ class TodosNotifier
             return true;
           }).toList();
 
+          if (nonGroupTodos.isEmpty) {
+            // 変更がグループリストのみだった場合など。グループタスクは
+            // _syncGroupToNostr が別途送信するのでここでは何もしない
+            AppLogger.info(' 送信対象の個人タスクがないためスキップします');
+            return;
+          }
+
           AppLogger.info(
             ' Calling nostrService.createTodoListOnNostr with ${nonGroupTodos.length} non-group todos (excluded ${allTodos.length - nonGroupTodos.length} group todos)...',
           );
@@ -3420,6 +3546,7 @@ class TodosNotifier
               sendResult.eventId,
               globalBackfillPending: false,
             );
+            await _recordPublishedListSignatures(nonGroupTodos);
             AppLogger.info(
               ' Updated eventId for ${nonGroupTodos.length} todos',
             );
@@ -4807,6 +4934,10 @@ class TodosNotifier
       state = AsyncValue.data(grouped);
       await _saveAllTodosToLocal();
       await _updateWidget();
+
+      // マージで確定した「未同期変更のないリスト」の内容署名を基準として記録し、
+      // リモート由来の変更を次回送信時に誤検出しないようにする
+      await _recordSignaturesForCleanLists(grouped);
 
       // ローカルが新しいタスクがある場合、未同期バッジを更新する。
       // 実際の送信は呼び出し元が行う（手動同期では syncFromNostr が
