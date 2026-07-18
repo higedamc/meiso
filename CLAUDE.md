@@ -1,5 +1,9 @@
 # meiso プロジェクトルール
 
+## 言語ポリシー
+
+**対外的な成果物はすべて英語で書く**: GitHub の issue、PR のタイトル・本文、README.md、コード内の実装コメント（注釈）、コミットメッセージ。ユーザーとの会話や CLAUDE.md 等の内部メモは日本語でよい。
+
 ## スタック概要
 
 - Flutter（**fvm 管理**: `fvm flutter ...`。素の `flutter` は PATH に無い）+ Rust（flutter_rust_bridge）。Rust はビルド中に cargokit が Android 3 ABI をクロスコンパイルする（初回は非常に重い）。
