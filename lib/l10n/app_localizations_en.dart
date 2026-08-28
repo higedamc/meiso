@@ -68,6 +68,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nostrDisconnected => 'Nostr Disconnected';
 
   @override
+  String get statusTapToReconnect => 'Tap to reconnect to relays';
+
+  @override
   String relaysConnectedCount(int count, int total) {
     return 'Relays: $count/$total connected';
   }
@@ -1694,4 +1697,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cannotDemoteHasSubtasks =>
       'Remove subtasks first to convert this task';
+
+  @override
+  String get addedByCollaborator => 'Added by a collaborator';
+
+  @override
+  String get addedBy => 'Added by';
+
+  @override
+  String get settingsSectionStatus => 'Status';
+
+  @override
+  String get settingsSectionGeneral => 'General';
+
+  @override
+  String get settingsSectionAbout => 'About';
 }

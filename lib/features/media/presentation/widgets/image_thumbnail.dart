@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../widgets/remote_image_gate.dart';
+
 /// Compact image thumbnail for display in TodoItem rows.
 class ImageThumbnail extends StatelessWidget {
   const ImageThumbnail({
@@ -20,27 +22,39 @@ class ImageThumbnail extends StatelessWidget {
         onTap: () => showFullScreenImage(context, imageUrl),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            placeholder: (_, __) => SizedBox(
+          child: RemoteImageGate(
+            allowed: (context) => CachedNetworkImage(
+              imageUrl: imageUrl,
               width: size,
               height: size,
-              child: const Center(
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 1.5),
+              fit: BoxFit.cover,
+              placeholder: (_, __) => SizedBox(
+                width: size,
+                height: size,
+                child: const Center(
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  ),
+                ),
+              ),
+              errorWidget: (_, __, ___) => SizedBox(
+                width: size,
+                height: size,
+                child: Icon(
+                  Icons.broken_image,
+                  size: size * 0.5,
+                  color: Colors.grey,
                 ),
               ),
             ),
-            errorWidget: (_, __, ___) => SizedBox(
+            // Tor モード時はリモート取得を抑止し非表示アイコンを表示
+            blocked: (context) => SizedBox(
               width: size,
               height: size,
               child: Icon(
-                Icons.broken_image,
+                Icons.visibility_off_outlined,
                 size: size * 0.5,
                 color: Colors.grey,
               ),
@@ -82,14 +96,22 @@ class _FullScreenImageView extends StatelessWidget {
               child: InteractiveViewer(
                 minScale: 0.5,
                 maxScale: 4.0,
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.contain,
-                  placeholder: (_, __) => const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
+                child: RemoteImageGate(
+                  allowed: (context) => CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.contain,
+                    placeholder: (_, __) => const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                    errorWidget: (_, __, ___) => const Center(
+                      child: Icon(Icons.broken_image,
+                          size: 64, color: Colors.white54),
+                    ),
                   ),
-                  errorWidget: (_, __, ___) => const Center(
-                    child: Icon(Icons.broken_image, size: 64, color: Colors.white54),
+                  // Tor モード時はリモート取得を抑止し非表示アイコンを表示
+                  blocked: (context) => const Center(
+                    child: Icon(Icons.visibility_off_outlined,
+                        size: 64, color: Colors.white54),
                   ),
                 ),
               ),

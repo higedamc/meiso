@@ -26,6 +26,11 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      joinedGroupIds:
+          (json['joinedGroupIds'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
       lastViewedCustomListId: json['lastViewedCustomListId'] as String?,
       taskUiMode:
           $enumDecodeNullable(_$TaskUiModeEnumMap, json['taskUiMode']) ??
@@ -50,6 +55,7 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'torMode': _$TorModeEnumMap[instance.torMode]!,
       'proxyUrl': instance.proxyUrl,
       'customListOrder': instance.customListOrder,
+      'joinedGroupIds': instance.joinedGroupIds,
       'lastViewedCustomListId': instance.lastViewedCustomListId,
       'taskUiMode': _$TaskUiModeEnumMap[instance.taskUiMode]!,
       'featureFlags': instance.featureFlags,

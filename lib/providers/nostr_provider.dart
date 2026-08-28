@@ -199,8 +199,16 @@ class NostrService {
     AppLogger.debug(' Public key saved via Rust (Amber mode)');
   }
 
-  /// 公開鍵を読み込み（Amber使用時）
+  /// 現在のユーザーの公開鍵（hex）を返す。
+  ///
+  /// まずセッション中の publicKeyProvider を参照し（nsec ログインでは
+  /// ストレージに公開鍵が保存されないため）、無ければ Rust ストレージ
+  /// （Amber モードで保存される）から読み込む。
   Future<String?> getPublicKey() async {
+    final sessionKey = _ref.read(publicKeyProvider);
+    if (sessionKey != null && sessionKey.isNotEmpty) {
+      return sessionKey;
+    }
     final path = await _getKeyStoragePath();
     try {
       return await rust_api.loadPublicKey(storagePath: path);
@@ -292,6 +300,8 @@ class NostrService {
     _ref.read(relayStatusProvider.notifier).initializeAsConnected(relayList);
 
     await localStorageService.setUseAmber(false);
+    // 秘密鍵モードでも公開鍵を永続化（再起動後の getPublicKey 用）
+    unawaited(savePublicKey(publicKey));
     _ref.read(syncStatusProvider.notifier).setInitialized(true);
 
     await _initializeCacheAndSubscription(publicKey);
@@ -768,7 +778,13 @@ class NostrService {
       await rust_api.updateRelayList(relays: uniqueRelays);
     }
 
-    _ref.read(relayStatusProvider.notifier).initializeAsConnected(uniqueRelays);
+    // 接続処理は完了しているが個々の接続成否は不明なため、
+    // connecting でシードして実状態で即補正する
+    _ref.read(relayStatusProvider.notifier).initializeWithRelays(
+          uniqueRelays,
+          initialState: RelayConnectionState.connecting,
+        );
+    await refreshRelayStatus();
   }
 
   Future<(List<String>, List<String>)> _resolveRelaySplit() async {
@@ -983,12 +999,15 @@ class NostrService {
     AppLogger.info(' Reconnecting to relays...');
     try {
       await rust_api.reconnectToRelays();
-      _ref.read(relayStatusProvider.notifier).markAllConnected();
       AppLogger.info(' Successfully reconnected to relays');
     } catch (e) {
+      // 実状態の取得が期待できないため、悲観的にマークしてから補正を試みる
       _ref.read(relayStatusProvider.notifier).markAllDisconnected();
       AppLogger.error(' Failed to reconnect to relays: $e');
       rethrow;
+    } finally {
+      // 楽観的な markAllConnected はせず、Rust の実接続状態を反映する
+      await refreshRelayStatus();
     }
   }
 
@@ -1002,12 +1021,13 @@ class NostrService {
       await rust_api.reconnectToRelaysWithTimeout(
         timeoutSecs: BigInt.from(timeout),
       );
-      _ref.read(relayStatusProvider.notifier).markAllConnected();
       AppLogger.info(' Successfully reconnected to relays');
     } catch (e) {
       _ref.read(relayStatusProvider.notifier).markAllDisconnected();
       AppLogger.error(' Failed to reconnect to relays: $e');
       rethrow;
+    } finally {
+      await refreshRelayStatus();
     }
   }
 
@@ -1022,17 +1042,15 @@ class NostrService {
   }
 
   /// Rust から実際の WebSocket 接続状態を取得し relayStatusProvider を更新
+  ///
+  /// 接続性表示の唯一の真実。未登録リレーの upsert と、Rust 側に存在しない
+  /// リレーの除去も行う（楽観的シードによる表示乖離を補正する）。
   Future<void> refreshRelayStatus() async {
     try {
       final info = await rust_api.getRelayConnectionInfo();
-      final notifier = _ref.read(relayStatusProvider.notifier);
-      for (final status in info.relayStatuses) {
-        if (status.connected) {
-          notifier.setConnected(status.url);
-        } else {
-          notifier.setDisconnected(status.url);
-        }
-      }
+      _ref.read(relayStatusProvider.notifier).applyConnectionInfo({
+        for (final status in info.relayStatuses) status.url: status.connected,
+      });
     } catch (e) {
       AppLogger.warning('Failed to refresh relay status: $e');
     }
@@ -1847,6 +1865,56 @@ class NostrService {
     } catch (e, stackTrace) {
       AppLogger.error(
         '❌ [MLS] Failed to subscribe to group TODOs',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  /// shared-v1 グループのリアルタイム購読を開始する。
+  ///
+  /// kind:35000 (Task) と kind:35001 (Meta) の両方を、author=npub_G で絞り込み
+  /// 購読する。これによりメンバーの誰かが投稿したタスクイベントが即座に
+  /// クライアントへ流れる。
+  Future<String> subscribeSharedGroupTasks({
+    required String groupNpubHex,
+    required void Function(List<rust_api.ReceivedEvent> events)
+        onEventsReceived,
+  }) async {
+    try {
+      AppLogger.info(
+        '📡 [shared-v1] Starting subscription for group: ${groupNpubHex.substring(0, 16)}...',
+      );
+
+      if (_subscriptionService == null) {
+        throw Exception('Subscription service not initialized');
+      }
+
+      final filters = [
+        {
+          'kinds': [35000, 35001], // shared-v1 Task / Meta
+          'authors': [groupNpubHex],
+        },
+      ];
+
+      final subscriptionId = await _subscriptionService!.startSubscription(
+        filters: filters,
+        onEventsReceived: (events) {
+          AppLogger.debug(
+            '📥 [shared-v1] Received ${events.length} group events',
+          );
+          onEventsReceived(events);
+        },
+      );
+
+      AppLogger.info(
+        '✅ [shared-v1] Subscription started for group: ${groupNpubHex.substring(0, 16)}...',
+      );
+      return subscriptionId;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '❌ [shared-v1] Failed to subscribe to group tasks',
         error: e,
         stackTrace: stackTrace,
       );

@@ -9,6 +9,7 @@ use tokio::sync::Mutex;
 pub mod api;
 pub mod group_tasks;
 pub mod group_tasks_mls;
+pub mod group_tasks_shared;
 pub mod key_store;
 pub mod mls;
 pub mod nostr_client_meta;

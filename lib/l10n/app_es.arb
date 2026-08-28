@@ -36,6 +36,7 @@
   "nostrConnectedAmber": "Nostr Conectado (Amber)",
   
   "nostrDisconnected": "Nostr Desconectado",
+  "statusTapToReconnect": "Toca para reconectar a los relays",
   
   "relaysConnectedCount": "Relays: {count}/{total} conectados",
   
@@ -987,6 +988,16 @@
 
   "promotedToRootSuccess": "Promovido a tarea principal",
 
-  "cannotDemoteHasSubtasks": "Elimine las subtareas primero"
+  "cannotDemoteHasSubtasks": "Elimine las subtareas primero",
+
+  "addedByCollaborator": "Añadida por un colaborador",
+
+  "addedBy": "Añadida por",
+
+  "settingsSectionStatus": "Estado",
+
+  "settingsSectionGeneral": "General",
+
+  "settingsSectionAbout": "Acerca de"
 }
 

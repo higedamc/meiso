@@ -208,6 +208,12 @@ abstract class AppLocalizations {
   /// **'Nostr Disconnected'**
   String get nostrDisconnected;
 
+  /// Tooltip on the red status badge prompting a manual relay reconnection
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to reconnect to relays'**
+  String get statusTapToReconnect;
+
   /// Shows how many relays are connected
   ///
   /// In en, this message translates to:
@@ -3093,6 +3099,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove subtasks first to convert this task'**
   String get cannotDemoteHasSubtasks;
+
+  /// Tooltip for tasks added by another member in a shared list
+  ///
+  /// In en, this message translates to:
+  /// **'Added by a collaborator'**
+  String get addedByCollaborator;
+
+  /// Label shown before the collaborator's npub in task detail
+  ///
+  /// In en, this message translates to:
+  /// **'Added by'**
+  String get addedBy;
+
+  /// Settings section header for connection status
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get settingsSectionStatus;
+
+  /// Settings section header for general options
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get settingsSectionGeneral;
+
+  /// Settings section header for app information
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get settingsSectionAbout;
 }
 
 class _AppLocalizationsDelegate

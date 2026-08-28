@@ -64,7 +64,8 @@ mixin _$CustomList {
 
   /// 共有リスト同期プロトコルバージョン
   /// - none: 個人リスト
-  /// - mls-v1: MLSベース共有
+  /// - mls-v1: MLSベース共有(レガシー)
+  /// - shared-v1: 共有鍵 + kind:35000 タスク
   /// - gw17-v1: NIP-17 fan-out共有
   String get protocolVersion => throw _privateConstructorUsedError;
 
@@ -399,7 +400,8 @@ class _$CustomListImpl implements _CustomList {
 
   /// 共有リスト同期プロトコルバージョン
   /// - none: 個人リスト
-  /// - mls-v1: MLSベース共有
+  /// - mls-v1: MLSベース共有(レガシー)
+  /// - shared-v1: 共有鍵 + kind:35000 タスク
   /// - gw17-v1: NIP-17 fan-out共有
   @override
   @JsonKey()
@@ -553,7 +555,8 @@ abstract class _CustomList implements CustomList {
 
   /// 共有リスト同期プロトコルバージョン
   /// - none: 個人リスト
-  /// - mls-v1: MLSベース共有
+  /// - mls-v1: MLSベース共有(レガシー)
+  /// - shared-v1: 共有鍵 + kind:35000 タスク
   /// - gw17-v1: NIP-17 fan-out共有
   @override
   String get protocolVersion;
