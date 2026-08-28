@@ -943,6 +943,16 @@ Future<InvitationPayload> sharedDecryptInvitationFromSender({
   ciphertext: ciphertext,
 );
 
+/// task-chat: comment payload JSON を NIP-44 暗号化し、kind:35002 の署名済み
+/// イベント JSON を返す。共有リストでは nsec_G、個人タスクでは利用者自身の
+/// nsec hex を渡す(関数は鍵非依存)。
+Future<String> sharedBuildSignedCommentEvent({required String groupNsecHex, required String commentJson}) =>
+    RustLib.instance.api.crateApiSharedBuildSignedCommentEvent(groupNsecHex: groupNsecHex, commentJson: commentJson);
+
+/// task-chat: kind:35002 イベント JSON を検証・復号し、平文 payload JSON を返す。
+Future<String> sharedDecryptCommentEvent({required String groupNsecHex, required String eventJson}) =>
+    RustLib.instance.api.crateApiSharedDecryptCommentEvent(groupNsecHex: groupNsecHex, eventJson: eventJson);
+
 /// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
 ///
 /// kinds: 35000(タスク), 35001(メタデータ)
@@ -1418,9 +1428,7 @@ class CachedEventInfo {
   });
 
   /// キャッシュが有効かチェック
-  Future<bool> isValid() => RustLib.instance.api.crateApiCachedEventInfoIsValid(
-    that: this,
-  );
+  Future<bool> isValid() => RustLib.instance.api.crateApiCachedEventInfoIsValid(that: this);
 
   @override
   int get hashCode =>
@@ -1463,13 +1471,7 @@ class ContactProfile {
   /// NIP-05 識別子
   final String? nip05;
 
-  const ContactProfile({
-    required this.pubkeyHex,
-    this.name,
-    this.displayName,
-    this.picture,
-    this.nip05,
-  });
+  const ContactProfile({required this.pubkeyHex, this.name, this.displayName, this.picture, this.nip05});
 
   @override
   int get hashCode => pubkeyHex.hashCode ^ name.hashCode ^ displayName.hashCode ^ picture.hashCode ^ nip05.hashCode;
@@ -1492,11 +1494,7 @@ class EncryptedAppSettingsEvent {
   final String encryptedContent;
   final PlatformInt64 createdAt;
 
-  const EncryptedAppSettingsEvent({
-    required this.eventId,
-    required this.encryptedContent,
-    required this.createdAt,
-  });
+  const EncryptedAppSettingsEvent({required this.eventId, required this.encryptedContent, required this.createdAt});
 
   @override
   int get hashCode => eventId.hashCode ^ encryptedContent.hashCode ^ createdAt.hashCode;
@@ -1564,10 +1562,7 @@ class EncryptedKeyData {
   final String memberPubkey;
   final String encryptedAesKey;
 
-  const EncryptedKeyData({
-    required this.memberPubkey,
-    required this.encryptedAesKey,
-  });
+  const EncryptedKeyData({required this.memberPubkey, required this.encryptedAesKey});
 
   @override
   int get hashCode => memberPubkey.hashCode ^ encryptedAesKey.hashCode;
@@ -1782,11 +1777,7 @@ class RelayConnectionInfo {
   final BigInt total;
   final List<RelayStatusInfo> relayStatuses;
 
-  const RelayConnectionInfo({
-    required this.connected,
-    required this.total,
-    required this.relayStatuses,
-  });
+  const RelayConnectionInfo({required this.connected, required this.total, required this.relayStatuses});
 
   @override
   int get hashCode => connected.hashCode ^ total.hashCode ^ relayStatuses.hashCode;
@@ -1806,10 +1797,7 @@ class RelayStatusInfo {
   final String url;
   final bool connected;
 
-  const RelayStatusInfo({
-    required this.url,
-    required this.connected,
-  });
+  const RelayStatusInfo({required this.url, required this.connected});
 
   @override
   int get hashCode => url.hashCode ^ connected.hashCode;
@@ -1831,11 +1819,7 @@ class SubscriptionInfo {
   /// 作成日時
   final PlatformInt64 createdAt;
 
-  const SubscriptionInfo({
-    required this.subscriptionId,
-    required this.filtersJson,
-    required this.createdAt,
-  });
+  const SubscriptionInfo({required this.subscriptionId, required this.filtersJson, required this.createdAt});
 
   @override
   int get hashCode => subscriptionId.hashCode ^ filtersJson.hashCode ^ createdAt.hashCode;
@@ -1949,12 +1933,7 @@ class TodoListMetadata {
   /// リスト名（title tag）
   final String? title;
 
-  const TodoListMetadata({
-    required this.eventId,
-    required this.createdAt,
-    this.listId,
-    this.title,
-  });
+  const TodoListMetadata({required this.eventId, required this.createdAt, this.listId, this.title});
 
   @override
   int get hashCode => eventId.hashCode ^ createdAt.hashCode ^ listId.hashCode ^ title.hashCode;
@@ -1982,12 +1961,7 @@ class TodoListName {
   final String eventId;
   final BigInt createdAt;
 
-  const TodoListName({
-    required this.listId,
-    this.title,
-    required this.eventId,
-    required this.createdAt,
-  });
+  const TodoListName({required this.listId, this.title, required this.eventId, required this.createdAt});
 
   @override
   int get hashCode => listId.hashCode ^ title.hashCode ^ eventId.hashCode ^ createdAt.hashCode;

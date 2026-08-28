@@ -5222,6 +5222,21 @@ pub fn shared_decrypt_invitation_from_sender(
     )
 }
 
+/// task-chat: comment payload JSON を NIP-44 暗号化し、kind:35002 の署名済み
+/// イベント JSON を返す。共有リストでは nsec_G、個人タスクでは利用者自身の
+/// nsec hex を渡す(関数は鍵非依存)。
+pub fn shared_build_signed_comment_event(
+    group_nsec_hex: String,
+    comment_json: String,
+) -> Result<String> {
+    crate::task_comments::build_signed_comment_event(group_nsec_hex, comment_json)
+}
+
+/// task-chat: kind:35002 イベント JSON を検証・復号し、平文 payload JSON を返す。
+pub fn shared_decrypt_comment_event(group_nsec_hex: String, event_json: String) -> Result<String> {
+    crate::task_comments::decrypt_comment_event(group_nsec_hex, event_json)
+}
+
 /// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
 ///
 /// kinds: 35000(タスク), 35001(メタデータ)
