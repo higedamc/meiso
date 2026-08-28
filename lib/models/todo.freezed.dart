@@ -53,6 +53,10 @@ mixin _$Todo {
   /// 添付画像のURL（Blossom/NIP-96経由でアップロード済み）
   String? get imageUrl => throw _privateConstructorUsedError;
 
+  /// 共有リスト(shared-v1)で、このタスクを最後に追加/編集した実 npub(hex)。
+  /// 自分以外が編集したタスクを UI 上で区別するために使用する。
+  String? get editorPubkey => throw _privateConstructorUsedError;
+
   /// Serializes this Todo to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -90,6 +94,7 @@ abstract class $TodoCopyWith<$Res> {
     int depth,
     List<TaskLink> taskLinks,
     String? imageUrl,
+    String? editorPubkey,
   });
 
   $LinkPreviewCopyWith<$Res>? get linkPreview;
@@ -133,6 +138,7 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
     Object? depth = null,
     Object? taskLinks = null,
     Object? imageUrl = freezed,
+    Object? editorPubkey = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -224,6 +230,10 @@ class _$TodoCopyWithImpl<$Res, $Val extends Todo>
                 ? _value.imageUrl
                 : imageUrl // ignore: cast_nullable_to_non_nullable
                       as String?,
+            editorPubkey: freezed == editorPubkey
+                ? _value.editorPubkey
+                : editorPubkey // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -289,6 +299,7 @@ abstract class _$$TodoImplCopyWith<$Res> implements $TodoCopyWith<$Res> {
     int depth,
     List<TaskLink> taskLinks,
     String? imageUrl,
+    String? editorPubkey,
   });
 
   @override
@@ -331,6 +342,7 @@ class __$$TodoImplCopyWithImpl<$Res>
     Object? depth = null,
     Object? taskLinks = null,
     Object? imageUrl = freezed,
+    Object? editorPubkey = freezed,
   }) {
     return _then(
       _$TodoImpl(
@@ -422,6 +434,10 @@ class __$$TodoImplCopyWithImpl<$Res>
             ? _value.imageUrl
             : imageUrl // ignore: cast_nullable_to_non_nullable
                   as String?,
+        editorPubkey: freezed == editorPubkey
+            ? _value.editorPubkey
+            : editorPubkey // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -453,6 +469,7 @@ class _$TodoImpl implements _Todo {
     this.depth = 0,
     this.taskLinks = const [],
     this.imageUrl,
+    this.editorPubkey,
   });
 
   factory _$TodoImpl.fromJson(Map<String, dynamic> json) =>
@@ -519,9 +536,14 @@ class _$TodoImpl implements _Todo {
   @override
   final String? imageUrl;
 
+  /// 共有リスト(shared-v1)で、このタスクを最後に追加/編集した実 npub(hex)。
+  /// 自分以外が編集したタスクを UI 上で区別するために使用する。
+  @override
+  final String? editorPubkey;
+
   @override
   String toString() {
-    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, localOpId: $localOpId, localRelaySyncedAt: $localRelaySyncedAt, globalRelaySyncedAt: $globalRelaySyncedAt, globalSyncPending: $globalSyncPending, globalSyncFailed: $globalSyncFailed, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync, parentTaskId: $parentTaskId, depth: $depth, taskLinks: $taskLinks, imageUrl: $imageUrl)';
+    return 'Todo(id: $id, title: $title, completed: $completed, date: $date, order: $order, createdAt: $createdAt, updatedAt: $updatedAt, eventId: $eventId, localOpId: $localOpId, localRelaySyncedAt: $localRelaySyncedAt, globalRelaySyncedAt: $globalRelaySyncedAt, globalSyncPending: $globalSyncPending, globalSyncFailed: $globalSyncFailed, linkPreview: $linkPreview, recurrence: $recurrence, parentRecurringId: $parentRecurringId, customListId: $customListId, needsSync: $needsSync, parentTaskId: $parentTaskId, depth: $depth, taskLinks: $taskLinks, imageUrl: $imageUrl, editorPubkey: $editorPubkey)';
   }
 
   @override
@@ -565,7 +587,9 @@ class _$TodoImpl implements _Todo {
             (identical(other.depth, depth) || other.depth == depth) &&
             const DeepCollectionEquality().equals(other.taskLinks, taskLinks) &&
             (identical(other.imageUrl, imageUrl) ||
-                other.imageUrl == imageUrl));
+                other.imageUrl == imageUrl) &&
+            (identical(other.editorPubkey, editorPubkey) ||
+                other.editorPubkey == editorPubkey));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -594,6 +618,7 @@ class _$TodoImpl implements _Todo {
     depth,
     const DeepCollectionEquality().hash(taskLinks),
     imageUrl,
+    editorPubkey,
   ]);
 
   /// Create a copy of Todo
@@ -634,6 +659,7 @@ abstract class _Todo implements Todo {
     final int depth,
     final List<TaskLink> taskLinks,
     final String? imageUrl,
+    final String? editorPubkey,
   }) = _$TodoImpl;
 
   factory _Todo.fromJson(Map<String, dynamic> json) = _$TodoImpl.fromJson;
@@ -691,6 +717,11 @@ abstract class _Todo implements Todo {
   /// 添付画像のURL（Blossom/NIP-96経由でアップロード済み）
   @override
   String? get imageUrl;
+
+  /// 共有リスト(shared-v1)で、このタスクを最後に追加/編集した実 npub(hex)。
+  /// 自分以外が編集したタスクを UI 上で区別するために使用する。
+  @override
+  String? get editorPubkey;
 
   /// Create a copy of Todo
   /// with the given fields replaced by the non-null parameter values.

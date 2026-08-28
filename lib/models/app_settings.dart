@@ -50,7 +50,12 @@ class AppSettings with _$AppSettings {
     
     /// カスタムリストの順番（リストIDの配列）
     @Default([]) List<String> customListOrder,
-    
+
+    /// 承諾済み共有グループの ID 集合（端末間で承諾状態を同期するため）。
+    /// 招待イベント(kind 30078)はリレー上に残るため、これを同期しないと新端末で
+    /// 再び「招待中」表示になる。group_nsec 等の秘密はリレーに出さず groupId のみ保持。
+    @Default([]) List<String> joinedGroupIds,
+
     /// 最後に見ていたカスタムリストID
     String? lastViewedCustomListId,
 

@@ -91,6 +91,11 @@
     "description": "Status text when Nostr is disconnected"
   },
   
+  "statusTapToReconnect": "Tap to reconnect to relays",
+  "@statusTapToReconnect": {
+    "description": "Tooltip on the red status badge prompting a manual relay reconnection"
+  },
+  
   "relaysConnectedCount": "Relays: {count}/{total} connected",
   "@relaysConnectedCount": {
     "description": "Shows how many relays are connected",
@@ -2645,6 +2650,31 @@
   "cannotDemoteHasSubtasks": "Remove subtasks first to convert this task",
   "@cannotDemoteHasSubtasks": {
     "description": "Error when trying to demote a task that has subtasks"
+  },
+
+  "addedByCollaborator": "Added by a collaborator",
+  "@addedByCollaborator": {
+    "description": "Tooltip for tasks added by another member in a shared list"
+  },
+
+  "addedBy": "Added by",
+  "@addedBy": {
+    "description": "Label shown before the collaborator's npub in task detail"
+  },
+
+  "settingsSectionStatus": "Status",
+  "@settingsSectionStatus": {
+    "description": "Settings section header for connection status"
+  },
+
+  "settingsSectionGeneral": "General",
+  "@settingsSectionGeneral": {
+    "description": "Settings section header for general options"
+  },
+
+  "settingsSectionAbout": "About",
+  "@settingsSectionAbout": {
+    "description": "Settings section header for app information"
   }
 }
 

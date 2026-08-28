@@ -8,26 +8,48 @@ import '../../providers/calendar_provider.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/todos_provider.dart';
 import '../../providers/nostr_provider.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../services/logger_service.dart';
 import '../../utils/error_handler.dart';
 import '../../widgets/bottom_navigation.dart';
-import '../../widgets/add_list_screen.dart';
-import '../../widgets/add_group_list_dialog.dart';
+import '../../widgets/add_list_chooser.dart';
+import '../../widgets/slide_up_route.dart';
 import '../../widgets/sync_status_indicator.dart';
 import '../list_detail/list_detail_screen.dart';
 import '../planning_detail/planning_detail_screen.dart';
+import '../settings/settings_screen.dart';
 // Phase D.5: MLS UseCase統合
 import '../../features/mls/application/providers/usecase_providers.dart';
 import '../../features/mls/application/usecases/accept_group_invitation_usecase.dart';
+// shared-v1: 共有鍵リストの招待受諾
+import '../../features/shared_list/application/providers/usecase_providers.dart'
+    as shared_usecase;
+import '../../features/shared_list/application/usecases/accept_shared_invitation_usecase.dart';
+import '../../features/shared_list/domain/entities/shared_invitation.dart';
 
 /// SOMEDAYページ（リスト管理画面）- モーダル版
 class SomedayScreen extends ConsumerStatefulWidget {
   const SomedayScreen({
     this.onClose,
+    this.showBottomNav = true,
+    this.onListTap,
+    this.onPlanningTap,
     super.key,
   });
 
   final VoidCallback? onClose;
+
+  /// Home に埋め込む場合は false。Home 側が永続的なボトムバーを描画するため、
+  /// 二重描画を避ける（TODAY↔SOMEDAY のシームレスな遷移のため）。
+  final bool showBottomNav;
+
+  /// Home に埋め込まれている場合のリストタップ委譲。
+  /// 指定時は Navigator.push せず、Home 側がコンテンツ領域内（ボトムバーの上）に
+  /// 詳細を表示する。
+  final void Function(CustomList list)? onListTap;
+
+  /// Home に埋め込まれている場合のプランニングカテゴリタップ委譲。
+  final void Function(PlanningCategory category)? onPlanningTap;
 
   @override
   ConsumerState<SomedayScreen> createState() => _SomedayScreenState();
@@ -35,6 +57,7 @@ class SomedayScreen extends ConsumerStatefulWidget {
 
 class _SomedayScreenState extends ConsumerState<SomedayScreen> {
   ProviderSubscription<AsyncValue<List<CustomList>>>? _customListsSub;
+  ProviderSubscription<bool>? _nostrInitializedSub;
   Set<String> _realtimeGroupIds = <String>{};
   int _reconcileGeneration = 0;
   TodosNotifier? _todosNotifier;
@@ -56,6 +79,22 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
       },
     );
 
+    // Nostr 初期化完了時に reconcile を再走らせる。
+    // 起動直後に relay 未接続で subscribe が失敗したケースを救済する。
+    _nostrInitializedSub = ref.listenManual<bool>(
+      nostrInitializedProvider,
+      (prev, next) {
+        if (prev == next) return;
+        if (!next) return;
+        final lists = ref.read(customListsProvider).valueOrNull;
+        if (lists == null) return;
+        AppLogger.info(
+          '🔁 [SomedayScreen] Nostr initialized, re-reconciling realtime subs',
+        );
+        _reconcileRealtimeGroupSubscriptions(lists);
+      },
+    );
+
     // 初回も反映
     final initial = ref.read(customListsProvider).valueOrNull;
     if (initial != null) {
@@ -73,6 +112,8 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
 
     _customListsSub?.close();
     _customListsSub = null;
+    _nostrInitializedSub?.close();
+    _nostrInitializedSub = null;
 
     // close後に購読解除（dispose中にrefを触らない）
     final todoNotifier = _todosNotifier;
@@ -107,6 +148,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
       '📡 [SomedayScreen] Reconcile realtime group subs: desired=${desired.length}, toStart=${toStart.length}, toStop=${toStop.length}',
     );
 
+    final failedToStart = <String>{};
     for (final gid in toStart) {
       try {
         if (!mounted || generation != _reconcileGeneration) return;
@@ -115,7 +157,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
         );
         await todoNotifier.startRealtimeGroupTodos(gid);
       } catch (e) {
-        // 購読失敗してもSomedayは表示し続ける（pull-to-refresh運用可能）
+        // 起動直後の relay 未接続などで失敗した購読は、次回 reconcile で
+        // 再試行できるよう `_realtimeGroupIds` に記録しない。
+        failedToStart.add(gid);
         AppLogger.warning(
           '⚠️ [SomedayScreen] Failed to start realtime group subscription: $gid ($e)',
         );
@@ -128,7 +172,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     }
 
     if (!mounted || generation != _reconcileGeneration) return;
-    _realtimeGroupIds = desired;
+    _realtimeGroupIds = desired.difference(failedToStart);
   }
 
   /// Pull-to-refreshで同期を実行
@@ -199,6 +243,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           ),
 
           // ボトムナビゲーション
+          if (widget.showBottomNav)
           BottomNavigation(
             onTodayTap: () {
               // BUG FIX: カレンダー展開状態をリセット
@@ -212,6 +257,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             onSomedayTap: () {
               // 既にSOMEDAYページなので何もしない
             },
+            onSettingsTap: () => Navigator.of(context).push(
+              slideUpRoute<void>(const SettingsScreen()),
+            ),
             isSomedayActive: true,
           ),
         ],
@@ -231,7 +279,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     );
     for (final list in customLists) {
       AppLogger.debug(
-        ' [SomedayScreen]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup})',
+        ' [SomedayScreen]   - "${list.name}" (ID: ${list.id}, isGroup: ${list.isGroup}, '
+        'protocol: ${list.protocolVersion}, pending: ${list.isPendingInvitation}, '
+        'accepted: ${list.acceptedAt != null})',
       );
     }
 
@@ -278,13 +328,16 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   return;
                 }
 
-                // リスト詳細画面に遷移
+                // Home 埋め込み時はコンテンツ領域内に詳細を表示（ボトムバーの上）。
+                if (widget.onListTap != null) {
+                  widget.onListTap!(list);
+                  return;
+                }
+                // 単独表示時のフォールバック（下から上へスライド）
                 Navigator.push(
                   context,
-                  MaterialPageRoute<void>(
-                    builder: (context) => ListDetailScreen(
-                      customList: list,
-                    ),
+                  slideUpRoute<void>(
+                    ListDetailScreen(customList: list),
                   ),
                 );
               },
@@ -307,13 +360,16 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             isDark,
             key: ValueKey(category.name),
             onTap: () {
-              // プランニングカテゴリー詳細画面に遷移
+              // Home 埋め込み時はコンテンツ領域内に詳細を表示（ボトムバーの上）。
+              if (widget.onPlanningTap != null) {
+                widget.onPlanningTap!(category);
+                return;
+              }
+              // 単独表示時のフォールバック（下から上へスライド）
               Navigator.push(
                 context,
-                MaterialPageRoute<void>(
-                  builder: (context) => PlanningDetailScreen(
-                    category: category,
-                  ),
+                slideUpRoute<void>(
+                  PlanningDetailScreen(category: category),
                 ),
               );
             },
@@ -561,9 +617,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  list.protocolVersion == CustomListHelpers.protocolGw17V1
-                      ? 'NIP-17'
-                      : 'MLS',
+                  switch (list.protocolVersion) {
+                    CustomListHelpers.protocolGw17V1 => 'NIP-17',
+                    CustomListHelpers.protocolSharedV1 => 'SHARED',
+                    CustomListHelpers.protocolMlsV1 => 'MLS',
+                    _ => 'MLS', // legacy fallback (旧スキーマ)
+                  },
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -787,62 +846,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
 
   /// リスト追加画面を表示（通常リストorグループリスト）
   void _showAddListScreen(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return AlertDialog(
-          backgroundColor: isDark
-              ? AppTheme.darkBackground
-              : AppTheme.lightBackground,
-          title: Text(
-            'ADD LIST',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: isDark
-                  ? AppTheme.darkTextPrimary
-                  : AppTheme.lightTextPrimary,
-              letterSpacing: 1.2,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 通常のカスタムリスト
-              ListTile(
-                leading: const Icon(Icons.list_alt),
-                title: const Text('Personal List'),
-                subtitle: const Text('個人用のタスクリスト'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => const AddListScreen(),
-                      fullscreenDialog: true,
-                    ),
-                  );
-                },
-              ),
-              const Divider(),
-              // グループリスト（有効化）
-              ListTile(
-                leading: const Icon(Icons.group),
-                title: const Text('Group List'),
-                subtitle: const Text('共有可能なグループタスクリスト'),
-                onTap: () {
-                  Navigator.pop(context);
-                  showDialog<void>(
-                    context: context,
-                    builder: (context) => const AddGroupListDialog(),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    showAddListChooser(context);
   }
 
   /// グループ招待受諾ダイアログを表示（Phase 6.5: MLS招待システム）
@@ -900,9 +904,12 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  list.protocolVersion == CustomListHelpers.protocolGw17V1
-                      ? 'NIP-17'
-                      : 'MLS legacy',
+                  switch (list.protocolVersion) {
+                    CustomListHelpers.protocolGw17V1 => 'NIP-17',
+                    CustomListHelpers.protocolSharedV1 => 'SHARED',
+                    CustomListHelpers.protocolMlsV1 => 'MLS legacy',
+                    _ => 'MLS legacy', // legacy fallback (旧スキーマ)
+                  },
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -1060,6 +1067,94 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
           );
         }
         AppLogger.info('✅ [GroupInvitation] GW17 invitation accepted');
+        return;
+      }
+
+      if (list.protocolVersion == CustomListHelpers.protocolSharedV1) {
+        if (list.welcomeMsg == null || list.inviterNpub == null) {
+          throw Exception('Shared invitation content not found');
+        }
+
+        final nostrService = ref.read(nostrServiceProvider);
+        final userPubkey = await nostrService.getPublicKey();
+        if (userPubkey == null) {
+          throw Exception('User public key not available');
+        }
+
+        final invitation = SharedInvitation(
+          groupId: list.id,
+          groupName: list.name,
+          encryptedContent: list.welcomeMsg!,
+          inviterPubkey: list.inviterNpub!,
+          inviterName: list.inviterName,
+          createdAt: list.updatedAt,
+        );
+
+        final acceptUseCase = ref.read(
+          shared_usecase.acceptSharedInvitationUseCaseProvider,
+        );
+        final result = await ErrorHandler.withTimeout(
+          operation: () => acceptUseCase(
+            AcceptSharedInvitationParams(
+              invitation: invitation,
+              recipientPublicKeyHex: userPubkey,
+            ),
+          ),
+          operationName: 'acceptSharedInvitation',
+          timeout: const Duration(minutes: 2),
+        );
+
+        await result.fold(
+          (failure) async {
+            AppLogger.error(
+              '❌ [SharedInvitation] Failed: ${failure.message}',
+            );
+            throw Exception(failure.message);
+          },
+          (_) async {
+            final updatedList = list.copyWith(
+              isGroup: true,
+              isPendingInvitation: false,
+              inviterNpub: null,
+              inviterName: null,
+              welcomeMsg: null,
+              acceptedAt: DateTime.now(),
+              protocolVersion: CustomListHelpers.protocolSharedV1,
+            );
+            await ref
+                .read(customListsProvider.notifier)
+                .updateList(updatedList);
+            // 端末間で承諾状態を同期（meiso-settings に groupId を記録）。
+            // これにより別端末では再度の承諾操作なしに参加済みとして復元できる。
+            try {
+              await ref
+                  .read(appSettingsProvider.notifier)
+                  .addJoinedGroup(list.id);
+            } catch (e) {
+              AppLogger.warning(
+                '⚠️ [SharedInvitation] Failed to record joined group: $e',
+              );
+            }
+            try {
+              await ref.read(todosProvider.notifier).syncGroupTodos(list.id);
+            } catch (e) {
+              AppLogger.warning(
+                '⚠️ [SharedInvitation] Failed to sync group todos: $e',
+              );
+            }
+
+            if (context.mounted) {
+              Navigator.of(context, rootNavigator: true).pop();
+              isLoadingDialogShown = false;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('✅ ${list.name}に参加しました（共有鍵）'),
+                ),
+              );
+            }
+          },
+        );
+        AppLogger.info('✅ [SharedInvitation] shared-v1 invitation accepted');
         return;
       }
 

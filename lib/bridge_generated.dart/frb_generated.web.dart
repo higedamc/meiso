@@ -12,6 +12,7 @@ import 'dart:convert';
 import 'frb_generated.dart';
 import 'group_tasks.dart';
 import 'group_tasks_mls.dart';
+import 'group_tasks_shared.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
@@ -74,6 +75,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CachedEventInfo dco_decode_cached_event_info(dynamic raw);
 
   @protected
+  ContactProfile dco_decode_contact_profile(dynamic raw);
+
+  @protected
   EncryptedAppSettingsEvent dco_decode_encrypted_app_settings_event(dynamic raw);
 
   @protected
@@ -95,6 +99,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EventSendResult dco_decode_event_send_result(dynamic raw);
 
   @protected
+  GroupKey dco_decode_group_key(dynamic raw);
+
+  @protected
   GroupTodoData dco_decode_group_todo_data(dynamic raw);
 
   @protected
@@ -107,6 +114,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
+  InvitationPayload dco_decode_invitation_payload(dynamic raw);
+
+  @protected
   KeyPackageResult dco_decode_key_package_result(dynamic raw);
 
   @protected
@@ -114,6 +124,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<ContactProfile> dco_decode_list_contact_profile(dynamic raw);
 
   @protected
   List<EncryptedGroupTodoListEvent> dco_decode_list_encrypted_group_todo_list_event(dynamic raw);
@@ -266,6 +279,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CachedEventInfo sse_decode_cached_event_info(SseDeserializer deserializer);
 
   @protected
+  ContactProfile sse_decode_contact_profile(SseDeserializer deserializer);
+
+  @protected
   EncryptedAppSettingsEvent sse_decode_encrypted_app_settings_event(SseDeserializer deserializer);
 
   @protected
@@ -287,6 +303,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EventSendResult sse_decode_event_send_result(SseDeserializer deserializer);
 
   @protected
+  GroupKey sse_decode_group_key(SseDeserializer deserializer);
+
+  @protected
   GroupTodoData sse_decode_group_todo_data(SseDeserializer deserializer);
 
   @protected
@@ -299,6 +318,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
+  InvitationPayload sse_decode_invitation_payload(SseDeserializer deserializer);
+
+  @protected
   KeyPackageResult sse_decode_key_package_result(SseDeserializer deserializer);
 
   @protected
@@ -306,6 +328,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<ContactProfile> sse_decode_list_contact_profile(SseDeserializer deserializer);
 
   @protected
   List<EncryptedGroupTodoListEvent> sse_decode_list_encrypted_group_todo_list_event(SseDeserializer deserializer);
@@ -463,6 +488,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_cached_event_info(CachedEventInfo self, SseSerializer serializer);
 
   @protected
+  void sse_encode_contact_profile(ContactProfile self, SseSerializer serializer);
+
+  @protected
   void sse_encode_encrypted_app_settings_event(EncryptedAppSettingsEvent self, SseSerializer serializer);
 
   @protected
@@ -484,6 +512,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_event_send_result(EventSendResult self, SseSerializer serializer);
 
   @protected
+  void sse_encode_group_key(GroupKey self, SseSerializer serializer);
+
+  @protected
   void sse_encode_group_todo_data(GroupTodoData self, SseSerializer serializer);
 
   @protected
@@ -496,6 +527,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
+  void sse_encode_invitation_payload(InvitationPayload self, SseSerializer serializer);
+
+  @protected
   void sse_encode_key_package_result(KeyPackageResult self, SseSerializer serializer);
 
   @protected
@@ -503,6 +537,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_contact_profile(List<ContactProfile> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_encrypted_group_todo_list_event(

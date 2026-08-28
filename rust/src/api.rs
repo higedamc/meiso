@@ -179,6 +179,13 @@ pub struct AppSettings {
     /// カスタムリストの順番（リストIDの配列）
     #[serde(default)]
     pub custom_list_order: Vec<String>,
+    /// 承諾済み共有グループの ID 集合。
+    /// 招待イベント(kind 30078)はリレー上に残り続けるため、端末間で承諾状態を
+    /// 同期しないと新端末で再度「招待中」表示になる。ここには承諾済みの groupId
+    /// のみを保持し、group_nsec 等の秘密情報はリレーに出さない（新端末では既存の
+    /// 招待イベントを再復号して資格情報を復元する）。
+    #[serde(default)]
+    pub joined_group_ids: Vec<String>,
     /// 最後に見ていたカスタムリストID
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_viewed_custom_list_id: Option<String>,
@@ -1477,22 +1484,48 @@ impl MeisoNostrClient {
     pub(crate) async fn subscribe(&self, filters: Vec<Filter>) -> Result<SubscriptionInfo> {
         dev_println!("📡 Starting subscription with {} filters", filters.len());
 
-        // Subscriptionを開始
-        let subscription_id = self.client.subscribe(filters.clone(), None).await?;
-
-        let filters_json = serde_json::to_string(&filters)?;
-        let created_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
-
-        dev_println!("✅ Subscription started: {}", subscription_id.to_string());
-
-        Ok(SubscriptionInfo {
-            subscription_id: subscription_id.to_string(),
-            filters_json,
-            created_at,
-        })
+        // 起動直後 (リレー接続前) は全 relay subscribe が失敗して
+        // nostr-relay-pool が `NotSubscribed` を返す。リレーが接続を確立するまで
+        // 短期リトライ (最大 ~3s) する。
+        const MAX_ATTEMPTS: u32 = 6;
+        const BACKOFF_MS: u64 = 500;
+        let mut last_error: Option<anyhow::Error> = None;
+        for attempt in 1..=MAX_ATTEMPTS {
+            match self.client.subscribe(filters.clone(), None).await {
+                Ok(output) => {
+                    let subscription_id = output;
+                    let filters_json = serde_json::to_string(&filters)?;
+                    let created_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() as i64;
+                    dev_println!(
+                        "✅ Subscription started: {} (attempt {}/{})",
+                        subscription_id.to_string(),
+                        attempt,
+                        MAX_ATTEMPTS
+                    );
+                    return Ok(SubscriptionInfo {
+                        subscription_id: subscription_id.to_string(),
+                        filters_json,
+                        created_at,
+                    });
+                }
+                Err(e) => {
+                    dev_eprintln!(
+                        "⚠️ subscribe attempt {}/{} failed: {}",
+                        attempt,
+                        MAX_ATTEMPTS,
+                        e
+                    );
+                    last_error = Some(anyhow::anyhow!(e.to_string()));
+                    if attempt < MAX_ATTEMPTS {
+                        tokio::time::sleep(Duration::from_millis(BACKOFF_MS)).await;
+                    }
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("subscribe failed without error")))
     }
 
     /// Subscriptionを停止
@@ -1515,71 +1548,32 @@ impl MeisoNostrClient {
     }
 
     /// Subscription経由でイベントを受信（1回のポーリング）
-    /// タイムアウト付きで新しいイベントを取得
+    ///
+    /// 常駐リスナー（subscribe() 時に起動）が蓄積したキューを drain する。
+    /// 旧実装はポーリング毎に broadcast receiver を新規生成していたため、
+    /// ポーリング間隙に届いたイベントを恒久的に取りこぼし、さらに
+    /// event_json を二重エンコードしていて Dart 側のパースが常に失敗していた。
     pub(crate) async fn receive_subscription_events(
         &self,
         timeout_ms: u64,
     ) -> Result<Vec<ReceivedEvent>> {
-        let timeout = Duration::from_millis(timeout_ms);
-
-        // Notification channelから受信
-        let mut events = Vec::new();
-        let mut notifications = self.client.notifications();
-        let deadline = tokio::time::Instant::now() + timeout;
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
 
         loop {
-            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-            if remaining.is_zero() {
-                break;
-            }
-
-            // 通知を受信（タイムアウト付き）
-            match tokio::time::timeout(remaining, notifications.recv()).await {
-                Ok(Ok(notification)) => {
-                    // イベント通知のみ処理
-                    if let RelayPoolNotification::Event {
-                        event,
-                        subscription_id,
-                        ..
-                    } = notification
-                    {
-                        let received_at = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs() as i64;
-
-                        let event_json = serde_json::to_string(&event.as_json())?;
-
-                        events.push(ReceivedEvent {
-                            event_id: event.id.to_hex(),
-                            kind: event.kind.as_u16() as u64,
-                            created_at: event.created_at.as_u64() as i64,
-                            event_json,
-                            received_at,
-                            subscription_id: subscription_id.to_string(),
-                        });
-
-                        // イベントを1つ受信したら即座に返す
-                        break;
-                    }
-                    // 他の通知タイプは無視して次を待つ
-                }
-                Ok(Err(_)) => {
-                    // チャンネルエラー
-                    break;
-                }
-                Err(_) => {
-                    // タイムアウト
-                    break;
+            {
+                let mut queue = lock_recovering(&SUBSCRIPTION_EVENT_QUEUE);
+                if !queue.events.is_empty() {
+                    let events = queue.drain_all();
+                    dev_println!("📥 Received {} events via subscription", events.len());
+                    return Ok(events);
                 }
             }
-        }
 
-        if !events.is_empty() {
-            dev_println!("📥 Received {} events via subscription", events.len());
+            if tokio::time::Instant::now() >= deadline {
+                return Ok(Vec::new());
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
         }
-
-        Ok(events)
     }
 
     /// リレー接続状態をチェック
@@ -1725,6 +1719,128 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
     once_cell::sync::Lazy::new(|| {
         tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime")
     });
+
+/// 常駐リスナーが受信したイベントを蓄積するグローバルキュー。
+/// `receive_subscription_events` がポーリング毎に drain する。
+/// Dart 側は subscription_id でディスパッチ + event_id で dedupe するため、
+/// 複数クライアントのイベントが混在しても問題ない。
+struct SubscriptionEventQueue {
+    events: std::collections::VecDeque<ReceivedEvent>,
+    total_bytes: usize,
+}
+
+impl SubscriptionEventQueue {
+    // メモリ保護: Flutter 側のポーリングが止まっても無限に溜めない。
+    // 件数上限に加え、悪意あるリレーが最大サイズのイベントで埋めても
+    // OOM しないようバイト総量にも上限を設ける（古い順に破棄）。
+    const MAX_EVENTS: usize = 2048;
+    const MAX_BYTES: usize = 8 * 1024 * 1024;
+
+    fn push(&mut self, event: ReceivedEvent) {
+        self.total_bytes += event.event_json.len();
+        self.events.push_back(event);
+        while self.events.len() > Self::MAX_EVENTS || self.total_bytes > Self::MAX_BYTES {
+            match self.events.pop_front() {
+                Some(dropped) => {
+                    self.total_bytes = self.total_bytes.saturating_sub(dropped.event_json.len());
+                }
+                None => break,
+            }
+        }
+    }
+
+    fn drain_all(&mut self) -> Vec<ReceivedEvent> {
+        self.total_bytes = 0;
+        self.events.drain(..).collect()
+    }
+}
+
+static SUBSCRIPTION_EVENT_QUEUE: once_cell::sync::Lazy<std::sync::Mutex<SubscriptionEventQueue>> =
+    once_cell::sync::Lazy::new(|| {
+        std::sync::Mutex::new(SubscriptionEventQueue {
+            events: std::collections::VecDeque::new(),
+            total_bytes: 0,
+        })
+    });
+
+/// 常駐リスナーの登録簿: client_id -> 世代トークン（多重起動防止）。
+/// 世代トークンにより、ログアウトで登録簿をクリアした直後に旧リスナーが
+/// 自己クリーンアップで新リスナーの登録を誤って消す競合を防ぐ。
+static SUBSCRIPTION_LISTENERS: once_cell::sync::Lazy<
+    std::sync::Mutex<std::collections::HashMap<String, u64>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+static LISTENER_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// poisoned mutex から安全に復帰してロックを取得する。
+/// （panic 永続化を防ぎ、ログアウト時のキュー破棄が必ず実行されるようにする）
+fn lock_recovering<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// notification channel に常駐してイベントをキューへ積むリスナーを起動する。
+///
+/// broadcast channel は receiver 生成以降のメッセージしか受け取れないため、
+/// ポーリング毎に receiver を作る方式ではポーリング間隙のイベントを恒久的に
+/// 取りこぼす。subscribe 時に一度だけ常駐タスクを起動して解決する。
+fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
+    let my_generation =
+        LISTENER_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    {
+        let mut listeners = lock_recovering(&SUBSCRIPTION_LISTENERS);
+        if listeners.contains_key(client_id) {
+            return; // 既に起動済み
+        }
+        listeners.insert(client_id.to_string(), my_generation);
+    }
+
+    let client = client.clone();
+    let client_id = client_id.to_string();
+    TOKIO_RUNTIME.spawn(async move {
+        dev_println!("📡 Subscription event listener started [{}]", client_id);
+        let mut notifications = client.notifications();
+        loop {
+            match notifications.recv().await {
+                Ok(RelayPoolNotification::Event {
+                    event,
+                    subscription_id,
+                    ..
+                }) => {
+                    let received_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() as i64;
+                    let received = ReceivedEvent {
+                        event_id: event.id.to_hex(),
+                        kind: event.kind.as_u16() as u64,
+                        created_at: event.created_at.as_u64() as i64,
+                        // 単一エンコード。旧実装の serde_json::to_string(&as_json())
+                        // は二重エンコードで Dart 側のパースが常に失敗していた。
+                        event_json: event.as_json(),
+                        received_at,
+                        subscription_id: subscription_id.to_string(),
+                    };
+                    lock_recovering(&SUBSCRIPTION_EVENT_QUEUE).push(received);
+                }
+                Ok(RelayPoolNotification::Shutdown) => break,
+                Ok(_) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    dev_eprintln!("⚠️ Subscription listener lagged: {} notifications", n);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+        // 自分の世代の登録だけを外す（ログアウト後に再ログインした新世代の
+        // リスナー登録を誤って消さない）。
+        {
+            let mut listeners = lock_recovering(&SUBSCRIPTION_LISTENERS);
+            if listeners.get(&client_id) == Some(&my_generation) {
+                listeners.remove(&client_id);
+            }
+        }
+        dev_println!("📡 Subscription event listener stopped [{}]", client_id);
+    });
+}
 
 /// WebSocket `User-Agent` on relay connections (issue #130). Call before any `init_nostr_client*`.
 pub fn set_relay_websocket_user_agent(user_agent: String) {
@@ -2297,6 +2413,120 @@ pub fn sign_event_with_ephemeral_key(unsigned_event_json: String) -> Result<Stri
         // 6. ephemeral_keysはここでdrop（自動メモリクリア）
 
         Ok(signed_event_json)
+    })
+}
+
+/// セッションクライアントの鍵で NIP-44 v2 暗号化（秘密鍵モード専用）。
+///
+/// Amber モード（keys=None）ではエラーを返す。nsec を Dart 側へ渡さずに
+/// 招待ペイロード等を暗号化するために使用する。
+pub fn client_nip44_encrypt(
+    peer_pubkey_hex: String,
+    plaintext: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .clone()
+            .context("秘密鍵がありません（Amber モードでは使用できません）")?;
+        let peer = PublicKey::from_hex(&peer_pubkey_hex).context("Invalid peer public key")?;
+        nip44::encrypt(keys.secret_key(), &peer, &plaintext, nip44::Version::V2)
+            .context("Failed to NIP-44 encrypt with client keys")
+    })
+}
+
+/// セッションクライアントの鍵で NIP-44 復号（秘密鍵モード専用）。
+pub fn client_nip44_decrypt(
+    peer_pubkey_hex: String,
+    ciphertext: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .clone()
+            .context("秘密鍵がありません（Amber モードでは使用できません）")?;
+        let peer = PublicKey::from_hex(&peer_pubkey_hex).context("Invalid peer public key")?;
+        nip44::decrypt(keys.secret_key(), &peer, &ciphertext)
+            .context("Failed to NIP-44 decrypt with client keys")
+    })
+}
+
+/// `client_sign_event` の入力上限（誤用・DoS への多層防御）。
+const MAX_SIGN_CONTENT_BYTES: usize = 256 * 1024; // 256 KiB
+const MAX_SIGN_TAG_COUNT: usize = 2_000;
+
+/// セッションクライアントの鍵で未署名イベント JSON に署名（秘密鍵モード専用）。
+///
+/// これはユーザーの実鍵で任意の kind/content/tags に署名できる汎用プリミティブ
+/// （署名オラクル）である。呼び出し側は **信頼できない外部由来のイベント JSON を
+/// 渡してはならない**。現状の利用はローカル生成の招待イベント等に限定される。
+/// 万一の誤用と DoS に備え、入力サイズに上限を設けている。
+pub fn client_sign_event(
+    unsigned_event_json: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .clone()
+            .context("秘密鍵がありません（Amber モードでは使用できません）")?;
+
+        let unsigned_event: serde_json::Value = serde_json::from_str(&unsigned_event_json)
+            .context("Failed to parse unsigned event JSON")?;
+
+        let content = unsigned_event["content"]
+            .as_str()
+            .context("Missing or invalid 'content' field")?
+            .to_string();
+        if content.len() > MAX_SIGN_CONTENT_BYTES {
+            anyhow::bail!("Refusing to sign: content exceeds size limit");
+        }
+        let kind = unsigned_event["kind"]
+            .as_u64()
+            .context("Missing or invalid 'kind' field")?;
+        let tags_array = unsigned_event["tags"]
+            .as_array()
+            .context("Missing or invalid 'tags' field")?;
+        if tags_array.len() > MAX_SIGN_TAG_COUNT {
+            anyhow::bail!("Refusing to sign: too many tags");
+        }
+
+        let mut tags = Vec::new();
+        for tag in tags_array {
+            let tag_vec: Vec<String> = tag
+                .as_array()
+                .context("Invalid tag format: expected array")?
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            if !tag_vec.is_empty() {
+                tags.push(
+                    Tag::parse(&tag_vec)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse tag: {:?}", e))?,
+                );
+            }
+        }
+
+        let created_at = if let Some(timestamp) = unsigned_event["created_at"].as_u64() {
+            Timestamp::from(timestamp)
+        } else {
+            Timestamp::now()
+        };
+
+        let event = EventBuilder::new(Kind::from(kind as u16), content)
+            .tags(tags)
+            .custom_created_at(created_at)
+            .sign(&keys)
+            .await
+            .context("Failed to sign event with client keys")?;
+
+        // event.as_json() は既に JSON 文字列（二重エンコード禁止）
+        Ok(event.as_json())
     })
 }
 
@@ -3955,12 +4185,18 @@ pub fn start_subscription_with_client_id(
     filters_json: String,
     client_id: Option<String>,
 ) -> Result<SubscriptionInfo> {
+    let resolved_id = client_id
+        .clone()
+        .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
 
         // JSON文字列からFilterのリストをパース
         let filters: Vec<Filter> =
             serde_json::from_str(&filters_json).context("Failed to parse filters JSON")?;
+
+        // subscribe 前に常駐リスナーを確実に起動（イベント取りこぼし防止）
+        ensure_subscription_event_listener(&resolved_id, &client.client);
 
         client.subscribe(filters).await
     })
@@ -4012,14 +4248,24 @@ pub fn stop_all_subscriptions_with_client_id(client_id: Option<String>) -> Resul
 /// 致命的な状況のみ Err を返す。
 pub fn clear_all_session_state() -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
-        // NOSTR_CLIENTS をクリア。各 MeisoNostrClient の Drop 実装で
-        // 内部の nostr-sdk Client が落ちるため、リレー接続も解放される。
+        // NOSTR_CLIENTS をクリア。常駐リスナーが Client の clone を保持している
+        // ため Drop 任せではリレー接続が閉じない。明示的に shutdown して
+        // notification channel を閉じ、リスナーを終了させる。
         {
             let mut clients = NOSTR_CLIENTS.lock().await;
             let count = clients.len();
+            for (id, client) in clients.iter() {
+                if let Err(e) = client.client.shutdown().await {
+                    dev_eprintln!("⚠️ Failed to shutdown client [{}]: {}", id, e);
+                }
+            }
             clients.clear();
             dev_println!("🧹 Cleared {} NOSTR_CLIENTS entries", count);
         }
+
+        // 常駐リスナーの登録簿をクリア（旧リスナーは channel close で自然終了する。
+        // 再ログイン時に新しいリスナーを確実に起動できるようにする）
+        lock_recovering(&SUBSCRIPTION_LISTENERS).clear();
 
         // MLS STORE をクリア (Connection が drop されるため SQLite ファイルの
         // ハンドルも解放され、その後の `mls.db` 物理削除が確実に効く)。
@@ -4031,6 +4277,15 @@ pub fn clear_all_session_state() -> Result<()> {
                 "🧹 Cleared MLS STORE (was_initialized={})",
                 was_some
             );
+        }
+
+        // 未配信の購読イベントを破棄（アカウント切替時に前ユーザーの
+        // イベントが次ユーザーへ流れるのを防ぐ）
+        {
+            let mut queue = lock_recovering(&SUBSCRIPTION_EVENT_QUEUE);
+            let count = queue.events.len();
+            queue.drain_all();
+            dev_println!("🧹 Cleared {} queued subscription events", count);
         }
 
         Ok(())
@@ -4877,6 +5132,324 @@ pub fn mls_join_group(nostr_id: String, group_id: String, welcome_msg: Vec<u8>) 
 }
 
 // ========================================
+// Shared-Key Collaborative Lists (shared-v1)
+//
+// MLS を用いない軽量な共同編集方式。共有リストごとに専用の Nostr 鍵 G を
+// 生成し、メンバー間で nsec_G を共有する。タスクは kind:35000 の addressable
+// event として G 署名・NIP-44 自己暗号化で発行する。詳細は
+// docs/SHARED_LIST_STRATEGY.md を参照。
+// ========================================
+
+/// shared-v1: グループ鍵 G(nsec_G/npub_G)を新規生成する。
+pub fn shared_generate_group_key() -> crate::group_tasks_shared::GroupKey {
+    crate::group_tasks_shared::generate_group_key()
+}
+
+/// shared-v1: nsec_G から npub_G を導出する。
+pub fn shared_npub_from_nsec(group_nsec_hex: String) -> Result<String> {
+    crate::group_tasks_shared::npub_from_nsec(&group_nsec_hex)
+}
+
+/// shared-v1: task JSON を NIP-44 暗号化し、kind:35000 の署名済みイベント JSON を返す。
+pub fn shared_build_signed_task_event(
+    group_nsec_hex: String,
+    task_json: String,
+) -> Result<String> {
+    crate::group_tasks_shared::build_signed_task_event(group_nsec_hex, task_json)
+}
+
+/// shared-v1: kind:35000 イベント JSON を復号し、平文 task JSON を返す。
+pub fn shared_decrypt_task_event(group_nsec_hex: String, event_json: String) -> Result<String> {
+    crate::group_tasks_shared::decrypt_task_event(group_nsec_hex, event_json)
+}
+
+/// shared-v1: meta JSON を NIP-44 暗号化し、kind:35001(d="meta")の署名済みイベント JSON を返す。
+pub fn shared_build_signed_meta_event(
+    group_nsec_hex: String,
+    meta_json: String,
+) -> Result<String> {
+    crate::group_tasks_shared::build_signed_meta_event(group_nsec_hex, meta_json)
+}
+
+/// shared-v1: kind:35001 イベント JSON を復号し、平文 meta JSON を返す。
+pub fn shared_decrypt_meta_event(group_nsec_hex: String, event_json: String) -> Result<String> {
+    crate::group_tasks_shared::decrypt_meta_event(group_nsec_hex, event_json)
+}
+
+/// shared-v1: 招待 payload の平文 JSON を構築する。
+pub fn shared_build_invitation_payload(
+    group_id: String,
+    group_nsec: String,
+    group_npub: String,
+    group_name: String,
+    key_epoch: u64,
+) -> Result<String> {
+    crate::group_tasks_shared::build_invitation_payload(
+        group_id, group_nsec, group_npub, group_name, key_epoch,
+    )
+}
+
+/// shared-v1: 招待 payload の平文 JSON を解析する。
+pub fn shared_parse_invitation_payload(
+    payload_json: String,
+) -> Result<crate::group_tasks_shared::InvitationPayload> {
+    crate::group_tasks_shared::parse_invitation_payload(payload_json)
+}
+
+/// shared-v1(秘密鍵モード): 招待 payload を受信者宛に NIP-44 封緘する。
+pub fn shared_encrypt_invitation_for_recipient(
+    inviter_nsec_hex: String,
+    recipient_pubkey_hex: String,
+    payload_json: String,
+) -> Result<String> {
+    crate::group_tasks_shared::encrypt_invitation_for_recipient(
+        inviter_nsec_hex,
+        recipient_pubkey_hex,
+        payload_json,
+    )
+}
+
+/// shared-v1(秘密鍵モード): 受信した招待を復号して payload を取り出す。
+pub fn shared_decrypt_invitation_from_sender(
+    recipient_nsec_hex: String,
+    sender_pubkey_hex: String,
+    ciphertext: String,
+) -> Result<crate::group_tasks_shared::InvitationPayload> {
+    crate::group_tasks_shared::decrypt_invitation_from_sender(
+        recipient_nsec_hex,
+        sender_pubkey_hex,
+        ciphertext,
+    )
+}
+
+/// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
+///
+/// kinds: 35000(タスク), 35001(メタデータ)
+pub fn fetch_shared_events_by_author(
+    group_npub_hex: String,
+    since: i64,
+    timeout_secs: u64,
+) -> Result<Vec<ReceivedEvent>> {
+    fetch_shared_events_by_author_with_client_id(group_npub_hex, since, timeout_secs, None)
+}
+
+pub fn fetch_shared_events_by_author_with_client_id(
+    group_npub_hex: String,
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<ReceivedEvent>> {
+    use crate::group_tasks_shared::SHARED_TASK_KIND;
+
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let author = PublicKey::from_hex(&group_npub_hex)
+            .context("Failed to parse group author public key")?;
+
+        let mut filter = Filter::new()
+            .author(author)
+            .kind(Kind::Custom(SHARED_TASK_KIND));
+
+        if since > 0 {
+            filter = filter.since(Timestamp::from(since.max(0) as u64));
+        }
+
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+
+        dev_println!(
+            "📨 [shared-v1] Fetched {} events for author {}",
+            events.len(),
+            &group_npub_hex[..16.min(group_npub_hex.len())]
+        );
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        Ok(events
+            .into_iter()
+            .map(|event| ReceivedEvent {
+                event_id: event.id.to_hex(),
+                kind: event.kind.as_u16() as u64,
+                created_at: event.created_at.as_u64() as i64,
+                event_json: event.as_json(),
+                received_at: now,
+                subscription_id: String::new(),
+            })
+            .collect())
+    })
+}
+
+/// shared-v1: NIP-44 暗号化済み content を載せた未署名招待イベント JSON を返す。
+pub fn create_unsigned_shared_invitation_event(
+    sender_public_key_hex: String,
+    recipient_npub: String,
+    group_id: String,
+    group_name: String,
+    encrypted_content: String,
+    inviter_name: Option<String>,
+) -> Result<String> {
+    use serde_json::json;
+
+    let sender_pubkey =
+        PublicKey::from_hex(&sender_public_key_hex).context("Failed to parse sender public key")?;
+    let recipient_pubkey =
+        PublicKey::from_bech32(&recipient_npub).context("Failed to parse recipient npub")?;
+
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let d_tag_value = format!(
+        "shared-invite-{}-{}",
+        group_id,
+        recipient_pubkey.to_hex()
+    );
+
+    let mut tags = Vec::new();
+    tags.push(vec!["d".to_string(), d_tag_value]);
+    tags.push(vec!["p".to_string(), recipient_pubkey.to_hex()]);
+    tags.push(vec!["protocol".to_string(), "shared-v1".to_string()]);
+    tags.push(vec!["name".to_string(), group_name]);
+    if let Some(name) = inviter_name {
+        tags.push(vec!["inviter_name".to_string(), name]);
+    }
+    crate::nostr_client_meta::append_nip89_json_tag_rows(&mut tags);
+
+    let unsigned_event = json!({
+        "pubkey": sender_pubkey.to_hex(),
+        "created_at": created_at,
+        "kind": 30078,
+        "tags": tags,
+        "content": encrypted_content,
+    });
+
+    Ok(serde_json::to_string(&unsigned_event)?)
+}
+
+/// shared-v1: 受信者宛の招待イベント(kind:30078, d=shared-invite-*)を JSON 配列で返す。
+pub fn sync_shared_invitations(
+    recipient_public_key_hex: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    use serde_json::json;
+
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let recipient_pubkey = PublicKey::from_hex(&recipient_public_key_hex)
+            .context("Failed to parse recipient public key")?;
+
+        let filter = Filter::new()
+            .kind(Kind::Custom(30078))
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::P),
+                vec![recipient_pubkey.to_hex()],
+            )
+            .limit(50);
+
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        let mut invitations = Vec::new();
+
+        for event in events {
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.first().map(|s| s.as_str()) == Some("d")
+                })
+                .and_then(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.get(1).cloned()
+                });
+
+            let Some(d_tag_value) = d_tag else {
+                continue;
+            };
+
+            let Some(rest) = d_tag_value.strip_prefix("shared-invite-") else {
+                continue;
+            };
+
+            // d_tag フォーマット: "shared-invite-{group_id}-{recipient_pubkey_hex}"
+            // group_id は UUID v4(ハイフンを含む)である可能性が高いため、
+            // 末尾の 64 hex 文字を recipient_pubkey と見なして剥がす。
+            // 互換性: 旧式の "{prefix}" 分割スタイルでもパース可能なように fallback を残す。
+            let group_id = {
+                let bytes = rest.as_bytes();
+                let pivot = bytes.len().checked_sub(65);
+                let trimmed = pivot.and_then(|p| {
+                    if bytes[p] == b'-'
+                        && rest[p + 1..]
+                            .chars()
+                            .all(|c| c.is_ascii_hexdigit())
+                    {
+                        Some(rest[..p].to_string())
+                    } else {
+                        None
+                    }
+                });
+                trimmed.unwrap_or_else(|| {
+                    rest.split('-').next().unwrap_or(rest).to_string()
+                })
+            };
+
+            let group_name = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.first().map(|s| s.as_str()) == Some("name")
+                })
+                .and_then(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.get(1).cloned()
+                })
+                .unwrap_or_else(|| "Shared List".to_string());
+
+            let inviter_name = event
+                .tags
+                .iter()
+                .find(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.first().map(|s| s.as_str()) == Some("inviter_name")
+                })
+                .and_then(|tag| {
+                    let tag_vec = (*tag).clone().to_vec();
+                    tag_vec.get(1).cloned()
+                });
+
+            if event.content.is_empty() {
+                dev_println!(
+                    "⚠️ [shared-v1] Skipping invitation with empty content: {}",
+                    event.id.to_hex().chars().take(16).collect::<String>()
+                );
+                continue;
+            }
+
+            invitations.push(json!({
+                "event_id": event.id.to_hex(),
+                "inviter_pubkey": event.pubkey.to_hex(),
+                "group_id": group_id,
+                "group_name": group_name,
+                "encrypted_content": event.content,
+                "inviter_name": inviter_name,
+                "created_at": event.created_at.as_u64(),
+            }));
+        }
+
+        Ok(serde_json::to_string(&invitations)?)
+    })
+}
+
+// ========================================
 // Phase 2.5A: MLS Database Backup/Restore
 // ========================================
 
@@ -5396,6 +5969,154 @@ pub fn fetch_key_package_by_npub_with_client_id(
         } else {
             Err(anyhow::anyhow!("No Key Package found for npub: {}", npub))
         }
+    })
+}
+
+// ========================================
+// コンタクトリスト / プロフィール取得 API
+// ========================================
+
+/// kind:0 のプロフィールメタデータ（メンバー選択 UI 用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContactProfile {
+    /// 公開鍵（hex）
+    pub pubkey_hex: String,
+    /// name フィールド
+    pub name: Option<String>,
+    /// display_name フィールド
+    pub display_name: Option<String>,
+    /// アバター画像URL
+    pub picture: Option<String>,
+    /// NIP-05 識別子
+    pub nip05: Option<String>,
+}
+
+/// kind:3 コンタクトリスト（フォローリスト）の p タグ pubkey 一覧を取得
+pub fn fetch_contact_list(pubkey_hex: String) -> Result<Vec<String>> {
+    fetch_contact_list_with_client_id(pubkey_hex, None)
+}
+
+/// kind:3 コンタクトリスト取得（client_id 指定可能）
+pub fn fetch_contact_list_with_client_id(
+    pubkey_hex: String,
+    client_id: Option<String>,
+) -> Result<Vec<String>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let public_key =
+            PublicKey::from_hex(&pubkey_hex).context("Failed to parse pubkey hex")?;
+
+        let filter = Filter::new()
+            .kind(Kind::ContactList)
+            .author(public_key)
+            .limit(1);
+
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        // kind:3 は replaceable なので最新の1件のみを採用する
+        let latest = events.iter().max_by_key(|e| e.created_at);
+        let mut contacts: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        if let Some(event) = latest {
+            for tag in event.tags.iter() {
+                let tag_vec = tag.clone().to_vec();
+                if tag_vec.len() >= 2 && tag_vec[0] == "p" {
+                    // p タグ値は信頼しない入力として hex 検証してから返す
+                    if let Ok(pk) = PublicKey::from_hex(&tag_vec[1]) {
+                        let hex = pk.to_hex();
+                        if seen.insert(hex.clone()) {
+                            contacts.push(hex);
+                        }
+                    }
+                }
+            }
+            dev_println!(
+                "📥 [Contacts] kind:3 found, {} contacts",
+                contacts.len()
+            );
+        } else {
+            dev_println!("⚠️ [Contacts] No kind:3 event found");
+        }
+
+        Ok(contacts)
+    })
+}
+
+/// kind:0 プロフィールメタデータを一括取得（表示名・アバター用）
+pub fn fetch_profiles_metadata(pubkey_hexes: Vec<String>) -> Result<Vec<ContactProfile>> {
+    fetch_profiles_metadata_with_client_id(pubkey_hexes, None)
+}
+
+/// kind:0 プロフィール一括取得（client_id 指定可能）
+pub fn fetch_profiles_metadata_with_client_id(
+    pubkey_hexes: Vec<String>,
+    client_id: Option<String>,
+) -> Result<Vec<ContactProfile>> {
+    TOKIO_RUNTIME.block_on(async {
+        if pubkey_hexes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let client = get_client(client_id).await?;
+
+        let mut authors: Vec<PublicKey> = Vec::new();
+        for hex in &pubkey_hexes {
+            if let Ok(pk) = PublicKey::from_hex(hex) {
+                authors.push(pk);
+            }
+        }
+        if authors.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let filter = Filter::new().kind(Kind::Metadata).authors(authors);
+
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .await?;
+
+        // author ごとに最新の kind:0 のみを採用する
+        let mut latest_by_author: std::collections::HashMap<String, &Event> =
+            std::collections::HashMap::new();
+        for event in events.iter() {
+            let key = event.pubkey.to_hex();
+            match latest_by_author.get(&key) {
+                Some(existing) if existing.created_at >= event.created_at => {}
+                _ => {
+                    latest_by_author.insert(key, event);
+                }
+            }
+        }
+
+        let mut profiles = Vec::new();
+        for (pubkey_hex, event) in latest_by_author {
+            // content は信頼しない入力。JSON でなければスキップ
+            let parsed: serde_json::Value = match serde_json::from_str(&event.content) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let get_str = |key: &str| -> Option<String> {
+                parsed
+                    .get(key)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.chars().take(256).collect::<String>())
+                    .filter(|s| !s.is_empty())
+            };
+            profiles.push(ContactProfile {
+                pubkey_hex,
+                name: get_str("name"),
+                display_name: get_str("display_name"),
+                picture: get_str("picture"),
+                nip05: get_str("nip05"),
+            });
+        }
+
+        dev_println!("📥 [Contacts] kind:0 profiles fetched: {}", profiles.len());
+        Ok(profiles)
     })
 }
 

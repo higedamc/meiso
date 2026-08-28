@@ -411,6 +411,6 @@ mod tests {
         assert!(result.is_ok());
 
         let key_package = result.unwrap();
-        assert!(!key_package.is_empty());
+        assert!(!key_package.key_package.is_empty());
     }
 }

@@ -6,11 +6,12 @@
 import 'frb_generated.dart';
 import 'group_tasks.dart';
 import 'group_tasks_mls.dart';
+import 'group_tasks_shared.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `drain_all`, `ensure_subscription_event_listener`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `lock_recovering`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `push`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`, `SubscriptionEventQueue`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// MLS/NIP-17: listen_key(#p) 宛の sealed event(kind=1059) を差分取得
 ///
@@ -280,6 +281,34 @@ Future<String> initNostrClientWithPubkeyAndId({
 /// ```
 Future<String> signEventWithEphemeralKey({required String unsignedEventJson}) =>
     RustLib.instance.api.crateApiSignEventWithEphemeralKey(unsignedEventJson: unsignedEventJson);
+
+/// セッションクライアントの鍵で NIP-44 v2 暗号化（秘密鍵モード専用）。
+///
+/// Amber モード（keys=None）ではエラーを返す。nsec を Dart 側へ渡さずに
+/// 招待ペイロード等を暗号化するために使用する。
+Future<String> clientNip44Encrypt({required String peerPubkeyHex, required String plaintext, String? clientId}) =>
+    RustLib.instance.api.crateApiClientNip44Encrypt(
+      peerPubkeyHex: peerPubkeyHex,
+      plaintext: plaintext,
+      clientId: clientId,
+    );
+
+/// セッションクライアントの鍵で NIP-44 復号（秘密鍵モード専用）。
+Future<String> clientNip44Decrypt({required String peerPubkeyHex, required String ciphertext, String? clientId}) =>
+    RustLib.instance.api.crateApiClientNip44Decrypt(
+      peerPubkeyHex: peerPubkeyHex,
+      ciphertext: ciphertext,
+      clientId: clientId,
+    );
+
+/// セッションクライアントの鍵で未署名イベント JSON に署名（秘密鍵モード専用）。
+///
+/// これはユーザーの実鍵で任意の kind/content/tags に署名できる汎用プリミティブ
+/// （署名オラクル）である。呼び出し側は **信頼できない外部由来のイベント JSON を
+/// 渡してはならない**。現状の利用はローカル生成の招待イベント等に限定される。
+/// 万一の誤用と DoS に備え、入力サイズに上限を設けている。
+Future<String> clientSignEvent({required String unsignedEventJson, String? clientId}) =>
+    RustLib.instance.api.crateApiClientSignEvent(unsignedEventJson: unsignedEventJson, clientId: clientId);
 
 /// 署名済みイベントをリレーに送信
 Future<EventSendResult> sendSignedEvent({required String eventJson}) =>
@@ -850,6 +879,116 @@ Future<KeyPackageResult> mlsCreateKeyPackage({required String nostrId}) =>
 Future<void> mlsJoinGroup({required String nostrId, required String groupId, required List<int> welcomeMsg}) =>
     RustLib.instance.api.crateApiMlsJoinGroup(nostrId: nostrId, groupId: groupId, welcomeMsg: welcomeMsg);
 
+/// shared-v1: グループ鍵 G(nsec_G/npub_G)を新規生成する。
+Future<GroupKey> sharedGenerateGroupKey() => RustLib.instance.api.crateApiSharedGenerateGroupKey();
+
+/// shared-v1: nsec_G から npub_G を導出する。
+Future<String> sharedNpubFromNsec({required String groupNsecHex}) =>
+    RustLib.instance.api.crateApiSharedNpubFromNsec(groupNsecHex: groupNsecHex);
+
+/// shared-v1: task JSON を NIP-44 暗号化し、kind:35000 の署名済みイベント JSON を返す。
+Future<String> sharedBuildSignedTaskEvent({required String groupNsecHex, required String taskJson}) =>
+    RustLib.instance.api.crateApiSharedBuildSignedTaskEvent(groupNsecHex: groupNsecHex, taskJson: taskJson);
+
+/// shared-v1: kind:35000 イベント JSON を復号し、平文 task JSON を返す。
+Future<String> sharedDecryptTaskEvent({required String groupNsecHex, required String eventJson}) =>
+    RustLib.instance.api.crateApiSharedDecryptTaskEvent(groupNsecHex: groupNsecHex, eventJson: eventJson);
+
+/// shared-v1: meta JSON を NIP-44 暗号化し、kind:35001(d="meta")の署名済みイベント JSON を返す。
+Future<String> sharedBuildSignedMetaEvent({required String groupNsecHex, required String metaJson}) =>
+    RustLib.instance.api.crateApiSharedBuildSignedMetaEvent(groupNsecHex: groupNsecHex, metaJson: metaJson);
+
+/// shared-v1: kind:35001 イベント JSON を復号し、平文 meta JSON を返す。
+Future<String> sharedDecryptMetaEvent({required String groupNsecHex, required String eventJson}) =>
+    RustLib.instance.api.crateApiSharedDecryptMetaEvent(groupNsecHex: groupNsecHex, eventJson: eventJson);
+
+/// shared-v1: 招待 payload の平文 JSON を構築する。
+Future<String> sharedBuildInvitationPayload({
+  required String groupId,
+  required String groupNsec,
+  required String groupNpub,
+  required String groupName,
+  required BigInt keyEpoch,
+}) => RustLib.instance.api.crateApiSharedBuildInvitationPayload(
+  groupId: groupId,
+  groupNsec: groupNsec,
+  groupNpub: groupNpub,
+  groupName: groupName,
+  keyEpoch: keyEpoch,
+);
+
+/// shared-v1: 招待 payload の平文 JSON を解析する。
+Future<InvitationPayload> sharedParseInvitationPayload({required String payloadJson}) =>
+    RustLib.instance.api.crateApiSharedParseInvitationPayload(payloadJson: payloadJson);
+
+/// shared-v1(秘密鍵モード): 招待 payload を受信者宛に NIP-44 封緘する。
+Future<String> sharedEncryptInvitationForRecipient({
+  required String inviterNsecHex,
+  required String recipientPubkeyHex,
+  required String payloadJson,
+}) => RustLib.instance.api.crateApiSharedEncryptInvitationForRecipient(
+  inviterNsecHex: inviterNsecHex,
+  recipientPubkeyHex: recipientPubkeyHex,
+  payloadJson: payloadJson,
+);
+
+/// shared-v1(秘密鍵モード): 受信した招待を復号して payload を取り出す。
+Future<InvitationPayload> sharedDecryptInvitationFromSender({
+  required String recipientNsecHex,
+  required String senderPubkeyHex,
+  required String ciphertext,
+}) => RustLib.instance.api.crateApiSharedDecryptInvitationFromSender(
+  recipientNsecHex: recipientNsecHex,
+  senderPubkeyHex: senderPubkeyHex,
+  ciphertext: ciphertext,
+);
+
+/// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
+///
+/// kinds: 35000(タスク), 35001(メタデータ)
+Future<List<ReceivedEvent>> fetchSharedEventsByAuthor({
+  required String groupNpubHex,
+  required PlatformInt64 since,
+  required BigInt timeoutSecs,
+}) => RustLib.instance.api.crateApiFetchSharedEventsByAuthor(
+  groupNpubHex: groupNpubHex,
+  since: since,
+  timeoutSecs: timeoutSecs,
+);
+
+Future<List<ReceivedEvent>> fetchSharedEventsByAuthorWithClientId({
+  required String groupNpubHex,
+  required PlatformInt64 since,
+  required BigInt timeoutSecs,
+  String? clientId,
+}) => RustLib.instance.api.crateApiFetchSharedEventsByAuthorWithClientId(
+  groupNpubHex: groupNpubHex,
+  since: since,
+  timeoutSecs: timeoutSecs,
+  clientId: clientId,
+);
+
+/// shared-v1: NIP-44 暗号化済み content を載せた未署名招待イベント JSON を返す。
+Future<String> createUnsignedSharedInvitationEvent({
+  required String senderPublicKeyHex,
+  required String recipientNpub,
+  required String groupId,
+  required String groupName,
+  required String encryptedContent,
+  String? inviterName,
+}) => RustLib.instance.api.crateApiCreateUnsignedSharedInvitationEvent(
+  senderPublicKeyHex: senderPublicKeyHex,
+  recipientNpub: recipientNpub,
+  groupId: groupId,
+  groupName: groupName,
+  encryptedContent: encryptedContent,
+  inviterName: inviterName,
+);
+
+/// shared-v1: 受信者宛の招待イベント(kind:30078, d=shared-invite-*)を JSON 配列で返す。
+Future<String> syncSharedInvitations({required String recipientPublicKeyHex, String? clientId}) => RustLib.instance.api
+    .crateApiSyncSharedInvitations(recipientPublicKeyHex: recipientPublicKeyHex, clientId: clientId);
+
 /// MLS SQLite DBをBase64エンコード形式でエクスポート
 ///
 /// Phase 2.5A: Key Package手動バックアップ機能
@@ -984,6 +1123,22 @@ Future<String> fetchKeyPackageByNpub({required String npub}) =>
 /// MLS: npubからKey Packageを取得（client_id指定可能）
 Future<String> fetchKeyPackageByNpubWithClientId({required String npub, String? clientId}) =>
     RustLib.instance.api.crateApiFetchKeyPackageByNpubWithClientId(npub: npub, clientId: clientId);
+
+/// kind:3 コンタクトリスト（フォローリスト）の p タグ pubkey 一覧を取得
+Future<List<String>> fetchContactList({required String pubkeyHex}) =>
+    RustLib.instance.api.crateApiFetchContactList(pubkeyHex: pubkeyHex);
+
+/// kind:3 コンタクトリスト取得（client_id 指定可能）
+Future<List<String>> fetchContactListWithClientId({required String pubkeyHex, String? clientId}) =>
+    RustLib.instance.api.crateApiFetchContactListWithClientId(pubkeyHex: pubkeyHex, clientId: clientId);
+
+/// kind:0 プロフィールメタデータを一括取得（表示名・アバター用）
+Future<List<ContactProfile>> fetchProfilesMetadata({required List<String> pubkeyHexes}) =>
+    RustLib.instance.api.crateApiFetchProfilesMetadata(pubkeyHexes: pubkeyHexes);
+
+/// kind:0 プロフィール一括取得（client_id 指定可能）
+Future<List<ContactProfile>> fetchProfilesMetadataWithClientId({required List<String> pubkeyHexes, String? clientId}) =>
+    RustLib.instance.api.crateApiFetchProfilesMetadataWithClientId(pubkeyHexes: pubkeyHexes, clientId: clientId);
 
 /// Kind 10063 (BUD-03 / NIP-B7) からBlossomサーバーリストを取得
 Future<List<String>> fetchBlossomServerList() => RustLib.instance.api.crateApiFetchBlossomServerList();
@@ -1164,6 +1319,13 @@ class AppSettings {
   /// カスタムリストの順番（リストIDの配列）
   final List<String> customListOrder;
 
+  /// 承諾済み共有グループの ID 集合。
+  /// 招待イベント(kind 30078)はリレー上に残り続けるため、端末間で承諾状態を
+  /// 同期しないと新端末で再度「招待中」表示になる。ここには承諾済みの groupId
+  /// のみを保持し、group_nsec 等の秘密情報はリレーに出さない（新端末では既存の
+  /// 招待イベントを再復号して資格情報を復元する）。
+  final List<String> joinedGroupIds;
+
   /// 最後に見ていたカスタムリストID
   final String? lastViewedCustomListId;
 
@@ -1182,6 +1344,7 @@ class AppSettings {
     required this.torMode,
     required this.proxyUrl,
     required this.customListOrder,
+    required this.joinedGroupIds,
     this.lastViewedCustomListId,
     required this.nip89ClientTagEnabled,
     required this.updatedAt,
@@ -1197,6 +1360,7 @@ class AppSettings {
       torMode.hashCode ^
       proxyUrl.hashCode ^
       customListOrder.hashCode ^
+      joinedGroupIds.hashCode ^
       lastViewedCustomListId.hashCode ^
       nip89ClientTagEnabled.hashCode ^
       updatedAt.hashCode;
@@ -1214,6 +1378,7 @@ class AppSettings {
           torMode == other.torMode &&
           proxyUrl == other.proxyUrl &&
           customListOrder == other.customListOrder &&
+          joinedGroupIds == other.joinedGroupIds &&
           lastViewedCustomListId == other.lastViewedCustomListId &&
           nip89ClientTagEnabled == other.nip89ClientTagEnabled &&
           updatedAt == other.updatedAt;
@@ -1279,6 +1444,46 @@ class CachedEventInfo {
           cachedAt == other.cachedAt &&
           ttlSeconds == other.ttlSeconds &&
           dTag == other.dTag;
+}
+
+/// kind:0 のプロフィールメタデータ（メンバー選択 UI 用）
+class ContactProfile {
+  /// 公開鍵（hex）
+  final String pubkeyHex;
+
+  /// name フィールド
+  final String? name;
+
+  /// display_name フィールド
+  final String? displayName;
+
+  /// アバター画像URL
+  final String? picture;
+
+  /// NIP-05 識別子
+  final String? nip05;
+
+  const ContactProfile({
+    required this.pubkeyHex,
+    this.name,
+    this.displayName,
+    this.picture,
+    this.nip05,
+  });
+
+  @override
+  int get hashCode => pubkeyHex.hashCode ^ name.hashCode ^ displayName.hashCode ^ picture.hashCode ^ nip05.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ContactProfile &&
+          runtimeType == other.runtimeType &&
+          pubkeyHex == other.pubkeyHex &&
+          name == other.name &&
+          displayName == other.displayName &&
+          picture == other.picture &&
+          nip05 == other.nip05;
 }
 
 /// 暗号化されたアプリ設定イベントを取得（Amber復号化用）

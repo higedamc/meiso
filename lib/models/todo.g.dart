@@ -41,6 +41,7 @@ _$TodoImpl _$$TodoImplFromJson(Map<String, dynamic> json) => _$TodoImpl(
           .toList() ??
       const [],
   imageUrl: json['imageUrl'] as String?,
+  editorPubkey: json['editorPubkey'] as String?,
 );
 
 Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
@@ -67,4 +68,5 @@ Map<String, dynamic> _$$TodoImplToJson(_$TodoImpl instance) =>
       'depth': instance.depth,
       'taskLinks': instance.taskLinks.map((e) => e.toJson()).toList(),
       'imageUrl': instance.imageUrl,
+      'editorPubkey': instance.editorPubkey,
     };

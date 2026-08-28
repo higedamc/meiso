@@ -9,6 +9,7 @@ import '../../../../services/logger_service.dart';
 import '../../application/providers/media_providers.dart';
 import '../../application/usecases/upload_image_usecase.dart';
 import '../../domain/entities/media_server.dart';
+import '../../../../widgets/remote_image_gate.dart';
 import 'image_thumbnail.dart';
 
 class ImageAttachmentSection extends ConsumerStatefulWidget {
@@ -183,21 +184,33 @@ class _ImageAttachmentSectionState
               onTap: () => showFullScreenImage(context, widget.imageUrl!),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: CachedNetworkImage(
-                  imageUrl: widget.imageUrl!,
-                  height: 200,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
+                child: RemoteImageGate(
+                  allowed: (context) => CachedNetworkImage(
+                    imageUrl: widget.imageUrl!,
                     height: 200,
-                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-                    child: const Center(child: CircularProgressIndicator()),
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      height: 200,
+                      color:
+                          isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      height: 200,
+                      color:
+                          isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                      child: const Center(
+                        child: Icon(Icons.broken_image, size: 48),
+                      ),
+                    ),
                   ),
-                  errorWidget: (_, __, ___) => Container(
+                  // Tor モード時はリモート取得を抑止し非表示アイコンを表示
+                  blocked: (context) => Container(
                     height: 200,
                     color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                     child: const Center(
-                      child: Icon(Icons.broken_image, size: 48),
+                      child: Icon(Icons.visibility_off_outlined, size: 48),
                     ),
                   ),
                 ),

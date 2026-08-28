@@ -50,7 +50,8 @@ class CustomList with _$CustomList {
 
     /// 共有リスト同期プロトコルバージョン
     /// - none: 個人リスト
-    /// - mls-v1: MLSベース共有
+    /// - mls-v1: MLSベース共有(レガシー)
+    /// - shared-v1: 共有鍵 + kind:35000 タスク
     /// - gw17-v1: NIP-17 fan-out共有
     @Default('none') String protocolVersion,
   }) = _CustomList;
@@ -63,9 +64,11 @@ class CustomList with _$CustomList {
 extension CustomListHelpers on CustomList {
   static const String protocolNone = 'none';
   static const String protocolMlsV1 = 'mls-v1';
+  static const String protocolSharedV1 = 'shared-v1';
   static const String protocolGw17V1 = 'gw17-v1';
 
   bool get isMlsProtocol => protocolVersion == protocolMlsV1;
+  bool get isSharedProtocol => protocolVersion == protocolSharedV1;
   bool get isGw17Protocol => protocolVersion == protocolGw17V1;
 
   /// リスト名から決定的なIDを生成（NIP-51準拠）

@@ -36,6 +36,7 @@
   "nostrConnectedAmber": "Nostr接続中 (Amber)",
   
   "nostrDisconnected": "Nostr未接続",
+  "statusTapToReconnect": "タップしてリレーに再接続",
   
   "relaysConnectedCount": "リレー: {count}/{total} 接続中",
   
@@ -983,6 +984,16 @@
 
   "promotedToRootSuccess": "ルートタスクに昇格しました",
 
-  "cannotDemoteHasSubtasks": "先にサブタスクを削除してください"
+  "cannotDemoteHasSubtasks": "先にサブタスクを削除してください",
+
+  "addedByCollaborator": "他のメンバーが追加したタスク",
+
+  "addedBy": "追加者",
+
+  "settingsSectionStatus": "ステータス",
+
+  "settingsSectionGeneral": "一般",
+
+  "settingsSectionAbout": "アプリ情報"
 }
 
