@@ -149,7 +149,7 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
           jsonDecode(plaintext) as Map<String, dynamic>,
         );
         // 読み取り側クランプ(過大な敵対 payload への防御)
-        if (comment.body.length > maxCommentBodyChars) {
+        if (comment.body.runes.length > maxCommentBodyChars) {
           comment = comment.copyWith(body: _clampBody(comment.body));
         }
         final applied = await _localDataSource.upsert(
@@ -247,11 +247,13 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
     return Right(nsecHex);
   }
 
+  /// Rust 側の `chars()` クランプと同じくコードポイント境界で切り詰める
+  /// (UTF-16 `substring` はサロゲートペアを分断し JSON 化に失敗しうる)。
   String _clampBody(String body) {
-    if (body.length <= maxCommentBodyChars) {
+    if (body.runes.length <= maxCommentBodyChars) {
       return body;
     }
-    return body.substring(0, maxCommentBodyChars);
+    return String.fromCharCodes(body.runes.take(maxCommentBodyChars));
   }
 
   int _nowEpochSeconds() => DateTime.now().millisecondsSinceEpoch ~/ 1000;

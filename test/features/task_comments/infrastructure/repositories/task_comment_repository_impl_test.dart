@@ -298,6 +298,27 @@ void main() {
       final stored = await localDataSource.loadComments('task-1');
       expect(stored.first.body.length, maxCommentBodyChars);
     });
+
+    test('クランプはサロゲートペア(絵文字)を分断しない', () async {
+      // 2000 コードポイント目が絵文字(UTF-16 では 2 code unit)になる本文。
+      // UTF-16 substring だと lone surrogate が残り JSON 化が壊れる。
+      final hostile = comment.copyWith(body: '🐝' * 3000);
+      await repository.applyRemoteCommentEvent(
+        eventJson: _remoteEventJson(
+          eventId: 'ev-emoji',
+          eventCreatedAt: 1787900200,
+          payload: hostile,
+        ),
+        groupId: kGroupId,
+      );
+
+      final stored = await localDataSource.loadComments('task-1');
+      final body = stored.first.body;
+      expect(body.runes.length, maxCommentBodyChars);
+      // lone surrogate が無い = そのまま JSON round-trip できる
+      expect(jsonDecode(jsonEncode(body)), body);
+      expect(body.runes.every((r) => r == 0x1F41D), true);
+    });
   });
 
   group('deleteComment (tombstone)', () {
