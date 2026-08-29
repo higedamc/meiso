@@ -1482,8 +1482,9 @@ class TodosNotifier
 
           // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
           // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
-          final showPreviewLoading =
-              _ref.read(remoteContentFetchAllowedProvider);
+          final showPreviewLoading = _ref.read(
+            remoteContentFetchAllowedProvider,
+          );
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName, // ドメイン名を表示
@@ -1676,8 +1677,9 @@ class TodosNotifier
 
           // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
           // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
-          final showPreviewLoading =
-              _ref.read(remoteContentFetchAllowedProvider);
+          final showPreviewLoading = _ref.read(
+            remoteContentFetchAllowedProvider,
+          );
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName,
@@ -2740,6 +2742,106 @@ class TodosNotifier
         );
   }
 
+  // === 変更リストのみ送信（内容署名による変更検出） ===
+
+  static const String _defaultPublishListKey = '__default__';
+
+  String _publishListKey(Todo todo) =>
+      todo.customListId ?? _defaultPublishListKey;
+
+  /// リスト内容の署名。id / updatedAt / completed から導出する。
+  /// needsSync や eventId 等の同期メタデータは含めない
+  /// （publish 後に書き換わっても署名が変わらないようにするため）。
+  String _listContentSignature(List<Todo> listTodos) {
+    final parts =
+        listTodos
+            .map(
+              (t) =>
+                  '${t.id}:${t.updatedAt.millisecondsSinceEpoch}:${t.completed ? 1 : 0}',
+            )
+            .toList()
+          ..sort();
+    return parts.join('|');
+  }
+
+  /// 送信が必要なリスト（publish listKey）を返す。
+  /// needsSync を含むリストに加え、前回 publish 時の内容署名と異なるリスト
+  /// （削除・リスト間移動など needsSync が残らない変更）を検出する。
+  ///
+  /// 既知の制限: 最後のタスクを削除して空になったリストは、空リストを
+  /// publish する手段が現状ないため送信対象にできない（従来と同じ挙動）。
+  Set<String> _computeChangedListKeys(List<Todo> flatTodos) {
+    final byList = <String, List<Todo>>{};
+    for (final t in flatTodos) {
+      byList.putIfAbsent(_publishListKey(t), () => []).add(t);
+    }
+
+    final Map<String, String> published;
+    try {
+      published = localStorageService.loadPublishedListSignatures();
+    } catch (e) {
+      // 読めない場合は全リスト送信（従来挙動）にフォールバック
+      AppLogger.warning(' Failed to load published list signatures: $e');
+      return byList.keys.toSet();
+    }
+
+    final changed = <String>{};
+    for (final entry in byList.entries) {
+      if (entry.value.any((t) => t.needsSync)) {
+        changed.add(entry.key);
+        continue;
+      }
+      if (published[entry.key] != _listContentSignature(entry.value)) {
+        changed.add(entry.key);
+      }
+    }
+    return changed;
+  }
+
+  /// publish 成功したタスク群のリスト署名を保存する。
+  /// 失敗しても次回に余分な再送が起きるだけで実害はない。
+  Future<void> _recordPublishedListSignatures(List<Todo> sentTodos) async {
+    if (sentTodos.isEmpty) return;
+    try {
+      final byList = <String, List<Todo>>{};
+      for (final t in sentTodos) {
+        byList.putIfAbsent(_publishListKey(t), () => []).add(t);
+      }
+      final published = Map<String, String>.from(
+        localStorageService.loadPublishedListSignatures(),
+      );
+      for (final entry in byList.entries) {
+        published[entry.key] = _listContentSignature(entry.value);
+      }
+      await localStorageService.savePublishedListSignatures(published);
+    } catch (e) {
+      AppLogger.warning(' Failed to save published list signatures: $e');
+    }
+  }
+
+  /// フェッチ＆マージ後、needsSync がゼロのリストの署名を基準として記録する。
+  /// リモート由来の変更（マージで取り込んだだけの内容）を「未 publish の変更」と
+  /// 誤検出して無駄に再送しないようにするため。
+  Future<void> _recordSignaturesForCleanLists(
+    Map<DateTime?, List<Todo>> mergedTodos,
+  ) async {
+    final flat = <Todo>[];
+    for (final group in mergedTodos.values) {
+      flat.addAll(group);
+    }
+    final byList = <String, List<Todo>>{};
+    for (final t in flat) {
+      byList.putIfAbsent(_publishListKey(t), () => []).add(t);
+    }
+    final cleanTodos = <Todo>[];
+    for (final entry in byList.entries) {
+      if (entry.value.every((t) => !t.needsSync)) {
+        cleanTodos.addAll(entry.value);
+      }
+    }
+    await _recordPublishedListSignatures(cleanTodos);
+  }
+
   /// 同期成功後、needsSync/eventIdをまとめて更新（1回の保存で反映）
   Future<void> _markTodosSyncedWithEventId(
     List<Todo> targetTodos,
@@ -3064,12 +3166,30 @@ class TodosNotifier
       AppLogger.debug(' _syncAllTodosToNostr: state.whenData callback STARTED');
 
       // 全TODOをフラット化
-      final allTodos = <Todo>[];
+      final flatTodos = <Todo>[];
       for (final dateGroup in todos.values) {
-        allTodos.addAll(dateGroup);
+        flatTodos.addAll(dateGroup);
       }
 
-      AppLogger.debug(' Total todos to sync: ${allTodos.length}');
+      // 変更のあったリストのみ送信する。
+      // kind:30001 はリスト丸ごと置換イベントなので、変更リストは
+      // 「全タスク」を送る必要がある一方、無変更リストの再送は
+      // 帯域と Amber 署名の無駄になる。変更検出は needsSync に加えて
+      // 「前回 publish 時の内容署名との差分」で行い、削除・リスト間移動
+      // （needsSync が残らない変更）も漏れなく拾う。
+      final changedListKeys = _computeChangedListKeys(flatTodos);
+      if (changedListKeys.isEmpty) {
+        AppLogger.info(' 変更のあるリストがないため送信をスキップします');
+        return;
+      }
+      final allTodos = flatTodos
+          .where((t) => changedListKeys.contains(_publishListKey(t)))
+          .toList();
+
+      AppLogger.info(
+        ' Changed lists: ${changedListKeys.length} '
+        '(${allTodos.length}/${flatTodos.length} todos to sync)',
+      );
 
       // カスタムリストに属するTodoをログ出力
       final customListTodos = allTodos
@@ -3367,6 +3487,7 @@ class TodosNotifier
               sendResult.primarySendResult.eventId,
               globalBackfillPending: sendResult.localBackfillQueued,
             );
+            await _recordPublishedListSignatures(listTodos);
             AppLogger.info(
               ' Updated eventId for ${listTodos.length} todos in list "$listId"',
             );
@@ -3401,6 +3522,13 @@ class TodosNotifier
             return true;
           }).toList();
 
+          if (nonGroupTodos.isEmpty) {
+            // 変更がグループリストのみだった場合など。グループタスクは
+            // _syncGroupToNostr が別途送信するのでここでは何もしない
+            AppLogger.info(' 送信対象の個人タスクがないためスキップします');
+            return;
+          }
+
           AppLogger.info(
             ' Calling nostrService.createTodoListOnNostr with ${nonGroupTodos.length} non-group todos (excluded ${allTodos.length - nonGroupTodos.length} group todos)...',
           );
@@ -3418,6 +3546,7 @@ class TodosNotifier
               sendResult.eventId,
               globalBackfillPending: false,
             );
+            await _recordPublishedListSignatures(nonGroupTodos);
             AppLogger.info(
               ' Updated eventId for ${nonGroupTodos.length} todos',
             );
@@ -3991,102 +4120,109 @@ class TodosNotifier
 
           AppLogger.debug(' 公開鍵: ${publicKey.substring(0, 16)}...');
 
-          // すべてのリストを復号化してマージ
+          // すべてのリストを並列復号してマージ
+          // ContentProvider 復号はネイティブ側スレッドプールで並列実行され、
+          // Intent フォールバックは AmberService 内のロックで直列化される
           final allSyncedTodos = <Todo>[];
+          final decryptPk = publicKey;
+          final decryptNpub = npub;
 
-          for (final encryptedEvent in encryptedEvents) {
-            try {
-              AppLogger.debug(
-                ' リストを復号化中 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId})',
-              );
-
-              // Amberで復号化
-              String decryptedJson;
+          final decryptedLists = await Future.wait(
+            encryptedEvents.map((encryptedEvent) async {
               try {
-                // まずContentProvider経由で試す（バックグラウンド処理）
-                decryptedJson = await amberService
-                    .decryptNip44WithContentProvider(
-                      ciphertext: encryptedEvent.encryptedContent,
-                      pubkey: publicKey,
-                      npub: npub,
-                    );
-                AppLogger.info(' 復号化完了（バックグラウンド）');
-              } on PlatformException catch (e) {
-                // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
-                AppLogger.warning(
-                  ' ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...',
+                AppLogger.debug(
+                  ' リストを復号化中 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId})',
                 );
-                decryptedJson = await amberService.decryptNip44(
-                  encryptedEvent.encryptedContent,
-                  publicKey,
+
+                // Amberで復号化
+                String decryptedJson;
+                try {
+                  // まずContentProvider経由で試す（バックグラウンド処理）
+                  decryptedJson = await amberService
+                      .decryptNip44WithContentProvider(
+                        ciphertext: encryptedEvent.encryptedContent,
+                        pubkey: decryptPk,
+                        npub: decryptNpub,
+                      );
+                  AppLogger.info(' 復号化完了（バックグラウンド）');
+                } on PlatformException catch (e) {
+                  // ContentProviderが失敗した場合（未承認 or 応答なし）→ Intent経由にフォールバック
+                  AppLogger.warning(
+                    ' ContentProvider復号化失敗 (${e.code}), UI経由で再試行します...',
+                  );
+                  decryptedJson = await amberService.decryptNip44(
+                    encryptedEvent.encryptedContent,
+                    decryptPk,
+                  );
+                  AppLogger.info(' 復号化完了（UI経由）');
+                }
+
+                // JSONをパース（Todoリスト配列）
+                final todoList = jsonDecode(decryptedJson) as List<dynamic>;
+
+                final syncedTodos = todoList.map((todoMap) {
+                  final map = todoMap as Map<String, dynamic>;
+                  final eventListKey = _customListIdFromDTag(
+                    encryptedEvent.listId,
+                  );
+                  return Todo(
+                    id: map['id'] as String,
+                    title: map['title'] as String,
+                    completed: map['completed'] as bool,
+                    date: map['date'] != null
+                        ? _normalizeDateForGrouping(
+                            DateTime.parse(map['date'] as String),
+                          )
+                        : null,
+                    order: map['order'] as int,
+                    createdAt: DateTime.parse(map['created_at'] as String),
+                    updatedAt: DateTime.parse(map['updated_at'] as String),
+                    eventId:
+                        map['event_id'] as String? ?? encryptedEvent.eventId,
+                    linkPreview: map['link_preview'] != null
+                        ? LinkPreview.fromJson(
+                            map['link_preview'] as Map<String, dynamic>,
+                          )
+                        : null,
+                    // d tag由来のlist keyを優先し、payload側の旧形式IDは互換正規化する。
+                    customListId:
+                        eventListKey ??
+                        CustomListHelpers.normalizeListIdFromNostr(
+                          map['custom_list_id'] as String?,
+                        ),
+                    recurrence: map['recurrence'] != null
+                        ? RecurrencePattern.fromJson(
+                            map['recurrence'] as Map<String, dynamic>,
+                          )
+                        : null,
+                    parentRecurringId: map['parent_recurring_id'] as String?,
+                    parentTaskId: map['parent_task_id'] as String?,
+                    depth: (map['depth'] as int?) ?? 0,
+                    taskLinks: _parseTaskLinksFromMap(map['task_links']),
+                    imageUrl: map['image_url'] as String?,
+                    needsSync: false,
+                  );
+                }).toList();
+
+                AppLogger.info(
+                  ' リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})',
                 );
-                AppLogger.info(' 復号化完了（UI経由）');
+                return syncedTodos;
+              } catch (e, stackTrace) {
+                // 復号化・パースエラー：このリストをスキップして次へ
+                AppLogger.error(
+                  '❌ リスト復号化失敗 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId}): $e',
+                  error: e,
+                  stackTrace: stackTrace,
+                );
+                AppLogger.warning('⚠️ このリストをスキップして続行します');
+                return const <Todo>[];
               }
-
-              // JSONをパース（Todoリスト配列）
-              final todoList = jsonDecode(decryptedJson) as List<dynamic>;
-
-              final syncedTodos = todoList.map((todoMap) {
-                final map = todoMap as Map<String, dynamic>;
-                final eventListKey = _customListIdFromDTag(
-                  encryptedEvent.listId,
-                );
-                return Todo(
-                  id: map['id'] as String,
-                  title: map['title'] as String,
-                  completed: map['completed'] as bool,
-                  date: map['date'] != null
-                      ? _normalizeDateForGrouping(
-                          DateTime.parse(map['date'] as String),
-                        )
-                      : null,
-                  order: map['order'] as int,
-                  createdAt: DateTime.parse(map['created_at'] as String),
-                  updatedAt: DateTime.parse(map['updated_at'] as String),
-                  eventId: map['event_id'] as String? ?? encryptedEvent.eventId,
-                  linkPreview: map['link_preview'] != null
-                      ? LinkPreview.fromJson(
-                          map['link_preview'] as Map<String, dynamic>,
-                        )
-                      : null,
-                  // d tag由来のlist keyを優先し、payload側の旧形式IDは互換正規化する。
-                  customListId:
-                      eventListKey ??
-                      CustomListHelpers.normalizeListIdFromNostr(
-                        map['custom_list_id'] as String?,
-                      ),
-                  recurrence: map['recurrence'] != null
-                      ? RecurrencePattern.fromJson(
-                          map['recurrence'] as Map<String, dynamic>,
-                        )
-                      : null,
-                  parentRecurringId: map['parent_recurring_id'] as String?,
-                  parentTaskId: map['parent_task_id'] as String?,
-                  depth: (map['depth'] as int?) ?? 0,
-                  taskLinks: _parseTaskLinksFromMap(map['task_links']),
-                  imageUrl: map['image_url'] as String?,
-                  needsSync: false,
-                );
-              }).toList();
-
-              AppLogger.info(
-                ' リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})',
-              );
-              allSyncedTodos.addAll(syncedTodos);
-            } catch (e, stackTrace) {
-              // 復号化・パースエラー：このリストをスキップして次へ
-              AppLogger.error(
-                '❌ リスト復号化失敗 (Event ID: ${encryptedEvent.eventId}, List: ${encryptedEvent.listId}): $e',
-                error: e,
-                stackTrace: stackTrace,
-              );
-              AppLogger.warning('⚠️ このリストをスキップして続行します');
-            }
-          }
-
-          AppLogger.info(
-            '🎉 [DEBUG] For loop completed! About to log sync status...',
+            }),
           );
+          for (final syncedTodos in decryptedLists) {
+            allSyncedTodos.addAll(syncedTodos);
+          }
           AppLogger.info(' [Sync] 3/3: Todoを同期中...');
           AppLogger.info(' すべてのリスト復号化完了: 合計${allSyncedTodos.length}件のTodo');
 
@@ -4280,6 +4416,14 @@ class TodosNotifier
           throw Exception('データ同期がタイムアウトしました（15秒）');
         },
       );
+
+      // 手動同期（pull-to-refresh）では、マージで温存した needsSync 差分を
+      // 即時プッシュして「ローカルファーストな強制同期」を完結させる。
+      // kind:30001 はリスト丸ごと置換イベントのため、他端末の追加分を
+      // 取り込む前に送ると上書きで消してしまう。必ず fetch→マージ後に送る。
+      if (trigger == TodoSyncTrigger.manual) {
+        await _pushPendingTodosAfterMerge();
+      }
     } catch (e, stackTrace) {
       _ref
           .read(syncStatusProvider.notifier)
@@ -4291,6 +4435,27 @@ class TodosNotifier
       AppLogger.error(
         'Stack trace: ${stackTrace.toString().split('\n').take(5).join('\n')}',
       );
+    }
+  }
+
+  /// フェッチ＆マージ後に残った未同期タスクをリレーへプッシュする。
+  /// 未同期タスクがなければ何もしない（Amber の署名要求を増やさないため）。
+  Future<void> _pushPendingTodosAfterMerge() async {
+    final pendingTodos = _getUnsyncedTodos();
+    if (pendingTodos.isEmpty) {
+      AppLogger.debug(' [Sync] No pending todos to push after merge');
+      return;
+    }
+
+    AppLogger.info(
+      '📤 [Sync] Pushing ${pendingTodos.length} pending todos after merge',
+    );
+    try {
+      await _syncToNostr(_syncAllTodosToNostr);
+    } catch (e) {
+      // プッシュ失敗はフェッチ成功を無効にしない。needsSync は残っているので
+      // 次回の編集時同期 or 手動同期で再送される。
+      AppLogger.warning('⚠️ [Sync] Pending push after merge failed: $e');
     }
   }
 
@@ -4363,71 +4528,82 @@ class TodosNotifier
         }
 
         // 差分イベントは「変更のあったリストのみ」なので、リスト単位で置換する
-        for (final event in encryptedEvents) {
-          final dTag = event.listId;
-          final listKey = _customListIdFromDTag(dTag); // null=default
+        // 復号は並列実行し、updatedFlat への反映は順序を保って直列に行う
+        final deltaPk = publicKey;
+        final deltaNpub = npub;
+        final decryptedDeltas = await Future.wait(
+          encryptedEvents.map((event) async {
+            final dTag = event.listId;
+            final listKey = _customListIdFromDTag(dTag); // null=default
 
-          try {
-            String decryptedJson;
             try {
-              decryptedJson = await amberService
-                  .decryptNip44WithContentProvider(
-                    ciphertext: event.encryptedContent,
-                    pubkey: publicKey,
-                    npub: npub,
-                  );
-            } on PlatformException {
-              decryptedJson = await amberService.decryptNip44(
-                event.encryptedContent,
-                publicKey,
+              String decryptedJson;
+              try {
+                decryptedJson = await amberService
+                    .decryptNip44WithContentProvider(
+                      ciphertext: event.encryptedContent,
+                      pubkey: deltaPk,
+                      npub: deltaNpub,
+                    );
+              } on PlatformException {
+                decryptedJson = await amberService.decryptNip44(
+                  event.encryptedContent,
+                  deltaPk,
+                );
+              }
+
+              final todoList = jsonDecode(decryptedJson) as List<dynamic>;
+              final replacementTodos = todoList.map((todoMap) {
+                final map = todoMap as Map<String, dynamic>;
+                return Todo(
+                  id: map['id'] as String,
+                  title: map['title'] as String,
+                  completed: map['completed'] as bool,
+                  date: map['date'] != null
+                      ? _normalizeDateForGrouping(
+                          DateTime.parse(map['date'] as String),
+                        )
+                      : null,
+                  order: map['order'] as int,
+                  createdAt: DateTime.parse(map['created_at'] as String),
+                  updatedAt: DateTime.parse(map['updated_at'] as String),
+                  eventId: map['event_id'] as String? ?? event.eventId,
+                  linkPreview: map['link_preview'] != null
+                      ? LinkPreview.fromJson(
+                          map['link_preview'] as Map<String, dynamic>,
+                        )
+                      : null,
+                  customListId: listKey,
+                  recurrence: map['recurrence'] != null
+                      ? RecurrencePattern.fromJson(
+                          map['recurrence'] as Map<String, dynamic>,
+                        )
+                      : null,
+                  parentRecurringId: map['parent_recurring_id'] as String?,
+                  parentTaskId: map['parent_task_id'] as String?,
+                  depth: (map['depth'] as int?) ?? 0,
+                  taskLinks: _parseTaskLinksFromMap(map['task_links']),
+                  imageUrl: map['image_url'] as String?,
+                  needsSync: false,
+                );
+              }).toList();
+
+              return (listKey: listKey, todos: replacementTodos);
+            } catch (e) {
+              AppLogger.warning(
+                ' [Todos] Delta decrypt failed for list=$dTag: $e',
               );
+              // このリストは更新しない（ローカルを保持）
+              return null;
             }
+          }),
+        );
 
-            final todoList = jsonDecode(decryptedJson) as List<dynamic>;
-            final replacementTodos = todoList.map((todoMap) {
-              final map = todoMap as Map<String, dynamic>;
-              return Todo(
-                id: map['id'] as String,
-                title: map['title'] as String,
-                completed: map['completed'] as bool,
-                date: map['date'] != null
-                    ? _normalizeDateForGrouping(
-                        DateTime.parse(map['date'] as String),
-                      )
-                    : null,
-                order: map['order'] as int,
-                createdAt: DateTime.parse(map['created_at'] as String),
-                updatedAt: DateTime.parse(map['updated_at'] as String),
-                eventId: map['event_id'] as String? ?? event.eventId,
-                linkPreview: map['link_preview'] != null
-                    ? LinkPreview.fromJson(
-                        map['link_preview'] as Map<String, dynamic>,
-                      )
-                    : null,
-                customListId: listKey,
-                recurrence: map['recurrence'] != null
-                    ? RecurrencePattern.fromJson(
-                        map['recurrence'] as Map<String, dynamic>,
-                      )
-                    : null,
-                parentRecurringId: map['parent_recurring_id'] as String?,
-                parentTaskId: map['parent_task_id'] as String?,
-                depth: (map['depth'] as int?) ?? 0,
-                taskLinks: _parseTaskLinksFromMap(map['task_links']),
-                imageUrl: map['image_url'] as String?,
-                needsSync: false,
-              );
-            }).toList();
-
-            // 影響リストのみ置換
-            updatedFlat.removeWhere((t) => t.customListId == listKey);
-            updatedFlat.addAll(replacementTodos);
-          } catch (e) {
-            AppLogger.warning(
-              ' [Todos] Delta decrypt failed for list=$dTag: $e',
-            );
-            // このリストは更新しない（ローカルを保持）
-          }
+        // 影響リストのみ置換
+        for (final delta in decryptedDeltas) {
+          if (delta == null) continue;
+          updatedFlat.removeWhere((t) => t.customListId == delta.listKey);
+          updatedFlat.addAll(delta.todos);
         }
       } else {
         final deltaTodos = await nostrService.syncTodoListFromNostrSince(
@@ -4759,9 +4935,15 @@ class TodosNotifier
       await _saveAllTodosToLocal();
       await _updateWidget();
 
-      // ローカルが新しいタスクがある場合、自動的に再同期
+      // マージで確定した「未同期変更のないリスト」の内容署名を基準として記録し、
+      // リモート由来の変更を次回送信時に誤検出しないようにする
+      await _recordSignaturesForCleanLists(grouped);
+
+      // ローカルが新しいタスクがある場合、未同期バッジを更新する。
+      // 実際の送信は呼び出し元が行う（手動同期では syncFromNostr が
+      // マージ後に _pushPendingTodosAfterMerge で即時プッシュする）。
       if (localWinsCount > 0 || localOnlyCount > 0) {
-        AppLogger.info(' Scheduling resync due to local changes');
+        AppLogger.info(' Local changes detected after merge (will be pushed)');
         _updateUnsyncedCount();
       }
     } catch (e, stackTrace) {
@@ -5111,10 +5293,6 @@ class TodosNotifier
       // 1. Group Event(kind:445 + #h) を取得（NIP-EE準拠）
       final nostrService = _ref.read(nostrServiceProvider);
 
-      // 🔥 TEMPORARY DEBUG: 同期時刻を強制リセット（初回同期として扱う）
-      // TODO: Phase 8.4で削除
-      await localStorageService.setLastMlsGroupTodosSyncTime(groupId, null);
-
       final last = localStorageService.getLastMlsGroupTodosSyncTime(groupId);
 
       // 🔥 Phase 8.3 Fix: 初回同期時は since:0 で全イベントを取得
@@ -5347,17 +5525,20 @@ class TodosNotifier
         since: effectiveSince,
       );
 
-      final events = eventsResult.fold((failure) {
-        AppLogger.error(
-          '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
-        );
-        return <Map<String, dynamic>>[];
-      }, (e) {
-        AppLogger.info(
-          '📦 [shared-v1] fetched ${e.length} events from relays',
-        );
-        return e;
-      });
+      final events = eventsResult.fold(
+        (failure) {
+          AppLogger.error(
+            '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
+          );
+          return <Map<String, dynamic>>[];
+        },
+        (e) {
+          AppLogger.info(
+            '📦 [shared-v1] fetched ${e.length} events from relays',
+          );
+          return e;
+        },
+      );
       if (events.isEmpty) {
         await localStorageService.setLastSharedGroupTodosSyncTime(
           groupId,
@@ -5498,9 +5679,11 @@ class TodosNotifier
       completed: completed,
       date: date,
       order: (data['order'] as num?)?.toInt() ?? 0,
-      createdAt: DateTime.tryParse(data['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(data['created_at'] as String? ?? '') ??
           DateTime.now(),
-      updatedAt: DateTime.tryParse(data['updated_at'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(data['updated_at'] as String? ?? '') ??
           DateTime.now(),
       customListId: groupId,
       needsSync: false,
@@ -5551,8 +5734,8 @@ class TodosNotifier
     data['updated_at'] = updatedAt.toIso8601String();
 
     // 帰属表示のため editor_pubkey は常に埋める（issue #138 R4）
-    final editor = editorPubkey ??
-        await _ref.read(nostrServiceProvider).getPublicKey();
+    final editor =
+        editorPubkey ?? await _ref.read(nostrServiceProvider).getPublicKey();
     if (editor != null && editor.isNotEmpty) {
       data['editor_pubkey'] = editor;
     }
@@ -6131,8 +6314,7 @@ class TodosNotifier
           if (seen.contains(event.eventId)) continue;
           seen.add(event.eventId);
 
-          final eventData =
-              jsonDecode(event.eventJson) as Map<String, dynamic>;
+          final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
           final kind = eventData['kind'] as int?;
           if (kind != 35000) continue; // meta(35001) はここでは無視
 
@@ -6159,8 +6341,9 @@ class TodosNotifier
           if (data['deleted'] == true) {
             byId.remove(parsed.id);
             for (final dateKey in updated.keys.toList()) {
-              updated[dateKey] =
-                  updated[dateKey]!.where((t) => t.id != parsed.id).toList();
+              updated[dateKey] = updated[dateKey]!
+                  .where((t) => t.id != parsed.id)
+                  .toList();
             }
             changed = true;
             continue;
@@ -6708,30 +6891,36 @@ class TodosNotifier
 
       AppLogger.info('📥 Found ${groupLists.length} group lists');
 
-      // 全グループのタスクを復号化
+      // 全グループのタスクを並列復号
+      // Amber ContentProvider 復号はネイティブ側スレッドプールで並列実行され、
+      // Intent フォールバックは AmberService 内のロックで直列化される
       final groupTodosMap = <String, List<Todo>>{};
 
-      for (final groupList in groupLists) {
-        try {
-          AppLogger.debug(
-            '🔓 Decrypting tasks for group: ${groupList.groupName}',
-          );
-          final groupTodos = await groupTaskService.decryptGroupTaskList(
-            groupList: groupList,
-            publicKey: publicKey,
-            npub: npub,
-          );
-          groupTodosMap[groupList.groupId] = groupTodos;
-          AppLogger.debug(
-            '✅ Decrypted ${groupTodos.length} todos from ${groupList.groupName}',
-          );
-        } catch (e) {
-          AppLogger.error(
-            '❌ Failed to decrypt group ${groupList.groupName}: $e',
-          );
-          // エラーでも他のグループは処理続行
-        }
-      }
+      final pk = publicKey;
+      final np = npub;
+      await Future.wait(
+        groupLists.map((groupList) async {
+          try {
+            AppLogger.debug(
+              '🔓 Decrypting tasks for group: ${groupList.groupName}',
+            );
+            final groupTodos = await groupTaskService.decryptGroupTaskList(
+              groupList: groupList,
+              publicKey: pk,
+              npub: np,
+            );
+            groupTodosMap[groupList.groupId] = groupTodos;
+            AppLogger.debug(
+              '✅ Decrypted ${groupTodos.length} todos from ${groupList.groupName}',
+            );
+          } catch (e) {
+            AppLogger.error(
+              '❌ Failed to decrypt group ${groupList.groupName}: $e',
+            );
+            // エラーでも他のグループは処理続行
+          }
+        }),
+      );
 
       final totalTodos = groupTodosMap.values.fold<int>(
         0,
@@ -6745,8 +6934,9 @@ class TodosNotifier
       await state.whenData((todos) async {
         final updated = Map<DateTime?, List<Todo>>.from(todos);
 
-        // 既存のグループタスクを全て削除
-        final allGroupIds = groupLists.map((g) => g.groupId).toSet();
+        // 復号に成功したグループのタスクのみ置き換える
+        // （復号失敗グループの既存タスクを消さないため）
+        final allGroupIds = groupTodosMap.keys.toSet();
         for (final dateKey in updated.keys) {
           updated[dateKey] = updated[dateKey]!
               .where(

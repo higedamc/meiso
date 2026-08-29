@@ -205,6 +205,49 @@ fn default_proxy_url() -> String {
     "socks5://127.0.0.1:9050".to_string()
 }
 
+/// 取得系 fetch のデフォルトタイムアウト（B1: 散在していた 10 秒指定を集約）。
+/// ここを変えるだけで取得タイムアウトを一括調整できる。
+const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// EOSE 早期終了フェッチの最大待ち時間（B2）。
+/// replaceable event は 1 リレーの EOSE で十分なので短くてよい。
+const EOSE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2500);
+
+/// 永続イベントキャッシュ (nostr-lmdb)。
+/// init_nostr_db() で一度だけ開き、全クライアントで共有する
+/// （LMDB は同一プロセスから同じ環境を複数回開くべきではないため）。
+/// 未初期化の場合は従来どおり in-memory DB で動作する。
+static NOSTR_DB: once_cell::sync::OnceCell<std::sync::Arc<nostr_lmdb::NostrLMDB>> =
+    once_cell::sync::OnceCell::new();
+
+/// 永続イベントキャッシュを初期化する。
+/// アプリ起動時に initNostrClient* より前に一度だけ呼ぶこと。
+/// 2 回目以降の呼び出しは no-op（成功を返す）。
+pub fn init_nostr_db(db_dir: String) -> Result<()> {
+    if NOSTR_DB.get().is_some() {
+        dev_println!("📦 Nostr DB already initialized");
+        return Ok(());
+    }
+    let path = std::path::Path::new(&db_dir).join("nostr-lmdb");
+    std::fs::create_dir_all(&path).context("Failed to create nostr-lmdb directory")?;
+    let db = nostr_lmdb::NostrLMDB::open(&path).context("Failed to open nostr-lmdb")?;
+    let _ = NOSTR_DB.set(std::sync::Arc::new(db));
+    dev_println!("📦 Nostr DB initialized at {}", path.display());
+    Ok(())
+}
+
+/// Client を構築する。永続 DB が初期化済みならそれを接続する。
+fn build_nostr_client(keys: &Keys) -> Client {
+    match NOSTR_DB.get() {
+        Some(db) => Client::builder()
+            .signer(keys.clone())
+            .database(db.clone())
+            .build(),
+        // 永続 DB 未初期化時は in-memory のまま構築する
+        None => Client::new(keys.clone()),
+    }
+}
+
 /// キャッシュされたイベント情報（Hive保存用）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedEventInfo {
@@ -308,7 +351,7 @@ pub fn fetch_mls_group_events_by_group_id_with_client_id(
             .kind(Kind::Custom(445)) // NIP-EE: MLS Group Event
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::H),
-                vec![group_id.clone()],
+                group_id.clone(),
             );
 
         if since > 0 {
@@ -330,7 +373,7 @@ pub fn fetch_mls_group_events_by_group_id_with_client_id(
         let timeout = Duration::from_secs(timeout_secs.max(1));
         let events = client
             .client
-            .fetch_events(vec![filter], Some(timeout))
+            .fetch_events(filter, timeout)
             .await?;
 
         dev_println!(
@@ -349,7 +392,7 @@ pub fn fetch_mls_group_events_by_group_id_with_client_id(
             .map(|event| ReceivedEvent {
                 event_id: event.id.to_hex(),
                 kind: event.kind.as_u16() as u64,
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 event_json: event.as_json(),
                 received_at: now,
                 subscription_id: String::new(), // fetch用途なので空文字
@@ -371,7 +414,7 @@ pub fn fetch_mls_group_todo_events_since_with_client_id(
 
         let mut filter = Filter::new()
             .kind(Kind::Custom(1059)) // NIP-17 Seal
-            .custom_tag(SingleLetterTag::lowercase(Alphabet::P), vec![listen_key]);
+            .custom_tag(SingleLetterTag::lowercase(Alphabet::P), listen_key);
 
         if since > 0 {
             let since_u64 = since.max(0) as u64;
@@ -381,7 +424,7 @@ pub fn fetch_mls_group_todo_events_since_with_client_id(
         let timeout = Duration::from_secs(timeout_secs.max(1));
         let events = client
             .client
-            .fetch_events(vec![filter], Some(timeout))
+            .fetch_events(filter, timeout)
             .await?;
 
         let now = std::time::SystemTime::now()
@@ -394,7 +437,7 @@ pub fn fetch_mls_group_todo_events_since_with_client_id(
             .map(|event| ReceivedEvent {
                 event_id: event.id.to_hex(),
                 kind: event.kind.as_u16() as u64,
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 event_json: event.as_json(),
                 received_at: now,
                 subscription_id: String::new(),
@@ -453,12 +496,12 @@ impl MeisoNostrClient {
         let client = match tor_mode {
             TorMode::Disabled => {
                 dev_println!("🔓 Direct connection (no Tor)");
-                Client::new(keys.clone())
+                build_nostr_client(&keys)
             }
             TorMode::Internal => {
                 // Embedded Tor: tor featureが有効な場合、.onion リレーへの接続時に自動的に使用される
                 dev_println!("🔐 Embedded Tor を有効化 (自動: .onion リレー検出時)");
-                Client::new(keys.clone())
+                build_nostr_client(&keys)
             }
             TorMode::Orbot => {
                 // Orbotモード: SOCKS5プロキシ経由（環境変数で設定）
@@ -475,7 +518,7 @@ impl MeisoNostrClient {
                 std::env::set_var("SOCKS_PROXY", proxy);
 
                 dev_println!("✅ Proxy environment variables set: {}", proxy);
-                Client::new(keys.clone())
+                build_nostr_client(&keys)
             }
         };
 
@@ -569,7 +612,7 @@ impl MeisoNostrClient {
             dev_println!("✅ プロキシ環境変数を設定: {}", proxy);
         }
 
-        let client = Client::new(keys.clone());
+        let client = build_nostr_client(&keys);
 
         // リレー追加
         for relay_url in &relays {
@@ -636,12 +679,12 @@ impl MeisoNostrClient {
         let client = match tor_mode {
             TorMode::Disabled => {
                 dev_println!("🔓 Direct connection (no Tor, Amber mode)");
-                Client::new(dummy_keys)
+                build_nostr_client(&dummy_keys)
             }
             TorMode::Internal => {
                 // Embedded Tor: tor featureが有効な場合、.onion リレーへの接続時に自動的に使用される
                 dev_println!("🔐 Embedded Tor を有効化 (Amber mode, 自動: .onion リレー検出時)");
-                Client::new(dummy_keys)
+                build_nostr_client(&dummy_keys)
             }
             TorMode::Orbot => {
                 let proxy = proxy_url
@@ -657,7 +700,7 @@ impl MeisoNostrClient {
                 std::env::set_var("SOCKS_PROXY", proxy);
 
                 dev_println!("✅ Proxy environment variables set (Amber mode): {}", proxy);
-                Client::new(dummy_keys)
+                build_nostr_client(&dummy_keys)
             }
         };
 
@@ -738,7 +781,7 @@ impl MeisoNostrClient {
         // Keysをpublic keyだけから作成する方法がないため、
         // ダミーの秘密鍵を生成するが、使わないことを明示
         let dummy_keys = Keys::generate();
-        let client = Client::new(dummy_keys);
+        let client = build_nostr_client(&dummy_keys);
 
         // リレー追加
         for relay_url in &relays {
@@ -832,7 +875,7 @@ impl MeisoNostrClient {
     async fn send_event_with_result(&self, event: Event) -> Result<EventSendResult> {
         let event_id = event.id.to_hex();
 
-        match tokio::time::timeout(Duration::from_secs(3), self.client.send_event(event)).await {
+        match tokio::time::timeout(Duration::from_secs(3), self.client.send_event(&event)).await {
             Ok(Ok(send_output)) => {
                 // 成功: nostr-sdkのSendEventOutputから情報を取得
                 let successful = send_output.success.len();
@@ -884,6 +927,73 @@ impl MeisoNostrClient {
         }
     }
 
+    /// subscribe + 最初の EOSE で早期終了する取得（B2）。
+    ///
+    /// `fetch_events` は全リレーの EOSE かタイムアウトまで待つため、無応答リレーが
+    /// 1 本でもあると固定タイムアウト分ブロックする。replaceable event は 1 リレー
+    /// の EOSE で十分なので、最初の EOSE（または短い無通信）で打ち切って高速化する。
+    /// `timeout` は最悪ケースの上限。
+    async fn fetch_events_eose(
+        &self,
+        filter: Filter,
+        timeout: Duration,
+    ) -> Result<Vec<Event>> {
+        let output = self.client.subscribe(filter, None).await?;
+        let sub_id = output.id().clone();
+        let mut notifications = self.client.notifications();
+
+        let deadline = tokio::time::Instant::now() + timeout;
+        let mut events: Vec<Event> = Vec::new();
+        let mut eose_count: u32 = 0;
+
+        loop {
+            if tokio::time::Instant::now() >= deadline {
+                break;
+            }
+
+            match tokio::time::timeout(Duration::from_millis(500), notifications.recv()).await {
+                Ok(Ok(notification)) => match notification {
+                    RelayPoolNotification::Event {
+                        subscription_id,
+                        event,
+                        ..
+                    } => {
+                        // 他の購読からのイベント混入を防ぐ
+                        if subscription_id == sub_id {
+                            events.push(*event);
+                        }
+                    }
+                    RelayPoolNotification::Message { message, .. } => {
+                        if matches!(message, RelayMessage::EndOfStoredEvents(_)) {
+                            eose_count += 1;
+                            // 最初の EOSE で即終了（replaceable event は 1 リレーで十分）
+                            if eose_count >= 1 {
+                                break;
+                            }
+                        }
+                    }
+                    _ => {}
+                },
+                // 通知チャネルが閉じた
+                Ok(Err(_)) => break,
+                // 500ms 無通信: 既に取得済みなら終了（EOSE を返さないリレー対策）
+                Err(_) => {
+                    if !events.is_empty() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        self.client.unsubscribe(&sub_id).await;
+
+        // 新しい順（created_at 降順）に整列。
+        // replaceable event を `.first()` で参照する呼び出し側が「最新」を得られるように。
+        // d-tag dedup する呼び出し側は順序非依存なので影響なし。
+        events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        Ok(events)
+    }
+
     /// TodoリストをNostrイベントとして作成（Kind 30001 - NIP-51 Bookmark List）
     /// リストごとに個別のイベントを作成
     pub async fn create_todo_list(&self, todos: Vec<TodoData>) -> Result<EventSendResult> {
@@ -907,9 +1017,9 @@ impl MeisoNostrClient {
             dev_println!("  - List '{}': {} todos", list_id, list_todos.len());
         }
 
-        let mut last_result: Option<EventSendResult> = None;
+        // 各リストごとにイベントを作成（署名・暗号化はローカル処理なので直列で十分）
+        let mut events: Vec<Event> = Vec::with_capacity(grouped_todos.len());
 
-        // 各リストごとにイベントを作成・送信
         for (list_id, list_todos) in grouped_todos {
             let todos_json = serde_json::to_string(&list_todos)?;
 
@@ -954,17 +1064,27 @@ impl MeisoNostrClient {
                 .await?;
 
             dev_println!(
-                "📤 Sending TODO list event (d='{}', {} todos)",
+                "📤 Prepared TODO list event (d='{}', {} todos)",
                 d_tag_value,
                 list_todos.len()
             );
 
-            // リレーに送信
-            let result = self.send_event_with_result(event).await?;
-            last_result = Some(result);
+            events.push(event);
         }
 
-        // 最後のイベントの結果を返す（複数リストの場合）
+        // 全リストのイベントを並列送信（各送信は個別に3秒タイムアウト）
+        let results = futures::future::join_all(
+            events
+                .into_iter()
+                .map(|event| self.send_event_with_result(event)),
+        )
+        .await;
+
+        // 最後のイベントの結果を返す（複数リストの場合、従来のセマンティクスを維持）
+        let mut last_result: Option<EventSendResult> = None;
+        for result in results {
+            last_result = Some(result?);
+        }
         last_result.ok_or_else(|| anyhow::anyhow!("No lists to send"))
     }
 
@@ -1011,13 +1131,10 @@ impl MeisoNostrClient {
             .kind(Kind::Custom(30001))
             .author(keys.public_key());
 
-        let events = self
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+        // A2: fetch_events の固定 10 秒待ちを避け、EOSE 早期終了で取得
+        let events_vec = self
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
-
-        // EventsをVec<Event>に変換
-        let events_vec: Vec<_> = events.into_iter().collect();
 
         if events_vec.is_empty() {
             dev_println!("⚠️ No TODO lists found");
@@ -1045,7 +1162,7 @@ impl MeisoNostrClient {
                 "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
                 d_tag,
                 event.id.to_hex(),
-                event.created_at.as_u64()
+                event.created_at.as_secs()
             );
 
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
@@ -1057,15 +1174,15 @@ impl MeisoNostrClient {
                             dev_println!(
                                 "🔄 Replacing older event for d='{}' (old: {}, new: {})",
                                 d_value,
-                                existing_event.created_at.as_u64(),
-                                event.created_at.as_u64()
+                                existing_event.created_at.as_secs(),
+                                event.created_at.as_secs()
                             );
                             latest_events.insert(d_value.clone(), event);
                         } else {
                             dev_println!(
                                 "⏭️  Skipping older event for d='{}' (keeping: {})",
                                 d_value,
-                                existing_event.created_at.as_u64()
+                                existing_event.created_at.as_secs()
                             );
                         }
                     } else {
@@ -1073,7 +1190,7 @@ impl MeisoNostrClient {
                             "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
                             d_value,
                             event.id.to_hex(),
-                            event.created_at.as_u64()
+                            event.created_at.as_secs()
                         );
                         latest_events.insert(d_value.clone(), event);
                     }
@@ -1098,7 +1215,7 @@ impl MeisoNostrClient {
                 "✅ Processing TODO list event: d='{}', event_id={}, created_at={}",
                 d_tag,
                 event.id.to_hex(),
-                event.created_at.as_u64()
+                event.created_at.as_secs()
             );
 
             // NIP-44で復号化
@@ -1169,14 +1286,9 @@ impl MeisoNostrClient {
             filter = filter.since(Timestamp::from(since_u64));
         }
 
+        // A2: EOSE 早期終了で取得（caller の timeout_secs は最悪ケース上限として尊重）
         let timeout = Duration::from_secs(timeout_secs.max(1));
-
-        let events = self
-            .client
-            .fetch_events(vec![filter], Some(timeout))
-            .await?;
-
-        let events_vec: Vec<_> = events.into_iter().collect();
+        let events_vec = self.fetch_events_eose(filter, timeout).await?;
 
         if events_vec.is_empty() {
             return Ok(Vec::new());
@@ -1290,12 +1402,12 @@ impl MeisoNostrClient {
             .author(keys.public_key())
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
-                vec!["meiso-settings".to_string()],
+                "meiso-settings".to_string(),
             );
 
+        // 施策2: 設定(kind30078, replaceable)も EOSE 早期終了で取得（起動時 Phase1 高速化）
         let events = self
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         // 最新のイベントを取得（Replaceable eventなので1つだけのはず）
@@ -1374,9 +1486,9 @@ impl MeisoNostrClient {
         let filter = Filter::new().kind(Kind::RelayList).author(pubkey);
 
         dev_println!("🔍 Fetching Kind 10002 events from relays...");
+        // 施策2: リレーリスト(kind10002, replaceable)も EOSE 早期終了
         let events = self
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         dev_println!("📥 Received {} Kind 10002 events", events.len());
@@ -1484,6 +1596,19 @@ impl MeisoNostrClient {
     pub(crate) async fn subscribe(&self, filters: Vec<Filter>) -> Result<SubscriptionInfo> {
         dev_println!("📡 Starting subscription with {} filters", filters.len());
 
+        // nostr-sdk 0.39+ は subscribe が単一 Filter のみ。
+        // Dart 側の全呼び出しは単一 filter なので契約として明示する。
+        let filter = match filters.as_slice() {
+            [single] => single.clone(),
+            [] => return Err(anyhow::anyhow!("subscribe requires exactly 1 filter, got 0")),
+            many => {
+                return Err(anyhow::anyhow!(
+                    "subscribe requires exactly 1 filter, got {} (nostr-sdk 0.39+ constraint)",
+                    many.len()
+                ))
+            }
+        };
+
         // 起動直後 (リレー接続前) は全 relay subscribe が失敗して
         // nostr-relay-pool が `NotSubscribed` を返す。リレーが接続を確立するまで
         // 短期リトライ (最大 ~3s) する。
@@ -1491,7 +1616,7 @@ impl MeisoNostrClient {
         const BACKOFF_MS: u64 = 500;
         let mut last_error: Option<anyhow::Error> = None;
         for attempt in 1..=MAX_ATTEMPTS {
-            match self.client.subscribe(filters.clone(), None).await {
+            match self.client.subscribe(filter.clone(), None).await {
                 Ok(output) => {
                     let subscription_id = output;
                     let filters_json = serde_json::to_string(&filters)?;
@@ -1533,7 +1658,7 @@ impl MeisoNostrClient {
         dev_println!("🛑 Stopping subscription: {}", subscription_id);
 
         let sub_id = SubscriptionId::new(subscription_id);
-        self.client.unsubscribe(sub_id).await;
+        self.client.unsubscribe(&sub_id).await;
 
         dev_println!("✅ Subscription stopped");
         Ok(())
@@ -1620,7 +1745,7 @@ impl MeisoNostrClient {
 
         match tokio::time::timeout(
             Duration::from_secs(5),
-            self.client.send_event_to(urls, event),
+            self.client.send_event_to(urls, &event),
         )
         .await
         {
@@ -1672,40 +1797,73 @@ impl MeisoNostrClient {
 
     /// リレーに再接続
     pub(crate) async fn reconnect(&self) -> Result<()> {
-        dev_println!("🔄 Reconnecting to relays...");
-
-        // 一度切断
-        self.client.disconnect().await?;
-
-        // 再接続（タイムアウト付き）
-        match tokio::time::timeout(Duration::from_secs(10), self.client.connect()).await {
-            Ok(_) => {
-                dev_println!("✅ Reconnected to relays");
-                Ok(())
-            }
-            Err(_) => {
-                dev_eprintln!("⚠️ Reconnection timeout");
-                Err(anyhow::anyhow!("Reconnection timeout"))
-            }
-        }
+        self.reconnect_with_timeout(10).await
     }
 
-    /// リレーに再接続（タイムアウト秒を指定）
+    /// リレーへの接続を確立する（nostr-sdk 0.44 対応）。
+    ///
+    /// 0.44 では `Client::connect()` は接続タスクを起動するだけで即座に返り、
+    /// `Client::disconnect()` は全リレーを Terminated（自動再接続なし）にする。
+    /// 旧実装の「disconnect → connect をタイムアウト付きで待つ」は、
+    /// 進行中の接続試行と自動再接続タスクを殺した上で、接続完了を待たずに
+    /// 成功を返してしまうため、次の方針に改める:
+    /// - Connected はそのまま維持（無駄な切断をしない）
+    /// - Pending / Connecting は進行中の接続タスクに任せる
+    /// - Disconnected は自動再接続のバックオフ待ちの可能性があるため、
+    ///   そのリレーだけ切断→接続で即時再試行させる
+    /// - Initialized / Terminated は接続タスクを起動する
+    ///
+    /// その後、1 つ以上のリレーが実際に Connected になるまで待つ。
     pub(crate) async fn reconnect_with_timeout(&self, timeout_secs: u64) -> Result<()> {
         dev_println!(
-            "🔄 Reconnecting to relays with timeout: {}s...",
+            "🔄 Ensuring relay connections (timeout: {}s)...",
             timeout_secs
         );
 
-        self.client.disconnect().await?;
+        let relays = self.client.relays().await;
+        if relays.is_empty() {
+            return Err(anyhow::anyhow!("No relays configured"));
+        }
 
-        let timeout = Duration::from_secs(timeout_secs.max(1));
-        match tokio::time::timeout(timeout, self.client.connect()).await {
-            Ok(_) => {
-                dev_println!("✅ Reconnected to relays");
-                Ok(())
+        for (url, relay) in &relays {
+            match relay.status() {
+                nostr_sdk::RelayStatus::Connected => {}
+                nostr_sdk::RelayStatus::Pending | nostr_sdk::RelayStatus::Connecting => {
+                    dev_println!("  ⏳ {} connection already in progress", url);
+                }
+                nostr_sdk::RelayStatus::Disconnected => {
+                    // バックオフ待ちを打ち切り、即時再試行させる
+                    relay.disconnect();
+                    relay.connect();
+                    dev_println!("  🔁 {} retrying immediately", url);
+                }
+                nostr_sdk::RelayStatus::Initialized | nostr_sdk::RelayStatus::Terminated => {
+                    relay.connect();
+                    dev_println!("  🔌 {} connecting", url);
+                }
+                nostr_sdk::RelayStatus::Banned | nostr_sdk::RelayStatus::Sleeping => {
+                    dev_println!("  💤 {} skipped (status={})", url, relay.status());
+                }
             }
-            Err(_) => Err(anyhow::anyhow!("Reconnection timeout")),
+        }
+
+        // 1 つ以上のリレーが接続されるまで実際に待つ
+        let timeout = Duration::from_secs(timeout_secs.max(1));
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let connected = relays
+                .values()
+                .filter(|r| r.status() == nostr_sdk::RelayStatus::Connected)
+                .count();
+            if connected > 0 {
+                dev_println!("✅ {}/{} relays connected", connected, relays.len());
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                dev_eprintln!("⚠️ Reconnection timeout ({}s)", timeout_secs);
+                return Err(anyhow::anyhow!("Reconnection timeout"));
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
     }
 }
@@ -1813,7 +1971,7 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
                     let received = ReceivedEvent {
                         event_id: event.id.to_hex(),
                         kind: event.kind.as_u16() as u64,
-                        created_at: event.created_at.as_u64() as i64,
+                        created_at: event.created_at.as_secs() as i64,
                         // 単一エンコード。旧実装の serde_json::to_string(&as_json())
                         // は二重エンコードで Dart 側のパースが常に失敗していた。
                         event_json: event.as_json(),
@@ -2387,7 +2545,7 @@ pub fn sign_event_with_ephemeral_key(unsigned_event_json: String) -> Result<Stri
         dev_println!("📝 [NIP-17] Signing event with ephemeral key");
         dev_println!("   Kind: {}", kind);
         dev_println!("   Tags: {}", tags.len());
-        dev_println!("   Created at: {}", created_at.as_u64());
+        dev_println!("   Created at: {}", created_at.as_secs());
 
         // 4. イベントを構築して署名（エフェメラル鍵使用）
         let event = EventBuilder::new(Kind::from(kind as u16), content)
@@ -2748,24 +2906,26 @@ pub fn fetch_todo_list_names_only_with_client_id(
         let filter = Filter::new()
             .kind(Kind::Custom(30001))
             .author(public_key);
-        
-        let events = client
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
-            .await?;
-        
-        if events.is_empty() {
-            return Ok(Vec::new());
-        }
 
         // Kind 5削除イベントを併読して、墓石化されたイベント/座標を候補から除外する
         let deletion_filter = Filter::new()
             .kind(Kind::EventDeletion)
             .author(public_key);
-        let deletion_events = client
-            .client
-            .fetch_events(vec![deletion_filter], Some(Duration::from_secs(10)))
-            .await;
+
+        // 30001（replaceable・名前用）は EOSE 早期終了で十分。
+        // kind:5 墓石は取りこぼすとゾンビリストが復活するため全リレー待ちのまま。
+        // 直列だと最悪 FETCH_TIMEOUT×2 かかるので並行フェッチする。
+        let (events, deletion_events) = tokio::join!(
+            client.fetch_events_eose(filter, EOSE_FETCH_TIMEOUT),
+            client
+                .client
+                .fetch_events(deletion_filter, FETCH_TIMEOUT),
+        );
+        let events = events?;
+
+        if events.is_empty() {
+            return Ok(Vec::new());
+        }
 
         use std::collections::HashMap;
         let mut deleted_event_timestamps: HashMap<String, u64> = HashMap::new();
@@ -2773,7 +2933,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
         match deletion_events {
             Ok(events) => {
                 for deletion_event in events {
-                    let deleted_at = deletion_event.created_at.as_u64();
+                    let deleted_at = deletion_event.created_at.as_secs();
                     for tag in deletion_event.tags.iter() {
                         if let Some(TagStandard::Event { event_id, .. }) = tag.as_standardized() {
                             let event_id_hex = event_id.to_hex();
@@ -2815,7 +2975,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
         let mut latest_events: HashMap<String, Event> = HashMap::new();
         
         for event in events {
-            let event_created_at = event.created_at.as_u64();
+            let event_created_at = event.created_at.as_secs();
             let event_id_hex = event.id.to_hex();
             let d_tag = event.tags.iter()
                 .find(|tag| tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
@@ -2876,7 +3036,7 @@ pub fn fetch_todo_list_names_only_with_client_id(
                     list_id: d_tag,
                     title,
                     event_id: event.id.to_hex(),
-                    created_at: event.created_at.as_u64(),
+                    created_at: event.created_at.as_secs(),
                 }
             })
             .collect();
@@ -2917,7 +3077,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
         dev_println!("📡 [Phase 2] Starting subscription for TODO lists (Kind 30001)");
 
         // Phase 2: subscribe()でストリーミング受信開始
-        let output = client.client.subscribe(vec![filter], None).await?;
+        let output = client.client.subscribe(filter, None).await?;
         let sub_id = output.id();
         let mut notifications = client.client.notifications();
 
@@ -2956,7 +3116,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
                                                 Alphabet::D
                                             )))
                                         .and_then(|tag| tag.content()),
-                                    event.created_at.as_u64()
+                                    event.created_at.as_secs()
                                 );
                                 events.push(*event);
                             }
@@ -3001,7 +3161,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
         }
 
         // クリーンアップ
-        client.client.unsubscribe(sub_id.clone()).await;
+        client.client.unsubscribe(&sub_id).await;
 
         if events.is_empty() {
             dev_println!("⚠️ [Phase 2] No encrypted TODO list events found");
@@ -3063,7 +3223,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3129,7 +3289,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
         );
 
         // Phase 2: subscribe()でストリーミング受信開始
-        let output = client.client.subscribe(vec![filter], None).await?;
+        let output = client.client.subscribe(filter, None).await?;
         let sub_id = output.id();
         let mut notifications = client.client.notifications();
 
@@ -3196,7 +3356,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
         }
 
         // クリーンアップ
-        client.client.unsubscribe(sub_id.clone()).await;
+        client.client.unsubscribe(&sub_id).await;
 
         if events.is_empty() {
             return Ok(Vec::new());
@@ -3247,7 +3407,7 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3284,11 +3444,9 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
             filter = filter.since(Timestamp::from(since_u64));
         }
 
+        // 施策1: Amberモードの差分取得も EOSE 早期終了に統一（モード・パリティ）
         let timeout = Duration::from_secs(timeout_secs.max(1));
-        let events = client
-            .client
-            .fetch_events(vec![filter], Some(timeout))
-            .await?;
+        let events = client.fetch_events_eose(filter, timeout).await?;
 
         if events.is_empty() {
             return Ok(Vec::new());
@@ -3334,7 +3492,7 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since_with_client_id(
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3359,9 +3517,9 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
         // すべてのKind 30001イベントを取得（meiso-todos + meiso-list-*）
         let filter = Filter::new().kind(Kind::Custom(30001)).author(public_key);
 
+        // 施策1: Amberモードの取得も EOSE 早期終了に統一（モード・パリティ）
         let events = client
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         if events.is_empty() {
@@ -3390,7 +3548,7 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                 "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
                 d_tag,
                 event.id.to_hex(),
-                event.created_at.as_u64()
+                event.created_at.as_secs()
             );
 
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
@@ -3402,15 +3560,15 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                             dev_println!(
                                 "🔄 Replacing older event for d='{}' (old: {}, new: {})",
                                 d_value,
-                                existing_event.created_at.as_u64(),
-                                event.created_at.as_u64()
+                                existing_event.created_at.as_secs(),
+                                event.created_at.as_secs()
                             );
                             latest_events.insert(d_value.clone(), event);
                         } else {
                             dev_println!(
                                 "⏭️  Skipping older event for d='{}' (keeping: {})",
                                 d_value,
-                                existing_event.created_at.as_u64()
+                                existing_event.created_at.as_secs()
                             );
                         }
                     } else {
@@ -3418,7 +3576,7 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                             "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
                             d_value,
                             event.id.to_hex(),
-                            event.created_at.as_u64()
+                            event.created_at.as_secs()
                         );
                         latest_events.insert(d_value.clone(), event);
                     }
@@ -3452,13 +3610,13 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_with_client_id(
                     d_tag,
                     title,
                     event.id.to_hex(),
-                    event.created_at.as_u64()
+                    event.created_at.as_secs()
                 );
 
                 EncryptedTodoListEvent {
                     event_id: event.id.to_hex(),
                     encrypted_content: event.content.clone(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3495,9 +3653,9 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
             .kind(Kind::Custom(30001))
             .author(keys.public_key());
 
+        // 施策2: メタデータ取得(kind30001, replaceable)も EOSE 早期終了（起動時 Phase1 高速化）
         let events = client
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         if events.is_empty() {
@@ -3526,7 +3684,7 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                 "🔍 Found event: d_tag={:?}, event_id={}, created_at={}",
                 d_tag,
                 event.id.to_hex(),
-                event.created_at.as_u64()
+                event.created_at.as_secs()
             );
 
             // meiso-todos または meiso-list-* のみを処理（meiso-settings等は除外）
@@ -3538,15 +3696,15 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                             dev_println!(
                                 "🔄 Replacing older event for d='{}' (old: {}, new: {})",
                                 d_value,
-                                existing_event.created_at.as_u64(),
-                                event.created_at.as_u64()
+                                existing_event.created_at.as_secs(),
+                                event.created_at.as_secs()
                             );
                             latest_events.insert(d_value.clone(), event);
                         } else {
                             dev_println!(
                                 "⏭️  Skipping older event for d='{}' (keeping: {})",
                                 d_value,
-                                existing_event.created_at.as_u64()
+                                existing_event.created_at.as_secs()
                             );
                         }
                     } else {
@@ -3554,7 +3712,7 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                             "✅ Adding TODO list event: d='{}', event_id={}, created_at={}",
                             d_value,
                             event.id.to_hex(),
-                            event.created_at.as_u64()
+                            event.created_at.as_secs()
                         );
                         latest_events.insert(d_value.clone(), event);
                     }
@@ -3588,12 +3746,12 @@ pub fn fetch_all_todo_list_metadata_with_client_id(
                     d_tag,
                     title,
                     event.id.to_hex(),
-                    event.created_at.as_u64()
+                    event.created_at.as_secs()
                 );
 
                 TodoListMetadata {
                     event_id: event.id.to_hex(),
-                    created_at: event.created_at.as_u64() as i64,
+                    created_at: event.created_at.as_secs() as i64,
                     list_id: Some(d_tag),
                     title,
                 }
@@ -3628,12 +3786,12 @@ pub fn fetch_encrypted_todo_list_for_pubkey_with_client_id(
             .author(public_key)
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
-                vec!["meiso-todos".to_string()],
+                "meiso-todos".to_string(),
             );
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         // 最新のイベント（Replaceable eventなので1つだけのはず）
@@ -3642,7 +3800,7 @@ pub fn fetch_encrypted_todo_list_for_pubkey_with_client_id(
             Ok(Some(EncryptedTodoListEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 list_id: Some("meiso-todos".to_string()),
                 title: Some("My TODO List".to_string()),
             }))
@@ -3682,7 +3840,7 @@ pub fn fetch_encrypted_todos_for_pubkey_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         let mut encrypted_todos = Vec::new();
@@ -3711,7 +3869,7 @@ pub fn fetch_encrypted_todos_for_pubkey_with_client_id(
             encrypted_todos.push(EncryptedTodoEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 d_tag,
             });
         }
@@ -3893,12 +4051,12 @@ pub fn fetch_encrypted_app_settings_for_pubkey_with_client_id(
             .author(public_key)
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::D),
-                vec!["meiso-settings".to_string()],
+                "meiso-settings".to_string(),
             );
 
+        // 施策2: Amber設定取得(kind30078, replaceable)も EOSE 早期終了（モード・パリティ）
         let events = client
-            .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events_eose(filter, EOSE_FETCH_TIMEOUT)
             .await?;
 
         // 最新のイベント（Replaceable eventなので1つだけのはず）
@@ -3907,7 +4065,7 @@ pub fn fetch_encrypted_app_settings_for_pubkey_with_client_id(
             Ok(Some(EncryptedAppSettingsEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
             }))
         } else {
             dev_println!("⚠️ No encrypted app settings event found");
@@ -4062,7 +4220,7 @@ pub fn fetch_deletion_events_for_pubkey_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         dev_println!("📥 Found {} deletion events", events.len());
@@ -4075,7 +4233,7 @@ pub fn fetch_deletion_events_for_pubkey_with_client_id(
         let mut deleted_events = Vec::new();
 
         for event in events {
-            let deletion_created_at = event.created_at.as_u64();
+            let deletion_created_at = event.created_at.as_secs();
 
             // eタグを探す
             for tag in event.tags.iter() {
@@ -4144,7 +4302,7 @@ pub fn find_personal_list_event_id_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         dev_println!("📥 [Rust] Found {} events for d={}", events.len(), d_tag);
@@ -4255,9 +4413,9 @@ pub fn clear_all_session_state() -> Result<()> {
             let mut clients = NOSTR_CLIENTS.lock().await;
             let count = clients.len();
             for (id, client) in clients.iter() {
-                if let Err(e) = client.client.shutdown().await {
-                    dev_eprintln!("⚠️ Failed to shutdown client [{}]: {}", id, e);
-                }
+                // nostr-sdk 0.39+ で shutdown() は Result を返さない
+                client.client.shutdown().await;
+                dev_println!("🛑 Client [{}] shutdown", id);
             }
             clients.clear();
             dev_println!("🧹 Cleared {} NOSTR_CLIENTS entries", count);
@@ -4747,16 +4905,19 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
         // pタグで自分がメンバーとして含まれるKind 30001イベントを検索
         let filter_p = Filter::new().kind(Kind::Custom(30001)).custom_tag(
             SingleLetterTag::lowercase(Alphabet::P),
-            vec![public_key_hex.clone()],
+            public_key_hex.clone(),
         );
 
         // 全てのKind 30001を取得（旧形式のmemberタグ対応）
         let filter_all = Filter::new().kind(Kind::Custom(30001)).author(public_key);
 
-        let events = client
-            .client
-            .fetch_events(vec![filter_p, filter_all], Some(Duration::from_secs(10)))
-            .await?;
+        // nostr-sdk 0.39+ は fetch_events が単一 Filter のみのため並行フェッチしてマージ
+        let (events_p, events_all) = tokio::join!(
+            client.client.fetch_events(filter_p, FETCH_TIMEOUT),
+            client.client.fetch_events(filter_all, FETCH_TIMEOUT),
+        );
+        let mut events: Vec<Event> = events_p?.into_iter().collect();
+        events.extend(events_all?);
 
         if events.is_empty() {
             dev_println!("⚠️ No encrypted group task list events found");
@@ -4785,7 +4946,7 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
                 if d_value.starts_with("meiso-group-") {
                     // 既存のイベントと比較して、より新しい場合のみ保持
                     if let Some(existing_event) = latest_events.get(&d_value) {
-                        if event.created_at.as_u64() > existing_event.created_at.as_u64() {
+                        if event.created_at.as_secs() > existing_event.created_at.as_secs() {
                             dev_println!(
                                 "🔄 Updating latest event for d='{}' (newer timestamp)",
                                 d_value
@@ -4843,7 +5004,7 @@ pub fn fetch_encrypted_group_task_lists_for_pubkey_with_client_id(
             encrypted_lists.push(EncryptedGroupTodoListEvent {
                 event_id: event.id.to_hex(),
                 encrypted_content: event.content.clone(),
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 list_id: d_tag.clone(),
                 group_name,
                 encrypted_data: String::new(), // 後でcontentを復号化してから取得
@@ -4919,16 +5080,19 @@ pub fn fetch_my_group_task_lists() -> Result<Vec<GroupTodoList>> {
         // まずpタグで検索（新形式）
         let filter_p = Filter::new().kind(Kind::Custom(30001)).custom_tag(
             nostr_sdk::SingleLetterTag::lowercase(nostr_sdk::Alphabet::P),
-            vec![my_pubkey.clone()],
+            my_pubkey.clone(),
         );
 
         // 次に全てのKind 30001を取得（旧形式のmemberタグ対応）
         let filter_all = Filter::new().kind(Kind::Custom(30001));
 
-        let events = client
-            .client
-            .fetch_events(vec![filter_p, filter_all], Some(Duration::from_secs(10)))
-            .await?;
+        // nostr-sdk 0.39+ は fetch_events が単一 Filter のみのため並行フェッチしてマージ
+        let (events_p, events_all) = tokio::join!(
+            client.client.fetch_events(filter_p, FETCH_TIMEOUT),
+            client.client.fetch_events(filter_all, FETCH_TIMEOUT),
+        );
+        let mut events: Vec<Event> = events_p?.into_iter().collect();
+        events.extend(events_all?);
 
         if events.is_empty() {
             dev_println!("⚠️ No group task lists found");
@@ -5255,7 +5419,7 @@ pub fn fetch_shared_events_by_author_with_client_id(
         }
 
         let timeout = Duration::from_secs(timeout_secs.max(1));
-        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+        let events = client.client.fetch_events(filter, timeout).await?;
 
         dev_println!(
             "📨 [shared-v1] Fetched {} events for author {}",
@@ -5273,7 +5437,7 @@ pub fn fetch_shared_events_by_author_with_client_id(
             .map(|event| ReceivedEvent {
                 event_id: event.id.to_hex(),
                 kind: event.kind.as_u16() as u64,
-                created_at: event.created_at.as_u64() as i64,
+                created_at: event.created_at.as_secs() as i64,
                 event_json: event.as_json(),
                 received_at: now,
                 subscription_id: String::new(),
@@ -5346,13 +5510,13 @@ pub fn sync_shared_invitations(
             .kind(Kind::Custom(30078))
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::P),
-                vec![recipient_pubkey.to_hex()],
+                recipient_pubkey.to_hex(),
             )
             .limit(50);
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         let mut invitations = Vec::new();
@@ -5441,7 +5605,7 @@ pub fn sync_shared_invitations(
                 "group_name": group_name,
                 "encrypted_content": event.content,
                 "inviter_name": inviter_name,
-                "created_at": event.created_at.as_u64(),
+                "created_at": event.created_at.as_secs(),
             }));
         }
 
@@ -5695,13 +5859,13 @@ pub fn sync_group_invitations(
             .kind(Kind::Custom(30078))
             .custom_tag(
                 SingleLetterTag::lowercase(Alphabet::P),
-                vec![recipient_pubkey.to_hex()],
+                recipient_pubkey.to_hex(),
             )
             .limit(50);
         
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
         
         dev_println!("✅ Found {} group invitation events", events.len());
@@ -5712,7 +5876,7 @@ pub fn sync_group_invitations(
             for (i, event) in events.iter().enumerate() {
                 dev_println!("  [{}] Event ID: {}", i + 1, event.id.to_hex().chars().take(16).collect::<String>());
                 dev_println!("      From: {}", event.pubkey.to_hex().chars().take(16).collect::<String>());
-                dev_println!("      Created: {}", event.created_at.as_u64());
+                dev_println!("      Created: {}", event.created_at.as_secs());
                 dev_println!("      Kind: {}", event.kind.as_u16());
                 dev_println!("      Tags:");
                 for tag in event.tags.iter() {
@@ -5781,7 +5945,7 @@ pub fn sync_group_invitations(
                                 "welcome_msg": welcome_msg,
                                 "inviter_name": content_json.get("inviter_name").and_then(|v| v.as_str()),
                                 "invited_at": content_json.get("invited_at").and_then(|v| v.as_u64()).unwrap_or(0),
-                                "created_at": event.created_at.as_u64(),
+                                "created_at": event.created_at.as_secs(),
                             });
                             
                             invitations.push(invitation);
@@ -5946,7 +6110,7 @@ pub fn fetch_key_package_by_npub_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         // 最新のKey Packageを取得
@@ -6013,7 +6177,7 @@ pub fn fetch_contact_list_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         // kind:3 は replaceable なので最新の1件のみを採用する
@@ -6076,7 +6240,7 @@ pub fn fetch_profiles_metadata_with_client_id(
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         // author ごとに最新の kind:0 のみを採用する
@@ -6140,7 +6304,7 @@ pub fn fetch_blossom_server_list_with_client_id(client_id: Option<String>) -> Re
 
         let events = client
             .client
-            .fetch_events(vec![filter], Some(Duration::from_secs(10)))
+            .fetch_events(filter, FETCH_TIMEOUT)
             .await?;
 
         let mut server_urls = Vec::new();
@@ -6183,7 +6347,7 @@ pub fn sign_blossom_auth_event_with_client_id(
             .as_ref()
             .context("Secret key required for Blossom auth signing")?;
 
-        let expiration = Timestamp::now().as_u64() + 600; // 10 min
+        let expiration = Timestamp::now().as_secs() + 600; // 10 min
         let size_str = file_size.to_string();
         let exp_str = expiration.to_string();
 

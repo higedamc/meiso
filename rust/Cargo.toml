@@ -15,13 +15,15 @@ tor = []
 flutter_rust_bridge = "=2.12.0"
 
 # Patched fork (see [patch.crates-io]): WebSocket User-Agent for relays (#130)
-async-wsocket = { version = "0.10.1", features = ["socks", "tor"] }
+async-wsocket = { version = "0.13", features = ["socks", "tor"] }
 
 # Nostr SDK
-nostr-sdk = { version = "0.37", features = ["nip44", "tor"] }
+nostr-sdk = { version = "0.44", features = ["nip44", "tor"] }
+nostr-lmdb = "0.44"
 
 # Async Runtime
 tokio = { version = "1.41", features = ["full"] }
+futures = "0.3"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -68,3 +70,9 @@ panic = "abort"  # unwind情報を省いてバイナリ縮小
 # Meiso-vendored async-wsocket: optional User-Agent on WS handshake (issue #130)
 [patch.crates-io]
 async-wsocket = { path = "vendor/async-wsocket" }
+
+# Meiso-vendored openmls_sqlite_storage: rusqlite 0.32 へ更新
+# (nostr-sdk 0.44 の tor feature が引く arti/tor-dirmgr の rusqlite 0.32 と
+#  libsqlite3-sys links=sqlite3 が衝突するため。kc 経由の依存も含めて上書きする)
+[patch."https://github.com/keychat-io/openmls.git"]
+openmls_sqlite_storage = { path = "vendor/openmls_sqlite_storage" }
