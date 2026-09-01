@@ -34,6 +34,8 @@ import '../features/mls/infrastructure/providers/repository_providers.dart'
     as mls_providers;
 import '../features/shared_list/infrastructure/providers/repository_providers.dart'
     as shared_providers;
+import '../features/task_comments/infrastructure/providers/repository_providers.dart'
+    as task_comment_providers;
 import '../utils/fractional_index.dart';
 
 // Amberモード判定のためのインポート
@@ -6134,6 +6136,22 @@ class TodosNotifier
           final eventData =
               jsonDecode(event.eventJson) as Map<String, dynamic>;
           final kind = eventData['kind'] as int?;
+          if (kind == 35002) {
+            // task-chat: コメントは repository 側で復号・LWW 適用する
+            final commentResult = await _ref
+                .read(task_comment_providers.taskCommentRepositoryProvider)
+                .applyRemoteCommentEvent(
+                  eventJson: event.eventJson,
+                  groupId: groupId,
+                );
+            commentResult.fold(
+              (f) => AppLogger.warning(
+                '⚠️ [task-chat] Failed to apply comment event: ${f.message}',
+              ),
+              (_) {},
+            );
+            continue;
+          }
           if (kind != 35000) continue; // meta(35001) はここでは無視
 
           final decrypted = await rust_api.sharedDecryptTaskEvent(
