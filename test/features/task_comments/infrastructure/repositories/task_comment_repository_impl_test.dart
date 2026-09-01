@@ -22,6 +22,10 @@ class FakeTaskCommentCryptoDataSource implements TaskCommentCryptoDataSource {
   final int baseCreatedAt;
   int _counter = 0;
 
+  /// false にすると Amber モード相当(セッションに鍵なし)をシミュレート
+  /// し、セッション鍵メソッドが Rust FFI と同様に例外を投げる。
+  bool sessionKeyAvailable = true;
+
   @override
   Future<String> buildSignedCommentEvent({
     required String nsecHex,
@@ -46,6 +50,29 @@ class FakeTaskCommentCryptoDataSource implements TaskCommentCryptoDataSource {
   }) async {
     final map = jsonDecode(eventJson) as Map<String, dynamic>;
     return map['content'] as String;
+  }
+
+  @override
+  Future<String> buildSignedCommentEventWithSessionKey({
+    required String commentJson,
+  }) async {
+    if (!sessionKeyAvailable) {
+      throw Exception('秘密鍵がありません（Amber モードでは使用できません）');
+    }
+    return buildSignedCommentEvent(
+      nsecHex: 'session',
+      commentJson: commentJson,
+    );
+  }
+
+  @override
+  Future<String> decryptCommentEventWithSessionKey({
+    required String eventJson,
+  }) async {
+    if (!sessionKeyAvailable) {
+      throw Exception('秘密鍵がありません（Amber モードでは使用できません）');
+    }
+    return decryptCommentEvent(nsecHex: 'session', eventJson: eventJson);
   }
 }
 
@@ -124,7 +151,6 @@ void main() {
       localDataSource: localDataSource,
       keyDataSource: keyDataSource,
       nostrService: nostrService,
-      personalNsecHexResolver: () async => null,
     );
   });
 
@@ -167,7 +193,26 @@ void main() {
       verifyNever(() => nostrService.sendSignedEvent(any()));
     });
 
-    test('個人タスク: nsec 未解決なら AuthFailure(TODO: Phase 1a)', () async {
+    test('個人タスク: セッション鍵で署名→ローカル保存→publish される', () async {
+      final result = await repository.addComment(
+        taskId: 'task-1',
+        body: 'personal comment',
+      );
+
+      expect(result.isRight(), true);
+      verify(() => nostrService.sendSignedEvent(any())).called(1);
+      // グループ鍵経路は使われない(セッション鍵経路で完結)
+      verifyNever(() => keyDataSource.load(any()));
+
+      final stored = await localDataSource.loadComments('task-1');
+      expect(stored, hasLength(1));
+      expect(stored.first.body, 'personal comment');
+      expect(stored.first.authorPubkey, kAuthorPubkey);
+    });
+
+    test('個人タスク: セッションに鍵がない(Amber)なら AuthFailure', () async {
+      cryptoDataSource.sessionKeyAvailable = false;
+
       final result = await repository.addComment(
         taskId: 'task-1',
         body: 'personal comment',
@@ -178,6 +223,10 @@ void main() {
         (failure) => expect(failure, isA<AuthFailure>()),
         (_) => fail('should be Left'),
       );
+      verifyNever(() => nostrService.sendSignedEvent(any()));
+      // fail-closed: ローカルにも保存されない
+      final stored = await localDataSource.loadComments('task-1');
+      expect(stored, isEmpty);
     });
   });
 
@@ -380,6 +429,33 @@ void main() {
 
       final first = await repository.watchComments(taskId: 'task-1').first;
       expect(first.map((c) => c.commentId).toList(), ['c-old', 'c-new']);
+    });
+  });
+
+  group('TaskCommentLocalDataSourceHive.wipe', () {
+    test('box を閉じて物理ファイルごと削除する(ログアウト用)', () async {
+      final wipeBox = await Hive.openBox<Map<dynamic, dynamic>>(
+        'task_comments_wipe',
+      );
+      final dataSource = TaskCommentLocalDataSourceHive(box: wipeBox);
+      await dataSource.upsert(
+        comment: const TaskComment(
+          commentId: 'c-wipe',
+          taskId: 'task-w',
+          authorPubkey: kAuthorPubkey,
+          body: 'to be wiped',
+          createdAt: 1787900000,
+        ),
+        eventCreatedAt: 1787900000,
+        eventId: 'ev-wipe',
+      );
+      final file = File('${tempDir.path}/task_comments_wipe.hive');
+      expect(file.existsSync(), true);
+
+      await dataSource.wipe();
+
+      expect(wipeBox.isOpen, false);
+      expect(file.existsSync(), false);
     });
   });
 }

@@ -52,16 +52,16 @@ class TaskComment {
   final String? parentCommentId;
 
   Map<String, dynamic> toJson() => {
-        'v': 1,
-        'comment_id': commentId,
-        'task_id': taskId,
-        'author_pubkey': authorPubkey,
-        'body': body,
-        'created_at': createdAt,
-        if (editedAt != null) 'edited_at': editedAt,
-        'deleted': deleted,
-        if (parentCommentId != null) 'parent_comment_id': parentCommentId,
-      };
+    'v': 1,
+    'comment_id': commentId,
+    'task_id': taskId,
+    'author_pubkey': authorPubkey,
+    'body': body,
+    'created_at': createdAt,
+    if (editedAt != null) 'edited_at': editedAt,
+    'deleted': deleted,
+    if (parentCommentId != null) 'parent_comment_id': parentCommentId,
+  };
 
   TaskComment copyWith({
     String? body,

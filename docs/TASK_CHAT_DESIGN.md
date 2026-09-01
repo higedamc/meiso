@@ -92,6 +92,24 @@ read history — contradicts the shared-key decision documented in
 | 0 | Contract (this document + types) |
 | 1a | Rust core: build/decrypt + LWW + unit tests + FRB codegen |
 | 1b | Infra: repository impl, local persistence, subscription kinds |
+| 1c | Personal path via session-key FFI, backlog fetch kinds, logout wipe, id caps |
 | 2 | UI: comment section under SUBTASKS (bubbles, input, edit/delete) |
 | 3 | Background worker polling + notifications for kind:35002 |
 | 4 | E2E (personal / shared, two devices, Amber mode) → v1.5.0 |
+
+## Key paths per mode (as of Phase 1c)
+
+- **Shared list**: group key `G` (hex) loaded from
+  `SharedGroupKeyLocalDataSource`, passed to
+  `shared_build_signed_comment_event` / `shared_decrypt_comment_event`.
+- **Personal task, secret-key mode**: the user's `Keys` live only inside
+  the Rust session client and are never exposed to Dart. Comments use
+  `client_build_signed_comment_event` / `client_decrypt_comment_event`
+  (same session-key pattern as `client_nip44_encrypt`).
+- **Personal task, Amber mode**: **fail-closed** (`AuthFailure`). The
+  session client has no keys, and Amber holds the nsec. A working Amber
+  path needs: build unsigned kind:35002 with Amber
+  `encryptNip44WithContentProvider` (self), sign via Amber, plus a Rust
+  verify-only helper so receive-side signature/d-tag checks keep parity
+  with the secret-key path. Planned as its own leaf before Phase 4;
+  shared-list comments already work in Amber mode because they use `G`.

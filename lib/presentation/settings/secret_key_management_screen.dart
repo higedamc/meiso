@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import '../../app_theme.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
 import '../../features/media/application/providers/media_providers.dart';
+import '../../features/task_comments/infrastructure/providers/repository_providers.dart'
+    as task_comment_providers;
 import '../../models/app_settings.dart';
 import '../../providers/app_settings_provider.dart' hide amberServiceProvider;
 import '../../providers/bootstrap_sync_provider.dart';
@@ -56,12 +58,12 @@ class _SecretKeyManagementScreenState
     // 暗号化された秘密鍵の存在チェック
     _checkEncryptedKey();
   }
-  
+
   /// 暗号化された秘密鍵が存在するかチェック
   Future<void> _checkEncryptedKey() async {
     final nostrService = ref.read(nostrServiceProvider);
     final hasKey = await nostrService.hasEncryptedKey();
-    
+
     if (hasKey && mounted) {
       setState(() {
         _hasEncryptedKey = true;
@@ -168,7 +170,11 @@ class _SecretKeyManagementScreenState
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 20),
+                      Icon(
+                        Icons.warning_amber,
+                        color: Colors.orange.shade700,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -243,7 +249,8 @@ class _SecretKeyManagementScreenState
   /// 目のアイコンタップ時の処理
   Future<void> _handleVisibilityToggle() async {
     // 暗号化された秘密鍵が存在し、フィールドが暗号化プレースホルダーの場合
-    if (_hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder) {
+    if (_hasEncryptedKey &&
+        _secretKeyController.text == _encryptedPlaceholder) {
       // パスワード入力ダイアログを表示
       final l10n = AppLocalizations.of(context);
       final password = await _showPasswordDialog(
@@ -369,7 +376,7 @@ class _SecretKeyManagementScreenState
 
   Future<void> _generateNewSecretKey() async {
     final l10n = AppLocalizations.of(context);
-    
+
     // パスワード入力
     final password = await _showPasswordDialog(
       'パスワードを設定',
@@ -390,7 +397,7 @@ class _SecretKeyManagementScreenState
 
       // Rust APIで暗号化して保存
       await nostrService.saveSecretKey(newKey, password);
-      
+
       // 暗号化プレースホルダーを表示
       setState(() {
         _hasEncryptedKey = true;
@@ -404,7 +411,9 @@ class _SecretKeyManagementScreenState
     } catch (e) {
       AppLogger.error('Secret key generation failed', error: e);
       setState(() {
-        _errorMessage = l10n.secretKeyGenerationFailed(e.runtimeType.toString());
+        _errorMessage = l10n.secretKeyGenerationFailed(
+          e.runtimeType.toString(),
+        );
       });
     } finally {
       setState(() {
@@ -499,7 +508,9 @@ class _SecretKeyManagementScreenState
         _hasEncryptedKey = true;
         _secretKeyController.text = _encryptedPlaceholder;
         _obscureSecretKey = true;
-        _successMessage = l10n.secretKeyEncrypted(_detectedKeyFormat ?? l10n.formatUnknown);
+        _successMessage = l10n.secretKeyEncrypted(
+          _detectedKeyFormat ?? l10n.formatUnknown,
+        );
       });
 
       // 自動的にリレーに接続（secretKeyを使用）
@@ -524,7 +535,7 @@ class _SecretKeyManagementScreenState
     try {
       final nostrService = ref.read(nostrServiceProvider);
       final relayList = ref.read(relayStatusProvider).keys.toList();
-      
+
       // アプリ設定からTor/プロキシ設定を取得
       final appSettingsAsync = ref.read(appSettingsProvider);
       final proxyUrl = appSettingsAsync.maybeWhen(
@@ -551,9 +562,11 @@ class _SecretKeyManagementScreenState
 
       setState(() {
         final l10n = AppLocalizations.of(context);
-        _successMessage = proxyUrl != null ? l10n.connectedToRelayViaTor : l10n.connectedToRelay;
+        _successMessage = proxyUrl != null
+            ? l10n.connectedToRelayViaTor
+            : l10n.connectedToRelay;
       });
-      
+
       // 自動同期を実行
       await _autoSync();
     } catch (e) {
@@ -568,10 +581,10 @@ class _SecretKeyManagementScreenState
   Future<void> _autoSync() async {
     try {
       final todoNotifier = ref.read(todosProvider.notifier);
-      
+
       // 新実装（Kind 30001）: Nostrから全Todoリストを同期
       await todoNotifier.syncFromNostr();
-      
+
       AppLogger.debug('✅ Auto sync completed');
     } catch (e) {
       AppLogger.debug('❌ Auto sync failed: $e');
@@ -582,7 +595,7 @@ class _SecretKeyManagementScreenState
   /// ログアウト処理（全データ削除）
   Future<void> _logout() async {
     final l10n = AppLocalizations.of(context);
-    
+
     // 確認ダイアログを表示
     final confirmed = await showDialog<bool>(
       context: context,
@@ -590,7 +603,9 @@ class _SecretKeyManagementScreenState
         final dialogL10n = AppLocalizations.of(dialogContext);
         return AlertDialog(
           title: Text(dialogL10n.logout),
-          content: Text('${dialogL10n.logoutConfirm}\n\n${dialogL10n.logoutDescription}'),
+          content: Text(
+            '${dialogL10n.logoutConfirm}\n\n${dialogL10n.logoutDescription}',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -646,6 +661,15 @@ class _SecretKeyManagementScreenState
       AppLogger.debug(
         '✅ Hive boxes deleted (todos / settings / custom_lists)',
       );
+
+      // STEP 4.5: タスクコメント box(task_comments)も物理削除する。
+      // clearAllData() は LocalStorageService 管轄の box のみ対象で、
+      // task_comments box は task_comments feature が独自に開くため
+      // ここで個別に消さないと復号済みコメントが旧 user のまま残る。
+      await ref
+          .read(task_comment_providers.taskCommentLocalDataSourceProvider)
+          .wipe();
+      AppLogger.debug('✅ Task comment box deleted (task_comments)');
 
       // STEP 5: Nostr イベントキャッシュをクリア。
       await _clearNostrEventCache();
@@ -712,7 +736,9 @@ class _SecretKeyManagementScreenState
   Future<void> _clearRustSessionState() async {
     try {
       await rust_api.clearAllSessionState();
-      AppLogger.debug('✅ Rust session state cleared (NOSTR_CLIENTS, MLS STORE)');
+      AppLogger.debug(
+        '✅ Rust session state cleared (NOSTR_CLIENTS, MLS STORE)',
+      );
     } catch (e) {
       AppLogger.warning(
         '⚠️ Failed to clear Rust session state during logout: $e',
@@ -835,11 +861,13 @@ class _SecretKeyManagementScreenState
     final publicKeyHex = ref.watch(publicKeyProvider);
     final publicKeyNpubAsync = ref.watch(publicKeyNpubProvider);
     final isAmberMode = ref.watch(isAmberModeProvider);
-    
+
     // デバッグログ: ログアウトボタン表示条件を確認
     AppLogger.debug('🔍 SecretKeyManagementScreen build:');
     AppLogger.debug('  isNostrInitialized: $isNostrInitialized');
-    AppLogger.debug('  publicKeyHex: ${publicKeyHex?.substring(0, 16) ?? 'null'}');
+    AppLogger.debug(
+      '  publicKeyHex: ${publicKeyHex?.substring(0, 16) ?? 'null'}',
+    );
     AppLogger.debug('  isAmberMode: $isAmberMode');
     AppLogger.debug('  ログアウトボタン表示: $isNostrInitialized');
 
@@ -873,10 +901,13 @@ class _SecretKeyManagementScreenState
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              isAmberMode ? l10n.loggingInAmber : l10n.nostrConnectedStatus,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              isAmberMode
+                                  ? l10n.loggingInAmber
+                                  : l10n.nostrConnectedStatus,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
                             const SizedBox(height: 8),
                             publicKeyNpubAsync.when(
@@ -908,16 +939,24 @@ class _SecretKeyManagementScreenState
                                           children: [
                                             TextButton.icon(
                                               onPressed: () => _copyToClipboard(
-                                                  npubKey, 'npub'),
-                                              icon: const Icon(Icons.copy,
-                                                  size: 16),
+                                                npubKey,
+                                                'npub',
+                                              ),
+                                              icon: const Icon(
+                                                Icons.copy,
+                                                size: 16,
+                                              ),
                                               label: Text(l10n.copyNpub),
                                             ),
                                             TextButton.icon(
                                               onPressed: () => _copyToClipboard(
-                                                  publicKeyHex, 'hex'),
-                                              icon: const Icon(Icons.copy,
-                                                  size: 16),
+                                                publicKeyHex,
+                                                'hex',
+                                              ),
+                                              icon: const Icon(
+                                                Icons.copy,
+                                                size: 16,
+                                              ),
                                               label: Text(l10n.copyHex),
                                             ),
                                           ],
@@ -926,14 +965,16 @@ class _SecretKeyManagementScreenState
                                     )
                                   : Text(
                                       '公開鍵: ${publicKeyHex.substring(0, 16)}...',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
                                     ),
                               loading: () => const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                               error: (_, __) => Text(
                                 '公開鍵: ${publicKeyHex.substring(0, 16)}...',
@@ -981,16 +1022,21 @@ class _SecretKeyManagementScreenState
                     TextField(
                       controller: _secretKeyController,
                       // 暗号化プレースホルダーの場合は読み取り専用
-                      readOnly: _hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder,
+                      readOnly:
+                          _hasEncryptedKey &&
+                          _secretKeyController.text == _encryptedPlaceholder,
                       decoration: InputDecoration(
                         hintText: 'nsec1... または 64文字のhex',
                         helperText: _detectedKeyFormat != null
                             ? '検出: $_detectedKeyFormat'
-                            : (_hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder
-                                ? '目のアイコンをタップして秘密鍵を表示'
-                                : 'nsecまたはhex形式の秘密鍵を入力'),
+                            : (_hasEncryptedKey &&
+                                      _secretKeyController.text ==
+                                          _encryptedPlaceholder
+                                  ? '目のアイコンをタップして秘密鍵を表示'
+                                  : 'nsecまたはhex形式の秘密鍵を入力'),
                         helperStyle: TextStyle(
-                          color: _detectedKeyFormat?.contains('不完全') == true ||
+                          color:
+                              _detectedKeyFormat?.contains('不完全') == true ||
                                   _detectedKeyFormat?.contains('不明') == true
                               ? Colors.orange.shade700
                               : Colors.green.shade700,
@@ -1004,7 +1050,10 @@ class _SecretKeyManagementScreenState
                                 : Icons.visibility,
                           ),
                           onPressed: _handleVisibilityToggle,
-                          tooltip: _hasEncryptedKey && _secretKeyController.text == _encryptedPlaceholder
+                          tooltip:
+                              _hasEncryptedKey &&
+                                  _secretKeyController.text ==
+                                      _encryptedPlaceholder
                               ? '秘密鍵を復号して表示'
                               : (_obscureSecretKey ? '秘密鍵を表示' : '秘密鍵を非表示'),
                         ),
@@ -1021,7 +1070,9 @@ class _SecretKeyManagementScreenState
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: _isLoading ? null : _generateNewSecretKey,
+                            onPressed: _isLoading
+                                ? null
+                                : _generateNewSecretKey,
                             icon: const Icon(Icons.refresh),
                             label: Text(l10n.generateButton),
                           ),
@@ -1050,7 +1101,10 @@ class _SecretKeyManagementScreenState
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.security, color: AppTheme.primaryPurple),
+                                const Icon(
+                                  Icons.security,
+                                  color: AppTheme.primaryPurple,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   l10n.amberMode,
@@ -1140,7 +1194,8 @@ class _SecretKeyManagementScreenState
                     color: Colors.white,
                     elevation: 2,
                     child: InkWell(
-                      onTap: () => context.push('/settings/secret-key/cryptography'),
+                      onTap: () =>
+                          context.push('/settings/secret-key/cryptography'),
                       borderRadius: BorderRadius.circular(12),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -1152,7 +1207,9 @@ class _SecretKeyManagementScreenState
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primaryPurple.withOpacity(0.1),
+                                    color: AppTheme.primaryPurple.withOpacity(
+                                      0.1,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -1212,4 +1269,3 @@ class _SecretKeyManagementScreenState
     );
   }
 }
-

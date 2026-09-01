@@ -20,37 +20,29 @@ const int taskCommentKind = 35002;
 /// 敵対 payload への防御)。
 const int maxCommentBodyChars = 2000;
 
-/// 個人タスク用の自分の nsec(hex)を解決する関数
-///
-/// 取得できない場合は null を返す(Amber モード等)。
-typedef PersonalNsecHexResolver = Future<String?> Function();
-
 /// [TaskCommentRepository] の実装
 ///
 /// - 共有リストタスク(groupId != null): グループ鍵 G で署名/復号
 ///   (kind:35000 タスクと同一経路)
-/// - 個人タスク(groupId == null): 自分の鍵で署名/復号
-///   (nsec を解決できない場合は AuthFailure)
+/// - 個人タスク(groupId == null): セッションクライアントの鍵で署名/復号
+///   (秘密鍵モード。Amber モードはセッションに鍵がなく AuthFailure)
 class TaskCommentRepositoryImpl implements TaskCommentRepository {
   TaskCommentRepositoryImpl({
     required TaskCommentCryptoDataSource cryptoDataSource,
     required TaskCommentLocalDataSource localDataSource,
     required SharedGroupKeyLocalDataSource keyDataSource,
     required NostrService nostrService,
-    required PersonalNsecHexResolver personalNsecHexResolver,
     Uuid uuid = const Uuid(),
   }) : _cryptoDataSource = cryptoDataSource,
        _localDataSource = localDataSource,
        _keyDataSource = keyDataSource,
        _nostrService = nostrService,
-       _personalNsecHexResolver = personalNsecHexResolver,
        _uuid = uuid;
 
   final TaskCommentCryptoDataSource _cryptoDataSource;
   final TaskCommentLocalDataSource _localDataSource;
   final SharedGroupKeyLocalDataSource _keyDataSource;
   final NostrService _nostrService;
-  final PersonalNsecHexResolver _personalNsecHexResolver;
   final Uuid _uuid;
 
   @override
@@ -139,12 +131,16 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
         return const Left(ValidationFailure('イベントの id/created_at が不正です'));
       }
 
-      final nsecResult = await _resolveNsecHex(groupId);
-      return nsecResult.fold(Left.new, (nsecHex) async {
-        final plaintext = await _cryptoDataSource.decryptCommentEvent(
-          nsecHex: nsecHex,
-          eventJson: eventJson,
-        );
+      final nsecResult = await _resolveGroupNsecHex(groupId);
+      return nsecResult.fold(Left.new, (groupNsecHex) async {
+        final plaintext = groupNsecHex != null
+            ? await _cryptoDataSource.decryptCommentEvent(
+                nsecHex: groupNsecHex,
+                eventJson: eventJson,
+              )
+            : await _cryptoDataSource.decryptCommentEventWithSessionKey(
+                eventJson: eventJson,
+              );
         var comment = TaskComment.fromJson(
           jsonDecode(plaintext) as Map<String, dynamic>,
         );
@@ -185,12 +181,29 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
     required String? groupId,
   }) async {
     try {
-      final nsecResult = await _resolveNsecHex(groupId);
-      return nsecResult.fold(Left.new, (nsecHex) async {
-        final signed = await _cryptoDataSource.buildSignedCommentEvent(
-          nsecHex: nsecHex,
-          commentJson: jsonEncode(comment.toJson()),
-        );
+      final nsecResult = await _resolveGroupNsecHex(groupId);
+      return nsecResult.fold(Left.new, (groupNsecHex) async {
+        final commentJson = jsonEncode(comment.toJson());
+        final String signed;
+        if (groupNsecHex != null) {
+          signed = await _cryptoDataSource.buildSignedCommentEvent(
+            nsecHex: groupNsecHex,
+            commentJson: commentJson,
+          );
+        } else {
+          try {
+            signed = await _cryptoDataSource
+                .buildSignedCommentEventWithSessionKey(
+                  commentJson: commentJson,
+                );
+          } on Object catch (e) {
+            // Amber モードはセッションに鍵がなく FFI が例外を投げる。
+            // UI 側で「未対応」と案内できるよう AuthFailure に写像する。
+            return Left(
+              AuthFailure('個人タスクのコメント署名鍵を取得できません: $e'),
+            );
+          }
+        }
         final signedMap = jsonDecode(signed) as Map<String, dynamic>;
         final eventId = signedMap['id'] as String? ?? '';
         final eventCreatedAt =
@@ -224,27 +237,23 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
     }
   }
 
-  /// 鍵経路の解決: 共有リストはグループ鍵 G、個人タスクは自分の nsec。
-  Future<Either<Failure, String>> _resolveNsecHex(String? groupId) async {
-    if (groupId != null) {
-      final credentials = await _keyDataSource.load(groupId);
-      if (credentials == null) {
-        return Left(AuthFailure('共有リスト $groupId のグループ鍵がありません'));
-      }
-      return Right(credentials.groupNsecHex);
+  /// 鍵経路の解決: 共有リストはグループ鍵 G(hex)、個人タスクは
+  /// `Right(null)` = セッション鍵経路(Rust 側で解決、Dart に鍵は出さない)。
+  ///
+  /// Amber モードではセッションに鍵がなく、セッション鍵 FFI が例外を
+  /// 投げる(呼び出し側の catch で fail-closed)。Amber での個人コメント
+  /// 対応は別 leaf(docs/TASK_CHAT_DESIGN.md 参照)。
+  Future<Either<Failure, String?>> _resolveGroupNsecHex(
+    String? groupId,
+  ) async {
+    if (groupId == null) {
+      return const Right(null);
     }
-    final nsecHex = await _personalNsecHexResolver();
-    if (nsecHex == null) {
-      // TODO(task-chat): 個人タスク経路の鍵取得は未解決(Phase 1b 時点)。
-      // 秘密鍵モードでは nsec が Rust セッション内にのみ存在し Dart へ
-      // 露出せず、Amber モードでは nsec 自体が存在しない。Phase 1a 側で
-      // セッション鍵を使う FFI(例: clientBuildSignedCommentEvent)を
-      // 追加するまで、個人タスクのコメントは AuthFailure を返す。
-      return const Left(
-        AuthFailure('個人タスクのコメント署名鍵を取得できません(未対応: docs/TASK_CHAT_DESIGN.md)'),
-      );
+    final credentials = await _keyDataSource.load(groupId);
+    if (credentials == null) {
+      return Left(AuthFailure('共有リスト $groupId のグループ鍵がありません'));
     }
-    return Right(nsecHex);
+    return Right(credentials.groupNsecHex);
   }
 
   /// Rust 側の `chars()` クランプと同じくコードポイント境界で切り詰める
