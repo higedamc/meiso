@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 772840793;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 2055449141;
 
 // Section: executor
 
@@ -5448,6 +5448,45 @@ fn wire__crate__api__shared_build_invitation_payload_impl(
         },
     )
 }
+fn wire__crate__api__shared_build_signed_comment_event_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "shared_build_signed_comment_event",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_group_nsec_hex = <String>::sse_decode(&mut deserializer);
+            let api_comment_json = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::shared_build_signed_comment_event(
+                            api_group_nsec_hex,
+                            api_comment_json,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__shared_build_signed_meta_event_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -5518,6 +5557,45 @@ fn wire__crate__api__shared_build_signed_task_event_impl(
                         let output_ok = crate::api::shared_build_signed_task_event(
                             api_group_nsec_hex,
                             api_task_json,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__shared_decrypt_comment_event_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "shared_decrypt_comment_event",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_group_nsec_hex = <String>::sse_decode(&mut deserializer);
+            let api_event_json = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::shared_decrypt_comment_event(
+                            api_group_nsec_hex,
+                            api_event_json,
                         )?;
                         Ok(output_ok)
                     })(),
@@ -8059,105 +8137,114 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        137 => {
+        137 => wire__crate__api__shared_build_signed_comment_event_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        138 => {
             wire__crate__api__shared_build_signed_meta_event_impl(port, ptr, rust_vec_len, data_len)
         }
-        138 => {
+        139 => {
             wire__crate__api__shared_build_signed_task_event_impl(port, ptr, rust_vec_len, data_len)
         }
-        139 => wire__crate__api__shared_decrypt_invitation_from_sender_impl(
+        140 => {
+            wire__crate__api__shared_decrypt_comment_event_impl(port, ptr, rust_vec_len, data_len)
+        }
+        141 => wire__crate__api__shared_decrypt_invitation_from_sender_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        140 => wire__crate__api__shared_decrypt_meta_event_impl(port, ptr, rust_vec_len, data_len),
-        141 => wire__crate__api__shared_decrypt_task_event_impl(port, ptr, rust_vec_len, data_len),
-        142 => wire__crate__api__shared_encrypt_invitation_for_recipient_impl(
+        142 => wire__crate__api__shared_decrypt_meta_event_impl(port, ptr, rust_vec_len, data_len),
+        143 => wire__crate__api__shared_decrypt_task_event_impl(port, ptr, rust_vec_len, data_len),
+        144 => wire__crate__api__shared_encrypt_invitation_for_recipient_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        143 => wire__crate__api__shared_generate_group_key_impl(port, ptr, rust_vec_len, data_len),
-        144 => wire__crate__api__shared_npub_from_nsec_impl(port, ptr, rust_vec_len, data_len),
-        145 => wire__crate__api__shared_parse_invitation_payload_impl(
+        145 => wire__crate__api__shared_generate_group_key_impl(port, ptr, rust_vec_len, data_len),
+        146 => wire__crate__api__shared_npub_from_nsec_impl(port, ptr, rust_vec_len, data_len),
+        147 => wire__crate__api__shared_parse_invitation_payload_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        146 => wire__crate__api__sign_blossom_auth_event_impl(port, ptr, rust_vec_len, data_len),
-        147 => wire__crate__api__sign_blossom_auth_event_with_client_id_impl(
+        148 => wire__crate__api__sign_blossom_auth_event_impl(port, ptr, rust_vec_len, data_len),
+        149 => wire__crate__api__sign_blossom_auth_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        148 => {
+        150 => {
             wire__crate__api__sign_event_with_ephemeral_key_impl(port, ptr, rust_vec_len, data_len)
         }
-        149 => wire__crate__api__sign_nip98_auth_event_impl(port, ptr, rust_vec_len, data_len),
-        150 => wire__crate__api__sign_nip98_auth_event_with_client_id_impl(
+        151 => wire__crate__api__sign_nip98_auth_event_impl(port, ptr, rust_vec_len, data_len),
+        152 => wire__crate__api__sign_nip98_auth_event_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        151 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
-        152 => wire__crate__api__start_subscription_with_client_id_impl(
+        153 => wire__crate__api__start_subscription_impl(port, ptr, rust_vec_len, data_len),
+        154 => wire__crate__api__start_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        153 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
-        154 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
+        155 => wire__crate__api__stop_all_subscriptions_impl(port, ptr, rust_vec_len, data_len),
+        156 => wire__crate__api__stop_all_subscriptions_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        155 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
-        156 => wire__crate__api__stop_subscription_with_client_id_impl(
+        157 => wire__crate__api__stop_subscription_impl(port, ptr, rust_vec_len, data_len),
+        158 => wire__crate__api__stop_subscription_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        157 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
-        158 => wire__crate__api__sync_app_settings_with_client_id_impl(
+        159 => wire__crate__api__sync_app_settings_impl(port, ptr, rust_vec_len, data_len),
+        160 => wire__crate__api__sync_app_settings_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        159 => wire__crate__api__sync_group_invitations_impl(port, ptr, rust_vec_len, data_len),
-        160 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        161 => {
+        161 => wire__crate__api__sync_group_invitations_impl(port, ptr, rust_vec_len, data_len),
+        162 => wire__crate__api__sync_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        163 => {
             wire__crate__api__sync_relay_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        162 => wire__crate__api__sync_shared_invitations_impl(port, ptr, rust_vec_len, data_len),
-        163 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
-        164 => wire__crate__api__sync_todo_list_since_impl(port, ptr, rust_vec_len, data_len),
-        165 => wire__crate__api__sync_todo_list_since_with_client_id_impl(
+        164 => wire__crate__api__sync_shared_invitations_impl(port, ptr, rust_vec_len, data_len),
+        165 => wire__crate__api__sync_todo_list_impl(port, ptr, rust_vec_len, data_len),
+        166 => wire__crate__api__sync_todo_list_since_impl(port, ptr, rust_vec_len, data_len),
+        167 => wire__crate__api__sync_todo_list_since_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        166 => {
+        168 => {
             wire__crate__api__sync_todo_list_with_client_id_impl(port, ptr, rust_vec_len, data_len)
         }
-        167 => wire__crate__api__tor_mode_default_impl(port, ptr, rust_vec_len, data_len),
-        168 => wire__crate__api__update_relay_list_impl(port, ptr, rust_vec_len, data_len),
-        169 => wire__crate__api__update_relay_list_with_client_id_impl(
+        169 => wire__crate__api__tor_mode_default_impl(port, ptr, rust_vec_len, data_len),
+        170 => wire__crate__api__update_relay_list_impl(port, ptr, rust_vec_len, data_len),
+        171 => wire__crate__api__update_relay_list_with_client_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        170 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
+        172 => wire__crate__api__verify_amber_signature_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

@@ -37,12 +37,8 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   /// Initialize flutter_rust_bridge in mock mode.
   /// No libraries for FFI are loaded.
-  static void initMock({
-    required RustLibApi api,
-  }) {
-    instance.initMockImpl(
-      api: api,
-    );
+  static void initMock({required RustLibApi api}) {
+    instance.initMockImpl(api: api);
   }
 
   /// Dispose flutter_rust_bridge
@@ -67,7 +63,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 772840793;
+  int get rustContentHash => 2055449141;
 
   static const kDefaultExternalLibraryLoaderConfig = ExternalLibraryLoaderConfig(
     stem: 'rust',
@@ -597,9 +593,13 @@ abstract class RustLibApi extends BaseApi {
     required BigInt keyEpoch,
   });
 
+  Future<String> crateApiSharedBuildSignedCommentEvent({required String groupNsecHex, required String commentJson});
+
   Future<String> crateApiSharedBuildSignedMetaEvent({required String groupNsecHex, required String metaJson});
 
   Future<String> crateApiSharedBuildSignedTaskEvent({required String groupNsecHex, required String taskJson});
+
+  Future<String> crateApiSharedDecryptCommentEvent({required String groupNsecHex, required String eventJson});
 
   Future<InvitationPayload> crateApiSharedDecryptInvitationFromSender({
     required String recipientNsecHex,
@@ -716,10 +716,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_box_autoadd_app_settings(settings, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientCreateAppSettingsConstMeta,
         argValues: [that, settings],
         apiImpl: this,
@@ -727,10 +724,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientCreateAppSettingsConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_create_app_settings",
-    argNames: ["that", "settings"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientCreateAppSettingsConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_create_app_settings", argNames: ["that", "settings"]);
 
   @override
   Future<EventSendResult> crateApiMeisoNostrClientCreateTodoList({
@@ -748,10 +743,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_todo_data(todos, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientCreateTodoListConstMeta,
         argValues: [that, todos],
         apiImpl: this,
@@ -759,10 +751,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientCreateTodoListConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_create_todo_list",
-    argNames: ["that", "todos"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientCreateTodoListConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_create_todo_list", argNames: ["that", "todos"]);
 
   @override
   Future<bool> crateApiMeisoNostrClientHasSecretKey({required MeisoNostrClient that}) {
@@ -776,10 +766,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: null),
         constMeta: kCrateApiMeisoNostrClientHasSecretKeyConstMeta,
         argValues: [that],
         apiImpl: this,
@@ -787,10 +774,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientHasSecretKeyConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_has_secret_key",
-    argNames: ["that"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientHasSecretKeyConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_has_secret_key", argNames: ["that"]);
 
   @override
   Future<void> crateApiMeisoNostrClientMode({required MeisoNostrClient that}) {
@@ -804,10 +789,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: null),
         constMeta: kCrateApiMeisoNostrClientModeConstMeta,
         argValues: [that],
         apiImpl: this,
@@ -815,10 +797,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientModeConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_mode",
-    argNames: ["that"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientModeConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_mode", argNames: ["that"]);
 
   @override
   Future<MeisoNostrClient> crateApiMeisoNostrClientNew({required String secretKeyHex, required List<String> relays}) {
@@ -842,10 +822,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientNewConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_new",
-    argNames: ["secretKeyHex", "relays"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientNewConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_new", argNames: ["secretKeyHex", "relays"]);
 
   @override
   Future<MeisoNostrClient> crateApiMeisoNostrClientNewAmberMode({
@@ -991,10 +969,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
         constMeta: kCrateApiMeisoNostrClientPublicKeyHexConstMeta,
         argValues: [that],
         apiImpl: this,
@@ -1002,10 +977,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientPublicKeyHexConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_public_key_hex",
-    argNames: ["that"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientPublicKeyHexConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_public_key_hex", argNames: ["that"]);
 
   @override
   Future<String> crateApiMeisoNostrClientPublicKeyNpub({required MeisoNostrClient that}) {
@@ -1019,10 +992,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
         constMeta: kCrateApiMeisoNostrClientPublicKeyNpubConstMeta,
         argValues: [that],
         apiImpl: this,
@@ -1030,10 +1000,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientPublicKeyNpubConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_public_key_npub",
-    argNames: ["that"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientPublicKeyNpubConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_public_key_npub", argNames: ["that"]);
 
   @override
   Future<EventSendResult> crateApiMeisoNostrClientSaveRelayList({
@@ -1051,10 +1019,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_String(relays, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientSaveRelayListConstMeta,
         argValues: [that, relays],
         apiImpl: this,
@@ -1062,10 +1027,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientSaveRelayListConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_save_relay_list",
-    argNames: ["that", "relays"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientSaveRelayListConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_save_relay_list", argNames: ["that", "relays"]);
 
   @override
   Future<AppSettings?> crateApiMeisoNostrClientSyncAppSettings({required MeisoNostrClient that}) {
@@ -1090,10 +1053,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientSyncAppSettingsConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_sync_app_settings",
-    argNames: ["that"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientSyncAppSettingsConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_sync_app_settings", argNames: ["that"]);
 
   @override
   Future<List<String>> crateApiMeisoNostrClientSyncRelayList({required MeisoNostrClient that}) {
@@ -1107,10 +1068,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientSyncRelayListConstMeta,
         argValues: [that],
         apiImpl: this,
@@ -1118,10 +1076,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientSyncRelayListConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_sync_relay_list",
-    argNames: ["that"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientSyncRelayListConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_sync_relay_list", argNames: ["that"]);
 
   @override
   Future<List<TodoData>> crateApiMeisoNostrClientSyncTodoList({required MeisoNostrClient that}) {
@@ -1135,10 +1091,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_todo_data,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientSyncTodoListConstMeta,
         argValues: [that],
         apiImpl: this,
@@ -1146,10 +1099,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientSyncTodoListConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_sync_todo_list",
-    argNames: ["that"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientSyncTodoListConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_sync_todo_list", argNames: ["that"]);
 
   @override
   Future<List<TodoData>> crateApiMeisoNostrClientSyncTodoListSince({
@@ -1169,10 +1120,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(timeoutSecs, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_todo_data,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientSyncTodoListSinceConstMeta,
         argValues: [that, since, timeoutSecs],
         apiImpl: this,
@@ -1201,10 +1149,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_String(newRelays, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMeisoNostrClientUpdateRelayListConstMeta,
         argValues: [that, newRelays],
         apiImpl: this,
@@ -1212,10 +1157,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMeisoNostrClientUpdateRelayListConstMeta => const TaskConstMeta(
-    debugName: "MeisoNostrClient_update_relay_list",
-    argNames: ["that", "newRelays"],
-  );
+  TaskConstMeta get kCrateApiMeisoNostrClientUpdateRelayListConstMeta =>
+      const TaskConstMeta(debugName: "MeisoNostrClient_update_relay_list", argNames: ["that", "newRelays"]);
 
   @override
   Future<GroupTodoList> crateApiAddMemberToGroupTaskList({
@@ -1230,10 +1173,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(newMemberPubkey, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_group_todo_list,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_group_todo_list, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiAddMemberToGroupTaskListConstMeta,
         argValues: [groupList, newMemberPubkey],
         apiImpl: this,
@@ -1241,10 +1181,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiAddMemberToGroupTaskListConstMeta => const TaskConstMeta(
-    debugName: "add_member_to_group_task_list",
-    argNames: ["groupList", "newMemberPubkey"],
-  );
+  TaskConstMeta get kCrateApiAddMemberToGroupTaskListConstMeta =>
+      const TaskConstMeta(debugName: "add_member_to_group_task_list", argNames: ["groupList", "newMemberPubkey"]);
 
   @override
   Future<bool> crateApiCachedEventInfoIsValid({required CachedEventInfo that}) {
@@ -1255,10 +1193,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_box_autoadd_cached_event_info(that, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: null),
         constMeta: kCrateApiCachedEventInfoIsValidConstMeta,
         argValues: [that],
         apiImpl: this,
@@ -1266,10 +1201,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiCachedEventInfoIsValidConstMeta => const TaskConstMeta(
-    debugName: "cached_event_info_is_valid",
-    argNames: ["that"],
-  );
+  TaskConstMeta get kCrateApiCachedEventInfoIsValidConstMeta =>
+      const TaskConstMeta(debugName: "cached_event_info_is_valid", argNames: ["that"]);
 
   @override
   Future<bool> crateApiCheckConnectionStatus() {
@@ -1279,10 +1212,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCheckConnectionStatusConstMeta,
         argValues: [],
         apiImpl: this,
@@ -1290,10 +1220,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiCheckConnectionStatusConstMeta => const TaskConstMeta(
-    debugName: "check_connection_status",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiCheckConnectionStatusConstMeta =>
+      const TaskConstMeta(debugName: "check_connection_status", argNames: []);
 
   @override
   Future<bool> crateApiCheckConnectionStatusWithClientId({String? clientId}) {
@@ -1304,10 +1232,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCheckConnectionStatusWithClientIdConstMeta,
         argValues: [clientId],
         apiImpl: this,
@@ -1315,10 +1240,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiCheckConnectionStatusWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "check_connection_status_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiCheckConnectionStatusWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "check_connection_status_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<void> crateApiClearAllSessionState() {
@@ -1328,10 +1251,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiClearAllSessionStateConstMeta,
         argValues: [],
         apiImpl: this,
@@ -1339,10 +1259,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiClearAllSessionStateConstMeta => const TaskConstMeta(
-    debugName: "clear_all_session_state",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiClearAllSessionStateConstMeta =>
+      const TaskConstMeta(debugName: "clear_all_session_state", argNames: []);
 
   @override
   Future<String> crateApiClientNip44Decrypt({
@@ -1359,10 +1277,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiClientNip44DecryptConstMeta,
         argValues: [peerPubkeyHex, ciphertext, clientId],
         apiImpl: this,
@@ -1370,10 +1285,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiClientNip44DecryptConstMeta => const TaskConstMeta(
-    debugName: "client_nip44_decrypt",
-    argNames: ["peerPubkeyHex", "ciphertext", "clientId"],
-  );
+  TaskConstMeta get kCrateApiClientNip44DecryptConstMeta =>
+      const TaskConstMeta(debugName: "client_nip44_decrypt", argNames: ["peerPubkeyHex", "ciphertext", "clientId"]);
 
   @override
   Future<String> crateApiClientNip44Encrypt({
@@ -1390,10 +1303,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiClientNip44EncryptConstMeta,
         argValues: [peerPubkeyHex, plaintext, clientId],
         apiImpl: this,
@@ -1401,10 +1311,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiClientNip44EncryptConstMeta => const TaskConstMeta(
-    debugName: "client_nip44_encrypt",
-    argNames: ["peerPubkeyHex", "plaintext", "clientId"],
-  );
+  TaskConstMeta get kCrateApiClientNip44EncryptConstMeta =>
+      const TaskConstMeta(debugName: "client_nip44_encrypt", argNames: ["peerPubkeyHex", "plaintext", "clientId"]);
 
   @override
   Future<String> crateApiClientSignEvent({required String unsignedEventJson, String? clientId}) {
@@ -1416,10 +1324,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiClientSignEventConstMeta,
         argValues: [unsignedEventJson, clientId],
         apiImpl: this,
@@ -1427,10 +1332,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiClientSignEventConstMeta => const TaskConstMeta(
-    debugName: "client_sign_event",
-    argNames: ["unsignedEventJson", "clientId"],
-  );
+  TaskConstMeta get kCrateApiClientSignEventConstMeta =>
+      const TaskConstMeta(debugName: "client_sign_event", argNames: ["unsignedEventJson", "clientId"]);
 
   @override
   Future<CachedEventInfo> crateApiCreateCacheInfo({required String eventJson, required BigInt ttlSeconds}) {
@@ -1442,10 +1345,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(ttlSeconds, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_cached_event_info,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_cached_event_info, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateCacheInfoConstMeta,
         argValues: [eventJson, ttlSeconds],
         apiImpl: this,
@@ -1453,10 +1353,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiCreateCacheInfoConstMeta => const TaskConstMeta(
-    debugName: "create_cache_info",
-    argNames: ["eventJson", "ttlSeconds"],
-  );
+  TaskConstMeta get kCrateApiCreateCacheInfoConstMeta =>
+      const TaskConstMeta(debugName: "create_cache_info", argNames: ["eventJson", "ttlSeconds"]);
 
   @override
   Future<EventSendResult> crateApiCreateTodoList({required List<TodoData> todos}) {
@@ -1467,10 +1365,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_todo_data(todos, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateTodoListConstMeta,
         argValues: [todos],
         apiImpl: this,
@@ -1478,10 +1373,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiCreateTodoListConstMeta => const TaskConstMeta(
-    debugName: "create_todo_list",
-    argNames: ["todos"],
-  );
+  TaskConstMeta get kCrateApiCreateTodoListConstMeta =>
+      const TaskConstMeta(debugName: "create_todo_list", argNames: ["todos"]);
 
   @override
   Future<EventSendResult> crateApiCreateTodoListWithClientId({required List<TodoData> todos, String? clientId}) {
@@ -1493,10 +1386,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateTodoListWithClientIdConstMeta,
         argValues: [todos, clientId],
         apiImpl: this,
@@ -1504,10 +1394,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiCreateTodoListWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "create_todo_list_with_client_id",
-    argNames: ["todos", "clientId"],
-  );
+  TaskConstMeta get kCrateApiCreateTodoListWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "create_todo_list_with_client_id", argNames: ["todos", "clientId"]);
 
   @override
   Future<String> crateApiCreateUnsignedBlossomAuthEvent({
@@ -1524,10 +1412,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedBlossomAuthEventConstMeta,
         argValues: [sha256Hex, fileSize, publicKeyHex],
         apiImpl: this,
@@ -1553,10 +1438,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedEncryptedAppSettingsEventConstMeta,
         argValues: [encryptedContent, publicKeyHex],
         apiImpl: this,
@@ -1584,10 +1466,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedEncryptedTodoEventConstMeta,
         argValues: [todoId, encryptedContent, publicKeyHex],
         apiImpl: this,
@@ -1613,10 +1492,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedEncryptedTodoListEventConstMeta,
         argValues: [encryptedContent, publicKeyHex],
         apiImpl: this,
@@ -1646,10 +1522,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(listTitle, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedEncryptedTodoListEventWithListIdConstMeta,
         argValues: [encryptedContent, publicKeyHex, listId, listTitle],
         apiImpl: this,
@@ -1683,10 +1556,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(inviterName, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedGroupInvitationEventConstMeta,
         argValues: [senderPublicKeyHex, recipientNpub, groupId, groupName, welcomeMsgBase64, inviterName],
         apiImpl: this,
@@ -1714,10 +1584,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedGroupTaskListEventConstMeta,
         argValues: [groupListJson, encryptedContent, publicKeyHex],
         apiImpl: this,
@@ -1745,10 +1612,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_String(relays, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedKeyPackageEventConstMeta,
         argValues: [keyPackageResult, publicKeyHex, relays],
         apiImpl: this,
@@ -1776,10 +1640,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedNip98AuthEventConstMeta,
         argValues: [url, method, publicKeyHex],
         apiImpl: this,
@@ -1787,10 +1648,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiCreateUnsignedNip98AuthEventConstMeta => const TaskConstMeta(
-    debugName: "create_unsigned_nip98_auth_event",
-    argNames: ["url", "method", "publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiCreateUnsignedNip98AuthEventConstMeta =>
+      const TaskConstMeta(debugName: "create_unsigned_nip98_auth_event", argNames: ["url", "method", "publicKeyHex"]);
 
   @override
   Future<String> crateApiCreateUnsignedRelayListEvent({required List<String> relays, required String publicKeyHex}) {
@@ -1802,10 +1661,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedRelayListEventConstMeta,
         argValues: [relays, publicKeyHex],
         apiImpl: this,
@@ -1813,10 +1669,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiCreateUnsignedRelayListEventConstMeta => const TaskConstMeta(
-    debugName: "create_unsigned_relay_list_event",
-    argNames: ["relays", "publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiCreateUnsignedRelayListEventConstMeta =>
+      const TaskConstMeta(debugName: "create_unsigned_relay_list_event", argNames: ["relays", "publicKeyHex"]);
 
   @override
   Future<String> crateApiCreateUnsignedSharedInvitationEvent({
@@ -1839,10 +1693,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(inviterName, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiCreateUnsignedSharedInvitationEventConstMeta,
         argValues: [senderPublicKeyHex, recipientNpub, groupId, groupName, encryptedContent, inviterName],
         apiImpl: this,
@@ -1868,10 +1719,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(aesKeyBase64, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiDecryptGroupDataWithAesKeyConstMeta,
         argValues: [encryptedDataBase64, aesKeyBase64],
         apiImpl: this,
@@ -1904,10 +1752,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiDecryptGroupTaskListConstMeta => const TaskConstMeta(
-    debugName: "decrypt_group_task_list",
-    argNames: ["groupList"],
-  );
+  TaskConstMeta get kCrateApiDecryptGroupTaskListConstMeta =>
+      const TaskConstMeta(debugName: "decrypt_group_task_list", argNames: ["groupList"]);
 
   @override
   Future<EventSendResult> crateApiDeleteEvents({required List<String> eventIds, String? reason}) {
@@ -1919,10 +1765,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(reason, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiDeleteEventsConstMeta,
         argValues: [eventIds, reason],
         apiImpl: this,
@@ -1930,10 +1773,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiDeleteEventsConstMeta => const TaskConstMeta(
-    debugName: "delete_events",
-    argNames: ["eventIds", "reason"],
-  );
+  TaskConstMeta get kCrateApiDeleteEventsConstMeta =>
+      const TaskConstMeta(debugName: "delete_events", argNames: ["eventIds", "reason"]);
 
   @override
   Future<EventSendResult> crateApiDeleteEventsWithClientId({
@@ -1950,10 +1791,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiDeleteEventsWithClientIdConstMeta,
         argValues: [eventIds, reason, clientId],
         apiImpl: this,
@@ -1961,10 +1799,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiDeleteEventsWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "delete_events_with_client_id",
-    argNames: ["eventIds", "reason", "clientId"],
-  );
+  TaskConstMeta get kCrateApiDeleteEventsWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "delete_events_with_client_id", argNames: ["eventIds", "reason", "clientId"]);
 
   @override
   Future<void> crateApiDeleteStoredKeys({required String storagePath}) {
@@ -1975,10 +1811,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(storagePath, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiDeleteStoredKeysConstMeta,
         argValues: [storagePath],
         apiImpl: this,
@@ -1986,10 +1819,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiDeleteStoredKeysConstMeta => const TaskConstMeta(
-    debugName: "delete_stored_keys",
-    argNames: ["storagePath"],
-  );
+  TaskConstMeta get kCrateApiDeleteStoredKeysConstMeta =>
+      const TaskConstMeta(debugName: "delete_stored_keys", argNames: ["storagePath"]);
 
   @override
   Future<String> crateApiEncryptGroupDataWithAesKey({required String tasksJson, required String aesKeyBase64}) {
@@ -2001,10 +1832,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(aesKeyBase64, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiEncryptGroupDataWithAesKeyConstMeta,
         argValues: [tasksJson, aesKeyBase64],
         apiImpl: this,
@@ -2012,10 +1840,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiEncryptGroupDataWithAesKeyConstMeta => const TaskConstMeta(
-    debugName: "encrypt_group_data_with_aes_key",
-    argNames: ["tasksJson", "aesKeyBase64"],
-  );
+  TaskConstMeta get kCrateApiEncryptGroupDataWithAesKeyConstMeta =>
+      const TaskConstMeta(debugName: "encrypt_group_data_with_aes_key", argNames: ["tasksJson", "aesKeyBase64"]);
 
   @override
   Future<GroupTodoList> crateApiEncryptGroupTaskList({
@@ -2034,10 +1860,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_String(memberPubkeys, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_group_todo_list,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_group_todo_list, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiEncryptGroupTaskListConstMeta,
         argValues: [tasks, groupId, groupName, memberPubkeys],
         apiImpl: this,
@@ -2065,10 +1888,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiEnsureClientForRelaysConstMeta,
         argValues: [clientId, relays, publicKeyHex],
         apiImpl: this,
@@ -2076,10 +1896,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiEnsureClientForRelaysConstMeta => const TaskConstMeta(
-    debugName: "ensure_client_for_relays",
-    argNames: ["clientId", "relays", "publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiEnsureClientForRelaysConstMeta =>
+      const TaskConstMeta(debugName: "ensure_client_for_relays", argNames: ["clientId", "relays", "publicKeyHex"]);
 
   @override
   Future<String> crateApiExportMlsDatabaseAsBase64({required String dbPath}) {
@@ -2090,10 +1908,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(dbPath, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiExportMlsDatabaseAsBase64ConstMeta,
         argValues: [dbPath],
         apiImpl: this,
@@ -2101,10 +1916,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiExportMlsDatabaseAsBase64ConstMeta => const TaskConstMeta(
-    debugName: "export_mls_database_as_base64",
-    argNames: ["dbPath"],
-  );
+  TaskConstMeta get kCrateApiExportMlsDatabaseAsBase64ConstMeta =>
+      const TaskConstMeta(debugName: "export_mls_database_as_base64", argNames: ["dbPath"]);
 
   @override
   Future<List<EncryptedTodoListEvent>> crateApiFetchAllEncryptedTodoListsForPubkey({required String publicKeyHex}) {
@@ -2126,10 +1939,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchAllEncryptedTodoListsForPubkeyConstMeta => const TaskConstMeta(
-    debugName: "fetch_all_encrypted_todo_lists_for_pubkey",
-    argNames: ["publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiFetchAllEncryptedTodoListsForPubkeyConstMeta =>
+      const TaskConstMeta(debugName: "fetch_all_encrypted_todo_lists_for_pubkey", argNames: ["publicKeyHex"]);
 
   @override
   Future<List<EncryptedTodoListEvent>> crateApiFetchAllEncryptedTodoListsForPubkeySince({
@@ -2305,10 +2116,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchAllTodoListMetadataConstMeta => const TaskConstMeta(
-    debugName: "fetch_all_todo_list_metadata",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiFetchAllTodoListMetadataConstMeta =>
+      const TaskConstMeta(debugName: "fetch_all_todo_list_metadata", argNames: []);
 
   @override
   Future<List<TodoListMetadata>> crateApiFetchAllTodoListMetadataWithClientId({String? clientId}) {
@@ -2330,10 +2139,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchAllTodoListMetadataWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "fetch_all_todo_list_metadata_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiFetchAllTodoListMetadataWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "fetch_all_todo_list_metadata_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<List<String>> crateApiFetchBlossomServerList() {
@@ -2343,10 +2150,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchBlossomServerListConstMeta,
         argValues: [],
         apiImpl: this,
@@ -2354,10 +2158,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchBlossomServerListConstMeta => const TaskConstMeta(
-    debugName: "fetch_blossom_server_list",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiFetchBlossomServerListConstMeta =>
+      const TaskConstMeta(debugName: "fetch_blossom_server_list", argNames: []);
 
   @override
   Future<List<String>> crateApiFetchBlossomServerListWithClientId({String? clientId}) {
@@ -2368,10 +2170,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchBlossomServerListWithClientIdConstMeta,
         argValues: [clientId],
         apiImpl: this,
@@ -2379,10 +2178,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchBlossomServerListWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "fetch_blossom_server_list_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiFetchBlossomServerListWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "fetch_blossom_server_list_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<List<String>> crateApiFetchContactList({required String pubkeyHex}) {
@@ -2393,10 +2190,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(pubkeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchContactListConstMeta,
         argValues: [pubkeyHex],
         apiImpl: this,
@@ -2404,10 +2198,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchContactListConstMeta => const TaskConstMeta(
-    debugName: "fetch_contact_list",
-    argNames: ["pubkeyHex"],
-  );
+  TaskConstMeta get kCrateApiFetchContactListConstMeta =>
+      const TaskConstMeta(debugName: "fetch_contact_list", argNames: ["pubkeyHex"]);
 
   @override
   Future<List<String>> crateApiFetchContactListWithClientId({required String pubkeyHex, String? clientId}) {
@@ -2419,10 +2211,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchContactListWithClientIdConstMeta,
         argValues: [pubkeyHex, clientId],
         apiImpl: this,
@@ -2430,10 +2219,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchContactListWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "fetch_contact_list_with_client_id",
-    argNames: ["pubkeyHex", "clientId"],
-  );
+  TaskConstMeta get kCrateApiFetchContactListWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "fetch_contact_list_with_client_id", argNames: ["pubkeyHex", "clientId"]);
 
   @override
   Future<List<(String, BigInt)>> crateApiFetchDeletionEventsForPubkey({required String publicKeyHex}) {
@@ -2455,10 +2242,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchDeletionEventsForPubkeyConstMeta => const TaskConstMeta(
-    debugName: "fetch_deletion_events_for_pubkey",
-    argNames: ["publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiFetchDeletionEventsForPubkeyConstMeta =>
+      const TaskConstMeta(debugName: "fetch_deletion_events_for_pubkey", argNames: ["publicKeyHex"]);
 
   @override
   Future<List<(String, BigInt)>> crateApiFetchDeletionEventsForPubkeyWithClientId({
@@ -2509,10 +2294,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchEncryptedAppSettingsForPubkeyConstMeta => const TaskConstMeta(
-    debugName: "fetch_encrypted_app_settings_for_pubkey",
-    argNames: ["publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiFetchEncryptedAppSettingsForPubkeyConstMeta =>
+      const TaskConstMeta(debugName: "fetch_encrypted_app_settings_for_pubkey", argNames: ["publicKeyHex"]);
 
   @override
   Future<EncryptedAppSettingsEvent?> crateApiFetchEncryptedAppSettingsForPubkeyWithClientId({
@@ -2565,10 +2348,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchEncryptedGroupTaskListsForPubkeyConstMeta => const TaskConstMeta(
-    debugName: "fetch_encrypted_group_task_lists_for_pubkey",
-    argNames: ["publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiFetchEncryptedGroupTaskListsForPubkeyConstMeta =>
+      const TaskConstMeta(debugName: "fetch_encrypted_group_task_lists_for_pubkey", argNames: ["publicKeyHex"]);
 
   @override
   Future<List<EncryptedGroupTodoListEvent>> crateApiFetchEncryptedGroupTaskListsForPubkeyWithClientId({
@@ -2619,10 +2400,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchEncryptedTodoListForPubkeyConstMeta => const TaskConstMeta(
-    debugName: "fetch_encrypted_todo_list_for_pubkey",
-    argNames: ["publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiFetchEncryptedTodoListForPubkeyConstMeta =>
+      const TaskConstMeta(debugName: "fetch_encrypted_todo_list_for_pubkey", argNames: ["publicKeyHex"]);
 
   @override
   Future<EncryptedTodoListEvent?> crateApiFetchEncryptedTodoListForPubkeyWithClientId({
@@ -2673,10 +2452,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchEncryptedTodosForPubkeyConstMeta => const TaskConstMeta(
-    debugName: "fetch_encrypted_todos_for_pubkey",
-    argNames: ["publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiFetchEncryptedTodosForPubkeyConstMeta =>
+      const TaskConstMeta(debugName: "fetch_encrypted_todos_for_pubkey", argNames: ["publicKeyHex"]);
 
   @override
   Future<List<EncryptedTodoEvent>> crateApiFetchEncryptedTodosForPubkeyWithClientId({
@@ -2716,10 +2493,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(npub, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchKeyPackageByNpubConstMeta,
         argValues: [npub],
         apiImpl: this,
@@ -2727,10 +2501,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchKeyPackageByNpubConstMeta => const TaskConstMeta(
-    debugName: "fetch_key_package_by_npub",
-    argNames: ["npub"],
-  );
+  TaskConstMeta get kCrateApiFetchKeyPackageByNpubConstMeta =>
+      const TaskConstMeta(debugName: "fetch_key_package_by_npub", argNames: ["npub"]);
 
   @override
   Future<String> crateApiFetchKeyPackageByNpubWithClientId({required String npub, String? clientId}) {
@@ -2742,10 +2514,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchKeyPackageByNpubWithClientIdConstMeta,
         argValues: [npub, clientId],
         apiImpl: this,
@@ -2753,10 +2522,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchKeyPackageByNpubWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "fetch_key_package_by_npub_with_client_id",
-    argNames: ["npub", "clientId"],
-  );
+  TaskConstMeta get kCrateApiFetchKeyPackageByNpubWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "fetch_key_package_by_npub_with_client_id", argNames: ["npub", "clientId"]);
 
   @override
   Future<List<ReceivedEvent>> crateApiFetchMlsGroupEventsByGroupId({
@@ -2773,10 +2540,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(timeoutSecs, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_received_event,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_received_event, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchMlsGroupEventsByGroupIdConstMeta,
         argValues: [groupId, since, timeoutSecs],
         apiImpl: this,
@@ -2806,10 +2570,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_received_event,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_received_event, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchMlsGroupEventsByGroupIdWithClientIdConstMeta,
         argValues: [groupId, since, timeoutSecs, clientId],
         apiImpl: this,
@@ -2837,10 +2598,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(timeoutSecs, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_received_event,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_received_event, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchMlsGroupTodoEventsSinceConstMeta,
         argValues: [listenKey, since, timeoutSecs],
         apiImpl: this,
@@ -2870,10 +2628,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 76, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_received_event,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_received_event, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchMlsGroupTodoEventsSinceWithClientIdConstMeta,
         argValues: [listenKey, since, timeoutSecs, clientId],
         apiImpl: this,
@@ -2905,10 +2660,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchMyGroupTaskListsConstMeta => const TaskConstMeta(
-    debugName: "fetch_my_group_task_lists",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiFetchMyGroupTaskListsConstMeta =>
+      const TaskConstMeta(debugName: "fetch_my_group_task_lists", argNames: []);
 
   @override
   Future<List<ContactProfile>> crateApiFetchProfilesMetadata({required List<String> pubkeyHexes}) {
@@ -2930,10 +2683,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchProfilesMetadataConstMeta => const TaskConstMeta(
-    debugName: "fetch_profiles_metadata",
-    argNames: ["pubkeyHexes"],
-  );
+  TaskConstMeta get kCrateApiFetchProfilesMetadataConstMeta =>
+      const TaskConstMeta(debugName: "fetch_profiles_metadata", argNames: ["pubkeyHexes"]);
 
   @override
   Future<List<ContactProfile>> crateApiFetchProfilesMetadataWithClientId({
@@ -2959,10 +2710,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchProfilesMetadataWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "fetch_profiles_metadata_with_client_id",
-    argNames: ["pubkeyHexes", "clientId"],
-  );
+  TaskConstMeta get kCrateApiFetchProfilesMetadataWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "fetch_profiles_metadata_with_client_id", argNames: ["pubkeyHexes", "clientId"]);
 
   @override
   Future<List<ReceivedEvent>> crateApiFetchSharedEventsByAuthor({
@@ -2979,10 +2728,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(timeoutSecs, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_received_event,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_received_event, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchSharedEventsByAuthorConstMeta,
         argValues: [groupNpubHex, since, timeoutSecs],
         apiImpl: this,
@@ -3012,10 +2758,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_received_event,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_received_event, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchSharedEventsByAuthorWithClientIdConstMeta,
         argValues: [groupNpubHex, since, timeoutSecs, clientId],
         apiImpl: this,
@@ -3037,10 +2780,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_todo_list_name,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_list_name, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchTodoListNamesOnlyConstMeta,
         argValues: [publicKeyHex],
         apiImpl: this,
@@ -3048,10 +2788,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFetchTodoListNamesOnlyConstMeta => const TaskConstMeta(
-    debugName: "fetch_todo_list_names_only",
-    argNames: ["publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiFetchTodoListNamesOnlyConstMeta =>
+      const TaskConstMeta(debugName: "fetch_todo_list_names_only", argNames: ["publicKeyHex"]);
 
   @override
   Future<List<TodoListName>> crateApiFetchTodoListNamesOnlyWithClientId({
@@ -3066,10 +2804,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_todo_list_name,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_list_name, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFetchTodoListNamesOnlyWithClientIdConstMeta,
         argValues: [publicKeyHex, clientId],
         apiImpl: this,
@@ -3092,10 +2827,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKeyHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 84, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_opt_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFindPersonalListEventIdConstMeta,
         argValues: [listId, publicKeyHex],
         apiImpl: this,
@@ -3103,10 +2835,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiFindPersonalListEventIdConstMeta => const TaskConstMeta(
-    debugName: "find_personal_list_event_id",
-    argNames: ["listId", "publicKeyHex"],
-  );
+  TaskConstMeta get kCrateApiFindPersonalListEventIdConstMeta =>
+      const TaskConstMeta(debugName: "find_personal_list_event_id", argNames: ["listId", "publicKeyHex"]);
 
   @override
   Future<String?> crateApiFindPersonalListEventIdWithClientId({
@@ -3123,10 +2853,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 85, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_opt_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiFindPersonalListEventIdWithClientIdConstMeta,
         argValues: [listId, publicKeyHex, clientId],
         apiImpl: this,
@@ -3147,10 +2874,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 86, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_key_pair,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_key_pair, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiGenerateKeypairConstMeta,
         argValues: [],
         apiImpl: this,
@@ -3158,10 +2882,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiGenerateKeypairConstMeta => const TaskConstMeta(
-    debugName: "generate_keypair",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiGenerateKeypairConstMeta =>
+      const TaskConstMeta(debugName: "generate_keypair", argNames: []);
 
   @override
   Future<String> crateApiGenerateSecretKey() {
@@ -3171,10 +2893,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 87, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: null),
         constMeta: kCrateApiGenerateSecretKeyConstMeta,
         argValues: [],
         apiImpl: this,
@@ -3182,10 +2901,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiGenerateSecretKeyConstMeta => const TaskConstMeta(
-    debugName: "generate_secret_key",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiGenerateSecretKeyConstMeta =>
+      const TaskConstMeta(debugName: "generate_secret_key", argNames: []);
 
   @override
   Future<String> crateApiGetPublicKeyNpub() {
@@ -3195,10 +2912,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 88, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiGetPublicKeyNpubConstMeta,
         argValues: [],
         apiImpl: this,
@@ -3206,10 +2920,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiGetPublicKeyNpubConstMeta => const TaskConstMeta(
-    debugName: "get_public_key_npub",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiGetPublicKeyNpubConstMeta =>
+      const TaskConstMeta(debugName: "get_public_key_npub", argNames: []);
 
   @override
   Future<String> crateApiGetPublicKeyNpubWithClientId({String? clientId}) {
@@ -3220,10 +2932,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 89, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiGetPublicKeyNpubWithClientIdConstMeta,
         argValues: [clientId],
         apiImpl: this,
@@ -3231,10 +2940,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiGetPublicKeyNpubWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "get_public_key_npub_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiGetPublicKeyNpubWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "get_public_key_npub_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<RelayConnectionInfo> crateApiGetRelayConnectionInfo() {
@@ -3255,10 +2962,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiGetRelayConnectionInfoConstMeta => const TaskConstMeta(
-    debugName: "get_relay_connection_info",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiGetRelayConnectionInfoConstMeta =>
+      const TaskConstMeta(debugName: "get_relay_connection_info", argNames: []);
 
   @override
   Future<RelayConnectionInfo> crateApiGetRelayConnectionInfoWithClientId({String? clientId}) {
@@ -3280,10 +2985,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiGetRelayConnectionInfoWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "get_relay_connection_info_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiGetRelayConnectionInfoWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "get_relay_connection_info_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<bool> crateApiHasEncryptedKey({required String storagePath}) {
@@ -3294,10 +2997,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(storagePath, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: null),
         constMeta: kCrateApiHasEncryptedKeyConstMeta,
         argValues: [storagePath],
         apiImpl: this,
@@ -3305,10 +3005,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiHasEncryptedKeyConstMeta => const TaskConstMeta(
-    debugName: "has_encrypted_key",
-    argNames: ["storagePath"],
-  );
+  TaskConstMeta get kCrateApiHasEncryptedKeyConstMeta =>
+      const TaskConstMeta(debugName: "has_encrypted_key", argNames: ["storagePath"]);
 
   @override
   Future<bool> crateApiHasPublicKey({required String storagePath}) {
@@ -3319,10 +3017,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(storagePath, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 93, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: null),
         constMeta: kCrateApiHasPublicKeyConstMeta,
         argValues: [storagePath],
         apiImpl: this,
@@ -3330,10 +3025,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiHasPublicKeyConstMeta => const TaskConstMeta(
-    debugName: "has_public_key",
-    argNames: ["storagePath"],
-  );
+  TaskConstMeta get kCrateApiHasPublicKeyConstMeta =>
+      const TaskConstMeta(debugName: "has_public_key", argNames: ["storagePath"]);
 
   @override
   Future<String> crateApiHexToNpub({required String hex}) {
@@ -3344,10 +3037,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(hex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 94, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiHexToNpubConstMeta,
         argValues: [hex],
         apiImpl: this,
@@ -3355,10 +3045,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiHexToNpubConstMeta => const TaskConstMeta(
-    debugName: "hex_to_npub",
-    argNames: ["hex"],
-  );
+  TaskConstMeta get kCrateApiHexToNpubConstMeta => const TaskConstMeta(debugName: "hex_to_npub", argNames: ["hex"]);
 
   @override
   Future<String> crateApiImportMlsDatabaseFromBase64({
@@ -3375,10 +3062,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(nostrId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 95, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiImportMlsDatabaseFromBase64ConstMeta,
         argValues: [dbPath, base64Data, nostrId],
         apiImpl: this,
@@ -3386,10 +3070,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiImportMlsDatabaseFromBase64ConstMeta => const TaskConstMeta(
-    debugName: "import_mls_database_from_base64",
-    argNames: ["dbPath", "base64Data", "nostrId"],
-  );
+  TaskConstMeta get kCrateApiImportMlsDatabaseFromBase64ConstMeta =>
+      const TaskConstMeta(debugName: "import_mls_database_from_base64", argNames: ["dbPath", "base64Data", "nostrId"]);
 
   @override
   Future<String> crateApiInitNostrClient({required String secretKeyHex, required List<String> relays}) {
@@ -3401,10 +3083,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_String(relays, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 96, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientConstMeta,
         argValues: [secretKeyHex, relays],
         apiImpl: this,
@@ -3412,10 +3091,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiInitNostrClientConstMeta => const TaskConstMeta(
-    debugName: "init_nostr_client",
-    argNames: ["secretKeyHex", "relays"],
-  );
+  TaskConstMeta get kCrateApiInitNostrClientConstMeta =>
+      const TaskConstMeta(debugName: "init_nostr_client", argNames: ["secretKeyHex", "relays"]);
 
   @override
   Future<String> crateApiInitNostrClientWithId({
@@ -3434,10 +3111,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(proxyUrl, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 97, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientWithIdConstMeta,
         argValues: [clientId, secretKeyHex, relays, proxyUrl],
         apiImpl: this,
@@ -3465,10 +3139,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(proxyUrl, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 98, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientWithProxyConstMeta,
         argValues: [secretKeyHex, relays, proxyUrl],
         apiImpl: this,
@@ -3476,10 +3147,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiInitNostrClientWithProxyConstMeta => const TaskConstMeta(
-    debugName: "init_nostr_client_with_proxy",
-    argNames: ["secretKeyHex", "relays", "proxyUrl"],
-  );
+  TaskConstMeta get kCrateApiInitNostrClientWithProxyConstMeta =>
+      const TaskConstMeta(debugName: "init_nostr_client_with_proxy", argNames: ["secretKeyHex", "relays", "proxyUrl"]);
 
   @override
   Future<String> crateApiInitNostrClientWithPubkey({required String publicKeyHex, required List<String> relays}) {
@@ -3491,10 +3160,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_String(relays, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 99, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientWithPubkeyConstMeta,
         argValues: [publicKeyHex, relays],
         apiImpl: this,
@@ -3502,10 +3168,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiInitNostrClientWithPubkeyConstMeta => const TaskConstMeta(
-    debugName: "init_nostr_client_with_pubkey",
-    argNames: ["publicKeyHex", "relays"],
-  );
+  TaskConstMeta get kCrateApiInitNostrClientWithPubkeyConstMeta =>
+      const TaskConstMeta(debugName: "init_nostr_client_with_pubkey", argNames: ["publicKeyHex", "relays"]);
 
   @override
   Future<String> crateApiInitNostrClientWithPubkeyAndId({
@@ -3524,10 +3188,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(proxyUrl, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 100, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientWithPubkeyAndIdConstMeta,
         argValues: [clientId, publicKeyHex, relays, proxyUrl],
         apiImpl: this,
@@ -3555,10 +3216,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(proxyUrl, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 101, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientWithPubkeyAndProxyConstMeta,
         argValues: [publicKeyHex, relays, proxyUrl],
         apiImpl: this,
@@ -3588,10 +3246,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(proxyUrl, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 102, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientWithPubkeyAndTorModeConstMeta,
         argValues: [publicKeyHex, relays, torMode, proxyUrl],
         apiImpl: this,
@@ -3621,10 +3276,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(proxyUrl, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 103, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiInitNostrClientWithTorModeConstMeta,
         argValues: [secretKeyHex, relays, torMode, proxyUrl],
         apiImpl: this,
@@ -3646,10 +3298,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_box_autoadd_cached_event_info(cacheInfo, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 104, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: null),
         constMeta: kCrateApiIsCacheValidConstMeta,
         argValues: [cacheInfo],
         apiImpl: this,
@@ -3657,10 +3306,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiIsCacheValidConstMeta => const TaskConstMeta(
-    debugName: "is_cache_valid",
-    argNames: ["cacheInfo"],
-  );
+  TaskConstMeta get kCrateApiIsCacheValidConstMeta =>
+      const TaskConstMeta(debugName: "is_cache_valid", argNames: ["cacheInfo"]);
 
   @override
   Future<String> crateApiLoadEncryptedSecretKey({required String storagePath, required String password}) {
@@ -3672,10 +3319,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(password, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 105, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiLoadEncryptedSecretKeyConstMeta,
         argValues: [storagePath, password],
         apiImpl: this,
@@ -3683,10 +3327,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiLoadEncryptedSecretKeyConstMeta => const TaskConstMeta(
-    debugName: "load_encrypted_secret_key",
-    argNames: ["storagePath", "password"],
-  );
+  TaskConstMeta get kCrateApiLoadEncryptedSecretKeyConstMeta =>
+      const TaskConstMeta(debugName: "load_encrypted_secret_key", argNames: ["storagePath", "password"]);
 
   @override
   Future<String?> crateApiLoadPublicKey({required String storagePath}) {
@@ -3697,10 +3339,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(storagePath, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 106, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_opt_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiLoadPublicKeyConstMeta,
         argValues: [storagePath],
         apiImpl: this,
@@ -3708,10 +3347,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiLoadPublicKeyConstMeta => const TaskConstMeta(
-    debugName: "load_public_key",
-    argNames: ["storagePath"],
-  );
+  TaskConstMeta get kCrateApiLoadPublicKeyConstMeta =>
+      const TaskConstMeta(debugName: "load_public_key", argNames: ["storagePath"]);
 
   @override
   Future<String> crateApiMlsAddTodo({
@@ -3732,10 +3369,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(todoId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 107, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMlsAddTodoConstMeta,
         argValues: [nostrId, groupId, todoJson, action, todoId],
         apiImpl: this,
@@ -3743,10 +3377,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMlsAddTodoConstMeta => const TaskConstMeta(
-    debugName: "mls_add_todo",
-    argNames: ["nostrId", "groupId", "todoJson", "action", "todoId"],
-  );
+  TaskConstMeta get kCrateApiMlsAddTodoConstMeta =>
+      const TaskConstMeta(debugName: "mls_add_todo", argNames: ["nostrId", "groupId", "todoJson", "action", "todoId"]);
 
   @override
   Future<KeyPackageResult> crateApiMlsCreateKeyPackage({required String nostrId}) {
@@ -3757,10 +3389,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(nostrId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 108, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_key_package_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_key_package_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMlsCreateKeyPackageConstMeta,
         argValues: [nostrId],
         apiImpl: this,
@@ -3768,10 +3397,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMlsCreateKeyPackageConstMeta => const TaskConstMeta(
-    debugName: "mls_create_key_package",
-    argNames: ["nostrId"],
-  );
+  TaskConstMeta get kCrateApiMlsCreateKeyPackageConstMeta =>
+      const TaskConstMeta(debugName: "mls_create_key_package", argNames: ["nostrId"]);
 
   @override
   Future<Uint8List> crateApiMlsCreateTodoGroup({
@@ -3832,10 +3459,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMlsDecryptTodoConstMeta => const TaskConstMeta(
-    debugName: "mls_decrypt_todo",
-    argNames: ["nostrId", "groupId", "encryptedMsg"],
-  );
+  TaskConstMeta get kCrateApiMlsDecryptTodoConstMeta =>
+      const TaskConstMeta(debugName: "mls_decrypt_todo", argNames: ["nostrId", "groupId", "encryptedMsg"]);
 
   @override
   Future<String> crateApiMlsEncryptGroupEventContent({
@@ -3852,10 +3477,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(mlsMessageHex, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 111, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMlsEncryptGroupEventContentConstMeta,
         argValues: [nostrId, groupId, mlsMessageHex],
         apiImpl: this,
@@ -3878,10 +3500,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(groupId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 112, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_mls_group_info,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_mls_group_info, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMlsGetGroupInfoConstMeta,
         argValues: [nostrId, groupId],
         apiImpl: this,
@@ -3889,10 +3508,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMlsGetGroupInfoConstMeta => const TaskConstMeta(
-    debugName: "mls_get_group_info",
-    argNames: ["nostrId", "groupId"],
-  );
+  TaskConstMeta get kCrateApiMlsGetGroupInfoConstMeta =>
+      const TaskConstMeta(debugName: "mls_get_group_info", argNames: ["nostrId", "groupId"]);
 
   @override
   Future<String> crateApiMlsGetListenKey({required String nostrId, required String groupId}) {
@@ -3904,10 +3521,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(groupId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 113, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMlsGetListenKeyConstMeta,
         argValues: [nostrId, groupId],
         apiImpl: this,
@@ -3915,10 +3529,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMlsGetListenKeyConstMeta => const TaskConstMeta(
-    debugName: "mls_get_listen_key",
-    argNames: ["nostrId", "groupId"],
-  );
+  TaskConstMeta get kCrateApiMlsGetListenKeyConstMeta =>
+      const TaskConstMeta(debugName: "mls_get_listen_key", argNames: ["nostrId", "groupId"]);
 
   @override
   Future<void> crateApiMlsInitDb({required String dbPath, required String nostrId}) {
@@ -3930,10 +3542,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(nostrId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 114, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMlsInitDbConstMeta,
         argValues: [dbPath, nostrId],
         apiImpl: this,
@@ -3941,10 +3550,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMlsInitDbConstMeta => const TaskConstMeta(
-    debugName: "mls_init_db",
-    argNames: ["dbPath", "nostrId"],
-  );
+  TaskConstMeta get kCrateApiMlsInitDbConstMeta =>
+      const TaskConstMeta(debugName: "mls_init_db", argNames: ["dbPath", "nostrId"]);
 
   @override
   Future<void> crateApiMlsJoinGroup({required String nostrId, required String groupId, required List<int> welcomeMsg}) {
@@ -3957,10 +3564,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_prim_u_8_loose(welcomeMsg, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 115, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiMlsJoinGroupConstMeta,
         argValues: [nostrId, groupId, welcomeMsg],
         apiImpl: this,
@@ -3968,10 +3572,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiMlsJoinGroupConstMeta => const TaskConstMeta(
-    debugName: "mls_join_group",
-    argNames: ["nostrId", "groupId", "welcomeMsg"],
-  );
+  TaskConstMeta get kCrateApiMlsJoinGroupConstMeta =>
+      const TaskConstMeta(debugName: "mls_join_group", argNames: ["nostrId", "groupId", "welcomeMsg"]);
 
   @override
   Future<String> crateApiNpubToHex({required String npub}) {
@@ -3982,10 +3584,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(npub, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 116, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiNpubToHexConstMeta,
         argValues: [npub],
         apiImpl: this,
@@ -3993,10 +3592,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiNpubToHexConstMeta => const TaskConstMeta(
-    debugName: "npub_to_hex",
-    argNames: ["npub"],
-  );
+  TaskConstMeta get kCrateApiNpubToHexConstMeta => const TaskConstMeta(debugName: "npub_to_hex", argNames: ["npub"]);
 
   @override
   Future<List<ReceivedEvent>> crateApiReceiveSubscriptionEvents({required BigInt timeoutMs}) {
@@ -4007,10 +3603,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(timeoutMs, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 117, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_received_event,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_received_event, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReceiveSubscriptionEventsConstMeta,
         argValues: [timeoutMs],
         apiImpl: this,
@@ -4018,10 +3611,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReceiveSubscriptionEventsConstMeta => const TaskConstMeta(
-    debugName: "receive_subscription_events",
-    argNames: ["timeoutMs"],
-  );
+  TaskConstMeta get kCrateApiReceiveSubscriptionEventsConstMeta =>
+      const TaskConstMeta(debugName: "receive_subscription_events", argNames: ["timeoutMs"]);
 
   @override
   Future<List<ReceivedEvent>> crateApiReceiveSubscriptionEventsWithClientId({
@@ -4036,10 +3627,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 118, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_received_event,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_received_event, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReceiveSubscriptionEventsWithClientIdConstMeta,
         argValues: [timeoutMs, clientId],
         apiImpl: this,
@@ -4047,10 +3635,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReceiveSubscriptionEventsWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "receive_subscription_events_with_client_id",
-    argNames: ["timeoutMs", "clientId"],
-  );
+  TaskConstMeta get kCrateApiReceiveSubscriptionEventsWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "receive_subscription_events_with_client_id", argNames: ["timeoutMs", "clientId"]);
 
   @override
   Future<void> crateApiReconnectToRelays() {
@@ -4060,10 +3646,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 119, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReconnectToRelaysConstMeta,
         argValues: [],
         apiImpl: this,
@@ -4071,10 +3654,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReconnectToRelaysConstMeta => const TaskConstMeta(
-    debugName: "reconnect_to_relays",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiReconnectToRelaysConstMeta =>
+      const TaskConstMeta(debugName: "reconnect_to_relays", argNames: []);
 
   @override
   Future<void> crateApiReconnectToRelaysWithClientId({String? clientId}) {
@@ -4085,10 +3666,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 120, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReconnectToRelaysWithClientIdConstMeta,
         argValues: [clientId],
         apiImpl: this,
@@ -4096,10 +3674,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReconnectToRelaysWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "reconnect_to_relays_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiReconnectToRelaysWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "reconnect_to_relays_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<void> crateApiReconnectToRelaysWithTimeout({required BigInt timeoutSecs}) {
@@ -4110,10 +3686,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(timeoutSecs, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 121, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReconnectToRelaysWithTimeoutConstMeta,
         argValues: [timeoutSecs],
         apiImpl: this,
@@ -4121,10 +3694,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReconnectToRelaysWithTimeoutConstMeta => const TaskConstMeta(
-    debugName: "reconnect_to_relays_with_timeout",
-    argNames: ["timeoutSecs"],
-  );
+  TaskConstMeta get kCrateApiReconnectToRelaysWithTimeoutConstMeta =>
+      const TaskConstMeta(debugName: "reconnect_to_relays_with_timeout", argNames: ["timeoutSecs"]);
 
   @override
   Future<void> crateApiReconnectToRelaysWithTimeoutAndClientId({required BigInt timeoutSecs, String? clientId}) {
@@ -4136,10 +3707,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 122, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReconnectToRelaysWithTimeoutAndClientIdConstMeta,
         argValues: [timeoutSecs, clientId],
         apiImpl: this,
@@ -4165,10 +3733,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(memberToRemove, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 123, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_group_todo_list,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_group_todo_list, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiRemoveMemberFromGroupTaskListConstMeta,
         argValues: [groupList, memberToRemove],
         apiImpl: this,
@@ -4176,10 +3741,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiRemoveMemberFromGroupTaskListConstMeta => const TaskConstMeta(
-    debugName: "remove_member_from_group_task_list",
-    argNames: ["groupList", "memberToRemove"],
-  );
+  TaskConstMeta get kCrateApiRemoveMemberFromGroupTaskListConstMeta =>
+      const TaskConstMeta(debugName: "remove_member_from_group_task_list", argNames: ["groupList", "memberToRemove"]);
 
   @override
   Future<EventSendResult> crateApiSaveAppSettings({required AppSettings settings}) {
@@ -4190,10 +3753,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_box_autoadd_app_settings(settings, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 124, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSaveAppSettingsConstMeta,
         argValues: [settings],
         apiImpl: this,
@@ -4201,10 +3761,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSaveAppSettingsConstMeta => const TaskConstMeta(
-    debugName: "save_app_settings",
-    argNames: ["settings"],
-  );
+  TaskConstMeta get kCrateApiSaveAppSettingsConstMeta =>
+      const TaskConstMeta(debugName: "save_app_settings", argNames: ["settings"]);
 
   @override
   Future<EventSendResult> crateApiSaveAppSettingsWithClientId({required AppSettings settings, String? clientId}) {
@@ -4216,10 +3774,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 125, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSaveAppSettingsWithClientIdConstMeta,
         argValues: [settings, clientId],
         apiImpl: this,
@@ -4227,10 +3782,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSaveAppSettingsWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "save_app_settings_with_client_id",
-    argNames: ["settings", "clientId"],
-  );
+  TaskConstMeta get kCrateApiSaveAppSettingsWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "save_app_settings_with_client_id", argNames: ["settings", "clientId"]);
 
   @override
   Future<void> crateApiSaveEncryptedSecretKey({
@@ -4247,10 +3800,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(password, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 126, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSaveEncryptedSecretKeyConstMeta,
         argValues: [storagePath, secretKey, password],
         apiImpl: this,
@@ -4258,10 +3808,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSaveEncryptedSecretKeyConstMeta => const TaskConstMeta(
-    debugName: "save_encrypted_secret_key",
-    argNames: ["storagePath", "secretKey", "password"],
-  );
+  TaskConstMeta get kCrateApiSaveEncryptedSecretKeyConstMeta =>
+      const TaskConstMeta(debugName: "save_encrypted_secret_key", argNames: ["storagePath", "secretKey", "password"]);
 
   @override
   Future<EventSendResult> crateApiSaveGroupTaskListToNostr({required GroupTodoList groupList}) {
@@ -4272,10 +3820,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_box_autoadd_group_todo_list(groupList, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 127, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSaveGroupTaskListToNostrConstMeta,
         argValues: [groupList],
         apiImpl: this,
@@ -4283,10 +3828,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSaveGroupTaskListToNostrConstMeta => const TaskConstMeta(
-    debugName: "save_group_task_list_to_nostr",
-    argNames: ["groupList"],
-  );
+  TaskConstMeta get kCrateApiSaveGroupTaskListToNostrConstMeta =>
+      const TaskConstMeta(debugName: "save_group_task_list_to_nostr", argNames: ["groupList"]);
 
   @override
   Future<void> crateApiSavePublicKey({required String storagePath, required String publicKey}) {
@@ -4298,10 +3841,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(publicKey, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 128, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSavePublicKeyConstMeta,
         argValues: [storagePath, publicKey],
         apiImpl: this,
@@ -4309,10 +3849,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSavePublicKeyConstMeta => const TaskConstMeta(
-    debugName: "save_public_key",
-    argNames: ["storagePath", "publicKey"],
-  );
+  TaskConstMeta get kCrateApiSavePublicKeyConstMeta =>
+      const TaskConstMeta(debugName: "save_public_key", argNames: ["storagePath", "publicKey"]);
 
   @override
   Future<EventSendResult> crateApiSaveRelayList({required List<String> relays}) {
@@ -4323,10 +3861,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_String(relays, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 129, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSaveRelayListConstMeta,
         argValues: [relays],
         apiImpl: this,
@@ -4334,10 +3869,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSaveRelayListConstMeta => const TaskConstMeta(
-    debugName: "save_relay_list",
-    argNames: ["relays"],
-  );
+  TaskConstMeta get kCrateApiSaveRelayListConstMeta =>
+      const TaskConstMeta(debugName: "save_relay_list", argNames: ["relays"]);
 
   @override
   Future<EventSendResult> crateApiSaveRelayListWithClientId({required List<String> relays, String? clientId}) {
@@ -4349,10 +3882,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 130, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSaveRelayListWithClientIdConstMeta,
         argValues: [relays, clientId],
         apiImpl: this,
@@ -4360,10 +3890,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSaveRelayListWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "save_relay_list_with_client_id",
-    argNames: ["relays", "clientId"],
-  );
+  TaskConstMeta get kCrateApiSaveRelayListWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "save_relay_list_with_client_id", argNames: ["relays", "clientId"]);
 
   @override
   Future<EventSendResult> crateApiSendSignedEvent({required String eventJson}) {
@@ -4374,10 +3902,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(eventJson, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 131, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSendSignedEventConstMeta,
         argValues: [eventJson],
         apiImpl: this,
@@ -4385,10 +3910,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSendSignedEventConstMeta => const TaskConstMeta(
-    debugName: "send_signed_event",
-    argNames: ["eventJson"],
-  );
+  TaskConstMeta get kCrateApiSendSignedEventConstMeta =>
+      const TaskConstMeta(debugName: "send_signed_event", argNames: ["eventJson"]);
 
   @override
   Future<EventSendResult> crateApiSendSignedEventToRelays({
@@ -4403,10 +3926,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_String(relayUrls, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 132, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSendSignedEventToRelaysConstMeta,
         argValues: [eventJson, relayUrls],
         apiImpl: this,
@@ -4414,10 +3934,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSendSignedEventToRelaysConstMeta => const TaskConstMeta(
-    debugName: "send_signed_event_to_relays",
-    argNames: ["eventJson", "relayUrls"],
-  );
+  TaskConstMeta get kCrateApiSendSignedEventToRelaysConstMeta =>
+      const TaskConstMeta(debugName: "send_signed_event_to_relays", argNames: ["eventJson", "relayUrls"]);
 
   @override
   Future<EventSendResult> crateApiSendSignedEventWithClientId({required String eventJson, String? clientId}) {
@@ -4429,10 +3947,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 133, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_event_send_result,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_event_send_result, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSendSignedEventWithClientIdConstMeta,
         argValues: [eventJson, clientId],
         apiImpl: this,
@@ -4440,10 +3955,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSendSignedEventWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "send_signed_event_with_client_id",
-    argNames: ["eventJson", "clientId"],
-  );
+  TaskConstMeta get kCrateApiSendSignedEventWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "send_signed_event_with_client_id", argNames: ["eventJson", "clientId"]);
 
   @override
   Future<void> crateApiSetNip89ClientTagEnabled({required bool enabled}) {
@@ -4454,10 +3967,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_bool(enabled, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 134, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: null),
         constMeta: kCrateApiSetNip89ClientTagEnabledConstMeta,
         argValues: [enabled],
         apiImpl: this,
@@ -4465,10 +3975,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSetNip89ClientTagEnabledConstMeta => const TaskConstMeta(
-    debugName: "set_nip89_client_tag_enabled",
-    argNames: ["enabled"],
-  );
+  TaskConstMeta get kCrateApiSetNip89ClientTagEnabledConstMeta =>
+      const TaskConstMeta(debugName: "set_nip89_client_tag_enabled", argNames: ["enabled"]);
 
   @override
   Future<void> crateApiSetRelayWebsocketUserAgent({required String userAgent}) {
@@ -4479,10 +3987,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(userAgent, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 135, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: null),
         constMeta: kCrateApiSetRelayWebsocketUserAgentConstMeta,
         argValues: [userAgent],
         apiImpl: this,
@@ -4490,10 +3995,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSetRelayWebsocketUserAgentConstMeta => const TaskConstMeta(
-    debugName: "set_relay_websocket_user_agent",
-    argNames: ["userAgent"],
-  );
+  TaskConstMeta get kCrateApiSetRelayWebsocketUserAgentConstMeta =>
+      const TaskConstMeta(debugName: "set_relay_websocket_user_agent", argNames: ["userAgent"]);
 
   @override
   Future<String> crateApiSharedBuildInvitationPayload({
@@ -4514,10 +4017,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(keyEpoch, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 136, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedBuildInvitationPayloadConstMeta,
         argValues: [groupId, groupNsec, groupNpub, groupName, keyEpoch],
         apiImpl: this,
@@ -4531,6 +4031,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<String> crateApiSharedBuildSignedCommentEvent({required String groupNsecHex, required String commentJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(groupNsecHex, serializer);
+          sse_encode_String(commentJson, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 137, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiSharedBuildSignedCommentEventConstMeta,
+        argValues: [groupNsecHex, commentJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedBuildSignedCommentEventConstMeta =>
+      const TaskConstMeta(debugName: "shared_build_signed_comment_event", argNames: ["groupNsecHex", "commentJson"]);
+
+  @override
   Future<String> crateApiSharedBuildSignedMetaEvent({required String groupNsecHex, required String metaJson}) {
     return handler.executeNormal(
       NormalTask(
@@ -4538,12 +4059,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(groupNsecHex, serializer);
           sse_encode_String(metaJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 137, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 138, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedBuildSignedMetaEventConstMeta,
         argValues: [groupNsecHex, metaJson],
         apiImpl: this,
@@ -4551,10 +4069,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSharedBuildSignedMetaEventConstMeta => const TaskConstMeta(
-    debugName: "shared_build_signed_meta_event",
-    argNames: ["groupNsecHex", "metaJson"],
-  );
+  TaskConstMeta get kCrateApiSharedBuildSignedMetaEventConstMeta =>
+      const TaskConstMeta(debugName: "shared_build_signed_meta_event", argNames: ["groupNsecHex", "metaJson"]);
 
   @override
   Future<String> crateApiSharedBuildSignedTaskEvent({required String groupNsecHex, required String taskJson}) {
@@ -4564,12 +4080,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(groupNsecHex, serializer);
           sse_encode_String(taskJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 138, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 139, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedBuildSignedTaskEventConstMeta,
         argValues: [groupNsecHex, taskJson],
         apiImpl: this,
@@ -4577,10 +4090,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSharedBuildSignedTaskEventConstMeta => const TaskConstMeta(
-    debugName: "shared_build_signed_task_event",
-    argNames: ["groupNsecHex", "taskJson"],
-  );
+  TaskConstMeta get kCrateApiSharedBuildSignedTaskEventConstMeta =>
+      const TaskConstMeta(debugName: "shared_build_signed_task_event", argNames: ["groupNsecHex", "taskJson"]);
+
+  @override
+  Future<String> crateApiSharedDecryptCommentEvent({required String groupNsecHex, required String eventJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(groupNsecHex, serializer);
+          sse_encode_String(eventJson, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 140, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiSharedDecryptCommentEventConstMeta,
+        argValues: [groupNsecHex, eventJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedDecryptCommentEventConstMeta =>
+      const TaskConstMeta(debugName: "shared_decrypt_comment_event", argNames: ["groupNsecHex", "eventJson"]);
 
   @override
   Future<InvitationPayload> crateApiSharedDecryptInvitationFromSender({
@@ -4595,12 +4127,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(recipientNsecHex, serializer);
           sse_encode_String(senderPubkeyHex, serializer);
           sse_encode_String(ciphertext, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 139, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 141, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_invitation_payload,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_invitation_payload, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedDecryptInvitationFromSenderConstMeta,
         argValues: [recipientNsecHex, senderPubkeyHex, ciphertext],
         apiImpl: this,
@@ -4621,12 +4150,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(groupNsecHex, serializer);
           sse_encode_String(eventJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 140, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 142, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedDecryptMetaEventConstMeta,
         argValues: [groupNsecHex, eventJson],
         apiImpl: this,
@@ -4634,10 +4160,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSharedDecryptMetaEventConstMeta => const TaskConstMeta(
-    debugName: "shared_decrypt_meta_event",
-    argNames: ["groupNsecHex", "eventJson"],
-  );
+  TaskConstMeta get kCrateApiSharedDecryptMetaEventConstMeta =>
+      const TaskConstMeta(debugName: "shared_decrypt_meta_event", argNames: ["groupNsecHex", "eventJson"]);
 
   @override
   Future<String> crateApiSharedDecryptTaskEvent({required String groupNsecHex, required String eventJson}) {
@@ -4647,12 +4171,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(groupNsecHex, serializer);
           sse_encode_String(eventJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 141, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 143, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedDecryptTaskEventConstMeta,
         argValues: [groupNsecHex, eventJson],
         apiImpl: this,
@@ -4660,10 +4181,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSharedDecryptTaskEventConstMeta => const TaskConstMeta(
-    debugName: "shared_decrypt_task_event",
-    argNames: ["groupNsecHex", "eventJson"],
-  );
+  TaskConstMeta get kCrateApiSharedDecryptTaskEventConstMeta =>
+      const TaskConstMeta(debugName: "shared_decrypt_task_event", argNames: ["groupNsecHex", "eventJson"]);
 
   @override
   Future<String> crateApiSharedEncryptInvitationForRecipient({
@@ -4678,12 +4197,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(inviterNsecHex, serializer);
           sse_encode_String(recipientPubkeyHex, serializer);
           sse_encode_String(payloadJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 142, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 144, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedEncryptInvitationForRecipientConstMeta,
         argValues: [inviterNsecHex, recipientPubkeyHex, payloadJson],
         apiImpl: this,
@@ -4702,12 +4218,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 143, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 145, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_group_key,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_group_key, decodeErrorData: null),
         constMeta: kCrateApiSharedGenerateGroupKeyConstMeta,
         argValues: [],
         apiImpl: this,
@@ -4715,10 +4228,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSharedGenerateGroupKeyConstMeta => const TaskConstMeta(
-    debugName: "shared_generate_group_key",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiSharedGenerateGroupKeyConstMeta =>
+      const TaskConstMeta(debugName: "shared_generate_group_key", argNames: []);
 
   @override
   Future<String> crateApiSharedNpubFromNsec({required String groupNsecHex}) {
@@ -4727,12 +4238,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(groupNsecHex, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 144, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 146, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedNpubFromNsecConstMeta,
         argValues: [groupNsecHex],
         apiImpl: this,
@@ -4740,10 +4248,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSharedNpubFromNsecConstMeta => const TaskConstMeta(
-    debugName: "shared_npub_from_nsec",
-    argNames: ["groupNsecHex"],
-  );
+  TaskConstMeta get kCrateApiSharedNpubFromNsecConstMeta =>
+      const TaskConstMeta(debugName: "shared_npub_from_nsec", argNames: ["groupNsecHex"]);
 
   @override
   Future<InvitationPayload> crateApiSharedParseInvitationPayload({required String payloadJson}) {
@@ -4752,12 +4258,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(payloadJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 145, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 147, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_invitation_payload,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_invitation_payload, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSharedParseInvitationPayloadConstMeta,
         argValues: [payloadJson],
         apiImpl: this,
@@ -4765,10 +4268,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSharedParseInvitationPayloadConstMeta => const TaskConstMeta(
-    debugName: "shared_parse_invitation_payload",
-    argNames: ["payloadJson"],
-  );
+  TaskConstMeta get kCrateApiSharedParseInvitationPayloadConstMeta =>
+      const TaskConstMeta(debugName: "shared_parse_invitation_payload", argNames: ["payloadJson"]);
 
   @override
   Future<String> crateApiSignBlossomAuthEvent({required String sha256Hex, required PlatformInt64 fileSize}) {
@@ -4778,12 +4279,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(sha256Hex, serializer);
           sse_encode_i_64(fileSize, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 146, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 148, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSignBlossomAuthEventConstMeta,
         argValues: [sha256Hex, fileSize],
         apiImpl: this,
@@ -4791,10 +4289,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSignBlossomAuthEventConstMeta => const TaskConstMeta(
-    debugName: "sign_blossom_auth_event",
-    argNames: ["sha256Hex", "fileSize"],
-  );
+  TaskConstMeta get kCrateApiSignBlossomAuthEventConstMeta =>
+      const TaskConstMeta(debugName: "sign_blossom_auth_event", argNames: ["sha256Hex", "fileSize"]);
 
   @override
   Future<String> crateApiSignBlossomAuthEventWithClientId({
@@ -4809,12 +4305,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(sha256Hex, serializer);
           sse_encode_i_64(fileSize, serializer);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 147, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 149, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSignBlossomAuthEventWithClientIdConstMeta,
         argValues: [sha256Hex, fileSize, clientId],
         apiImpl: this,
@@ -4834,12 +4327,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(unsignedEventJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 148, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 150, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSignEventWithEphemeralKeyConstMeta,
         argValues: [unsignedEventJson],
         apiImpl: this,
@@ -4847,10 +4337,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSignEventWithEphemeralKeyConstMeta => const TaskConstMeta(
-    debugName: "sign_event_with_ephemeral_key",
-    argNames: ["unsignedEventJson"],
-  );
+  TaskConstMeta get kCrateApiSignEventWithEphemeralKeyConstMeta =>
+      const TaskConstMeta(debugName: "sign_event_with_ephemeral_key", argNames: ["unsignedEventJson"]);
 
   @override
   Future<String> crateApiSignNip98AuthEvent({required String url, required String method}) {
@@ -4860,12 +4348,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(url, serializer);
           sse_encode_String(method, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 149, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 151, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSignNip98AuthEventConstMeta,
         argValues: [url, method],
         apiImpl: this,
@@ -4873,10 +4358,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSignNip98AuthEventConstMeta => const TaskConstMeta(
-    debugName: "sign_nip98_auth_event",
-    argNames: ["url", "method"],
-  );
+  TaskConstMeta get kCrateApiSignNip98AuthEventConstMeta =>
+      const TaskConstMeta(debugName: "sign_nip98_auth_event", argNames: ["url", "method"]);
 
   @override
   Future<String> crateApiSignNip98AuthEventWithClientId({
@@ -4891,12 +4374,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(url, serializer);
           sse_encode_String(method, serializer);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 150, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 152, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSignNip98AuthEventWithClientIdConstMeta,
         argValues: [url, method, clientId],
         apiImpl: this,
@@ -4904,10 +4384,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSignNip98AuthEventWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "sign_nip98_auth_event_with_client_id",
-    argNames: ["url", "method", "clientId"],
-  );
+  TaskConstMeta get kCrateApiSignNip98AuthEventWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "sign_nip98_auth_event_with_client_id", argNames: ["url", "method", "clientId"]);
 
   @override
   Future<SubscriptionInfo> crateApiStartSubscription({required String filtersJson}) {
@@ -4916,12 +4394,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(filtersJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 151, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 153, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_subscription_info,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_subscription_info, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiStartSubscriptionConstMeta,
         argValues: [filtersJson],
         apiImpl: this,
@@ -4929,10 +4404,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiStartSubscriptionConstMeta => const TaskConstMeta(
-    debugName: "start_subscription",
-    argNames: ["filtersJson"],
-  );
+  TaskConstMeta get kCrateApiStartSubscriptionConstMeta =>
+      const TaskConstMeta(debugName: "start_subscription", argNames: ["filtersJson"]);
 
   @override
   Future<SubscriptionInfo> crateApiStartSubscriptionWithClientId({required String filtersJson, String? clientId}) {
@@ -4942,12 +4415,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(filtersJson, serializer);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 152, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 154, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_subscription_info,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_subscription_info, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiStartSubscriptionWithClientIdConstMeta,
         argValues: [filtersJson, clientId],
         apiImpl: this,
@@ -4955,10 +4425,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiStartSubscriptionWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "start_subscription_with_client_id",
-    argNames: ["filtersJson", "clientId"],
-  );
+  TaskConstMeta get kCrateApiStartSubscriptionWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "start_subscription_with_client_id", argNames: ["filtersJson", "clientId"]);
 
   @override
   Future<void> crateApiStopAllSubscriptions() {
@@ -4966,12 +4434,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 153, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 155, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiStopAllSubscriptionsConstMeta,
         argValues: [],
         apiImpl: this,
@@ -4979,10 +4444,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiStopAllSubscriptionsConstMeta => const TaskConstMeta(
-    debugName: "stop_all_subscriptions",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiStopAllSubscriptionsConstMeta =>
+      const TaskConstMeta(debugName: "stop_all_subscriptions", argNames: []);
 
   @override
   Future<void> crateApiStopAllSubscriptionsWithClientId({String? clientId}) {
@@ -4991,12 +4454,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 154, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 156, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiStopAllSubscriptionsWithClientIdConstMeta,
         argValues: [clientId],
         apiImpl: this,
@@ -5004,10 +4464,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiStopAllSubscriptionsWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "stop_all_subscriptions_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiStopAllSubscriptionsWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "stop_all_subscriptions_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<void> crateApiStopSubscription({required String subscriptionId}) {
@@ -5016,12 +4474,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(subscriptionId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 155, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 157, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiStopSubscriptionConstMeta,
         argValues: [subscriptionId],
         apiImpl: this,
@@ -5029,10 +4484,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiStopSubscriptionConstMeta => const TaskConstMeta(
-    debugName: "stop_subscription",
-    argNames: ["subscriptionId"],
-  );
+  TaskConstMeta get kCrateApiStopSubscriptionConstMeta =>
+      const TaskConstMeta(debugName: "stop_subscription", argNames: ["subscriptionId"]);
 
   @override
   Future<void> crateApiStopSubscriptionWithClientId({required String subscriptionId, String? clientId}) {
@@ -5042,12 +4495,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(subscriptionId, serializer);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 156, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 158, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiStopSubscriptionWithClientIdConstMeta,
         argValues: [subscriptionId, clientId],
         apiImpl: this,
@@ -5055,10 +4505,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiStopSubscriptionWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "stop_subscription_with_client_id",
-    argNames: ["subscriptionId", "clientId"],
-  );
+  TaskConstMeta get kCrateApiStopSubscriptionWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "stop_subscription_with_client_id", argNames: ["subscriptionId", "clientId"]);
 
   @override
   Future<AppSettings?> crateApiSyncAppSettings() {
@@ -5066,7 +4514,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 157, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 159, port: port_);
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_app_settings,
@@ -5079,10 +4527,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncAppSettingsConstMeta => const TaskConstMeta(
-    debugName: "sync_app_settings",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiSyncAppSettingsConstMeta =>
+      const TaskConstMeta(debugName: "sync_app_settings", argNames: []);
 
   @override
   Future<AppSettings?> crateApiSyncAppSettingsWithClientId({String? clientId}) {
@@ -5091,7 +4537,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 158, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 160, port: port_);
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_app_settings,
@@ -5104,10 +4550,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncAppSettingsWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "sync_app_settings_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiSyncAppSettingsWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "sync_app_settings_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<String> crateApiSyncGroupInvitations({required String recipientPublicKeyHex, String? clientId}) {
@@ -5117,12 +4561,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(recipientPublicKeyHex, serializer);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 159, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 161, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncGroupInvitationsConstMeta,
         argValues: [recipientPublicKeyHex, clientId],
         apiImpl: this,
@@ -5130,10 +4571,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncGroupInvitationsConstMeta => const TaskConstMeta(
-    debugName: "sync_group_invitations",
-    argNames: ["recipientPublicKeyHex", "clientId"],
-  );
+  TaskConstMeta get kCrateApiSyncGroupInvitationsConstMeta =>
+      const TaskConstMeta(debugName: "sync_group_invitations", argNames: ["recipientPublicKeyHex", "clientId"]);
 
   @override
   Future<List<String>> crateApiSyncRelayList() {
@@ -5141,12 +4580,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 160, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 162, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncRelayListConstMeta,
         argValues: [],
         apiImpl: this,
@@ -5154,10 +4590,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncRelayListConstMeta => const TaskConstMeta(
-    debugName: "sync_relay_list",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiSyncRelayListConstMeta => const TaskConstMeta(debugName: "sync_relay_list", argNames: []);
 
   @override
   Future<List<String>> crateApiSyncRelayListWithClientId({String? clientId}) {
@@ -5166,12 +4599,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 161, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 163, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncRelayListWithClientIdConstMeta,
         argValues: [clientId],
         apiImpl: this,
@@ -5179,10 +4609,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncRelayListWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "sync_relay_list_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiSyncRelayListWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "sync_relay_list_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<String> crateApiSyncSharedInvitations({required String recipientPublicKeyHex, String? clientId}) {
@@ -5192,12 +4620,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(recipientPublicKeyHex, serializer);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 162, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 164, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_String, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncSharedInvitationsConstMeta,
         argValues: [recipientPublicKeyHex, clientId],
         apiImpl: this,
@@ -5205,10 +4630,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncSharedInvitationsConstMeta => const TaskConstMeta(
-    debugName: "sync_shared_invitations",
-    argNames: ["recipientPublicKeyHex", "clientId"],
-  );
+  TaskConstMeta get kCrateApiSyncSharedInvitationsConstMeta =>
+      const TaskConstMeta(debugName: "sync_shared_invitations", argNames: ["recipientPublicKeyHex", "clientId"]);
 
   @override
   Future<List<TodoData>> crateApiSyncTodoList() {
@@ -5216,12 +4639,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 163, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 165, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_todo_data,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncTodoListConstMeta,
         argValues: [],
         apiImpl: this,
@@ -5229,10 +4649,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncTodoListConstMeta => const TaskConstMeta(
-    debugName: "sync_todo_list",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiSyncTodoListConstMeta => const TaskConstMeta(debugName: "sync_todo_list", argNames: []);
 
   @override
   Future<List<TodoData>> crateApiSyncTodoListSince({required PlatformInt64 since, required BigInt timeoutSecs}) {
@@ -5242,12 +4659,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(since, serializer);
           sse_encode_u_64(timeoutSecs, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 164, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 166, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_todo_data,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncTodoListSinceConstMeta,
         argValues: [since, timeoutSecs],
         apiImpl: this,
@@ -5255,10 +4669,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncTodoListSinceConstMeta => const TaskConstMeta(
-    debugName: "sync_todo_list_since",
-    argNames: ["since", "timeoutSecs"],
-  );
+  TaskConstMeta get kCrateApiSyncTodoListSinceConstMeta =>
+      const TaskConstMeta(debugName: "sync_todo_list_since", argNames: ["since", "timeoutSecs"]);
 
   @override
   Future<List<TodoData>> crateApiSyncTodoListSinceWithClientId({
@@ -5273,12 +4685,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_i_64(since, serializer);
           sse_encode_u_64(timeoutSecs, serializer);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 165, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 167, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_todo_data,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncTodoListSinceWithClientIdConstMeta,
         argValues: [since, timeoutSecs, clientId],
         apiImpl: this,
@@ -5298,12 +4707,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 166, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 168, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_todo_data,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_list_todo_data, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiSyncTodoListWithClientIdConstMeta,
         argValues: [clientId],
         apiImpl: this,
@@ -5311,10 +4717,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiSyncTodoListWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "sync_todo_list_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiSyncTodoListWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "sync_todo_list_with_client_id", argNames: ["clientId"]);
 
   @override
   Future<TorMode> crateApiTorModeDefault() {
@@ -5322,12 +4726,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 167, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 169, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_tor_mode,
-          decodeErrorData: null,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_tor_mode, decodeErrorData: null),
         constMeta: kCrateApiTorModeDefaultConstMeta,
         argValues: [],
         apiImpl: this,
@@ -5335,10 +4736,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiTorModeDefaultConstMeta => const TaskConstMeta(
-    debugName: "tor_mode_default",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiTorModeDefaultConstMeta =>
+      const TaskConstMeta(debugName: "tor_mode_default", argNames: []);
 
   @override
   Future<void> crateApiUpdateRelayList({required List<String> relays}) {
@@ -5347,12 +4746,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_String(relays, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 168, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 170, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiUpdateRelayListConstMeta,
         argValues: [relays],
         apiImpl: this,
@@ -5360,10 +4756,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiUpdateRelayListConstMeta => const TaskConstMeta(
-    debugName: "update_relay_list",
-    argNames: ["relays"],
-  );
+  TaskConstMeta get kCrateApiUpdateRelayListConstMeta =>
+      const TaskConstMeta(debugName: "update_relay_list", argNames: ["relays"]);
 
   @override
   Future<void> crateApiUpdateRelayListWithClientId({required List<String> relays, String? clientId}) {
@@ -5373,12 +4767,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_String(relays, serializer);
           sse_encode_opt_String(clientId, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 169, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 171, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiUpdateRelayListWithClientIdConstMeta,
         argValues: [relays, clientId],
         apiImpl: this,
@@ -5386,10 +4777,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiUpdateRelayListWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "update_relay_list_with_client_id",
-    argNames: ["relays", "clientId"],
-  );
+  TaskConstMeta get kCrateApiUpdateRelayListWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "update_relay_list_with_client_id", argNames: ["relays", "clientId"]);
 
   @override
   Future<bool> crateApiVerifyAmberSignature({required String eventJson}) {
@@ -5398,12 +4787,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(eventJson, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 170, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 172, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiVerifyAmberSignatureConstMeta,
         argValues: [eventJson],
         apiImpl: this,
@@ -5411,10 +4797,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiVerifyAmberSignatureConstMeta => const TaskConstMeta(
-    debugName: "verify_amber_signature",
-    argNames: ["eventJson"],
-  );
+  TaskConstMeta get kCrateApiVerifyAmberSignatureConstMeta =>
+      const TaskConstMeta(debugName: "verify_amber_signature", argNames: ["eventJson"]);
 
   RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_MeisoNostrClient => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMeisoNostrClient;
@@ -5585,10 +4969,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 2) throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return EncryptedKey(
-      memberPubkey: dco_decode_String(arr[0]),
-      encryptedAesKey: dco_decode_String(arr[1]),
-    );
+    return EncryptedKey(memberPubkey: dco_decode_String(arr[0]), encryptedAesKey: dco_decode_String(arr[1]));
   }
 
   @protected
@@ -5596,10 +4977,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 2) throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return EncryptedKeyData(
-      memberPubkey: dco_decode_String(arr[0]),
-      encryptedAesKey: dco_decode_String(arr[1]),
-    );
+    return EncryptedKeyData(memberPubkey: dco_decode_String(arr[0]), encryptedAesKey: dco_decode_String(arr[1]));
   }
 
   @protected
@@ -5649,10 +5027,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 2) throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return GroupKey(
-      nsecHex: dco_decode_String(arr[0]),
-      npubHex: dco_decode_String(arr[1]),
-    );
+    return GroupKey(nsecHex: dco_decode_String(arr[0]), npubHex: dco_decode_String(arr[1]));
   }
 
   @protected
@@ -5914,10 +5289,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 2) {
       throw Exception('Expected 2 elements, got ${arr.length}');
     }
-    return (
-      dco_decode_String(arr[0]),
-      dco_decode_u_64(arr[1]),
-    );
+    return (dco_decode_String(arr[0]), dco_decode_u_64(arr[1]));
   }
 
   @protected
@@ -5937,10 +5309,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 2) throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return RelayStatusInfo(
-      url: dco_decode_String(arr[0]),
-      connected: dco_decode_bool(arr[1]),
-    );
+    return RelayStatusInfo(url: dco_decode_String(arr[0]), connected: dco_decode_bool(arr[1]));
   }
 
   @protected
@@ -7407,44 +6776,30 @@ class MeisoNostrClientImpl extends RustOpaque implements MeisoNostrClient {
       RustLib.instance.api.crateApiMeisoNostrClientCreateTodoList(that: this, todos: todos);
 
   /// 秘密鍵が利用可能かチェック
-  Future<bool> hasSecretKey() => RustLib.instance.api.crateApiMeisoNostrClientHasSecretKey(
-    that: this,
-  );
+  Future<bool> hasSecretKey() => RustLib.instance.api.crateApiMeisoNostrClientHasSecretKey(that: this);
 
   /// クライアントモードを取得
-  Future<void> mode() => RustLib.instance.api.crateApiMeisoNostrClientMode(
-    that: this,
-  );
+  Future<void> mode() => RustLib.instance.api.crateApiMeisoNostrClientMode(that: this);
 
   /// 公開鍵を取得（hex形式）
-  Future<String> publicKeyHex() => RustLib.instance.api.crateApiMeisoNostrClientPublicKeyHex(
-    that: this,
-  );
+  Future<String> publicKeyHex() => RustLib.instance.api.crateApiMeisoNostrClientPublicKeyHex(that: this);
 
   /// 公開鍵を取得（npub形式）
-  Future<String> publicKeyNpub() => RustLib.instance.api.crateApiMeisoNostrClientPublicKeyNpub(
-    that: this,
-  );
+  Future<String> publicKeyNpub() => RustLib.instance.api.crateApiMeisoNostrClientPublicKeyNpub(that: this);
 
   /// リレーリストをNostrに保存（NIP-65 Kind 10002 - Relay List Metadata）
   Future<EventSendResult> saveRelayList({required List<String> relays}) =>
       RustLib.instance.api.crateApiMeisoNostrClientSaveRelayList(that: this, relays: relays);
 
   /// アプリ設定をNostrから同期（Kind 30078）
-  Future<AppSettings?> syncAppSettings() => RustLib.instance.api.crateApiMeisoNostrClientSyncAppSettings(
-    that: this,
-  );
+  Future<AppSettings?> syncAppSettings() => RustLib.instance.api.crateApiMeisoNostrClientSyncAppSettings(that: this);
 
   /// リレーリストをNostrから同期（NIP-65 Kind 10002）
-  Future<List<String>> syncRelayList() => RustLib.instance.api.crateApiMeisoNostrClientSyncRelayList(
-    that: this,
-  );
+  Future<List<String>> syncRelayList() => RustLib.instance.api.crateApiMeisoNostrClientSyncRelayList(that: this);
 
   /// TodoリストをNostrから同期（Kind 30001）
   /// すべてのリスト（デフォルト + カスタムリスト）から取得
-  Future<List<TodoData>> syncTodoList() => RustLib.instance.api.crateApiMeisoNostrClientSyncTodoList(
-    that: this,
-  );
+  Future<List<TodoData>> syncTodoList() => RustLib.instance.api.crateApiMeisoNostrClientSyncTodoList(that: this);
 
   /// TodoリストをNostrから差分同期（Kind 30001）
   ///

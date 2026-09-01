@@ -14,10 +14,7 @@ class GroupKey {
   /// 公開鍵(hex)。タスクイベントの author になる。
   final String npubHex;
 
-  const GroupKey({
-    required this.nsecHex,
-    required this.npubHex,
-  });
+  const GroupKey({required this.nsecHex, required this.npubHex});
 
   @override
   int get hashCode => nsecHex.hashCode ^ npubHex.hashCode;
