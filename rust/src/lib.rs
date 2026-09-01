@@ -13,6 +13,7 @@ pub mod group_tasks_shared;
 pub mod key_store;
 pub mod mls;
 pub mod nostr_client_meta;
+pub mod task_comments;
 
 /// 複数のNostrクライアントを管理（client_id -> MeisoNostrClient）
 pub static NOSTR_CLIENTS: once_cell::sync::Lazy<
