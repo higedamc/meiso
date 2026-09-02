@@ -24,6 +24,13 @@ abstract class TaskCommentLocalDataSource {
     required int eventCreatedAt,
     required String eventId,
   });
+
+  /// Box を閉じて物理ファイルごと削除する(ログアウト用)。
+  ///
+  /// `Box.clear()` は append-only な Hive フレームを論理クリアする
+  /// だけで `.hive` ファイルに旧データのバイト列が残るため、
+  /// `LocalStorageService.clearAllData()` と同じく物理削除する。
+  Future<void> wipe();
 }
 
 /// Hive 実装
@@ -93,6 +100,22 @@ class TaskCommentLocalDataSourceHive implements TaskCommentLocalDataSource {
   Future<void> close() async {
     await _box?.close();
     _box = null;
+  }
+
+  @override
+  Future<void> wipe() async {
+    final box = _box;
+    _box = null;
+    var name = boxName;
+    if (box != null && box.isOpen) {
+      name = box.name;
+      await box.close();
+    } else if (Hive.isBoxOpen(boxName)) {
+      // インスタンス未使用でも同名 Box が開いていれば閉じてから消す
+      // (開いたまま deleteBoxFromDisk すると同期に失敗する場合がある)。
+      await Hive.box<Map<dynamic, dynamic>>(boxName).close();
+    }
+    await Hive.deleteBoxFromDisk(name);
   }
 
   // === Private Helpers ===

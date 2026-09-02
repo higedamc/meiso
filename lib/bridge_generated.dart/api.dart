@@ -953,9 +953,24 @@ Future<String> sharedBuildSignedCommentEvent({required String groupNsecHex, requ
 Future<String> sharedDecryptCommentEvent({required String groupNsecHex, required String eventJson}) =>
     RustLib.instance.api.crateApiSharedDecryptCommentEvent(groupNsecHex: groupNsecHex, eventJson: eventJson);
 
+/// task-chat: セッションクライアントの鍵で個人タスクコメント(kind:35002)の
+/// 署名済みイベント JSON を構築する(秘密鍵モード専用)。
+///
+/// 秘密鍵モードでは nsec が Rust セッション内にのみ存在し Dart へ露出しない
+/// ため、`client_nip44_encrypt` と同様にセッション鍵で完結させる。
+/// Amber モード(keys=None)ではエラーを返す(呼び出し側で fail-closed)。
+Future<String> clientBuildSignedCommentEvent({required String commentJson, String? clientId}) =>
+    RustLib.instance.api.crateApiClientBuildSignedCommentEvent(commentJson: commentJson, clientId: clientId);
+
+/// task-chat: セッションクライアントの鍵で個人タスクコメントイベントを
+/// 検証・復号する(秘密鍵モード専用)。検証内容は
+/// `shared_decrypt_comment_event` と同一(kind/author/署名/d タグ/payload)。
+Future<String> clientDecryptCommentEvent({required String eventJson, String? clientId}) =>
+    RustLib.instance.api.crateApiClientDecryptCommentEvent(eventJson: eventJson, clientId: clientId);
+
 /// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
 ///
-/// kinds: 35000(タスク), 35001(メタデータ)
+/// kinds: 35000(タスク), 35002(タスクコメント)
 Future<List<ReceivedEvent>> fetchSharedEventsByAuthor({
   required String groupNpubHex,
   required PlatformInt64 since,

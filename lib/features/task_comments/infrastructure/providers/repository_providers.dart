@@ -22,33 +22,12 @@ final taskCommentLocalDataSourceProvider = Provider<TaskCommentLocalDataSource>(
   },
 );
 
-/// 個人タスク用の自分の nsec(hex)リゾルバ
-///
-/// 現状 Dart 層から自分の nsec(hex)を取得する確実な経路がない
-/// (秘密鍵モードでは Rust セッション内のみ、Amber モードでは非存在)。
-/// `nostrPrivateKeyProvider` は鍵生成直後に bech32 nsec が入るだけ
-/// なので、hex 形式で入っていた場合のみ利用するベストエフォート実装。
-final personalNsecHexResolverProvider = Provider<PersonalNsecHexResolver>((
-  ref,
-) {
-  // TODO(task-chat): 恒久対応は Phase 1a のセッション鍵 FFI 追加待ち。
-  // それまで秘密鍵モード/Amber モードとも null(=個人コメント不可)。
-  return () async {
-    final raw = ref.read(nostrPrivateKeyProvider);
-    if (raw != null && RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(raw)) {
-      return raw;
-    }
-    return null;
-  };
-});
-
 final taskCommentRepositoryProvider = Provider<TaskCommentRepository>((ref) {
   return TaskCommentRepositoryImpl(
     cryptoDataSource: ref.watch(taskCommentCryptoDataSourceProvider),
     localDataSource: ref.watch(taskCommentLocalDataSourceProvider),
     keyDataSource: ref.watch(sharedGroupKeyLocalDataSourceProvider),
     nostrService: ref.watch(nostrServiceProvider),
-    personalNsecHexResolver: ref.watch(personalNsecHexResolverProvider),
   );
 });
 

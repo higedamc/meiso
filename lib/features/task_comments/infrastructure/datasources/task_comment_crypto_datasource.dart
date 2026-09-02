@@ -32,4 +32,18 @@ class TaskCommentCryptoDataSourceRust implements TaskCommentCryptoDataSource {
       eventJson: eventJson,
     );
   }
+
+  @override
+  Future<String> buildSignedCommentEventWithSessionKey({
+    required String commentJson,
+  }) {
+    return rust_api.clientBuildSignedCommentEvent(commentJson: commentJson);
+  }
+
+  @override
+  Future<String> decryptCommentEventWithSessionKey({
+    required String eventJson,
+  }) {
+    return rust_api.clientDecryptCommentEvent(eventJson: eventJson);
+  }
 }

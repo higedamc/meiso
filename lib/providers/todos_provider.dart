@@ -1484,8 +1484,9 @@ class TodosNotifier
 
           // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
           // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
-          final showPreviewLoading =
-              _ref.read(remoteContentFetchAllowedProvider);
+          final showPreviewLoading = _ref.read(
+            remoteContentFetchAllowedProvider,
+          );
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName, // ドメイン名を表示
@@ -1678,8 +1679,9 @@ class TodosNotifier
 
           // リンクプレビューの初期表示。Tor 等でリモート取得がスキップされる場合は
           // 「読み込み中」のまま固まらないよう、ドメイン名のみの確定表示にする。
-          final showPreviewLoading =
-              _ref.read(remoteContentFetchAllowedProvider);
+          final showPreviewLoading = _ref.read(
+            remoteContentFetchAllowedProvider,
+          );
           initialLinkPreview = LinkPreview(
             url: detectedUrl,
             title: domainName,
@@ -5349,17 +5351,20 @@ class TodosNotifier
         since: effectiveSince,
       );
 
-      final events = eventsResult.fold((failure) {
-        AppLogger.error(
-          '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
-        );
-        return <Map<String, dynamic>>[];
-      }, (e) {
-        AppLogger.info(
-          '📦 [shared-v1] fetched ${e.length} events from relays',
-        );
-        return e;
-      });
+      final events = eventsResult.fold(
+        (failure) {
+          AppLogger.error(
+            '❌ [shared-v1] fetchTaskEvents failed: ${failure.message}',
+          );
+          return <Map<String, dynamic>>[];
+        },
+        (e) {
+          AppLogger.info(
+            '📦 [shared-v1] fetched ${e.length} events from relays',
+          );
+          return e;
+        },
+      );
       if (events.isEmpty) {
         await localStorageService.setLastSharedGroupTodosSyncTime(
           groupId,
@@ -5389,6 +5394,23 @@ class TodosNotifier
       for (final eventData in orderedEvents) {
         try {
           final kind = eventData['kind'] as int?;
+          if (kind == 35002) {
+            // task-chat: コメントは repository 側で復号・LWW 適用する
+            // (リアルタイム購読側 _handleSharedGroupEvents と同じ経路)。
+            final commentResult = await _ref
+                .read(task_comment_providers.taskCommentRepositoryProvider)
+                .applyRemoteCommentEvent(
+                  eventJson: jsonEncode(eventData),
+                  groupId: groupId,
+                );
+            commentResult.fold(
+              (f) => AppLogger.warning(
+                '⚠️ [task-chat] Failed to apply backlog comment: ${f.message}',
+              ),
+              (_) {},
+            );
+            continue;
+          }
           if (kind != 35000) continue;
 
           final signedJson = jsonEncode(eventData);
@@ -5500,9 +5522,11 @@ class TodosNotifier
       completed: completed,
       date: date,
       order: (data['order'] as num?)?.toInt() ?? 0,
-      createdAt: DateTime.tryParse(data['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(data['created_at'] as String? ?? '') ??
           DateTime.now(),
-      updatedAt: DateTime.tryParse(data['updated_at'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(data['updated_at'] as String? ?? '') ??
           DateTime.now(),
       customListId: groupId,
       needsSync: false,
@@ -5553,8 +5577,8 @@ class TodosNotifier
     data['updated_at'] = updatedAt.toIso8601String();
 
     // 帰属表示のため editor_pubkey は常に埋める（issue #138 R4）
-    final editor = editorPubkey ??
-        await _ref.read(nostrServiceProvider).getPublicKey();
+    final editor =
+        editorPubkey ?? await _ref.read(nostrServiceProvider).getPublicKey();
     if (editor != null && editor.isNotEmpty) {
       data['editor_pubkey'] = editor;
     }
@@ -6133,8 +6157,7 @@ class TodosNotifier
           if (seen.contains(event.eventId)) continue;
           seen.add(event.eventId);
 
-          final eventData =
-              jsonDecode(event.eventJson) as Map<String, dynamic>;
+          final eventData = jsonDecode(event.eventJson) as Map<String, dynamic>;
           final kind = eventData['kind'] as int?;
           if (kind == 35002) {
             // task-chat: コメントは repository 側で復号・LWW 適用する
@@ -6177,8 +6200,9 @@ class TodosNotifier
           if (data['deleted'] == true) {
             byId.remove(parsed.id);
             for (final dateKey in updated.keys.toList()) {
-              updated[dateKey] =
-                  updated[dateKey]!.where((t) => t.id != parsed.id).toList();
+              updated[dateKey] = updated[dateKey]!
+                  .where((t) => t.id != parsed.id)
+                  .toList();
             }
             changed = true;
             continue;

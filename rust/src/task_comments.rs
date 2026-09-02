@@ -23,6 +23,10 @@ pub const TASK_COMMENT_KIND: u16 = 35002;
 pub const TASK_COMMENT_SCHEMA_VERSION: u32 = 1;
 /// `body` の最大文字数(書き込み・読み出し両側でクランプ)
 pub const MAX_COMMENT_BODY_CHARS: usize = 2000;
+/// `comment_id` / `task_id` / `parent_comment_id` の最大文字数。
+/// 実運用は UUID(36 文字)だが、敵対 payload の巨大 id で Hive キーや
+/// ログが肥大するのを防ぐ多層防御として上限を設ける。
+pub const MAX_COMMENT_ID_CHARS: usize = 256;
 
 /// コメント payload(NIP-44 で封緘される平文)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,8 +70,22 @@ pub fn validate_comment_payload(payload: &TaskCommentPayload) -> Result<()> {
     if payload.comment_id.is_empty() {
         bail!("comment_id must not be empty");
     }
+    if payload.comment_id.chars().count() > MAX_COMMENT_ID_CHARS {
+        bail!("comment_id exceeds {} chars", MAX_COMMENT_ID_CHARS);
+    }
     if payload.task_id.is_empty() {
         bail!("task_id must not be empty");
+    }
+    if payload.task_id.chars().count() > MAX_COMMENT_ID_CHARS {
+        bail!("task_id exceeds {} chars", MAX_COMMENT_ID_CHARS);
+    }
+    if let Some(parent) = &payload.parent_comment_id {
+        if parent.is_empty() || parent.chars().count() > MAX_COMMENT_ID_CHARS {
+            bail!(
+                "parent_comment_id must be 1..={} chars",
+                MAX_COMMENT_ID_CHARS
+            );
+        }
     }
     if payload.author_pubkey.len() != 64
         || !payload.author_pubkey.chars().all(|c| c.is_ascii_hexdigit())
@@ -126,14 +144,23 @@ fn clamp_body(payload: &mut TaskCommentPayload) {
 /// kind:30078 設定と同じ「自鍵で署名 + 自公開鍵宛 NIP-44 自己暗号化」経路になる。
 pub fn build_signed_comment_event(group_nsec_hex: String, comment_json: String) -> Result<String> {
     let keys = keys_from_nsec_hex(&group_nsec_hex)?;
-    let payload = parse_comment_payload_clamped(&comment_json)?;
+    build_signed_comment_event_with_keys(&keys, &comment_json)
+}
+
+/// `build_signed_comment_event` の `Keys` 版。
+///
+/// セッションクライアントの鍵(個人タスク経路)のように nsec hex を
+/// 経由せず既に `Keys` を持っている呼び出し元用。秘密鍵の hex 文字列
+/// コピーを増やさないため、hex 版はこちらへ委譲する。
+pub fn build_signed_comment_event_with_keys(keys: &Keys, comment_json: &str) -> Result<String> {
+    let payload = parse_comment_payload_clamped(comment_json)?;
     let plaintext =
         serde_json::to_string(&payload).context("Failed to serialize comment payload")?;
-    let ciphertext = encrypt_for_self(&keys, &plaintext)?;
+    let ciphertext = encrypt_for_self(keys, &plaintext)?;
 
     let event = EventBuilder::new(Kind::Custom(TASK_COMMENT_KIND), ciphertext)
         .tags([Tag::identifier(payload.comment_id.clone())])
-        .sign_with_keys(&keys)
+        .sign_with_keys(keys)
         .context("Failed to sign task comment event")?;
 
     Ok(event.as_json())
@@ -152,7 +179,12 @@ pub fn build_signed_comment_event(group_nsec_hex: String, comment_json: String) 
 /// nsec hex を渡す。
 pub fn decrypt_comment_event(group_nsec_hex: String, event_json: String) -> Result<String> {
     let keys = keys_from_nsec_hex(&group_nsec_hex)?;
-    let event = Event::from_json(&event_json).context("Failed to parse comment event JSON")?;
+    decrypt_comment_event_with_keys(&keys, &event_json)
+}
+
+/// `decrypt_comment_event` の `Keys` 版(検証内容は同一)。
+pub fn decrypt_comment_event_with_keys(keys: &Keys, event_json: &str) -> Result<String> {
+    let event = Event::from_json(event_json).context("Failed to parse comment event JSON")?;
 
     if event.kind != Kind::Custom(TASK_COMMENT_KIND) {
         bail!(
@@ -168,7 +200,7 @@ pub fn decrypt_comment_event(group_nsec_hex: String, event_json: String) -> Resu
         .verify()
         .context("comment event signature verification failed")?;
 
-    let plaintext = decrypt_for_self(&keys, &event.content)?;
+    let plaintext = decrypt_for_self(keys, &event.content)?;
     let payload = parse_comment_payload_clamped(&plaintext)?;
 
     if event.tags.identifier() != Some(payload.comment_id.as_str()) {
@@ -250,6 +282,23 @@ mod tests {
         let mut p = sample();
         p.body = "x".repeat(MAX_COMMENT_BODY_CHARS + 1);
         assert!(validate_comment_payload(&p).is_err());
+
+        // id 長キャップ(敵対 payload の巨大 id 防御)
+        let mut p = sample();
+        p.comment_id = "x".repeat(MAX_COMMENT_ID_CHARS + 1);
+        assert!(validate_comment_payload(&p).is_err());
+
+        let mut p = sample();
+        p.task_id = "x".repeat(MAX_COMMENT_ID_CHARS + 1);
+        assert!(validate_comment_payload(&p).is_err());
+
+        let mut p = sample();
+        p.parent_comment_id = Some("x".repeat(MAX_COMMENT_ID_CHARS + 1));
+        assert!(validate_comment_payload(&p).is_err());
+        p.parent_comment_id = Some(String::new());
+        assert!(validate_comment_payload(&p).is_err());
+        p.parent_comment_id = Some("x".repeat(MAX_COMMENT_ID_CHARS));
+        assert!(validate_comment_payload(&p).is_ok());
 
         let mut p = sample();
         p.deleted = true;
@@ -366,6 +415,25 @@ mod tests {
         let decrypted = decrypt_comment_event(gk.nsec_hex, event_json).unwrap();
         let roundtrip = parse_comment_payload(&decrypted).unwrap();
         assert_eq!(roundtrip.body.chars().count(), MAX_COMMENT_BODY_CHARS);
+    }
+
+    #[test]
+    fn keys_variants_roundtrip_with_hex_variants() {
+        // hex 版と Keys 版は相互運用できる(委譲実装の確認)
+        let user = Keys::generate();
+        let nsec_hex = user.secret_key().to_secret_hex();
+        let json = serde_json::to_string(&sample()).unwrap();
+
+        let by_keys = build_signed_comment_event_with_keys(&user, &json).unwrap();
+        let via_hex = decrypt_comment_event(nsec_hex.clone(), by_keys).unwrap();
+        assert_eq!(parse_comment_payload(&via_hex).unwrap().body, sample().body);
+
+        let by_hex = build_signed_comment_event(nsec_hex, json).unwrap();
+        let via_keys = decrypt_comment_event_with_keys(&user, &by_hex).unwrap();
+        assert_eq!(
+            parse_comment_payload(&via_keys).unwrap().body,
+            sample().body
+        );
     }
 
     #[test]

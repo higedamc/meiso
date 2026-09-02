@@ -5237,9 +5237,46 @@ pub fn shared_decrypt_comment_event(group_nsec_hex: String, event_json: String) 
     crate::task_comments::decrypt_comment_event(group_nsec_hex, event_json)
 }
 
+/// task-chat: セッションクライアントの鍵で個人タスクコメント(kind:35002)の
+/// 署名済みイベント JSON を構築する(秘密鍵モード専用)。
+///
+/// 秘密鍵モードでは nsec が Rust セッション内にのみ存在し Dart へ露出しない
+/// ため、`client_nip44_encrypt` と同様にセッション鍵で完結させる。
+/// Amber モード(keys=None)ではエラーを返す(呼び出し側で fail-closed)。
+pub fn client_build_signed_comment_event(
+    comment_json: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .clone()
+            .context("秘密鍵がありません（Amber モードでは使用できません）")?;
+        crate::task_comments::build_signed_comment_event_with_keys(&keys, &comment_json)
+    })
+}
+
+/// task-chat: セッションクライアントの鍵で個人タスクコメントイベントを
+/// 検証・復号する(秘密鍵モード専用)。検証内容は
+/// `shared_decrypt_comment_event` と同一(kind/author/署名/d タグ/payload)。
+pub fn client_decrypt_comment_event(
+    event_json: String,
+    client_id: Option<String>,
+) -> Result<String> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        let keys = client
+            .keys
+            .clone()
+            .context("秘密鍵がありません（Amber モードでは使用できません）")?;
+        crate::task_comments::decrypt_comment_event_with_keys(&keys, &event_json)
+    })
+}
+
 /// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
 ///
-/// kinds: 35000(タスク), 35001(メタデータ)
+/// kinds: 35000(タスク), 35002(タスクコメント)
 pub fn fetch_shared_events_by_author(
     group_npub_hex: String,
     since: i64,
@@ -5255,22 +5292,27 @@ pub fn fetch_shared_events_by_author_with_client_id(
     client_id: Option<String>,
 ) -> Result<Vec<ReceivedEvent>> {
     use crate::group_tasks_shared::SHARED_TASK_KIND;
+    use crate::task_comments::TASK_COMMENT_KIND;
 
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         let author = PublicKey::from_hex(&group_npub_hex)
             .context("Failed to parse group author public key")?;
 
-        let mut filter = Filter::new()
-            .author(author)
-            .kind(Kind::Custom(SHARED_TASK_KIND));
+        let mut filter = Filter::new().author(author).kinds([
+            Kind::Custom(SHARED_TASK_KIND),
+            Kind::Custom(TASK_COMMENT_KIND),
+        ]);
 
         if since > 0 {
             filter = filter.since(Timestamp::from(since.max(0) as u64));
         }
 
         let timeout = Duration::from_secs(timeout_secs.max(1));
-        let events = client.client.fetch_events(vec![filter], Some(timeout)).await?;
+        let events = client
+            .client
+            .fetch_events(vec![filter], Some(timeout))
+            .await?;
 
         dev_println!(
             "📨 [shared-v1] Fetched {} events for author {}",
