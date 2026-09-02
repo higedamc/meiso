@@ -84,16 +84,13 @@ class _FakeTaskCommentRepository implements TaskCommentRepository {
 Widget _wrap(
   Widget child, {
   required _FakeTaskCommentRepository repository,
-  Future<String?> Function()? personalNsecResolver,
+  bool amberMode = false,
 }) {
   return ProviderScope(
     overrides: [
       taskCommentRepositoryProvider.overrideWithValue(repository),
       publicKeyProvider.overrideWith((ref) => _myPubkey),
-      if (personalNsecResolver != null)
-        personalNsecHexResolverProvider.overrideWithValue(
-          personalNsecResolver,
-        ),
+      isAmberModeProvider.overrideWithValue(amberMode),
     ],
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -188,7 +185,7 @@ void main() {
   });
 
   testWidgets(
-    'personal task without signing key: shows unavailable notice, no input',
+    'personal task in Amber mode: shows unavailable notice, no input',
     (tester) async {
       final repository = _FakeTaskCommentRepository([_comment('c1')]);
 
@@ -196,7 +193,7 @@ void main() {
         _wrap(
           const TaskCommentSection(taskId: 'task-1'),
           repository: repository,
-          personalNsecResolver: () async => null,
+          amberMode: true,
         ),
       );
       await tester.pump();
@@ -211,7 +208,7 @@ void main() {
     },
   );
 
-  testWidgets('personal task with signing key: input is enabled', (
+  testWidgets('personal task in secret-key mode: input is enabled', (
     tester,
   ) async {
     final repository = _FakeTaskCommentRepository([]);
@@ -220,7 +217,6 @@ void main() {
       _wrap(
         const TaskCommentSection(taskId: 'task-1'),
         repository: repository,
-        personalNsecResolver: () async => _myPubkey,
       ),
     );
     await tester.pump();

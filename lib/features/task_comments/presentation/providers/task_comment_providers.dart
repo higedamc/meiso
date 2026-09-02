@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../providers/nostr_provider.dart';
 import '../../domain/entities/task_comment.dart';
 import '../../infrastructure/providers/repository_providers.dart';
 
@@ -15,13 +16,11 @@ taskCommentsStreamProvider = StreamProvider.autoDispose
 
 /// Whether personal-task comments can be signed at all.
 ///
-/// Personal comments are fail-closed until the session-key FFI lands
-/// (secret-key mode) and stay fail-closed in Amber mode (no nsec exists).
-/// This only probes the resolver for null; the resolved key material is
-/// discarded here and never held in UI state.
-final AutoDisposeFutureProvider<bool> personalCommentAvailabilityProvider =
-    FutureProvider.autoDispose<bool>((ref) async {
-      final resolver = ref.watch(personalNsecHexResolverProvider);
-      final nsecHex = await resolver();
-      return nsecHex != null;
-    });
+/// The only fail-closed path is Amber mode, where no nsec exists on this
+/// device. Keying off [isAmberModeProvider] means no key material is ever
+/// resolved into Dart just to answer this question.
+final Provider<bool> personalCommentAvailabilityProvider = Provider<bool>((
+  ref,
+) {
+  return !ref.watch(isAmberModeProvider);
+});

@@ -15,10 +15,9 @@ import '../providers/task_comment_providers.dart';
 /// detail screen.
 ///
 /// - Shared-list tasks pass [groupId]; personal tasks pass null.
-/// - Personal comments are fail-closed while the signing key cannot be
-///   resolved (secret-key mode until the session-key FFI lands, and Amber
-///   mode indefinitely). In that state the input is replaced by an explicit
-///   unavailable notice instead of failing silently.
+/// - Personal comments are fail-closed in Amber mode (no nsec exists on the
+///   device). In that state the input is replaced by an explicit unavailable
+///   notice instead of failing silently.
 /// - Tombstones (`deleted: true`) arrive in the stream and are hidden here.
 class TaskCommentSection extends ConsumerStatefulWidget {
   const TaskCommentSection({required this.taskId, this.groupId, super.key});
@@ -60,14 +59,11 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
       ref.watch(personalTaskCommentSubscriptionProvider);
     }
 
-    // Personal tasks: probe whether a signing key is resolvable. Only the
-    // boolean leaves the provider; loading counts as "not yet available".
-    final personalAvailability = _isPersonalTask
-        ? ref.watch(personalCommentAvailabilityProvider).valueOrNull
-        : null;
-    final canComment = !_isPersonalTask || personalAvailability == true;
-    final showUnavailableNotice =
-        _isPersonalTask && personalAvailability == false;
+    // Personal tasks are fail-closed in Amber mode (no signing key exists);
+    // the availability provider is synchronous, so there is no loading state.
+    final canComment =
+        !_isPersonalTask || ref.watch(personalCommentAvailabilityProvider);
+    final showUnavailableNotice = !canComment;
 
     final commentsAsync = ref.watch(taskCommentsStreamProvider(widget.taskId));
     final visibleComments =
