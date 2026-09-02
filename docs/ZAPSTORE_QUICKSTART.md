@@ -145,7 +145,7 @@ export GITHUB_TOKEN=ghp_your_token_here
 ```bash
 # ブラウザ拡張（Alby等）がインストール&ログイン済みか確認
 # または .env に直接指定（`cp .env.example .env` してから編集）
-SIGN_WITH=nsec1... zsp publish
+zsp publish
 ```
 
 ---
