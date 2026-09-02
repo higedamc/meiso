@@ -46,15 +46,30 @@ final personalTaskCommentSubscriptionProvider = FutureProvider.autoDispose<
   }
 
   final nostrService = ref.read(nostrServiceProvider);
+  final repository = ref.read(taskCommentRepositoryProvider);
+
+  // onDispose must be registered before any await: with autoDispose the
+  // element can be disposed while the relay round-trip below is in flight,
+  // and ref.onDispose throws on a disposed element — registering it late
+  // would both crash and orphan the just-created subscription.
+  String? subscriptionId;
+  var disposed = false;
+  ref.onDispose(() {
+    disposed = true;
+    final id = subscriptionId;
+    if (id != null) {
+      unawaited(nostrService.stopSubscription(id));
+    }
+  });
+
   final publicKeyHex = await nostrService.getPublicKey();
-  if (publicKeyHex == null) {
+  if (publicKeyHex == null || disposed) {
     return null;
   }
 
-  final repository = ref.read(taskCommentRepositoryProvider);
   final seenEventIds = <String>{};
 
-  final subscriptionId = await nostrService.subscribePersonalTaskComments(
+  subscriptionId = await nostrService.subscribePersonalTaskComments(
     publicKeyHex: publicKeyHex,
     onEventsReceived: (events) {
       unawaited(() async {
@@ -87,9 +102,12 @@ final personalTaskCommentSubscriptionProvider = FutureProvider.autoDispose<
     },
   );
 
-  ref.onDispose(() {
+  // Disposed while subscribePersonalTaskComments was in flight: the
+  // onDispose callback saw a null id, so stop the orphan here instead.
+  if (disposed) {
     unawaited(nostrService.stopSubscription(subscriptionId));
-  });
+    return null;
+  }
 
   return subscriptionId;
 });
