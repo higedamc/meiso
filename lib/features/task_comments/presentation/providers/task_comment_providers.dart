@@ -22,5 +22,11 @@ taskCommentsStreamProvider = StreamProvider.autoDispose
 final Provider<bool> personalCommentAvailabilityProvider = Provider<bool>((
   ref,
 ) {
+  // isAmberModeProvider returns false while the session is still
+  // uninitialized, so this reads as "available" pre-init. That is deliberate:
+  // this widget only renders inside the task detail screen (session already
+  // initialized), and even if a comment were sent in that window the
+  // repository fails with AuthFailure and the UI surfaces a SnackBar — it is
+  // not a silent fail-open.
   return !ref.watch(isAmberModeProvider);
 });

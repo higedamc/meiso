@@ -37,9 +37,9 @@ final taskCommentRepositoryProvider = Provider<TaskCommentRepository>((ref) {
 /// UI(タスク詳細画面など)がこの provider を watch して有効化する。
 /// 共有リスト側の kind:35002 は todos_provider の既存 shared-v1
 /// 購読ハンドラ経由でルーティングされる。
-final personalTaskCommentSubscriptionProvider = FutureProvider<String?>((
-  ref,
-) async {
+final personalTaskCommentSubscriptionProvider = FutureProvider.autoDispose<
+  String?
+>((ref) async {
   final initialized = ref.watch(nostrInitializedProvider);
   if (!initialized) {
     return null;
