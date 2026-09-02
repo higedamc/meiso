@@ -4,6 +4,14 @@
 
 ---
 
+## ⚠️ 環境変数の取り扱い
+
+`SIGN_WITH` などの秘密情報は `.env` に記載してください。
+`.env.example` をコピーして `.env` を作成し、必要に応じて編集してください。
+`.env` は Git 追跡対象外です — 本物の `nsec` を `.env` に書いたとしてもコミットされることはありません。
+
+---
+
 ## 📦 前提条件
 
 ```bash
@@ -136,7 +144,7 @@ export GITHUB_TOKEN=ghp_your_token_here
 
 ```bash
 # ブラウザ拡張（Alby等）がインストール&ログイン済みか確認
-# または環境変数で直接指定
+# または .env に直接指定（`cp .env.example .env` してから編集）
 SIGN_WITH=nsec1... zsp publish
 ```
 
