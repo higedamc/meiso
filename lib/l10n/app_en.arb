@@ -2675,6 +2675,41 @@
   "settingsSectionAbout": "About",
   "@settingsSectionAbout": {
     "description": "Settings section header for app information"
+  },
+
+  "commentsHeader": "COMMENTS",
+  "@commentsHeader": {
+    "description": "Header of the comment section in task detail"
+  },
+
+  "noComments": "No comments yet",
+  "@noComments": {
+    "description": "Empty state of the comment section in task detail"
+  },
+
+  "addCommentHint": "Add comment...",
+  "@addCommentHint": {
+    "description": "Hint text of the comment input field in task detail"
+  },
+
+  "commentsUnavailableForTask": "Comments aren't available for this task yet",
+  "@commentsUnavailableForTask": {
+    "description": "Notice shown instead of the comment input while personal-task comments are fail-closed (no signing key available)"
+  },
+
+  "editCommentTitle": "Edit comment",
+  "@editCommentTitle": {
+    "description": "Title of the comment edit action and dialog"
+  },
+
+  "deleteCommentConfirmTitle": "Delete this comment?",
+  "@deleteCommentConfirmTitle": {
+    "description": "Title of the comment delete confirmation dialog"
+  },
+
+  "commentEditedLabel": "edited",
+  "@commentEditedLabel": {
+    "description": "Marker appended to a comment's timestamp after it was edited"
   }
 }
 

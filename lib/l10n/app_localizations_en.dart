@@ -1712,4 +1712,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSectionAbout => 'About';
+
+  @override
+  String get commentsHeader => 'COMMENTS';
+
+  @override
+  String get noComments => 'No comments yet';
+
+  @override
+  String get addCommentHint => 'Add comment...';
+
+  @override
+  String get commentsUnavailableForTask =>
+      'Comments aren\'t available for this task yet';
+
+  @override
+  String get editCommentTitle => 'Edit comment';
+
+  @override
+  String get deleteCommentConfirmTitle => 'Delete this comment?';
+
+  @override
+  String get commentEditedLabel => 'edited';
 }

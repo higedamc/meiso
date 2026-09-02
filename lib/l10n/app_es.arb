@@ -998,6 +998,20 @@
 
   "settingsSectionGeneral": "General",
 
-  "settingsSectionAbout": "Acerca de"
+  "settingsSectionAbout": "Acerca de",
+
+  "commentsHeader": "COMENTARIOS",
+
+  "noComments": "Aun no hay comentarios",
+
+  "addCommentHint": "Agregar comentario...",
+
+  "commentsUnavailableForTask": "Los comentarios aun no estan disponibles para esta tarea",
+
+  "editCommentTitle": "Editar comentario",
+
+  "deleteCommentConfirmTitle": "¿Eliminar este comentario?",
+
+  "commentEditedLabel": "editado"
 }
 
