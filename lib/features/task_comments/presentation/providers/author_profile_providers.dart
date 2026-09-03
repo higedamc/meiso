@@ -34,19 +34,30 @@ authorLabelsProvider =
     );
 
 class AuthorLabelsNotifier extends Notifier<Map<String, AuthorLabel>> {
+  /// How long to wait before retrying a pubkey whose relay query threw
+  /// (transient failure), so a flaky relay does not turn into a per-frame
+  /// retry storm while still recovering within the same session.
+  static const Duration _retryCooldown = Duration(seconds: 60);
+
   final Set<String> _pending = {};
+  final Map<String, DateTime> _failedAt = {};
 
   @override
   Map<String, AuthorLabel> build() => const {};
 
-  /// Loads labels for any [pubkeyHexes] that are neither cached nor already
-  /// in flight, batching all of them into a single relay query. Safe to call
-  /// repeatedly (e.g. on every build) — already-known or in-flight pubkeys
-  /// are skipped.
+  /// Loads labels for any [pubkeyHexes] that are neither cached, already in
+  /// flight, nor in a post-failure cooldown, batching all of them into a
+  /// single relay query. Safe to call repeatedly (e.g. on every build) —
+  /// already-known or in-flight pubkeys are skipped.
   void ensureLoaded(List<String> pubkeyHexes) {
+    final now = DateTime.now();
     final toFetch = <String>[];
     for (final hex in pubkeyHexes) {
       if (state.containsKey(hex) || _pending.contains(hex)) {
+        continue;
+      }
+      final failedAt = _failedAt[hex];
+      if (failedAt != null && now.difference(failedAt) < _retryCooldown) {
         continue;
       }
       toFetch.add(hex);
@@ -60,8 +71,7 @@ class AuthorLabelsNotifier extends Notifier<Map<String, AuthorLabel>> {
 
   Future<void> _load(List<String> pubkeyHexes) async {
     try {
-      final labels = <String, AuthorLabel>{};
-
+      final shortNpubs = <String, String>{};
       await Future.wait(
         pubkeyHexes.map((hex) async {
           var shortNpub = _shortenIdentifier(hex);
@@ -71,33 +81,44 @@ class AuthorLabelsNotifier extends Notifier<Map<String, AuthorLabel>> {
           } on Exception {
             // Keep the hex-derived fallback.
           }
-          labels[hex] = AuthorLabel(shortNpub: shortNpub);
+          shortNpubs[hex] = shortNpub;
         }),
       );
 
-      var profiles = <rust_api.ContactProfile>[];
+      List<rust_api.ContactProfile> profiles;
       try {
         profiles = await rust_api.fetchProfilesMetadata(
           pubkeyHexes: pubkeyHexes,
         );
       } on Exception {
-        // No profiles this round; every pubkey still gets a shortNpub-only
-        // entry below, which is cached as "no display name" rather than
-        // retried forever.
-      }
-      for (final profile in profiles) {
-        final existing = labels[profile.pubkeyHex];
-        if (existing == null) {
-          continue;
+        // The relay query itself failed — this tells us nothing about
+        // whether a kind:0 exists, so don't cache these as "no profile"
+        // (that would be permanent, since ensureLoaded skips cached keys).
+        // Record a short cooldown instead so a flaky relay gets retried on
+        // a later call rather than never, but also not every frame.
+        final now = DateTime.now();
+        for (final hex in pubkeyHexes) {
+          _failedAt[hex] = now;
         }
-        labels[profile.pubkeyHex] = AuthorLabel(
-          shortNpub: existing.shortNpub,
-          displayName: _sanitizeDisplayName(
-            profile.displayName ?? profile.name,
-          ),
-        );
+        return;
       }
 
+      // The query succeeded, so any pubkey missing from the results really
+      // has no kind:0 — that is the one case safe to cache permanently.
+      final profileByHex = {for (final p in profiles) p.pubkeyHex: p};
+      final labels = <String, AuthorLabel>{
+        for (final hex in pubkeyHexes)
+          hex: AuthorLabel(
+            shortNpub: shortNpubs[hex]!,
+            displayName: profileByHex[hex] == null
+                ? null
+                : _sanitizeDisplayName(
+                    profileByHex[hex]!.displayName ??
+                        profileByHex[hex]!.name,
+                  ),
+          ),
+      };
+      _failedAt.removeWhere((hex, _) => labels.containsKey(hex));
       state = {...state, ...labels};
     } finally {
       _pending.removeAll(pubkeyHexes);
@@ -138,6 +159,22 @@ String? _sanitizeDisplayName(String? raw) {
     return null;
   }
 
+  // U+200C (ZWNJ) and U+200D (ZWJ) are kept below (they combine emoji and
+  // carry orthographic meaning in several scripts), but a name made of only
+  // joiners and spaces still renders as nothing and passes the empty check
+  // above — treat that the same as an empty name.
+  const zeroWidthJoiner = 0x200D;
+  const zeroWidthNonJoiner = 0x200C;
+  final isOnlyInvisibleGlue = cleaned.runes.every(
+    (rune) =>
+        rune == zeroWidthJoiner ||
+        rune == zeroWidthNonJoiner ||
+        rune == 0x20,
+  );
+  if (isOnlyInvisibleGlue) {
+    return null;
+  }
+
   final runes = cleaned.runes.toList();
   if (runes.length > _maxDisplayNameLength) {
     cleaned = String.fromCharCodes(runes.take(_maxDisplayNameLength));
@@ -146,24 +183,46 @@ String? _sanitizeDisplayName(String? raw) {
 }
 
 /// Whether [rune] should be stripped from an untrusted display name: C0/C1
-/// control characters (including newline/tab/CR), Unicode bidi override and
-/// isolate controls (which can visually reorder text to spoof another
-/// author), and zero-width characters (which can hide payloads inside an
-/// apparently-empty or apparently-matching name).
+/// control characters (including newline/tab/CR), Unicode bidi
+/// override/isolate/mark controls (which can visually reorder text to spoof
+/// another author), and invisible formatting characters (which can hide
+/// payloads inside an apparently-empty or apparently-matching name).
+///
+/// U+200C (ZWNJ) and U+200D (ZWJ) are deliberately NOT included: they
+/// compose emoji sequences and carry orthographic meaning in several scripts
+/// (Devanagari, Bengali, Arabic), and — unlike the bidi controls above —
+/// they cannot reorder text, so they are not a spoofing vector. A name made
+/// of only those plus whitespace is still rejected separately, in
+/// [_sanitizeDisplayName].
 bool _isStrippedRune(int rune) {
   if (rune < 0x20 || (rune >= 0x7F && rune <= 0x9F)) {
     return true;
   }
+  // Bidi override (LRE/RLE/PDF/LRO/RLO), isolate (LRI/RLI/FSI/PDI) and mark
+  // (ALM) control characters.
   if (rune >= 0x202A && rune <= 0x202E) {
     return true;
   }
   if (rune >= 0x2066 && rune <= 0x2069) {
     return true;
   }
-  if (rune == 0x200E || rune == 0x200F) {
+  if (rune == 0x200E || rune == 0x200F || rune == 0x061C) {
     return true;
   }
-  if (rune >= 0x200B && rune <= 0x200D) {
+  // Zero-width / invisible formatting characters, excluding ZWNJ/ZWJ (see
+  // the doc comment above): ZWSP, word joiner + invisible math operators,
+  // Mongolian vowel separator, deprecated interlinear annotation controls,
+  // and the BOM/ZWNBSP.
+  if (rune == 0x200B) {
+    return true;
+  }
+  if (rune >= 0x2060 && rune <= 0x2064) {
+    return true;
+  }
+  if (rune == 0x180E) {
+    return true;
+  }
+  if (rune >= 0xFFF9 && rune <= 0xFFFB) {
     return true;
   }
   if (rune == 0xFEFF) {
