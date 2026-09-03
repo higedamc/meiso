@@ -968,6 +968,41 @@ Future<String> clientBuildSignedCommentEvent({required String commentJson, Strin
 Future<String> clientDecryptCommentEvent({required String eventJson, String? clientId}) =>
     RustLib.instance.api.crateApiClientDecryptCommentEvent(eventJson: eventJson, clientId: clientId);
 
+/// task-chat(Amber 経路): 暗号化済み content を載せた kind:35002 の
+/// 未署名イベント JSON を返す。署名は Amber(NIP-55)側で行う。
+Future<String> buildUnsignedCommentEvent({
+  required String authorPubkeyHex,
+  required String commentId,
+  required String encryptedContent,
+  required PlatformInt64 createdAt,
+}) => RustLib.instance.api.crateApiBuildUnsignedCommentEvent(
+  authorPubkeyHex: authorPubkeyHex,
+  commentId: commentId,
+  encryptedContent: encryptedContent,
+  createdAt: createdAt,
+);
+
+/// task-chat(Amber 経路): 署名済みコメントイベントの外形
+/// (kind / author / 署名 / d タグ存在)を検証し、content(暗号文)を返す。
+/// 復号後の平文は必ず `validate_decrypted_comment_payload` に通すこと。
+Future<String> verifySignedCommentEnvelope({required String eventJson, required String expectedAuthorPubkeyHex}) =>
+    RustLib.instance.api.crateApiVerifySignedCommentEnvelope(
+      eventJson: eventJson,
+      expectedAuthorPubkeyHex: expectedAuthorPubkeyHex,
+    );
+
+/// task-chat(Amber 経路): Amber が復号した平文 payload を検証し、
+/// 正規化済み payload JSON を返す(スキーマ + d タグ照合 + author 照合)。
+Future<String> validateDecryptedCommentPayload({
+  required String plaintextJson,
+  required String expectedCommentId,
+  required String expectedAuthorPubkeyHex,
+}) => RustLib.instance.api.crateApiValidateDecryptedCommentPayload(
+  plaintextJson: plaintextJson,
+  expectedCommentId: expectedCommentId,
+  expectedAuthorPubkeyHex: expectedAuthorPubkeyHex,
+);
+
 /// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
 ///
 /// kinds: 35000(タスク), 35002(タスクコメント)

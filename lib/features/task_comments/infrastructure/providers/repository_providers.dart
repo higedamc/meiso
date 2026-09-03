@@ -3,16 +3,28 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../providers/nostr_provider.dart';
+import '../../../../services/amber_service.dart';
 import '../../../../services/logger_service.dart';
 import '../../../shared_list/infrastructure/providers/repository_providers.dart';
 import '../../domain/repositories/task_comment_repository.dart';
 import '../datasources/task_comment_crypto_datasource.dart';
+import '../datasources/task_comment_crypto_datasource_amber.dart';
 import '../datasources/task_comment_crypto_datasource_contract.dart';
 import '../datasources/task_comment_local_datasource.dart';
 import '../repositories/task_comment_repository_impl.dart';
 
+/// Mode-dependent crypto datasource: the repository stays mode-agnostic and
+/// this provider picks the personal-path implementation (Rust session key in
+/// secret-key mode, Amber/NIP-55 delegation in Amber mode).
 final taskCommentCryptoDataSourceProvider =
     Provider<TaskCommentCryptoDataSource>((ref) {
+      if (ref.watch(isAmberModeProvider)) {
+        return TaskCommentCryptoDataSourceAmber(
+          envelopeDataSource: const TaskCommentEnvelopeDataSourceRust(),
+          amberService: AmberService(),
+          nostrService: ref.watch(nostrServiceProvider),
+        );
+      }
       return const TaskCommentCryptoDataSourceRust();
     });
 

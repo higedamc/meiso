@@ -24,8 +24,9 @@ const int maxCommentBodyChars = 2000;
 ///
 /// - 共有リストタスク(groupId != null): グループ鍵 G で署名/復号
 ///   (kind:35000 タスクと同一経路)
-/// - 個人タスク(groupId == null): セッションクライアントの鍵で署名/復号
-///   (秘密鍵モード。Amber モードはセッションに鍵がなく AuthFailure)
+/// - 個人タスク(groupId == null): 利用者自身の鍵で署名/復号。実際の鍵経路は
+///   [TaskCommentCryptoDataSource] の実装が決める(秘密鍵モードは Rust
+///   セッション鍵、Amber モードは NIP-55 委譲)。リポジトリはモード非依存。
 class TaskCommentRepositoryImpl implements TaskCommentRepository {
   TaskCommentRepositoryImpl({
     required TaskCommentCryptoDataSource cryptoDataSource,
@@ -138,7 +139,7 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
                 nsecHex: groupNsecHex,
                 eventJson: eventJson,
               )
-            : await _cryptoDataSource.decryptCommentEventWithSessionKey(
+            : await _cryptoDataSource.decryptPersonalCommentEvent(
                 eventJson: eventJson,
               );
         var comment = TaskComment.fromJson(
@@ -192,15 +193,15 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
           );
         } else {
           try {
-            signed = await _cryptoDataSource
-                .buildSignedCommentEventWithSessionKey(
-                  commentJson: commentJson,
-                );
+            signed = await _cryptoDataSource.buildSignedPersonalCommentEvent(
+              commentJson: commentJson,
+            );
           } on Object catch (e) {
-            // Amber モードはセッションに鍵がなく FFI が例外を投げる。
-            // UI 側で「未対応」と案内できるよう AuthFailure に写像する。
+            // Signing can fail in either mode (missing session key, Amber
+            // rejection/timeout). Map to AuthFailure so the UI surfaces it
+            // instead of silently dropping the comment.
             return Left(
-              AuthFailure('個人タスクのコメント署名鍵を取得できません: $e'),
+              AuthFailure('個人タスクのコメントに署名できません: $e'),
             );
           }
         }
@@ -238,11 +239,9 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
   }
 
   /// 鍵経路の解決: 共有リストはグループ鍵 G(hex)、個人タスクは
-  /// `Right(null)` = セッション鍵経路(Rust 側で解決、Dart に鍵は出さない)。
-  ///
-  /// Amber モードではセッションに鍵がなく、セッション鍵 FFI が例外を
-  /// 投げる(呼び出し側の catch で fail-closed)。Amber での個人コメント
-  /// 対応は別 leaf(docs/TASK_CHAT_DESIGN.md 参照)。
+  /// `Right(null)` = 個人経路(鍵は datasource 実装側で解決され、Dart の
+  /// このレイヤーに鍵材は出ない。秘密鍵モードは Rust セッション鍵、
+  /// Amber モードは NIP-55 委譲)。
   Future<Either<Failure, String?>> _resolveGroupNsecHex(
     String? groupId,
   ) async {

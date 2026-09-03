@@ -185,7 +185,7 @@ void main() {
   });
 
   testWidgets(
-    'personal task in Amber mode: shows unavailable notice, no input',
+    'personal task in Amber mode: input is enabled (signs via Amber)',
     (tester) async {
       final repository = _FakeTaskCommentRepository([_comment('c1')]);
 
@@ -198,13 +198,19 @@ void main() {
       );
       await tester.pump();
 
+      // No unavailable notice anymore: Amber mode signs personal comments.
       expect(
         find.text("Comments aren't available for this task yet"),
-        findsOneWidget,
+        findsNothing,
       );
-      expect(find.byType(TextField), findsNothing);
-      // Existing synced comments stay visible even while input is disabled.
       expect(find.text('hello'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'amber comment');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      expect(repository.addCalls, hasLength(1));
+      expect(repository.addCalls.single.groupId, isNull);
     },
   );
 
