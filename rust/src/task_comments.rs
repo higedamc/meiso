@@ -210,6 +210,106 @@ pub fn decrypt_comment_event_with_keys(keys: &Keys, event_json: &str) -> Result<
     serde_json::to_string(&payload).context("Failed to serialize comment payload")
 }
 
+/// 暗号化済み content を載せた kind:35002 の未署名イベント JSON を返す(Amber 経路)。
+///
+/// 署名は外部署名者(Amber / NIP-55)が行うため `id` / `sig` は含めない
+/// (`create_unsigned_shared_invitation_event` と同形)。タグは
+/// `["d", comment_id]` のみで、署名済みビルダーと同じくタスク紐付けタグは
+/// 一切付けない(task↔comment グラフをリレーに露出させないため)。
+///
+/// `encrypted_content` は Amber の NIP-44 で **自分の公開鍵宛に** 自己暗号化
+/// した暗号文を渡すこと(`encrypt_for_self` と同じ conversation key になる)。
+pub fn build_unsigned_comment_event(
+    author_pubkey_hex: String,
+    comment_id: String,
+    encrypted_content: String,
+    created_at: i64,
+) -> Result<String> {
+    let author =
+        PublicKey::from_hex(&author_pubkey_hex).context("Failed to parse author public key")?;
+    if comment_id.is_empty() || comment_id.chars().count() > MAX_COMMENT_ID_CHARS {
+        bail!("comment_id must be 1..={} chars", MAX_COMMENT_ID_CHARS);
+    }
+    if created_at <= 0 {
+        bail!("created_at must be positive");
+    }
+
+    let unsigned_event = serde_json::json!({
+        "pubkey": author.to_hex(),
+        "created_at": created_at,
+        "kind": TASK_COMMENT_KIND,
+        "tags": [["d", comment_id]],
+        "content": encrypted_content,
+    });
+    serde_json::to_string(&unsigned_event).context("Failed to serialize unsigned comment event")
+}
+
+/// 署名済みコメントイベントの外形だけを検証し、content(暗号文)を返す(Amber 経路)。
+///
+/// 検証: kind == `TASK_COMMENT_KIND` / author == `expected_author_pubkey_hex` /
+/// `Event::verify()` / `d` タグ存在。復号は Amber(NIP-55)側で行うため、
+/// 復号後の平文は必ず `validate_decrypted_comment_payload` に通すこと。
+/// この 2 関数を合わせて `decrypt_comment_event` と同じ 5 点検証
+/// (kind / author / 署名 / d タグ照合 / payload スキーマ)が成立する。
+pub fn verify_signed_comment_envelope(
+    event_json: String,
+    expected_author_pubkey_hex: String,
+) -> Result<String> {
+    let expected_author = PublicKey::from_hex(&expected_author_pubkey_hex)
+        .context("Failed to parse expected author public key")?;
+    let event = Event::from_json(&event_json).context("Failed to parse comment event JSON")?;
+
+    if event.kind != Kind::Custom(TASK_COMMENT_KIND) {
+        bail!(
+            "unexpected event kind: expected {}, got {}",
+            TASK_COMMENT_KIND,
+            event.kind.as_u16()
+        );
+    }
+    if event.pubkey != expected_author {
+        bail!("comment event author does not match the expected author");
+    }
+    event
+        .verify()
+        .context("comment event signature verification failed")?;
+    if event.tags.identifier().is_none() {
+        bail!("comment event has no d tag");
+    }
+
+    Ok(event.content.clone())
+}
+
+/// Amber が復号した平文 payload を検証し、正規化済み payload JSON を返す(Amber 経路)。
+///
+/// 検証: `validate_comment_payload`(`body` クランプ込み)/
+/// `comment_id` == `expected_comment_id`(イベントの `d` タグ値を渡す)/
+/// `author_pubkey` == `expected_author_pubkey_hex`。
+///
+/// 個人タスク経路専用のため payload の author は必ず利用者自身になる
+/// (共有リスト経路の editor 自己申告モデルとは異なり、ここでは照合する)。
+/// 書き込み側でも暗号化前の payload 正規化(検証 + `body` クランプ)として
+/// 使うことで、`build_signed_comment_event` と同じ書き込み側検証を保つ。
+pub fn validate_decrypted_comment_payload(
+    plaintext_json: String,
+    expected_comment_id: String,
+    expected_author_pubkey_hex: String,
+) -> Result<String> {
+    let expected_author = PublicKey::from_hex(&expected_author_pubkey_hex)
+        .context("Failed to parse expected author public key")?;
+    let payload = parse_comment_payload_clamped(&plaintext_json)?;
+
+    if payload.comment_id != expected_comment_id {
+        bail!("comment payload comment_id does not match the event d tag");
+    }
+    let payload_author = PublicKey::from_hex(&payload.author_pubkey)
+        .context("comment payload author_pubkey is not a valid public key")?;
+    if payload_author != expected_author {
+        bail!("comment payload author does not match the expected author");
+    }
+
+    serde_json::to_string(&payload).context("Failed to serialize comment payload")
+}
+
 /// payload JSON をパースし、`body` クランプ後に検証する内部ヘルパー。
 fn parse_comment_payload_clamped(payload_json: &str) -> Result<TaskCommentPayload> {
     let mut payload: TaskCommentPayload =
@@ -451,5 +551,295 @@ mod tests {
         let decrypted = decrypt_comment_event(nsec_hex, event_json).unwrap();
         let roundtrip = parse_comment_payload(&decrypted).unwrap();
         assert_eq!(roundtrip.body, sample().body);
+    }
+
+    /// 利用者鍵の payload(author = 自鍵)を作るヘルパー(Amber 経路テスト用)。
+    fn sample_for(keys: &Keys) -> TaskCommentPayload {
+        let mut payload = sample();
+        payload.author_pubkey = keys.public_key().to_hex();
+        payload
+    }
+
+    /// Amber の署名を模す: 未署名イベント JSON のフィールドから id を計算して
+    /// 署名する(NIP-55 署名者が行う処理と同じ)。
+    fn amber_like_sign(keys: &Keys, unsigned_json: &str) -> String {
+        let value: serde_json::Value = serde_json::from_str(unsigned_json).unwrap();
+        assert!(value.get("id").is_none());
+        assert!(value.get("sig").is_none());
+        let tags: Vec<Tag> = value["tags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| {
+                Tag::parse(
+                    &t.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|s| s.as_str().unwrap().to_string())
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap()
+            })
+            .collect();
+        let event = EventBuilder::new(
+            Kind::Custom(value["kind"].as_u64().unwrap() as u16),
+            value["content"].as_str().unwrap(),
+        )
+        .tags(tags)
+        .custom_created_at(Timestamp::from(value["created_at"].as_u64().unwrap()))
+        .sign_with_keys(keys)
+        .unwrap();
+        assert_eq!(event.pubkey.to_hex(), value["pubkey"].as_str().unwrap());
+        event.as_json()
+    }
+
+    /// Amber の NIP-44 を模す: 自鍵 + 自公開鍵で conversation key を作る
+    /// (`encrypt_for_self` と同じ相手先指定)。
+    fn amber_like_encrypt(keys: &Keys, plaintext: &str) -> String {
+        nip44::encrypt(
+            keys.secret_key(),
+            &keys.public_key(),
+            plaintext,
+            nip44::Version::V2,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn unsigned_comment_event_has_expected_shape() {
+        let user = Keys::generate();
+        let unsigned = build_unsigned_comment_event(
+            user.public_key().to_hex(),
+            "comment-1".to_string(),
+            "ciphertext".to_string(),
+            1_787_900_000,
+        )
+        .unwrap();
+
+        let value: serde_json::Value = serde_json::from_str(&unsigned).unwrap();
+        assert_eq!(value["kind"], TASK_COMMENT_KIND);
+        assert_eq!(value["pubkey"], user.public_key().to_hex());
+        assert_eq!(value["created_at"], 1_787_900_000);
+        assert_eq!(value["content"], "ciphertext");
+        // d タグ 1 つだけ(タスク紐付けタグ禁止)、id / sig は外部署名者が付ける
+        assert_eq!(value["tags"], serde_json::json!([["d", "comment-1"]]));
+        assert!(value.get("id").is_none());
+        assert!(value.get("sig").is_none());
+    }
+
+    #[test]
+    fn build_unsigned_comment_event_rejects_bad_inputs() {
+        let pk = Keys::generate().public_key().to_hex();
+        let ok = |p: &str, c: &str, t: i64| {
+            build_unsigned_comment_event(p.to_string(), c.to_string(), "x".to_string(), t)
+        };
+        assert!(ok("not-a-pubkey", "c-1", 1).is_err());
+        assert!(ok(&pk, "", 1).is_err());
+        assert!(ok(&pk, &"x".repeat(MAX_COMMENT_ID_CHARS + 1), 1).is_err());
+        assert!(ok(&pk, "c-1", 0).is_err());
+        assert!(ok(&pk, "c-1", 1).is_ok());
+    }
+
+    #[test]
+    fn amber_written_event_is_readable_by_secret_key_mode() {
+        // Amber 経路(3 関数 + Amber 模擬の NIP-44/署名)で書いたイベントが、
+        // 秘密鍵モードの decrypt_comment_event でそのまま読めること
+        // (モード切替でコメントが読めなくなる事故の防止)。
+        let user = Keys::generate();
+        let payload = sample_for(&user);
+        let payload_json = serde_json::to_string(&payload).unwrap();
+
+        let normalized = validate_decrypted_comment_payload(
+            payload_json,
+            payload.comment_id.clone(),
+            user.public_key().to_hex(),
+        )
+        .unwrap();
+        let ciphertext = amber_like_encrypt(&user, &normalized);
+        let unsigned = build_unsigned_comment_event(
+            user.public_key().to_hex(),
+            payload.comment_id.clone(),
+            ciphertext,
+            1_787_900_123,
+        )
+        .unwrap();
+        let signed = amber_like_sign(&user, &unsigned);
+
+        let decrypted =
+            decrypt_comment_event(user.secret_key().to_secret_hex(), signed).unwrap();
+        let roundtrip = parse_comment_payload(&decrypted).unwrap();
+        assert_eq!(roundtrip.comment_id, payload.comment_id);
+        assert_eq!(roundtrip.task_id, payload.task_id);
+        assert_eq!(roundtrip.author_pubkey, payload.author_pubkey);
+        assert_eq!(roundtrip.body, payload.body);
+    }
+
+    #[test]
+    fn secret_key_written_event_is_readable_via_amber_path() {
+        // 逆方向: 秘密鍵モードで書いたイベントを Amber 経路
+        // (envelope 検証 → NIP-44 復号 → payload 検証)で読めること。
+        let user = Keys::generate();
+        let payload = sample_for(&user);
+        let payload_json = serde_json::to_string(&payload).unwrap();
+        let event_json =
+            build_signed_comment_event(user.secret_key().to_secret_hex(), payload_json).unwrap();
+
+        let ciphertext = verify_signed_comment_envelope(
+            event_json.clone(),
+            user.public_key().to_hex(),
+        )
+        .unwrap();
+        let plaintext = nip44::decrypt(user.secret_key(), &user.public_key(), &ciphertext).unwrap();
+        let event = Event::from_json(&event_json).unwrap();
+        let normalized = validate_decrypted_comment_payload(
+            plaintext,
+            event.tags.identifier().unwrap().to_string(),
+            user.public_key().to_hex(),
+        )
+        .unwrap();
+
+        let roundtrip = parse_comment_payload(&normalized).unwrap();
+        assert_eq!(roundtrip.comment_id, payload.comment_id);
+        assert_eq!(roundtrip.body, payload.body);
+    }
+
+    #[test]
+    fn envelope_rejects_wrong_author() {
+        let user = Keys::generate();
+        let other = Keys::generate();
+        let payload_json = serde_json::to_string(&sample_for(&user)).unwrap();
+        let event_json =
+            build_signed_comment_event(user.secret_key().to_secret_hex(), payload_json).unwrap();
+
+        assert!(
+            verify_signed_comment_envelope(event_json, other.public_key().to_hex()).is_err()
+        );
+    }
+
+    #[test]
+    fn envelope_rejects_tampered_events() {
+        let user = Keys::generate();
+        let payload_json = serde_json::to_string(&sample_for(&user)).unwrap();
+        let event_json =
+            build_signed_comment_event(user.secret_key().to_secret_hex(), payload_json).unwrap();
+        let pubkey_hex = user.public_key().to_hex();
+
+        // content 改ざん(id が合わなくなる)
+        let mut value: serde_json::Value = serde_json::from_str(&event_json).unwrap();
+        value["content"] = serde_json::json!("attacker-ciphertext");
+        assert!(verify_signed_comment_envelope(value.to_string(), pubkey_hex.clone()).is_err());
+
+        // created_at 改ざん
+        let mut value: serde_json::Value = serde_json::from_str(&event_json).unwrap();
+        value["created_at"] = serde_json::json!(1);
+        assert!(verify_signed_comment_envelope(value.to_string(), pubkey_hex.clone()).is_err());
+
+        // d タグ改ざん(id/署名検証で拒否される)
+        let mut value: serde_json::Value = serde_json::from_str(&event_json).unwrap();
+        value["tags"] = serde_json::json!([["d", "attacker-comment-id"]]);
+        assert!(verify_signed_comment_envelope(value.to_string(), pubkey_hex.clone()).is_err());
+
+        // 未署名イベントはパース段階で拒否される
+        let unsigned = build_unsigned_comment_event(
+            pubkey_hex.clone(),
+            "c-1".to_string(),
+            "x".to_string(),
+            1_787_900_000,
+        )
+        .unwrap();
+        assert!(verify_signed_comment_envelope(unsigned, pubkey_hex).is_err());
+    }
+
+    #[test]
+    fn envelope_rejects_wrong_kind_and_missing_d_tag() {
+        let user = Keys::generate();
+        let pubkey_hex = user.public_key().to_hex();
+
+        // kind:35000(共有タスク)はコメント envelope として通らない
+        let task = serde_json::json!({ "id": "task-1", "title": "not a comment" }).to_string();
+        let task_event = crate::group_tasks_shared::build_signed_task_event(
+            user.secret_key().to_secret_hex(),
+            task,
+        )
+        .unwrap();
+        assert!(verify_signed_comment_envelope(task_event, pubkey_hex.clone()).is_err());
+
+        // 正しく署名されていても d タグが無ければ拒否
+        let no_d_tag = EventBuilder::new(Kind::Custom(TASK_COMMENT_KIND), "ciphertext")
+            .sign_with_keys(&user)
+            .unwrap()
+            .as_json();
+        assert!(verify_signed_comment_envelope(no_d_tag, pubkey_hex).is_err());
+    }
+
+    #[test]
+    fn nip44_self_encrypt_interops_across_implementations() {
+        // Amber は独立実装の NIP-44 で「自分の公開鍵宛」に自己暗号化する。
+        // その conversation key が Rust 側 `encrypt_for_self` と一致することを、
+        // nostr-tools v2(独立実装)で生成した固定ベクターの復号で確認する。
+        // 生成スクリプト: nip44.v2.encrypt(plaintext,
+        //   getConversationKey(sk, getPublicKey(sk)))
+        // 鍵はこのテスト専用の使い捨て値(実運用の鍵ではない)。
+        let sk_hex = "5f4c8e348d1c76ac9c8797e75d4f7fb3e1a5c3b2a19f8d7e6c5b4a3928170605";
+        let expected_plaintext = "{\"v\":1,\"comment_id\":\"cross-impl-1\",\"task_id\":\"task-cross\",\"author_pubkey\":\"c4467447470bad49c186f0394edd8a3225587543f744cdc409138053cc3e6d53\",\"body\":\"bees interop\",\"created_at\":1787900000,\"deleted\":false}";
+        let ciphertext = "Aianwy5+gQoMnPjH/qhCLBKQaSYu4F3lgExhvsyX+F8XQ4WrpJJblL9QWPqidzcGTdQ69pjI3HjJufn/nPjeVQI+C2uDL0GIvuJAYoy13nYdIWVrHqZ6PLrRjnPe5/MsYIFqScr1iHNtsi0THuVtufDiA1sW+HJ0JBgBXKkJt7usO76M3W+NIyg+NrE6l9n9blbZX8X7RCE4vfQ/9ZUQtoTD/uE9xQ/74vc6CebzizU1Ntnp45dHvxplI+lmnnIeL0mHU8jXpnwQHBA2CYVWUJJrD12OzPMjufATUX0HoOh48Z5jdAzQezD0VkjtMbRE2KasKrReRRVbXIB0/2roZiyJwYxeTT46tGHR81PDXsrvXjqfZHV5h2VjB/EcmV15QKky";
+
+        let keys = keys_from_nsec_hex(sk_hex).unwrap();
+        assert_eq!(
+            keys.public_key().to_hex(),
+            "c4467447470bad49c186f0394edd8a3225587543f744cdc409138053cc3e6d53"
+        );
+        let decrypted = decrypt_for_self(&keys, ciphertext).unwrap();
+        assert_eq!(decrypted, expected_plaintext);
+        // 対称鍵なので逆方向(Rust encrypt → 独立実装 decrypt)も同鍵で成立する
+        let roundtrip = decrypt_for_self(&keys, &encrypt_for_self(&keys, expected_plaintext).unwrap()).unwrap();
+        assert_eq!(roundtrip, expected_plaintext);
+    }
+
+    #[test]
+    fn decrypted_payload_validation_rejects_mismatches() {
+        let user = Keys::generate();
+        let other = Keys::generate();
+        let payload = sample_for(&user);
+        let payload_json = serde_json::to_string(&payload).unwrap();
+        let pubkey_hex = user.public_key().to_hex();
+
+        // comment_id が d タグ(期待値)と一致しない
+        assert!(validate_decrypted_comment_payload(
+            payload_json.clone(),
+            "different-comment-id".to_string(),
+            pubkey_hex.clone(),
+        )
+        .is_err());
+
+        // payload の author が期待 author と一致しない
+        assert!(validate_decrypted_comment_payload(
+            payload_json.clone(),
+            payload.comment_id.clone(),
+            other.public_key().to_hex(),
+        )
+        .is_err());
+
+        // payload スキーマ違反(tombstone に本文)
+        let mut broken = payload.clone();
+        broken.deleted = true;
+        assert!(validate_decrypted_comment_payload(
+            serde_json::to_string(&broken).unwrap(),
+            payload.comment_id.clone(),
+            pubkey_hex.clone(),
+        )
+        .is_err());
+
+        // 正常系はクランプ済み正規化 JSON を返す
+        let mut oversized = payload.clone();
+        oversized.body = "x".repeat(MAX_COMMENT_BODY_CHARS + 100);
+        let normalized = validate_decrypted_comment_payload(
+            serde_json::to_string(&oversized).unwrap(),
+            payload.comment_id.clone(),
+            pubkey_hex,
+        )
+        .unwrap();
+        let parsed = parse_comment_payload(&normalized).unwrap();
+        assert_eq!(parsed.body.chars().count(), MAX_COMMENT_BODY_CHARS);
     }
 }

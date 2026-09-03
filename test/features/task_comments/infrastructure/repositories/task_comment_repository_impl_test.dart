@@ -22,9 +22,9 @@ class FakeTaskCommentCryptoDataSource implements TaskCommentCryptoDataSource {
   final int baseCreatedAt;
   int _counter = 0;
 
-  /// false にすると Amber モード相当(セッションに鍵なし)をシミュレート
-  /// し、セッション鍵メソッドが Rust FFI と同様に例外を投げる。
-  bool sessionKeyAvailable = true;
+  /// false にすると個人経路の署名不能(セッションに鍵なし / Amber 拒否)を
+  /// シミュレートし、個人経路メソッドが実装と同様に例外を投げる。
+  bool personalSigningAvailable = true;
 
   @override
   Future<String> buildSignedCommentEvent({
@@ -53,26 +53,26 @@ class FakeTaskCommentCryptoDataSource implements TaskCommentCryptoDataSource {
   }
 
   @override
-  Future<String> buildSignedCommentEventWithSessionKey({
+  Future<String> buildSignedPersonalCommentEvent({
     required String commentJson,
   }) async {
-    if (!sessionKeyAvailable) {
-      throw Exception('秘密鍵がありません（Amber モードでは使用できません）');
+    if (!personalSigningAvailable) {
+      throw Exception('個人コメントに署名できません（鍵なし / Amber 拒否）');
     }
     return buildSignedCommentEvent(
-      nsecHex: 'session',
+      nsecHex: 'personal',
       commentJson: commentJson,
     );
   }
 
   @override
-  Future<String> decryptCommentEventWithSessionKey({
+  Future<String> decryptPersonalCommentEvent({
     required String eventJson,
   }) async {
-    if (!sessionKeyAvailable) {
-      throw Exception('秘密鍵がありません（Amber モードでは使用できません）');
+    if (!personalSigningAvailable) {
+      throw Exception('個人コメントを復号できません（鍵なし / Amber 拒否）');
     }
-    return decryptCommentEvent(nsecHex: 'session', eventJson: eventJson);
+    return decryptCommentEvent(nsecHex: 'personal', eventJson: eventJson);
   }
 }
 
@@ -193,7 +193,7 @@ void main() {
       verifyNever(() => nostrService.sendSignedEvent(any()));
     });
 
-    test('個人タスク: セッション鍵で署名→ローカル保存→publish される', () async {
+    test('個人タスク: 個人経路で署名→ローカル保存→publish される', () async {
       final result = await repository.addComment(
         taskId: 'task-1',
         body: 'personal comment',
@@ -201,7 +201,7 @@ void main() {
 
       expect(result.isRight(), true);
       verify(() => nostrService.sendSignedEvent(any())).called(1);
-      // グループ鍵経路は使われない(セッション鍵経路で完結)
+      // グループ鍵経路は使われない(個人経路で完結)
       verifyNever(() => keyDataSource.load(any()));
 
       final stored = await localDataSource.loadComments('task-1');
@@ -210,8 +210,8 @@ void main() {
       expect(stored.first.authorPubkey, kAuthorPubkey);
     });
 
-    test('個人タスク: セッションに鍵がない(Amber)なら AuthFailure', () async {
-      cryptoDataSource.sessionKeyAvailable = false;
+    test('個人タスク: 署名できない(鍵なし / Amber 拒否)なら AuthFailure', () async {
+      cryptoDataSource.personalSigningAvailable = false;
 
       final result = await repository.addComment(
         taskId: 'task-1',

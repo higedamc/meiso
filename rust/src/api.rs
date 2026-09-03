@@ -5274,6 +5274,46 @@ pub fn client_decrypt_comment_event(
     })
 }
 
+/// task-chat(Amber 経路): 暗号化済み content を載せた kind:35002 の
+/// 未署名イベント JSON を返す。署名は Amber(NIP-55)側で行う。
+pub fn build_unsigned_comment_event(
+    author_pubkey_hex: String,
+    comment_id: String,
+    encrypted_content: String,
+    created_at: i64,
+) -> Result<String> {
+    crate::task_comments::build_unsigned_comment_event(
+        author_pubkey_hex,
+        comment_id,
+        encrypted_content,
+        created_at,
+    )
+}
+
+/// task-chat(Amber 経路): 署名済みコメントイベントの外形
+/// (kind / author / 署名 / d タグ存在)を検証し、content(暗号文)を返す。
+/// 復号後の平文は必ず `validate_decrypted_comment_payload` に通すこと。
+pub fn verify_signed_comment_envelope(
+    event_json: String,
+    expected_author_pubkey_hex: String,
+) -> Result<String> {
+    crate::task_comments::verify_signed_comment_envelope(event_json, expected_author_pubkey_hex)
+}
+
+/// task-chat(Amber 経路): Amber が復号した平文 payload を検証し、
+/// 正規化済み payload JSON を返す(スキーマ + d タグ照合 + author 照合)。
+pub fn validate_decrypted_comment_payload(
+    plaintext_json: String,
+    expected_comment_id: String,
+    expected_author_pubkey_hex: String,
+) -> Result<String> {
+    crate::task_comments::validate_decrypted_comment_payload(
+        plaintext_json,
+        expected_comment_id,
+        expected_author_pubkey_hex,
+    )
+}
+
 /// shared-v1: 共有鍵 author(npub_G) の addressable イベントを差分取得する。
 ///
 /// kinds: 35000(タスク), 35002(タスクコメント)

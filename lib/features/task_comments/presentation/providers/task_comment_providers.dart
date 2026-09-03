@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../providers/nostr_provider.dart';
 import '../../domain/entities/task_comment.dart';
 import '../../infrastructure/providers/repository_providers.dart';
 
@@ -16,17 +15,12 @@ taskCommentsStreamProvider = StreamProvider.autoDispose
 
 /// Whether personal-task comments can be signed at all.
 ///
-/// The only fail-closed path is Amber mode, where no nsec exists on this
-/// device. Keying off [isAmberModeProvider] means no key material is ever
-/// resolved into Dart just to answer this question.
-final Provider<bool> personalCommentAvailabilityProvider = Provider<bool>((
-  ref,
-) {
-  // isAmberModeProvider returns false while the session is still
-  // uninitialized, so this reads as "available" pre-init. That is deliberate:
-  // this widget only renders inside the task detail screen (session already
-  // initialized), and even if a comment were sent in that window the
-  // repository fails with AuthFailure and the UI surfaces a SnackBar — it is
-  // not a silent fail-open.
-  return !ref.watch(isAmberModeProvider);
-});
+/// Both signing modes can now sign personal comments: secret-key mode via the
+/// Rust session key and Amber mode via the external signer (NIP-55), so this
+/// is always true. Kept as the single seam the widget checks so any future
+/// unsignable state fails closed with the explicit notice instead of a
+/// silently failing input; runtime signing failures (e.g. Amber rejection)
+/// still surface through AuthFailure and a SnackBar.
+final Provider<bool> personalCommentAvailabilityProvider = Provider<bool>(
+  (ref) => true,
+);
