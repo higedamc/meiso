@@ -994,6 +994,20 @@
 
   "settingsSectionGeneral": "一般",
 
-  "settingsSectionAbout": "アプリ情報"
+  "settingsSectionAbout": "アプリ情報",
+
+  "commentsHeader": "コメント",
+
+  "noComments": "コメントはまだありません",
+
+  "addCommentHint": "コメントを追加...",
+
+  "commentsUnavailableForTask": "このタスクではコメントをまだ利用できません",
+
+  "editCommentTitle": "コメントを編集",
+
+  "deleteCommentConfirmTitle": "このコメントを削除しますか？",
+
+  "commentEditedLabel": "編集済み"
 }
 

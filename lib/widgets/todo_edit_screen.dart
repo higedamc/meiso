@@ -21,6 +21,7 @@ import 'subtask_section.dart';
 import 'task_link_section.dart';
 import 'remote_image_gate.dart';
 import '../features/media/presentation/widgets/image_attachment_section.dart';
+import '../features/task_comments/presentation/widgets/task_comment_section.dart';
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -214,6 +215,13 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                   if (isEditing && !(widget.todo?.isSubtask ?? false))
                     SubtaskSection(
                       parentTodo: widget.todo!,
+                    ),
+
+                  // Comment section (editing mode & root tasks only)
+                  if (isEditing && !(widget.todo?.isSubtask ?? false))
+                    TaskCommentSection(
+                      taskId: widget.todo!.id,
+                      groupId: widget.isGroupList ? widget.customListId : null,
                     ),
                   if (isEditing &&
                       !(widget.todo?.isSubtask ?? false) &&

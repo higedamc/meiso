@@ -3129,6 +3129,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'About'**
   String get settingsSectionAbout;
+
+  /// Header of the comment section in task detail
+  ///
+  /// In en, this message translates to:
+  /// **'COMMENTS'**
+  String get commentsHeader;
+
+  /// Empty state of the comment section in task detail
+  ///
+  /// In en, this message translates to:
+  /// **'No comments yet'**
+  String get noComments;
+
+  /// Hint text of the comment input field in task detail
+  ///
+  /// In en, this message translates to:
+  /// **'Add comment...'**
+  String get addCommentHint;
+
+  /// Notice shown instead of the comment input while personal-task comments are fail-closed (no signing key available)
+  ///
+  /// In en, this message translates to:
+  /// **'Comments aren\'t available for this task yet'**
+  String get commentsUnavailableForTask;
+
+  /// Title of the comment edit action and dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Edit comment'**
+  String get editCommentTitle;
+
+  /// Title of the comment delete confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this comment?'**
+  String get deleteCommentConfirmTitle;
+
+  /// Marker appended to a comment's timestamp after it was edited
+  ///
+  /// In en, this message translates to:
+  /// **'edited'**
+  String get commentEditedLabel;
 }
 
 class _AppLocalizationsDelegate

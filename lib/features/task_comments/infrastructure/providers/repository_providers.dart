@@ -37,24 +37,39 @@ final taskCommentRepositoryProvider = Provider<TaskCommentRepository>((ref) {
 /// UI(タスク詳細画面など)がこの provider を watch して有効化する。
 /// 共有リスト側の kind:35002 は todos_provider の既存 shared-v1
 /// 購読ハンドラ経由でルーティングされる。
-final personalTaskCommentSubscriptionProvider = FutureProvider<String?>((
-  ref,
-) async {
+final personalTaskCommentSubscriptionProvider = FutureProvider.autoDispose<
+  String?
+>((ref) async {
   final initialized = ref.watch(nostrInitializedProvider);
   if (!initialized) {
     return null;
   }
 
   final nostrService = ref.read(nostrServiceProvider);
+  final repository = ref.read(taskCommentRepositoryProvider);
+
+  // onDispose must be registered before any await: with autoDispose the
+  // element can be disposed while the relay round-trip below is in flight,
+  // and ref.onDispose throws on a disposed element — registering it late
+  // would both crash and orphan the just-created subscription.
+  String? subscriptionId;
+  var disposed = false;
+  ref.onDispose(() {
+    disposed = true;
+    final id = subscriptionId;
+    if (id != null) {
+      unawaited(nostrService.stopSubscription(id));
+    }
+  });
+
   final publicKeyHex = await nostrService.getPublicKey();
-  if (publicKeyHex == null) {
+  if (publicKeyHex == null || disposed) {
     return null;
   }
 
-  final repository = ref.read(taskCommentRepositoryProvider);
   final seenEventIds = <String>{};
 
-  final subscriptionId = await nostrService.subscribePersonalTaskComments(
+  subscriptionId = await nostrService.subscribePersonalTaskComments(
     publicKeyHex: publicKeyHex,
     onEventsReceived: (events) {
       unawaited(() async {
@@ -87,9 +102,12 @@ final personalTaskCommentSubscriptionProvider = FutureProvider<String?>((
     },
   );
 
-  ref.onDispose(() {
+  // Disposed while subscribePersonalTaskComments was in flight: the
+  // onDispose callback saw a null id, so stop the orphan here instead.
+  if (disposed) {
     unawaited(nostrService.stopSubscription(subscriptionId));
-  });
+    return null;
+  }
 
   return subscriptionId;
 });

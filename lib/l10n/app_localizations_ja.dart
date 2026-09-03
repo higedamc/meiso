@@ -1659,4 +1659,25 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get settingsSectionAbout => 'アプリ情報';
+
+  @override
+  String get commentsHeader => 'コメント';
+
+  @override
+  String get noComments => 'コメントはまだありません';
+
+  @override
+  String get addCommentHint => 'コメントを追加...';
+
+  @override
+  String get commentsUnavailableForTask => 'このタスクではコメントをまだ利用できません';
+
+  @override
+  String get editCommentTitle => 'コメントを編集';
+
+  @override
+  String get deleteCommentConfirmTitle => 'このコメントを削除しますか？';
+
+  @override
+  String get commentEditedLabel => '編集済み';
 }
