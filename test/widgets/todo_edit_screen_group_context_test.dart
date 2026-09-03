@@ -30,8 +30,8 @@ void main() {
     CustomList sharedList({String id = 'list-1'}) => CustomList(
       id: id,
       name: 'Shared',
-      createdAt: DateTime(2026, 1, 1),
-      updatedAt: DateTime(2026, 1, 1),
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
       isGroup: true,
       protocolVersion: CustomListHelpers.protocolSharedV1,
     );
@@ -39,8 +39,8 @@ void main() {
     CustomList mlsList({String id = 'list-2'}) => CustomList(
       id: id,
       name: 'MLS',
-      createdAt: DateTime(2026, 1, 1),
-      updatedAt: DateTime(2026, 1, 1),
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
       isGroup: true,
       protocolVersion: CustomListHelpers.protocolMlsV1,
     );
@@ -48,8 +48,8 @@ void main() {
     CustomList personalList({String id = 'list-3'}) => CustomList(
       id: id,
       name: 'Personal',
-      createdAt: DateTime(2026, 1, 1),
-      updatedAt: DateTime(2026, 1, 1),
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
     );
 
     test('shared-v1 の共有リストのタスク → true(タスク行から開いた既存タスク編集を再現)', () {
@@ -88,7 +88,9 @@ void main() {
       expect(result, isFalse);
     });
 
-    test('effectiveListId が null → false(fail-closed、CustomList 一覧を見るまでもない)', () {
+    test(
+        'effectiveListId が null → false'
+        '(fail-closed、CustomList 一覧を見るまでもない)', () {
       final result = resolveIsGroupContext(
         isGroupList: false,
         effectiveListId: null,

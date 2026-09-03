@@ -142,6 +142,17 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     final canUseTaskLinking = appSettings != null &&
         featureGate.canUseTaskLinking(appSettings) &&
         activeTaskMode == TaskUiMode.asana;
+    // customListsProvider はアプリ起動直後は AsyncValue.loading (custom_lists_
+    // provider.dart の _initialize() が非同期) なので ref.read だと初回 build
+    // で fail-closed(個人経路)のまま二度と rebuild されない。ref.watch で
+    // ロード完了時に再評価させる。
+    final commentSectionCustomLists =
+        ref.watch(customListsProvider).valueOrNull;
+    final commentSectionIsGroupContext = resolveIsGroupContext(
+      isGroupList: widget.isGroupList,
+      effectiveListId: _effectiveListId,
+      customLists: commentSectionCustomLists,
+    );
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -271,7 +282,9 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                   if (isEditing && !(widget.todo?.isSubtask ?? false))
                     TaskCommentSection(
                       taskId: widget.todo!.id,
-                      groupId: _isGroupContext ? _effectiveListId : null,
+                      groupId: commentSectionIsGroupContext
+                          ? _effectiveListId
+                          : null,
                     ),
                   if (isEditing &&
                       !(widget.todo?.isSubtask ?? false) &&
