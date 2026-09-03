@@ -9,6 +9,7 @@ import '../../domain/entities/task_comment.dart';
 import '../../infrastructure/providers/repository_providers.dart';
 import '../../infrastructure/repositories/task_comment_repository_impl.dart'
     show maxCommentBodyChars;
+import '../providers/author_profile_providers.dart';
 import '../providers/task_comment_providers.dart';
 
 /// Comment thread ("task chat") section shown below SUBTASKS in the task
@@ -71,6 +72,23 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
             .toList() ??
         const <TaskComment>[];
     final myPubkey = ref.watch(publicKeyProvider);
+
+    final otherAuthorHexes = visibleComments
+        .where(
+          (comment) => myPubkey == null || comment.authorPubkey != myPubkey,
+        )
+        .map((comment) => comment.authorPubkey)
+        .toSet();
+    if (otherAuthorHexes.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        ref
+            .read(authorLabelsProvider.notifier)
+            .ensureLoaded(otherAuthorHexes.toList());
+      });
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -246,30 +264,55 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
     );
   }
 
-  /// Author attribution for other members' comments, shown as a shortened
-  /// npub — the same self-asserted trust model as shared-v1's editorPubkey.
+  /// Author attribution for other members' comments: kind:0 display name
+  /// (when known) plus a shortened npub, shown side by side — the npub stays
+  /// visible because shared-list authorship is self-asserted (every member
+  /// signs with the same group key), so a display name alone is spoofable.
   Widget _buildAuthorLabel(String authorPubkeyHex, bool isDark) {
-    return FutureBuilder<String>(
-      future: ref.read(nostrServiceProvider).hexToNpub(authorPubkeyHex),
-      builder: (context, snapshot) {
-        final npub = snapshot.data ?? authorPubkeyHex;
-        final shortened = npub.length > 20
-            ? '${npub.substring(0, 12)}…${npub.substring(npub.length - 6)}'
-            : npub;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Text(
-            shortened,
-            style: TextStyle(
-              fontSize: 11,
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.w600,
-              color: AppTheme.primaryColor.withOpacity(0.8),
-            ),
-          ),
-        );
-      },
+    final label = ref.watch(authorLabelsProvider)[authorPubkeyHex];
+    final shortNpub =
+        label?.shortNpub ?? _shortenIdentifierFallback(authorPubkeyHex);
+    final displayName = label?.displayName;
+
+    final npubStyle = TextStyle(
+      fontSize: 11,
+      fontFamily: 'monospace',
+      fontWeight: FontWeight.w600,
+      color: AppTheme.primaryColor.withOpacity(0.8),
     );
+    final nameStyle = TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            if (displayName != null) ...[
+              TextSpan(text: displayName, style: nameStyle),
+              TextSpan(text: ' · ', style: npubStyle),
+            ],
+            TextSpan(text: shortNpub, style: npubStyle),
+          ],
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  /// Placeholder shown before the async npub lookup for [authorPubkeyHex]
+  /// resolves — the raw hex, shortened the same way a resolved npub would be.
+  String _shortenIdentifierFallback(String authorPubkeyHex) {
+    if (authorPubkeyHex.length <= 20) {
+      return authorPubkeyHex;
+    }
+    final prefix = authorPubkeyHex.substring(0, 12);
+    final suffix = authorPubkeyHex.substring(authorPubkeyHex.length - 6);
+    return '$prefix…$suffix';
   }
 
   Widget _buildInputRow(
