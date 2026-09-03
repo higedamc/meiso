@@ -79,4 +79,10 @@ migrate_docs_to_anytype.py
 start_emulator.sh
 
 scripts/.env
+.env
+.env.*
+!.env.example
 env
+
+# SpecStory local conversation history
+.specstory/
