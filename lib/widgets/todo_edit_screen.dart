@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_theme.dart';
 import '../l10n/app_localizations.dart';
 import '../models/todo.dart';
+import '../models/custom_list.dart';
 import '../models/link_preview.dart';
 import '../models/recurrence_pattern.dart';
 import '../models/app_settings.dart';
@@ -22,6 +23,44 @@ import 'task_link_section.dart';
 import 'remote_image_gate.dart';
 import '../features/media/presentation/widgets/image_attachment_section.dart';
 import '../features/task_comments/presentation/widgets/task_comment_section.dart';
+
+/// 呼び出し側の指定を優先、無ければ todo 自身の customListId から引く。
+/// タスク行から既存タスクを開くと呼び出し側は customListId を渡さないため。
+/// トップレベル関数として公開しているのはユニットテストのため
+/// （private メンバーは同一ファイル外から参照できない）。
+@visibleForTesting
+String? resolveEffectiveListId({
+  required String? explicitListId,
+  required String? todoListId,
+}) => explicitListId ?? todoListId;
+
+/// widget.isGroupList が既に true のケース（新規追加フロー、mls-v1 / gw17-v1 含む）は
+/// そのまま尊重する（|| で足すだけ）。それが false の場合のみ、解決した
+/// CustomList が shared-v1 の共有リストかどうかで判定する。shared-v1 だけに限定するのは
+/// _resolveGroupNsecHex がグループ鍵を持つのが shared-v1 だけだから（他は AuthFailure になる）。
+/// リストが見つからなければ fail-closed で個人経路。
+@visibleForTesting
+bool resolveIsGroupContext({
+  required bool isGroupList,
+  required String? effectiveListId,
+  required List<CustomList>? customLists,
+}) {
+  if (isGroupList) {
+    return true;
+  }
+  if (effectiveListId == null) {
+    return false;
+  }
+  if (customLists == null) {
+    return false;
+  }
+  for (final list in customLists) {
+    if (list.id == effectiveListId) {
+      return list.isGroup && list.isSharedProtocol;
+    }
+  }
+  return false;
+}
 
 /// Todo追加/編集用の全画面モーダル
 class TodoEditScreen extends ConsumerStatefulWidget {
@@ -52,6 +91,17 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
   String? _imageUrl;
 
   bool get isEditing => widget.todo != null;
+
+  String? get _effectiveListId => resolveEffectiveListId(
+    explicitListId: widget.customListId,
+    todoListId: widget.todo?.customListId,
+  );
+
+  bool get _isGroupContext => resolveIsGroupContext(
+    isGroupList: widget.isGroupList,
+    effectiveListId: _effectiveListId,
+    customLists: ref.read(customListsProvider).valueOrNull,
+  );
 
   @override
   void initState() {
@@ -92,6 +142,17 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
     final canUseTaskLinking = appSettings != null &&
         featureGate.canUseTaskLinking(appSettings) &&
         activeTaskMode == TaskUiMode.asana;
+    // customListsProvider はアプリ起動直後は AsyncValue.loading (custom_lists_
+    // provider.dart の _initialize() が非同期) なので ref.read だと初回 build
+    // で fail-closed(個人経路)のまま二度と rebuild されない。ref.watch で
+    // ロード完了時に再評価させる。
+    final commentSectionCustomLists =
+        ref.watch(customListsProvider).valueOrNull;
+    final commentSectionIsGroupContext = resolveIsGroupContext(
+      isGroupList: widget.isGroupList,
+      effectiveListId: _effectiveListId,
+      customLists: commentSectionCustomLists,
+    );
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -221,7 +282,9 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
                   if (isEditing && !(widget.todo?.isSubtask ?? false))
                     TaskCommentSection(
                       taskId: widget.todo!.id,
-                      groupId: widget.isGroupList ? widget.customListId : null,
+                      groupId: commentSectionIsGroupContext
+                          ? _effectiveListId
+                          : null,
                     ),
                   if (isEditing &&
                       !(widget.todo?.isSubtask ?? false) &&
@@ -559,7 +622,8 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
 
     if (isEditing) {
       // 編集モード: タイトルと繰り返しパターンを更新
-      if (widget.isGroupList) {
+      final effectiveGroupId = _isGroupContext ? _effectiveListId : null;
+      if (effectiveGroupId != null) {
         AppLogger.debug(' [Group] Updating todo: "$text" (id: ${widget.todo!.id})');
         final updatedTodo = widget.todo!.copyWith(
           title: text,
@@ -567,7 +631,7 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
           imageUrl: _imageUrl,
         );
         await ref.read(todosProvider.notifier).updateTodoInGroup(
-          groupId: widget.customListId!,
+          groupId: effectiveGroupId,
           updatedTodo: updatedTodo,
         );
         AppLogger.info(' [Group] Todo update completed and synced');
@@ -637,10 +701,11 @@ class _TodoEditScreenState extends ConsumerState<TodoEditScreen> {
       }
     } else {
       // 追加モード: 新しいTodoを作成
-      if (widget.isGroupList) {
-        AppLogger.debug(' [Group] Adding todo to group: "$text" (groupId: ${widget.customListId})');
+      final effectiveGroupId = _isGroupContext ? _effectiveListId : null;
+      if (effectiveGroupId != null) {
+        AppLogger.debug(' [Group] Adding todo to group: "$text" (groupId: $effectiveGroupId)');
         await ref.read(todosProvider.notifier).addTodoToGroup(
-          groupId: widget.customListId!,
+          groupId: effectiveGroupId,
           title: text,
           date: widget.date,
         );
