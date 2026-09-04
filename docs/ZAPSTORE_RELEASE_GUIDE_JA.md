@@ -241,10 +241,13 @@ SIGN_WITH="bunker://pubkey?relay=wss://relay.example.com&secret=..." zsp publish
 **C. nsec秘密鍵（非推奨：セキュリティリスクあり）**
 
 ```bash
-SIGN_WITH=nsec1... zsp publish zapstore.yaml
+read -rs SIGN_WITH   # 端末にエコーされず、履歴にも残らない
+export SIGN_WITH
+zsp publish zapstore.yaml
+unset SIGN_WITH
 ```
 
-> ⚠️ **セキュリティ**: 秘密鍵を環境変数で扱うのはリスクがあります。本番環境ではブラウザ署名またはBunkerを推奨します。
+> ⚠️ **セキュリティ**: 秘密鍵を環境変数で扱うのはリスクがあります。本番環境ではブラウザ署名またはBunkerを推奨します。`SIGN_WITH=nsec1... zsp publish` のようにコマンド行へ直書きすると、シェル履歴（`.zsh_history` / `.bash_history`）に平文で残ります。
 
 #### 5.2 zsp publishの実行
 
@@ -399,8 +402,14 @@ Error: No Nostr signer found
 # ブラウザ拡張機能（Alby等）がインストールされているか確認
 # 拡張機能でログインしているか確認
 
-# または環境変数で直接指定
-SIGN_WITH=nsec1... zsp publish zapstore.yaml
+# 拡張機能が使えない場合はBunker（NIP-46）を使用
+SIGN_WITH="bunker://pubkey?relay=wss://relay.example.com&secret=..." zsp publish zapstore.yaml
+
+# Bunkerも使えない場合のみ、nsecを安全に入力（コマンド行に直書きしない）
+read -rs SIGN_WITH
+export SIGN_WITH
+zsp publish zapstore.yaml
+unset SIGN_WITH
 ```
 
 ### 問題4: Blossom CDNアップロードエラー
