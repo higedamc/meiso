@@ -11,6 +11,7 @@ type Config struct {
 	DataDir          string
 	AuthURL          string
 	DefaultRelayURLs []string
+	SocksProxy       string
 }
 
 func LoadConfig() (Config, error) {
@@ -25,6 +26,7 @@ func LoadConfig() (Config, error) {
 			"MEISO_CUI_RELAY_URL",
 			"wss://relay.damus.io",
 		)),
+		SocksProxy: strings.TrimSpace(os.Getenv("MEISO_CUI_SOCKS_PROXY")),
 	}
 	if cfg.DataDir == "" {
 		return Config{}, errors.New("failed to resolve data directory")

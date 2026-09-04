@@ -15,19 +15,28 @@ import (
 )
 
 type Service struct {
-	cfg          Config
-	authBroker   *auth.Broker
-	sessionStore *storage.SessionStore
-	taskStore    *storage.TaskStore
+	cfg              Config
+	authBroker       *auth.Broker
+	sessionStore     *storage.SessionStore
+	taskStore        *storage.TaskStore
+	sharedGroupStore *storage.SharedGroupStore
+	sharedTaskStore  *storage.SharedTaskStore
 }
 
 func NewService(cfg Config) *Service {
 	return &Service{
-		cfg:          cfg,
-		authBroker:   auth.NewBroker(),
-		sessionStore: storage.NewSessionStore(cfg.DataDir),
-		taskStore:    storage.NewTaskStore(cfg.DataDir),
+		cfg:              cfg,
+		authBroker:       auth.NewBroker(),
+		sessionStore:     storage.NewSessionStore(cfg.DataDir),
+		taskStore:        storage.NewTaskStore(cfg.DataDir),
+		sharedGroupStore: storage.NewSharedGroupStore(cfg.DataDir),
+		sharedTaskStore:  storage.NewSharedTaskStore(cfg.DataDir),
 	}
+}
+
+// SocksProxy returns the configured SOCKS5 proxy address (empty if disabled).
+func (s *Service) SocksProxy() string {
+	return s.cfg.SocksProxy
 }
 
 func (s *Service) Login(ctx context.Context) (*model.Session, error) {
@@ -80,6 +89,10 @@ func (s *Service) LoginLocal(secret string) (*model.Session, error) {
 }
 
 func (s *Service) Logout() error {
+	// Drop shared-group secrets and task state alongside the session so a
+	// logout leaves no group key (the shared secret) behind on disk.
+	_ = s.sharedGroupStore.Clear()
+	_ = s.sharedTaskStore.Clear()
 	return s.sessionStore.Clear()
 }
 
