@@ -96,7 +96,7 @@ SIGN_WITH=browser zsp publish zapstore.yaml
 |-----|---------|------|
 | **ブラウザ拡張** | `SIGN_WITH=browser zsp publish` | 手動リリース（推奨） |
 | **NIP-46 Bunker** | `SIGN_WITH="bunker://..." zsp publish` | CI/CD自動化 |
-| **nsec秘密鍵** | `SIGN_WITH=nsec1... zsp publish` | テスト環境のみ |
+| **nsec秘密鍵** | `read -rs SIGN_WITH && export SIGN_WITH && zsp publish` | テスト環境のみ・直書き禁止 |
 
 ---
 
