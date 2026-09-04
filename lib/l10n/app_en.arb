@@ -2237,6 +2237,76 @@
     "description": "Table of contents item 8"
   },
   
+  "cryptoTocItem9": "9. Collaborative Lists - Hybrid Encryption",
+  "@cryptoTocItem9": {
+    "description": "Table of contents item 9"
+  },
+
+  "cryptoCollabListsTitle": "9. Collaborative Lists — Hybrid Encryption",
+  "@cryptoCollabListsTitle": {
+    "description": "Collaborative lists section title"
+  },
+
+  "cryptoCollabListsIntro": "Shared lists use a two-layer hybrid encryption scheme so that task data is encrypted once, yet any authorised member can independently decrypt it using only their own Nostr keypair — no trusted key server required.",
+  "@cryptoCollabListsIntro": {
+    "description": "Collaborative lists intro paragraph"
+  },
+
+  "cryptoCollabHybridTitle": "How the Hybrid Scheme Works",
+  "@cryptoCollabHybridTitle": {
+    "description": "Collaborative lists hybrid scheme subheading"
+  },
+
+  "cryptoCollabHybridDesc": "A random 256-bit AES key encrypts the list payload (AES-256-GCM). That AES key is then wrapped individually for every member using NIP-44 v2 (ECDH over secp256k1 → HKDF-SHA256 → ChaCha20-Poly1305). Each member stores one small encrypted blob; the bulk ciphertext is shared.",
+  "@cryptoCollabHybridDesc": {
+    "description": "Collaborative lists hybrid scheme description"
+  },
+
+  "cryptoCollabEncryptionFlow": "Encrypt\n  tasks (JSON) ──AES-256-GCM (random key + 12-byte nonce)──► ciphertext\n\nWrap key per member\n  owner_sk × member_pk ──ECDH──► shared_secret\n  shared_secret ──HKDF-SHA256──► wrap_key\n  wrap_key ──NIP-44 v2──► encrypted_aes_key\n\nPublish Nostr event\n  fields: encrypted_data, members[], encrypted_keys[]",
+  "@cryptoCollabEncryptionFlow": {
+    "description": "Collaborative lists encryption flow code block"
+  },
+
+  "cryptoCollabMembershipTitle": "Membership Changes",
+  "@cryptoCollabMembershipTitle": {
+    "description": "Collaborative lists membership changes subheading"
+  },
+
+  "cryptoCollabAddMember": "Adding a member",
+  "@cryptoCollabAddMember": {
+    "description": "Add member bullet title"
+  },
+
+  "cryptoCollabAddMemberDesc": "Wrap the existing AES key for the new member with NIP-44 v2. No re-encryption of the list payload is required.",
+  "@cryptoCollabAddMemberDesc": {
+    "description": "Add member detail"
+  },
+
+  "cryptoCollabRemoveMember": "Removing a member (forward secrecy)",
+  "@cryptoCollabRemoveMember": {
+    "description": "Remove member bullet title"
+  },
+
+  "cryptoCollabRemoveMemberDesc": "Generate a fresh random AES key, re-encrypt the entire list, and re-wrap the new key for all remaining members. The removed member's old encrypted_aes_key becomes permanently useless.",
+  "@cryptoCollabRemoveMemberDesc": {
+    "description": "Remove member detail"
+  },
+
+  "cryptoCollabPrimitivesTitle": "Cryptographic Primitives",
+  "@cryptoCollabPrimitivesTitle": {
+    "description": "Collaborative lists primitives subheading"
+  },
+
+  "cryptoCollabPrimitivesTable": "Layer               Algorithm\n─────────────────────────────────────────────\nList encryption     AES-256-GCM\nKey agreement       ECDH / secp256k1 (NIP-44 v2)\nKey derivation      HKDF-SHA256 (inside NIP-44)\nRNG                 OsRng (OS-provided CSPRNG)\nEvent authenticity  Schnorr / secp256k1 (Nostr)",
+  "@cryptoCollabPrimitivesTable": {
+    "description": "Collaborative lists primitives table"
+  },
+
+  "cryptoCollabReference": "📚 Design doc: docs/COLLABORATIVE_LISTS_ENCRYPTION.md",
+  "@cryptoCollabReference": {
+    "description": "Collaborative lists reference link text"
+  },
+
   "cryptoFooterSecurityTitle": "🔒 Security Questions and Reports",
   "@cryptoFooterSecurityTitle": {
     "description": "Footer security title"

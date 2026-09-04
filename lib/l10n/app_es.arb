@@ -834,6 +834,20 @@
   
   "cryptoTocItem8": "8. Modelo de Amenazas y Limitaciones",
   
+  "cryptoTocItem9": "9. Listas Colaborativas - Cifrado Híbrido",
+  "cryptoCollabListsTitle": "9. Listas Colaborativas — Cifrado Híbrido",
+  "cryptoCollabListsIntro": "Las listas compartidas utilizan un esquema de cifrado híbrido de dos capas: los datos de tareas se cifran una sola vez, pero cualquier miembro autorizado puede descifrarlos de forma independiente usando únicamente su propio par de claves Nostr, sin necesidad de un servidor de claves de confianza.",
+  "cryptoCollabHybridTitle": "Cómo Funciona el Esquema Híbrido",
+  "cryptoCollabHybridDesc": "Una clave AES aleatoria de 256 bits cifra el payload de la lista (AES-256-GCM). Esa clave AES se envuelve individualmente para cada miembro usando NIP-44 v2 (ECDH sobre secp256k1 → HKDF-SHA256 → ChaCha20-Poly1305). Cada miembro almacena un pequeño blob cifrado; el texto cifrado principal es compartido.",
+  "cryptoCollabEncryptionFlow": "Cifrar\n  tareas (JSON) ──AES-256-GCM (clave aleatoria + nonce 12 bytes)──► cifrado\n\nEnvolver clave por miembro\n  owner_sk × member_pk ──ECDH──► secreto_compartido\n  secreto_compartido ──HKDF-SHA256──► clave_envoltura\n  clave_envoltura ──NIP-44 v2──► encrypted_aes_key\n\nPublicar evento Nostr\n  campos: encrypted_data, members[], encrypted_keys[]",
+  "cryptoCollabMembershipTitle": "Cambios de Membresía",
+  "cryptoCollabAddMember": "Agregar un miembro",
+  "cryptoCollabAddMemberDesc": "Envuelve la clave AES existente para el nuevo miembro con NIP-44 v2. No se requiere re-cifrado del payload de la lista.",
+  "cryptoCollabRemoveMember": "Eliminar un miembro (secreto hacia adelante)",
+  "cryptoCollabRemoveMemberDesc": "Genera una nueva clave AES aleatoria, re-cifra toda la lista y re-envuelve la nueva clave para todos los miembros restantes. El encrypted_aes_key antiguo del miembro eliminado queda permanentemente inútil.",
+  "cryptoCollabPrimitivesTitle": "Primitivas Criptográficas",
+  "cryptoCollabPrimitivesTable": "Capa                  Algoritmo\n─────────────────────────────────────────────\nCifrado de lista      AES-256-GCM\nAcuerdo de clave      ECDH / secp256k1 (NIP-44 v2)\nDerivación de clave   HKDF-SHA256 (dentro de NIP-44)\nRNG                   OsRng (CSPRNG del SO)\nAutenticidad evento   Schnorr / secp256k1 (Nostr)",
+  "cryptoCollabReference": "📚 Documento de diseño: docs/COLLABORATIVE_LISTS_ENCRYPTION.md",
   "cryptoFooterSecurityTitle": "🔒 Preguntas y Reportes de Seguridad",
   
   "cryptoFooterSecurityDesc": "Si descubre un problema de seguridad, repórtelo a través de GitHub Issues o Nostr (DM).",
