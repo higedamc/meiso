@@ -4,6 +4,14 @@
     <!-- QR コード読み取り（メンバー追加）に必要なパーミッション -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Phase 3 notifications: the relay listener runs as a foreground service of type
+         "specialUse" (Android 14+). FOREGROUND_SERVICE / WAKE_LOCK / RECEIVE_BOOT_COMPLETED /
+         POST_NOTIFICATIONS are declared by the flutter_foreground_task plugin manifest and
+         merged in; only the app-specific permissions are declared here. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Lets the settings screen offer the battery-optimization exemption so the relay
+         listener is not killed by Doze. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     
     <application
         android:label="meiso"
@@ -48,6 +56,29 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Phase 3 notifications: persistent relay listener hosted by flutter_foreground_task.
+             The plugin manifest declares its boot/restart receivers but NOT the service, so the
+             app must declare it. Do not rename android:name; the plugin starts this class.
+             "specialUse" is used instead of "dataSync" because dataSync is capped at 6h/24h and
+             is on the Android 15 boot-start denylist; specialUse is not (verified on API 36,
+             see RESEARCH/MEISO_PHASE3_SPIKE.md). The subtype text is reviewed by Google Play and
+             describes what the service actually does. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a WebSocket connection to the user's Nostr relays open so that new comments on shared tasks are received and shown as notifications without any push server." />
+        </service>
+
+        <!-- Monochrome status-bar icon for the listener notification and comment notifications.
+             flutter_foreground_task resolves NotificationIcon(metaDataName) through this
+             meta-data entry; the default (launcher icon) renders as a white square. -->
+        <meta-data
+            android:name="jp.godzhigella.meiso.notify.STATUS_ICON"
+            android:resource="@drawable/ic_stat_notify" />
         
         <!-- Home Screen Widget -->
         <receiver
