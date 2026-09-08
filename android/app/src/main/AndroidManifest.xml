@@ -62,8 +62,9 @@
              app must declare it. Do not rename android:name; the plugin starts this class.
              "specialUse" is used instead of "dataSync" because dataSync is capped at 6h/24h and
              is on the Android 15 boot-start denylist; specialUse is not (verified on API 36,
-             see RESEARCH/MEISO_PHASE3_SPIKE.md). The subtype text is reviewed by Google Play and
-             describes what the service actually does. -->
+             see RESEARCH/MEISO_PHASE3_SPIKE.md). The subtype property is what Android expects a
+             specialUse service to declare; the text describes what the service actually does.
+             meiso ships via Zapstore, so this is declared for correctness, not for a Play review. -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="specialUse"
