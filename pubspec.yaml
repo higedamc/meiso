@@ -53,6 +53,14 @@ dependencies:
   shared_preferences: ^2.3.3
   path_provider: ^2.1.5
   
+  # Grapheme-cluster truncation (cutting on runes splits emoji apart)
+  characters: ^1.4.0
+
+  # Notifications (Phase 3: persistent relay connection + on-device notifications)
+  # Pinned to 10.0.0: 11.x requires Flutter >=3.44.0 and this project is on 3.41.6.
+  flutter_foreground_task: 10.0.0
+  flutter_local_notifications: ^22.3.0
+  
   # Rust Bridge
   flutter_rust_bridge: 2.12.0
   ffi: ^2.1.0
