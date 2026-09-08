@@ -60,6 +60,20 @@ dependencies:
   # Pinned to 10.0.0: 11.x requires Flutter >=3.44.0 and this project is on 3.41.6.
   flutter_foreground_task: 10.0.0
   flutter_local_notifications: ^22.3.0
+  # Mirror of the shared-group keys the background isolate needs. The Hive
+  # `settings` box cannot be opened from a second isolate without corrupting
+  # it, so the UI side mirrors the key material here instead. Reading it from
+  # a cold headless engine was measured on a physical API 36 device before
+  # this dependency was added (RESEARCH/MEISO_PHASE3_SPIKE.md, CHECK-4).
+  #
+  # 10.x, not 9.x, because of the Android defaults. 9.2.4 defaults to
+  # AES/CBC/PKCS7 storage wrapped with RSA/ECB/PKCS1v1.5 — unauthenticated
+  # ciphertext and a padding-oracle-prone key cipher, both of which upstream
+  # now marks insecure and deprecated. 10.x defaults to AES/GCM/NoPadding
+  # wrapped with RSA-OAEP-SHA256. Taking the safe algorithms from the default
+  # rather than from an AndroidOptions argument is deliberate: a control that
+  # every call site has to remember is a control that one call site will skip.
+  flutter_secure_storage: ^10.3.1
   
   # Rust Bridge
   flutter_rust_bridge: 2.12.0
