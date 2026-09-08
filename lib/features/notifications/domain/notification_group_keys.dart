@@ -89,10 +89,10 @@ class NotificationGroupKey {
   final String groupNsecHex;
 
   Map<String, dynamic> toJson() => {
-        'group_id': groupId,
-        'group_npub': groupNpubHex,
-        'group_nsec': groupNsecHex,
-      };
+    'group_id': groupId,
+    'group_npub': groupNpubHex,
+    'group_nsec': groupNsecHex,
+  };
 
   /// Returns null instead of throwing on a malformed entry.
   ///
@@ -106,7 +106,7 @@ class NotificationGroupKey {
     final groupId = raw['group_id'];
     final npub = raw['group_npub'];
     final nsec = raw['group_nsec'];
-    if (groupId is! String || groupId.isEmpty) {
+    if (groupId is! String || groupId.isEmpty || groupId.length > 128) {
       return null;
     }
     if (!_isHex64(npub)) {
@@ -179,9 +179,10 @@ class NotificationGroupKeys {
     final rawGroups = decoded['groups'];
     final groups = <NotificationGroupKey>[];
     if (rawGroups is List) {
-      for (final entry in rawGroups) {
+      for (final entry in rawGroups.take(maxGroups)) {
         final parsed = NotificationGroupKey.tryFromJson(entry);
-        if (parsed != null) {
+        if (parsed != null &&
+            !groups.any((group) => group.groupNpubHex == parsed.groupNpubHex)) {
           groups.add(parsed);
         }
       }
@@ -194,6 +195,9 @@ class NotificationGroupKeys {
 
   /// Current shape version of the serialized payload.
   static const int currentVersion = 1;
+
+  /// Bound mirror growth before it reaches the background isolate/filter.
+  static const int maxGroups = 256;
 
   /// Empty mirror: nothing to subscribe to, nothing to decrypt.
   static const NotificationGroupKeys empty = NotificationGroupKeys(
@@ -241,13 +245,12 @@ class NotificationGroupKeys {
   }
 
   Map<String, dynamic> toJson() => {
-        'version': currentVersion,
-        'self_pubkey': selfPubkeyHex,
-        'groups': groups.map((g) => g.toJson()).toList(growable: false),
-      };
+    'version': currentVersion,
+    'self_pubkey': selfPubkeyHex,
+    'groups': groups.map((g) => g.toJson()).toList(growable: false),
+  };
 
   String encode() => jsonEncode(toJson());
-
 }
 
 bool _isHex64(Object? value) {

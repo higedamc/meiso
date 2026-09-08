@@ -63,6 +63,9 @@ class BackgroundNotifyTaskHandler extends TaskHandler {
   NotificationDispatcher? _dispatcher;
   DeliveredEventStore? _store;
   Timer? _pollTimer;
+  bool _pollInProgress = false;
+  bool _clientInitialized = false;
+  bool _subscriptionStarted = false;
   Map<String, String> _groupIdByNpub = const {};
   Map<String, String> _nsecByNpub = const {};
   String? _localPubkeyHex;
@@ -86,49 +89,67 @@ class BackgroundNotifyTaskHandler extends TaskHandler {
     // Delay the native Rust load until there is a usable session. This keeps
     // the no-session startup path testable on host platforms and avoids
     // loading a native library for a disabled/empty notification service.
-    await RustLib.init();
+    try {
+      await RustLib.init();
 
-    _groupIdByNpub = {
-      for (final credential in credentials.values)
-        credential.npubHex: credential.groupId,
-    };
-    _nsecByNpub = {
-      for (final credential in credentials.values)
-        credential.npubHex: credential.nsecHex,
-    };
+      _groupIdByNpub = {
+        for (final credential in credentials.values)
+          credential.npubHex: credential.groupId,
+      };
+      _nsecByNpub = {
+        for (final credential in credentials.values)
+          credential.npubHex: credential.nsecHex,
+      };
 
-    final prefs = await SharedPreferences.getInstance();
-    final store = DeliveredEventStore(prefs);
-    _store = store;
+      final prefs = await SharedPreferences.getInstance();
+      final store = DeliveredEventStore(prefs);
+      _store = store;
 
-    final dispatcher =
-        _dispatcherOverride ??
-        NotificationDispatcher(FlutterLocalNotificationsPlugin());
-    await dispatcher.init();
-    _dispatcher = dispatcher;
+      final dispatcher =
+          _dispatcherOverride ??
+          NotificationDispatcher(FlutterLocalNotificationsPlugin());
+      await dispatcher.init();
+      _dispatcher = dispatcher;
 
-    await rust_api.initNostrClientWithPubkeyAndId(
-      clientId: backgroundNotifyClientId,
-      publicKeyHex: localPubkeyHex,
-      relays: defaultRelays,
-    );
+      await rust_api.initNostrClientWithPubkeyAndId(
+        clientId: backgroundNotifyClientId,
+        publicKeyHex: localPubkeyHex,
+        relays: defaultRelays,
+      );
+      _clientInitialized = true;
 
-    final filter = buildSharedTaskCommentFilter(
-      groupNpubHexes: _groupIdByNpub.keys.toList(growable: false),
-      sinceUnixSeconds: store.lastSeenCreatedAt,
-    );
-    if (filter == null) {
-      return;
+      final filter = buildSharedTaskCommentFilter(
+        groupNpubHexes: _groupIdByNpub.keys.toList(growable: false),
+        sinceUnixSeconds: store.lastSeenCreatedAt,
+      );
+      if (filter == null) {
+        return;
+      }
+      await rust_api.startSubscriptionWithClientId(
+        filtersJson: jsonEncode([filter]),
+        clientId: backgroundNotifyClientId,
+      );
+      _subscriptionStarted = true;
+
+      _pollTimer = Timer.periodic(backgroundPollInterval, (_) => _poll());
+    } catch (_) {
+      await _cleanupNativeState();
     }
-    await rust_api.startSubscriptionWithClientId(
-      filtersJson: jsonEncode([filter]),
-      clientId: backgroundNotifyClientId,
-    );
-
-    _pollTimer = Timer.periodic(backgroundPollInterval, (_) => _poll());
   }
 
   Future<void> _poll() async {
+    if (_pollInProgress) {
+      return;
+    }
+    _pollInProgress = true;
+    try {
+      await _pollOnce();
+    } finally {
+      _pollInProgress = false;
+    }
+  }
+
+  Future<void> _pollOnce() async {
     final store = _store;
     final dispatcher = _dispatcher;
     if (store == null || dispatcher == null) {
@@ -207,12 +228,6 @@ class BackgroundNotifyTaskHandler extends TaskHandler {
       return;
     }
 
-    // Subscription progress and dedup apply regardless of self-echo — both
-    // track "have we processed this event", not "did it produce a
-    // notification".
-    await store.advanceLastSeenCreatedAt(payload.createdAt);
-    await store.markDelivered(payload.eventId);
-
     final localPubkeyHex = _localPubkeyHex;
     if (localPubkeyHex != null &&
         isSelfEcho(
@@ -223,6 +238,32 @@ class BackgroundNotifyTaskHandler extends TaskHandler {
     }
 
     await dispatcher.showCommentNotification(payload);
+
+    // Persist only after delivery succeeds. A crash or plugin failure may
+    // cause a duplicate, but must not permanently lose a notification.
+    // Clamp relay-controlled future timestamps so one valid event cannot move
+    // the durable resume cursor ahead of the device clock.
+    final nowSeconds = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    await store.advanceLastSeenCreatedAt(
+      payload.createdAt > nowSeconds ? nowSeconds : payload.createdAt,
+    );
+    await store.markDelivered(payload.eventId);
+  }
+
+  Future<void> _cleanupNativeState() async {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    if (_subscriptionStarted || _clientInitialized) {
+      try {
+        await rust_api.stopAllSubscriptionsWithClientId(
+          clientId: backgroundNotifyClientId,
+        );
+      } catch (_) {
+        // Best-effort cleanup during startup failure or service shutdown.
+      }
+    }
+    _subscriptionStarted = false;
+    _clientInitialized = false;
   }
 
   @override
@@ -232,14 +273,6 @@ class BackgroundNotifyTaskHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
-    _pollTimer?.cancel();
-    _pollTimer = null;
-    try {
-      await rust_api.stopAllSubscriptionsWithClientId(
-        clientId: backgroundNotifyClientId,
-      );
-    } catch (_) {
-      // Best-effort cleanup; the service is going away regardless.
-    }
+    await _cleanupNativeState();
   }
 }
