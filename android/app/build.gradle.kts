@@ -21,6 +21,10 @@ android {
     flavorDimensions += "channel"
 
     compileOptions {
+        // flutter_local_notifications 10+ (Phase 3 comment notifications) requires core
+        // library desugaring even when scheduled notifications are not used; without it
+        // :app:check<Variant>AarMetadata fails for every flavor.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -69,6 +73,11 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Version required by flutter_local_notifications 22.x (see its README, "desugaring").
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 // production flavor の APK を app-release.apk としてもコピーする。
