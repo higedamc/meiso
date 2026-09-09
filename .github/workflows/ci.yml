@@ -8,6 +8,13 @@ on:
   push:
     branches: ['main', 'release/**']
   workflow_dispatch:
+    inputs:
+      update_goldens:
+        description: >-
+          Re-record test/golden/goldens/*.png on this Linux runner and upload them as
+          the `goldens` artifact (never record goldens on macOS).
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -40,4 +47,79 @@ jobs:
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Run tests
-        run: flutter test --no-pub
+        # Screenshot goldens run in the separate, non-blocking `golden` job below.
+        run: flutter test --no-pub --exclude-tags golden
+
+  golden:
+    # Screenshot regression via Flutter golden tests (test/golden/). Non-blocking while
+    # the trial proves itself: whether it becomes a required check is decided after two
+    # unrelated PRs stay green. The PNGs are recorded on this Linux runner only, via
+    # `workflow_dispatch` with update_goldens=true; commit the uploaded artifact.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Run code generation
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Report renderer
+        run: |
+          uname -srm
+          flutter --version --machine
+
+      - name: Verify goldens
+        if: ${{ inputs.update_goldens != true }}
+        run: >-
+          flutter test --no-pub --tags golden --run-skipped
+          --file-reporter json:golden-report.json
+
+      # A skip-by-default tag can fail "green" by running nothing (for example if
+      # --run-skipped stops honouring dart_test.yaml). Require a floor of real runs.
+      - name: Require at least 4 golden tests to have run
+        if: ${{ always() && inputs.update_goldens != true }}
+        run: |
+          ran=$(jq -s '[.[] | select(.type == "testDone" and .hidden != true and .skipped != true)] | length' golden-report.json)
+          echo "golden tests executed: $ran"
+          if [ "$ran" -lt 4 ]; then
+            echo "::error::only $ran golden tests ran (expected at least 4); the golden job did not exercise the suite"
+            exit 1
+          fi
+
+      - name: Upload golden failure diffs
+        if: ${{ failure() && inputs.update_goldens != true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: test/golden/failures/
+          if-no-files-found: ignore
+
+      - name: Record goldens
+        if: ${{ inputs.update_goldens == true }}
+        run: >-
+          flutter test --no-pub --tags golden --run-skipped --update-goldens
+          --file-reporter json:golden-report.json
+
+      - name: Require at least 4 golden tests to have been recorded
+        if: ${{ inputs.update_goldens == true }}
+        run: |
+          ran=$(jq -s '[.[] | select(.type == "testDone" and .hidden != true and .skipped != true)] | length' golden-report.json)
+          echo "golden tests recorded: $ran"
+          [ "$ran" -ge 4 ] || { echo "::error::only $ran golden tests recorded"; exit 1; }
+
+      - name: Upload recorded goldens
+        if: ${{ inputs.update_goldens == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: goldens
+          path: test/golden/goldens/*.png
+          if-no-files-found: error
