@@ -1878,12 +1878,18 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
 }
 
 /// Replace the client registered under `client_id` and detach its listener before
-/// installing the replacement. Callers must hold `SESSION_STATE_LOCK`.
+/// shutting down the old client. Callers must hold `SESSION_STATE_LOCK`.
 async fn install_client(client_id: String, client: MeisoNostrClient) {
+    // Publish the replacement before awaiting shutdown so readers never observe an
+    // empty client slot while the old connection is being torn down.
     let previous = {
         let mut clients = NOSTR_CLIENTS.lock().await;
-        clients.remove(&client_id)
+        clients.insert(client_id.clone(), client)
     };
+
+    // Remove the old registration before the new client can start a listener. The
+    // generation check makes a late old listener unable to remove the new one.
+    detach_subscription_listener(&client_id);
 
     if let Some(previous) = previous {
         if let Err(e) = previous.client.shutdown().await {
@@ -1894,13 +1900,6 @@ async fn install_client(client_id: String, client: MeisoNostrClient) {
             );
         }
     }
-
-    // Remove the old registration before the new client can start a listener. The
-    // generation check makes a late old listener unable to remove the new one.
-    detach_subscription_listener(&client_id);
-
-    let mut clients = NOSTR_CLIENTS.lock().await;
-    clients.insert(client_id, client);
 }
 
 /// WebSocket `User-Agent` on relay connections (issue #130). Call before any `init_nostr_client*`.
@@ -4247,16 +4246,21 @@ pub fn start_subscription_with_client_id(
         .clone()
         .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
     TOKIO_RUNTIME.block_on(async {
-        let _session_guard = SESSION_STATE_LOCK.lock().await;
-        let client = get_client(client_id).await?;
+        let (client, filters) = {
+            let _session_guard = SESSION_STATE_LOCK.lock().await;
+            let client = get_client(client_id).await?;
 
-        // JSON文字列からFilterのリストをパース
-        let filters: Vec<Filter> =
-            serde_json::from_str(&filters_json).context("Failed to parse filters JSON")?;
+            // JSON文字列からFilterのリストをパース
+            let filters: Vec<Filter> =
+                serde_json::from_str(&filters_json).context("Failed to parse filters JSON")?;
 
-        // subscribe 前に常駐リスナーを確実に起動（イベント取りこぼし防止）
-        ensure_subscription_event_listener(&resolved_id, &client.client);
+            // subscribe 前に常駐リスナーを確実に起動（イベント取りこぼし防止）
+            ensure_subscription_event_listener(&resolved_id, &client.client);
+            (client, filters)
+        };
 
+        // The session guard only protects client/listener state. Do not hold it
+        // across subscribe's retry/backoff window.
         client.subscribe(filters).await
     })
 }
