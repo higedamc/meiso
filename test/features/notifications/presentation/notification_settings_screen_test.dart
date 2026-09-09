@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/features/notifications/domain/notification_settings.dart';
 import 'package:meiso/features/notifications/presentation/notification_settings_provider.dart';
 import 'package:meiso/features/notifications/presentation/notification_settings_screen.dart';
+import 'package:meiso/features/notifications/presentation/notification_settings_store.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,9 +32,25 @@ class FakeBatteryGate implements BatteryOptimizationGate {
   }
 }
 
-Widget harness(FakeBatteryGate gate) {
+/// Store whose every write is refused, standing in for a platform store that
+/// reports failure.
+class ThrowingStore extends NotificationSettingsStore {
+  const ThrowingStore(super.prefs);
+
+  @override
+  Future<void> write(NotificationSettings settings) =>
+      Future<void>.error(const NotificationSettingsWriteException());
+}
+
+Widget harness(FakeBatteryGate gate, {bool writesFail = false}) {
   return ProviderScope(
-    overrides: [batteryOptimizationGateProvider.overrideWithValue(gate)],
+    overrides: [
+      batteryOptimizationGateProvider.overrideWithValue(gate),
+      if (writesFail)
+        notificationSettingsStoreProvider.overrideWith(
+          (ref) async => ThrowingStore(await SharedPreferences.getInstance()),
+        ),
+    ],
     child: const MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -170,5 +187,39 @@ void main() {
       isNotNull,
       reason: 'the switches stay usable when only the battery call fails',
     );
+  });
+
+  testWidgets('a failed write keeps the last good values on screen',
+      (tester) async {
+    await tester.pumpWidget(
+      harness(FakeBatteryGate(exempt: true), writesFail: true),
+    );
+    await tester.pumpAndSettle();
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(NotificationSettingsScreen)),
+    );
+    expect(find.text(l10n.notificationsMasterTitle), findsOneWidget);
+    expect(find.text(l10n.notificationSettingsSaveError), findsNothing);
+
+    await tester.tap(find.byKey(masterKey));
+    await tester.pumpAndSettle();
+
+    // The toggles stay, showing the value that actually persisted, with the
+    // save error alongside; the screen must not fall through to the
+    // full-screen load error just because the write failed.
+    expect(find.byKey(masterKey), findsOneWidget);
+    expect(switchAt(tester, masterKey).value, isFalse);
+    expect(find.text(l10n.notificationSettingsSaveError), findsOneWidget);
+    expect(find.text(l10n.notificationSettingsLoadError), findsNothing);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool(NotificationPrefsKeys.enabled), isNull);
+
+    // A second attempt after a failure neither throws nor loses the screen.
+    await tester.tap(find.byKey(masterKey));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(masterKey), findsOneWidget);
+    expect(switchAt(tester, masterKey).value, isFalse);
+    expect(find.text(l10n.notificationSettingsSaveError), findsOneWidget);
   });
 }

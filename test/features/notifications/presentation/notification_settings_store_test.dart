@@ -2,12 +2,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/features/notifications/domain/notification_settings.dart';
 import 'package:meiso/features/notifications/presentation/notification_settings_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 Future<NotificationSettingsStore> newStore([
   Map<String, Object>? initial,
 ]) async {
   SharedPreferences.setMockInitialValues(initial ?? {});
   return NotificationSettingsStore(await SharedPreferences.getInstance());
+}
+
+/// Platform store that rejects writes to one key and records every attempt,
+/// so a test can tell "not attempted" from "attempted and refused".
+class RejectingStore extends InMemorySharedPreferencesStore {
+  RejectingStore({required this.rejectKey}) : super.empty();
+
+  final String rejectKey;
+  final List<String> attempted = [];
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    attempted.add(key);
+    if (key == 'flutter.$rejectKey') {
+      return false;
+    }
+    return super.setValue(valueType, key, value);
+  }
 }
 
 void main() {
@@ -70,6 +89,32 @@ void main() {
           NotificationPrefsKeys.sharedTaskComments,
         },
         reason: 'no key outside the contract is ever written',
+      );
+    });
+
+    test('write attempts both keys and throws when either is rejected',
+        () async {
+      final platform = RejectingStore(
+        rejectKey: NotificationPrefsKeys.enabled,
+      );
+      SharedPreferencesStorePlatform.instance = platform;
+      SharedPreferences.resetStatic();
+      final store = NotificationSettingsStore(
+        await SharedPreferences.getInstance(),
+      );
+
+      await expectLater(
+        store.write(const NotificationSettings(enabled: true)),
+        throwsA(isA<NotificationSettingsWriteException>()),
+      );
+
+      expect(
+        platform.attempted,
+        containsAll([
+          'flutter.${NotificationPrefsKeys.enabled}',
+          'flutter.${NotificationPrefsKeys.sharedTaskComments}',
+        ]),
+        reason: 'the second key is still attempted after the first is refused',
       );
     });
   });
