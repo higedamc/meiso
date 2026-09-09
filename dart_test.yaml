@@ -1,0 +1,11 @@
+# Test tags shared by `flutter test` and `dart test`.
+#
+# `golden` marks screenshot-regression tests (test/golden/). Their PNGs are recorded on
+# the Linux CI runner only, so they are skipped everywhere by default; a plain
+# `flutter test` on a developer machine never compares against them. The CI `golden`
+# job opts back in with:
+#
+#   flutter test --no-pub --tags golden --run-skipped
+tags:
+  golden:
+    skip: "golden tests only run on the Linux CI runner (flutter test --tags golden --run-skipped)"
