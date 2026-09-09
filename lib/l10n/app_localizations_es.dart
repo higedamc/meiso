@@ -1756,4 +1756,78 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get commentEditedLabel => 'editado';
+
+  @override
+  String get notificationSettingsTitle => 'Notificaciones';
+
+  @override
+  String get notificationSettingsSubtitle =>
+      'Comentarios en tareas compartidas, incluso con la app cerrada';
+
+  @override
+  String get notificationsSectionHeader => 'Notificaciones';
+
+  @override
+  String get notificationsMasterTitle => 'Activar notificaciones';
+
+  @override
+  String get notificationsMasterSubtitle =>
+      'Mantiene abierta una conexión con tus relés en segundo plano. Desactivado por defecto.';
+
+  @override
+  String get notificationsSharedCommentsTitle =>
+      'Comentarios en tareas compartidas';
+
+  @override
+  String get notificationsSharedCommentsSubtitle =>
+      'Avisar cuando alguien comente una tarea de una lista compartida';
+
+  @override
+  String get notificationsBatteryHeader => 'Batería';
+
+  @override
+  String get batteryOptimizationTitle => 'Optimización de batería';
+
+  @override
+  String get batteryOptimizationExempt =>
+      'Excluida. Android no cerrará la conexión para ahorrar batería.';
+
+  @override
+  String get batteryOptimizationRestricted =>
+      'No excluida. Android puede cerrar la conexión y las notificaciones se detendrán sin aviso.';
+
+  @override
+  String get batteryOptimizationChecking => 'Comprobando…';
+
+  @override
+  String get batteryOptimizationUnavailable =>
+      'No se pudo leer el estado actual.';
+
+  @override
+  String get batteryOptimizationAllow => 'Permitir';
+
+  @override
+  String get notificationsNotesHeader => 'Conviene saber';
+
+  @override
+  String get notificationsRestartCaveatTitle => 'Tras reiniciar el dispositivo';
+
+  @override
+  String get notificationsRestartCaveatBody =>
+      'Las notificaciones se reanudan solo después de abrir Meiso una vez. Si reinicias el dispositivo justo después de instalar, no llegará nada hasta el primer inicio.';
+
+  @override
+  String get notificationsPersonalTasksTitle => 'Tareas personales';
+
+  @override
+  String get notificationsPersonalTasksBody =>
+      'Los comentarios en tus tareas personales no se notifican. Solo tú puedes escribirlos, así que una notificación solo repetiría lo que escribiste en otro dispositivo.';
+
+  @override
+  String get notificationSettingsLoadError =>
+      'No se pudieron cargar los ajustes de notificaciones.';
+
+  @override
+  String get notificationSettingsSaveError =>
+      'No se pudo guardar el cambio. Se muestran los últimos valores guardados.';
 }

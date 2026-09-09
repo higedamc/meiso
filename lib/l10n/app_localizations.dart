@@ -3171,6 +3171,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'edited'**
   String get commentEditedLabel;
+
+  /// Title of the notification settings screen and of its entry in Settings
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notificationSettingsTitle;
+
+  /// Subtitle of the notification settings entry in Settings
+  ///
+  /// In en, this message translates to:
+  /// **'Comments on shared tasks, delivered while the app is closed'**
+  String get notificationSettingsSubtitle;
+
+  /// Section header above the notification switches
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notificationsSectionHeader;
+
+  /// Master switch for notifications
+  ///
+  /// In en, this message translates to:
+  /// **'Enable notifications'**
+  String get notificationsMasterTitle;
+
+  /// Subtitle of the master switch
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps a connection to your relays open in the background. Off by default.'**
+  String get notificationsMasterSubtitle;
+
+  /// Switch for shared-task comment notifications
+  ///
+  /// In en, this message translates to:
+  /// **'Comments on shared tasks'**
+  String get notificationsSharedCommentsTitle;
+
+  /// Subtitle of the shared-task comments switch
+  ///
+  /// In en, this message translates to:
+  /// **'Notify when someone comments on a task in a shared list'**
+  String get notificationsSharedCommentsSubtitle;
+
+  /// Section header above the battery optimization row
+  ///
+  /// In en, this message translates to:
+  /// **'Battery'**
+  String get notificationsBatteryHeader;
+
+  /// Title of the battery optimization row
+  ///
+  /// In en, this message translates to:
+  /// **'Battery optimization'**
+  String get batteryOptimizationTitle;
+
+  /// Battery optimization status when the app is exempt
+  ///
+  /// In en, this message translates to:
+  /// **'Excluded. Android will not stop the connection to save battery.'**
+  String get batteryOptimizationExempt;
+
+  /// Battery optimization status when the app is not exempt
+  ///
+  /// In en, this message translates to:
+  /// **'Not excluded. Android may stop the connection, and notifications then stop without warning.'**
+  String get batteryOptimizationRestricted;
+
+  /// Battery optimization status while it is being read
+  ///
+  /// In en, this message translates to:
+  /// **'Checking…'**
+  String get batteryOptimizationChecking;
+
+  /// Battery optimization status when the platform call failed
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the current status.'**
+  String get batteryOptimizationUnavailable;
+
+  /// Button that opens the system dialog to exclude the app from battery optimization
+  ///
+  /// In en, this message translates to:
+  /// **'Allow'**
+  String get batteryOptimizationAllow;
+
+  /// Section header above the explanatory notes
+  ///
+  /// In en, this message translates to:
+  /// **'Good to know'**
+  String get notificationsNotesHeader;
+
+  /// Title of the note about behaviour after a device restart
+  ///
+  /// In en, this message translates to:
+  /// **'After a device restart'**
+  String get notificationsRestartCaveatTitle;
+
+  /// Explains that the background callback is restored only after the app has been launched once
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications resume only after you open Meiso once. If you restart the device right after installing, nothing is delivered until the first launch.'**
+  String get notificationsRestartCaveatBody;
+
+  /// Title of the note about personal tasks
+  ///
+  /// In en, this message translates to:
+  /// **'Personal tasks'**
+  String get notificationsPersonalTasksTitle;
+
+  /// Explains why personal-task comments are not notified
+  ///
+  /// In en, this message translates to:
+  /// **'Comments on your personal tasks are not notified. Only you can write them, so a notification would just repeat what you typed on another device.'**
+  String get notificationsPersonalTasksBody;
+
+  /// Shown when the settings could not be read from storage
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load notification settings.'**
+  String get notificationSettingsLoadError;
+
+  /// Shown when a toggle could not be persisted
+  ///
+  /// In en, this message translates to:
+  /// **'The change could not be saved. Showing the last saved values.'**
+  String get notificationSettingsSaveError;
 }
 
 class _AppLocalizationsDelegate

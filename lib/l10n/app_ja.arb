@@ -1008,6 +1008,47 @@
 
   "deleteCommentConfirmTitle": "このコメントを削除しますか？",
 
-  "commentEditedLabel": "編集済み"
-}
+  "commentEditedLabel": "編集済み",
 
+  "notificationSettingsTitle": "通知",
+
+  "notificationSettingsSubtitle": "共有タスクへのコメントを、アプリを閉じていても受け取る",
+
+  "notificationsSectionHeader": "通知",
+
+  "notificationsMasterTitle": "通知を有効にする",
+
+  "notificationsMasterSubtitle": "バックグラウンドでリレーとの接続を維持します。初期状態はオフです。",
+
+  "notificationsSharedCommentsTitle": "共有タスクへのコメント",
+
+  "notificationsSharedCommentsSubtitle": "共有リストのタスクに誰かがコメントしたら通知します",
+
+  "notificationsBatteryHeader": "バッテリー",
+
+  "batteryOptimizationTitle": "電池の最適化",
+
+  "batteryOptimizationExempt": "除外済みです。Android が省電力のために接続を止めることはありません。",
+
+  "batteryOptimizationRestricted": "除外されていません。Android が接続を止めると、通知は何も表示されずに止まります。",
+
+  "batteryOptimizationChecking": "確認中…",
+
+  "batteryOptimizationUnavailable": "現在の状態を取得できませんでした。",
+
+  "batteryOptimizationAllow": "許可する",
+
+  "notificationsNotesHeader": "知っておいてほしいこと",
+
+  "notificationsRestartCaveatTitle": "端末を再起動したあと",
+
+  "notificationsRestartCaveatBody": "通知は Meiso を一度開いてから再開します。インストール直後に端末を再起動した場合、初回起動までは何も届きません。",
+
+  "notificationsPersonalTasksTitle": "個人タスク",
+
+  "notificationsPersonalTasksBody": "個人タスクへのコメントは通知されません。書けるのは自分だけなので、別の端末で入力した内容をそのまま繰り返すだけになるためです。",
+
+  "notificationSettingsLoadError": "通知設定を読み込めませんでした。",
+
+  "notificationSettingsSaveError": "変更を保存できませんでした。最後に保存された値を表示しています。"
+}

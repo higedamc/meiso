@@ -1734,4 +1734,77 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commentEditedLabel => 'edited';
+
+  @override
+  String get notificationSettingsTitle => 'Notifications';
+
+  @override
+  String get notificationSettingsSubtitle =>
+      'Comments on shared tasks, delivered while the app is closed';
+
+  @override
+  String get notificationsSectionHeader => 'Notifications';
+
+  @override
+  String get notificationsMasterTitle => 'Enable notifications';
+
+  @override
+  String get notificationsMasterSubtitle =>
+      'Keeps a connection to your relays open in the background. Off by default.';
+
+  @override
+  String get notificationsSharedCommentsTitle => 'Comments on shared tasks';
+
+  @override
+  String get notificationsSharedCommentsSubtitle =>
+      'Notify when someone comments on a task in a shared list';
+
+  @override
+  String get notificationsBatteryHeader => 'Battery';
+
+  @override
+  String get batteryOptimizationTitle => 'Battery optimization';
+
+  @override
+  String get batteryOptimizationExempt =>
+      'Excluded. Android will not stop the connection to save battery.';
+
+  @override
+  String get batteryOptimizationRestricted =>
+      'Not excluded. Android may stop the connection, and notifications then stop without warning.';
+
+  @override
+  String get batteryOptimizationChecking => 'Checking…';
+
+  @override
+  String get batteryOptimizationUnavailable =>
+      'Could not read the current status.';
+
+  @override
+  String get batteryOptimizationAllow => 'Allow';
+
+  @override
+  String get notificationsNotesHeader => 'Good to know';
+
+  @override
+  String get notificationsRestartCaveatTitle => 'After a device restart';
+
+  @override
+  String get notificationsRestartCaveatBody =>
+      'Notifications resume only after you open Meiso once. If you restart the device right after installing, nothing is delivered until the first launch.';
+
+  @override
+  String get notificationsPersonalTasksTitle => 'Personal tasks';
+
+  @override
+  String get notificationsPersonalTasksBody =>
+      'Comments on your personal tasks are not notified. Only you can write them, so a notification would just repeat what you typed on another device.';
+
+  @override
+  String get notificationSettingsLoadError =>
+      'Could not load notification settings.';
+
+  @override
+  String get notificationSettingsSaveError =>
+      'The change could not be saved. Showing the last saved values.';
 }

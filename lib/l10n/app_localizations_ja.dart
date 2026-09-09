@@ -1680,4 +1680,72 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get commentEditedLabel => '編集済み';
+
+  @override
+  String get notificationSettingsTitle => '通知';
+
+  @override
+  String get notificationSettingsSubtitle => '共有タスクへのコメントを、アプリを閉じていても受け取る';
+
+  @override
+  String get notificationsSectionHeader => '通知';
+
+  @override
+  String get notificationsMasterTitle => '通知を有効にする';
+
+  @override
+  String get notificationsMasterSubtitle => 'バックグラウンドでリレーとの接続を維持します。初期状態はオフです。';
+
+  @override
+  String get notificationsSharedCommentsTitle => '共有タスクへのコメント';
+
+  @override
+  String get notificationsSharedCommentsSubtitle => '共有リストのタスクに誰かがコメントしたら通知します';
+
+  @override
+  String get notificationsBatteryHeader => 'バッテリー';
+
+  @override
+  String get batteryOptimizationTitle => '電池の最適化';
+
+  @override
+  String get batteryOptimizationExempt =>
+      '除外済みです。Android が省電力のために接続を止めることはありません。';
+
+  @override
+  String get batteryOptimizationRestricted =>
+      '除外されていません。Android が接続を止めると、通知は何も表示されずに止まります。';
+
+  @override
+  String get batteryOptimizationChecking => '確認中…';
+
+  @override
+  String get batteryOptimizationUnavailable => '現在の状態を取得できませんでした。';
+
+  @override
+  String get batteryOptimizationAllow => '許可する';
+
+  @override
+  String get notificationsNotesHeader => '知っておいてほしいこと';
+
+  @override
+  String get notificationsRestartCaveatTitle => '端末を再起動したあと';
+
+  @override
+  String get notificationsRestartCaveatBody =>
+      '通知は Meiso を一度開いてから再開します。インストール直後に端末を再起動した場合、初回起動までは何も届きません。';
+
+  @override
+  String get notificationsPersonalTasksTitle => '個人タスク';
+
+  @override
+  String get notificationsPersonalTasksBody =>
+      '個人タスクへのコメントは通知されません。書けるのは自分だけなので、別の端末で入力した内容をそのまま繰り返すだけになるためです。';
+
+  @override
+  String get notificationSettingsLoadError => '通知設定を読み込めませんでした。';
+
+  @override
+  String get notificationSettingsSaveError =>
+      '変更を保存できませんでした。最後に保存された値を表示しています。';
 }
