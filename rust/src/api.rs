@@ -1555,18 +1555,20 @@ impl MeisoNostrClient {
     /// event_json を二重エンコードしていて Dart 側のパースが常に失敗していた。
     pub(crate) async fn receive_subscription_events(
         &self,
+        client_id: &str,
         timeout_ms: u64,
     ) -> Result<Vec<ReceivedEvent>> {
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
 
         loop {
-            {
-                let mut queue = lock_recovering(&SUBSCRIPTION_EVENT_QUEUE);
-                if !queue.events.is_empty() {
-                    let events = queue.drain_all();
-                    dev_println!("📥 Received {} events via subscription", events.len());
-                    return Ok(events);
-                }
+            let events = drain_subscription_events(client_id);
+            if !events.is_empty() {
+                dev_println!(
+                    "📥 Received {} events via subscription [{}]",
+                    events.len(),
+                    client_id
+                );
+                return Ok(events);
             }
 
             if tokio::time::Instant::now() >= deadline {
@@ -1720,6 +1722,11 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
         tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime")
     });
 
+// Serialize session replacement/logout with listener startup so a new session cannot
+// repopulate queues while the previous session is being torn down.
+static SESSION_STATE_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
+    once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
+
 /// 常駐リスナーが受信したイベントを蓄積するグローバルキュー。
 /// `receive_subscription_events` がポーリング毎に drain する。
 /// Dart 側は subscription_id でディスパッチ + event_id で dedupe するため、
@@ -1727,6 +1734,15 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
 struct SubscriptionEventQueue {
     events: std::collections::VecDeque<ReceivedEvent>,
     total_bytes: usize,
+}
+
+impl Default for SubscriptionEventQueue {
+    fn default() -> Self {
+        Self {
+            events: std::collections::VecDeque::new(),
+            total_bytes: 0,
+        }
+    }
 }
 
 impl SubscriptionEventQueue {
@@ -1755,13 +1771,29 @@ impl SubscriptionEventQueue {
     }
 }
 
-static SUBSCRIPTION_EVENT_QUEUE: once_cell::sync::Lazy<std::sync::Mutex<SubscriptionEventQueue>> =
-    once_cell::sync::Lazy::new(|| {
-        std::sync::Mutex::new(SubscriptionEventQueue {
-            events: std::collections::VecDeque::new(),
-            total_bytes: 0,
-        })
-    });
+static SUBSCRIPTION_EVENT_QUEUES: once_cell::sync::Lazy<
+    std::sync::Mutex<std::collections::HashMap<String, SubscriptionEventQueue>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+fn enqueue_subscription_event(client_id: &str, generation: u64, event: ReceivedEvent) {
+    // Check the listener registry before taking the queue lock. Detach/logout
+    // invalidates the generation first, so a late event from the old listener
+    // cannot recreate or populate the new session's queue.
+    let listeners = lock_recovering(&SUBSCRIPTION_LISTENERS);
+    if listeners.get(client_id) != Some(&generation) {
+        return;
+    }
+    let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
+    queues.entry(client_id.to_string()).or_default().push(event);
+}
+
+fn drain_subscription_events(client_id: &str) -> Vec<ReceivedEvent> {
+    let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
+    queues
+        .get_mut(client_id)
+        .map(SubscriptionEventQueue::drain_all)
+        .unwrap_or_default()
+}
 
 /// 常駐リスナーの登録簿: client_id -> 世代トークン（多重起動防止）。
 /// 世代トークンにより、ログアウトで登録簿をクリアした直後に旧リスナーが
@@ -1783,9 +1815,12 @@ fn lock_recovering<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, 
 /// broadcast channel は receiver 生成以降のメッセージしか受け取れないため、
 /// ポーリング毎に receiver を作る方式ではポーリング間隙のイベントを恒久的に
 /// 取りこぼす。subscribe 時に一度だけ常駐タスクを起動して解決する。
+fn detach_subscription_listener(client_id: &str) {
+    lock_recovering(&SUBSCRIPTION_LISTENERS).remove(client_id);
+}
+
 fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
-    let my_generation =
-        LISTENER_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    let my_generation = LISTENER_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
     {
         let mut listeners = lock_recovering(&SUBSCRIPTION_LISTENERS);
         if listeners.contains_key(client_id) {
@@ -1820,7 +1855,7 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
                         received_at,
                         subscription_id: subscription_id.to_string(),
                     };
-                    lock_recovering(&SUBSCRIPTION_EVENT_QUEUE).push(received);
+                    enqueue_subscription_event(&client_id, my_generation, received);
                 }
                 Ok(RelayPoolNotification::Shutdown) => break,
                 Ok(_) => {}
@@ -1840,6 +1875,31 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
         }
         dev_println!("📡 Subscription event listener stopped [{}]", client_id);
     });
+}
+
+/// Replace the client registered under `client_id` and detach its listener before
+/// shutting down the old client. Callers must hold `SESSION_STATE_LOCK`.
+async fn install_client(client_id: String, client: MeisoNostrClient) {
+    // Publish the replacement before awaiting shutdown so readers never observe an
+    // empty client slot while the old connection is being torn down.
+    let previous = {
+        let mut clients = NOSTR_CLIENTS.lock().await;
+        clients.insert(client_id.clone(), client)
+    };
+
+    // Remove the old registration before the new client can start a listener. The
+    // generation check makes a late old listener unable to remove the new one.
+    detach_subscription_listener(&client_id);
+
+    if let Some(previous) = previous {
+        if let Err(e) = previous.client.shutdown().await {
+            dev_eprintln!(
+                "⚠️ Failed to shutdown replaced client [{}]: {}",
+                client_id,
+                e
+            );
+        }
+    }
 }
 
 /// WebSocket `User-Agent` on relay connections (issue #130). Call before any `init_nostr_client*`.
@@ -1892,6 +1952,7 @@ pub fn init_nostr_client_with_tor_mode(
     }
 
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         match MeisoNostrClient::new_with_tor_mode(&secret_key_hex, relays, tor_mode, proxy_url)
             .await
         {
@@ -1902,8 +1963,7 @@ pub fn init_nostr_client_with_tor_mode(
                     &public_key[..16]
                 );
 
-                let mut clients = NOSTR_CLIENTS.lock().await;
-                clients.insert(DEFAULT_CLIENT_ID.to_string(), client);
+                install_client(DEFAULT_CLIENT_ID.to_string(), client).await;
 
                 Ok(public_key)
             }
@@ -1937,6 +1997,7 @@ pub fn init_nostr_client_with_id(
     }
 
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         match MeisoNostrClient::new_with_proxy(&secret_key_hex, relays, proxy_url).await {
             Ok(client) => {
                 let public_key = client.public_key_hex();
@@ -1946,8 +2007,7 @@ pub fn init_nostr_client_with_id(
                     &public_key[..16]
                 );
 
-                let mut clients = NOSTR_CLIENTS.lock().await;
-                clients.insert(client_id, client);
+                install_client(client_id, client).await;
 
                 Ok(public_key)
             }
@@ -2215,6 +2275,7 @@ pub fn init_nostr_client_with_pubkey_and_tor_mode(
     }
 
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         match MeisoNostrClient::new_amber_mode_with_tor(
             public_key_hex.clone(),
             relays,
@@ -2226,8 +2287,7 @@ pub fn init_nostr_client_with_pubkey_and_tor_mode(
             Ok(client) => {
                 dev_println!("✅ Nostr client (Amber mode) initialized with Tor mode");
 
-                let mut clients = NOSTR_CLIENTS.lock().await;
-                clients.insert(DEFAULT_CLIENT_ID.to_string(), client);
+                install_client(DEFAULT_CLIENT_ID.to_string(), client).await;
 
                 Ok(public_key_hex)
             }
@@ -2268,12 +2328,12 @@ pub fn init_nostr_client_with_pubkey_and_id(
     }
 
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         match MeisoNostrClient::new_amber_mode(public_key_hex.clone(), relays, proxy_url).await {
             Ok(client) => {
                 dev_println!("✅ Nostr client [{}] initialized in Amber mode", client_id);
 
-                let mut clients = NOSTR_CLIENTS.lock().await;
-                clients.insert(client_id, client);
+                install_client(client_id, client).await;
 
                 Ok(public_key_hex)
             }
@@ -2465,10 +2525,7 @@ const MAX_SIGN_TAG_COUNT: usize = 2_000;
 /// （署名オラクル）である。呼び出し側は **信頼できない外部由来のイベント JSON を
 /// 渡してはならない**。現状の利用はローカル生成の招待イベント等に限定される。
 /// 万一の誤用と DoS に備え、入力サイズに上限を設けている。
-pub fn client_sign_event(
-    unsigned_event_json: String,
-    client_id: Option<String>,
-) -> Result<String> {
+pub fn client_sign_event(unsigned_event_json: String, client_id: Option<String>) -> Result<String> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         let keys = client
@@ -4189,15 +4246,21 @@ pub fn start_subscription_with_client_id(
         .clone()
         .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
     TOKIO_RUNTIME.block_on(async {
-        let client = get_client(client_id).await?;
+        let (client, filters) = {
+            let _session_guard = SESSION_STATE_LOCK.lock().await;
+            let client = get_client(client_id).await?;
 
-        // JSON文字列からFilterのリストをパース
-        let filters: Vec<Filter> =
-            serde_json::from_str(&filters_json).context("Failed to parse filters JSON")?;
+            // JSON文字列からFilterのリストをパース
+            let filters: Vec<Filter> =
+                serde_json::from_str(&filters_json).context("Failed to parse filters JSON")?;
 
-        // subscribe 前に常駐リスナーを確実に起動（イベント取りこぼし防止）
-        ensure_subscription_event_listener(&resolved_id, &client.client);
+            // subscribe 前に常駐リスナーを確実に起動（イベント取りこぼし防止）
+            ensure_subscription_event_listener(&resolved_id, &client.client);
+            (client, filters)
+        };
 
+        // The session guard only protects client/listener state. Do not hold it
+        // across subscribe's retry/backoff window.
         client.subscribe(filters).await
     })
 }
@@ -4248,6 +4311,7 @@ pub fn stop_all_subscriptions_with_client_id(client_id: Option<String>) -> Resul
 /// 致命的な状況のみ Err を返す。
 pub fn clear_all_session_state() -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         // NOSTR_CLIENTS をクリア。常駐リスナーが Client の clone を保持している
         // ため Drop 任せではリレー接続が閉じない。明示的に shutdown して
         // notification channel を閉じ、リスナーを終了させる。
@@ -4273,18 +4337,15 @@ pub fn clear_all_session_state() -> Result<()> {
             let mut store = crate::mls::STORE.lock().await;
             let was_some = store.is_some();
             *store = None;
-            dev_println!(
-                "🧹 Cleared MLS STORE (was_initialized={})",
-                was_some
-            );
+            dev_println!("🧹 Cleared MLS STORE (was_initialized={})", was_some);
         }
 
         // 未配信の購読イベントを破棄（アカウント切替時に前ユーザーの
         // イベントが次ユーザーへ流れるのを防ぐ）
         {
-            let mut queue = lock_recovering(&SUBSCRIPTION_EVENT_QUEUE);
-            let count = queue.events.len();
-            queue.drain_all();
+            let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
+            let count: usize = queues.values().map(|queue| queue.events.len()).sum();
+            queues.clear();
             dev_println!("🧹 Cleared {} queued subscription events", count);
         }
 
@@ -4303,9 +4364,14 @@ pub fn receive_subscription_events_with_client_id(
     timeout_ms: u64,
     client_id: Option<String>,
 ) -> Result<Vec<ReceivedEvent>> {
+    let resolved_id = client_id
+        .clone()
+        .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        client.receive_subscription_events(timeout_ms).await
+        client
+            .receive_subscription_events(&resolved_id, timeout_ms)
+            .await
     })
 }
 
@@ -4367,6 +4433,7 @@ pub fn ensure_client_for_relays(
     public_key_hex: Option<String>,
 ) -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         {
             let clients = NOSTR_CLIENTS.lock().await;
             if clients.contains_key(&client_id) {
@@ -4383,8 +4450,7 @@ pub fn ensure_client_for_relays(
             .ok_or_else(|| anyhow::anyhow!("public_key_hex required for new Amber client"))?;
         dev_println!("🆕 Creating new Amber client [{}]", client_id);
         let new_client = MeisoNostrClient::new_amber_mode(pk, relays, None).await?;
-        let mut clients = NOSTR_CLIENTS.lock().await;
-        clients.insert(client_id, new_client);
+        install_client(client_id, new_client).await;
         Ok(())
     })
 }
@@ -5151,10 +5217,7 @@ pub fn shared_npub_from_nsec(group_nsec_hex: String) -> Result<String> {
 }
 
 /// shared-v1: task JSON を NIP-44 暗号化し、kind:35000 の署名済みイベント JSON を返す。
-pub fn shared_build_signed_task_event(
-    group_nsec_hex: String,
-    task_json: String,
-) -> Result<String> {
+pub fn shared_build_signed_task_event(group_nsec_hex: String, task_json: String) -> Result<String> {
     crate::group_tasks_shared::build_signed_task_event(group_nsec_hex, task_json)
 }
 
@@ -5164,10 +5227,7 @@ pub fn shared_decrypt_task_event(group_nsec_hex: String, event_json: String) -> 
 }
 
 /// shared-v1: meta JSON を NIP-44 暗号化し、kind:35001(d="meta")の署名済みイベント JSON を返す。
-pub fn shared_build_signed_meta_event(
-    group_nsec_hex: String,
-    meta_json: String,
-) -> Result<String> {
+pub fn shared_build_signed_meta_event(group_nsec_hex: String, meta_json: String) -> Result<String> {
     crate::group_tasks_shared::build_signed_meta_event(group_nsec_hex, meta_json)
 }
 
@@ -5400,11 +5460,7 @@ pub fn create_unsigned_shared_invitation_event(
         .unwrap()
         .as_secs();
 
-    let d_tag_value = format!(
-        "shared-invite-{}-{}",
-        group_id,
-        recipient_pubkey.to_hex()
-    );
+    let d_tag_value = format!("shared-invite-{}-{}", group_id, recipient_pubkey.to_hex());
 
     let mut tags = Vec::new();
     tags.push(vec!["d".to_string(), d_tag_value]);
@@ -5483,19 +5539,13 @@ pub fn sync_shared_invitations(
                 let bytes = rest.as_bytes();
                 let pivot = bytes.len().checked_sub(65);
                 let trimmed = pivot.and_then(|p| {
-                    if bytes[p] == b'-'
-                        && rest[p + 1..]
-                            .chars()
-                            .all(|c| c.is_ascii_hexdigit())
-                    {
+                    if bytes[p] == b'-' && rest[p + 1..].chars().all(|c| c.is_ascii_hexdigit()) {
                         Some(rest[..p].to_string())
                     } else {
                         None
                     }
                 });
-                trimmed.unwrap_or_else(|| {
-                    rest.split('-').next().unwrap_or(rest).to_string()
-                })
+                trimmed.unwrap_or_else(|| rest.split('-').next().unwrap_or(rest).to_string())
             };
 
             let group_name = event
@@ -6100,8 +6150,7 @@ pub fn fetch_contact_list_with_client_id(
 ) -> Result<Vec<String>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        let public_key =
-            PublicKey::from_hex(&pubkey_hex).context("Failed to parse pubkey hex")?;
+        let public_key = PublicKey::from_hex(&pubkey_hex).context("Failed to parse pubkey hex")?;
 
         let filter = Filter::new()
             .kind(Kind::ContactList)
@@ -6130,10 +6179,7 @@ pub fn fetch_contact_list_with_client_id(
                     }
                 }
             }
-            dev_println!(
-                "📥 [Contacts] kind:3 found, {} contacts",
-                contacts.len()
-            );
+            dev_println!("📥 [Contacts] kind:3 found, {} contacts", contacts.len());
         } else {
             dev_println!("⚠️ [Contacts] No kind:3 event found");
         }
@@ -6390,6 +6436,111 @@ pub fn sign_nip98_auth_event_with_client_id(
 }
 
 /// Kind 27235 未署名イベントを作成（Amber 署名用）
+#[cfg(test)]
+mod subscription_event_queue_tests {
+    use super::{
+        detach_subscription_listener, drain_subscription_events, enqueue_subscription_event,
+        lock_recovering, ReceivedEvent, SubscriptionEventQueue, SUBSCRIPTION_EVENT_QUEUES,
+        SUBSCRIPTION_LISTENERS,
+    };
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn event(id: &str) -> ReceivedEvent {
+        ReceivedEvent {
+            event_id: id.to_string(),
+            kind: 1,
+            created_at: 0,
+            event_json: format!(r#"{{"id":"{id}"}}"#),
+            received_at: 0,
+            subscription_id: "sub".to_string(),
+        }
+    }
+    #[test]
+    fn detach_subscription_listener_removes_registration() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("replacement".to_string(), 1);
+        detach_subscription_listener("replacement");
+        assert!(!lock_recovering(&SUBSCRIPTION_LISTENERS).contains_key("replacement"));
+    }
+
+    #[test]
+    fn stale_generation_is_rejected() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).clear();
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("session".to_string(), 2);
+
+        enqueue_subscription_event("session", 1, event("stale"));
+
+        assert!(drain_subscription_events("session").is_empty());
+        assert!(!lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).contains_key("session"));
+        detach_subscription_listener("session");
+    }
+
+    #[test]
+    fn detached_generation_does_not_recreate_queue() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).clear();
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("session".to_string(), 1);
+        detach_subscription_listener("session");
+
+        enqueue_subscription_event("session", 1, event("late"));
+
+        assert!(!lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).contains_key("session"));
+    }
+
+    #[test]
+    fn current_generation_is_accepted() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).clear();
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("session".to_string(), 3);
+
+        enqueue_subscription_event("session", 3, event("current"));
+
+        assert_eq!(drain_subscription_events("session")[0].event_id, "current");
+        detach_subscription_listener("session");
+    }
+
+    #[test]
+    fn draining_one_client_does_not_remove_another_clients_events() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
+        queues.clear();
+        drop(queues);
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("ui".to_string(), 4);
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("background".to_string(), 5);
+        enqueue_subscription_event("ui", 4, event("ui-event"));
+        enqueue_subscription_event("background", 5, event("background-event"));
+        let ui = drain_subscription_events("ui");
+        assert_eq!(ui[0].event_id, "ui-event");
+        let bg = drain_subscription_events("background");
+        assert_eq!(bg[0].event_id, "background-event");
+        lock_recovering(&SUBSCRIPTION_LISTENERS).clear();
+    }
+    #[test]
+    fn queue_limits_are_independent_per_client() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let mut queues: HashMap<String, SubscriptionEventQueue> = HashMap::new();
+        for id in 0..SubscriptionEventQueue::MAX_EVENTS + 1 {
+            queues
+                .entry("busy".into())
+                .or_default()
+                .push(event(&format!("busy-{id}")));
+        }
+        queues
+            .entry("quiet".into())
+            .or_default()
+            .push(event("quiet-event"));
+        assert_eq!(
+            queues.get("busy").unwrap().events.len(),
+            SubscriptionEventQueue::MAX_EVENTS
+        );
+        assert_eq!(queues.get("quiet").unwrap().events.len(), 1);
+    }
+}
+
 pub fn create_unsigned_nip98_auth_event(
     url: String,
     method: String,
