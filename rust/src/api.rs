@@ -2486,10 +2486,7 @@ const MAX_SIGN_TAG_COUNT: usize = 2_000;
 /// （署名オラクル）である。呼び出し側は **信頼できない外部由来のイベント JSON を
 /// 渡してはならない**。現状の利用はローカル生成の招待イベント等に限定される。
 /// 万一の誤用と DoS に備え、入力サイズに上限を設けている。
-pub fn client_sign_event(
-    unsigned_event_json: String,
-    client_id: Option<String>,
-) -> Result<String> {
+pub fn client_sign_event(unsigned_event_json: String, client_id: Option<String>) -> Result<String> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         let keys = client
@@ -4294,10 +4291,7 @@ pub fn clear_all_session_state() -> Result<()> {
             let mut store = crate::mls::STORE.lock().await;
             let was_some = store.is_some();
             *store = None;
-            dev_println!(
-                "🧹 Cleared MLS STORE (was_initialized={})",
-                was_some
-            );
+            dev_println!("🧹 Cleared MLS STORE (was_initialized={})", was_some);
         }
 
         // 未配信の購読イベントを破棄（アカウント切替時に前ユーザーの
@@ -5177,10 +5171,7 @@ pub fn shared_npub_from_nsec(group_nsec_hex: String) -> Result<String> {
 }
 
 /// shared-v1: task JSON を NIP-44 暗号化し、kind:35000 の署名済みイベント JSON を返す。
-pub fn shared_build_signed_task_event(
-    group_nsec_hex: String,
-    task_json: String,
-) -> Result<String> {
+pub fn shared_build_signed_task_event(group_nsec_hex: String, task_json: String) -> Result<String> {
     crate::group_tasks_shared::build_signed_task_event(group_nsec_hex, task_json)
 }
 
@@ -5190,10 +5181,7 @@ pub fn shared_decrypt_task_event(group_nsec_hex: String, event_json: String) -> 
 }
 
 /// shared-v1: meta JSON を NIP-44 暗号化し、kind:35001(d="meta")の署名済みイベント JSON を返す。
-pub fn shared_build_signed_meta_event(
-    group_nsec_hex: String,
-    meta_json: String,
-) -> Result<String> {
+pub fn shared_build_signed_meta_event(group_nsec_hex: String, meta_json: String) -> Result<String> {
     crate::group_tasks_shared::build_signed_meta_event(group_nsec_hex, meta_json)
 }
 
@@ -5426,11 +5414,7 @@ pub fn create_unsigned_shared_invitation_event(
         .unwrap()
         .as_secs();
 
-    let d_tag_value = format!(
-        "shared-invite-{}-{}",
-        group_id,
-        recipient_pubkey.to_hex()
-    );
+    let d_tag_value = format!("shared-invite-{}-{}", group_id, recipient_pubkey.to_hex());
 
     let mut tags = Vec::new();
     tags.push(vec!["d".to_string(), d_tag_value]);
@@ -5509,19 +5493,13 @@ pub fn sync_shared_invitations(
                 let bytes = rest.as_bytes();
                 let pivot = bytes.len().checked_sub(65);
                 let trimmed = pivot.and_then(|p| {
-                    if bytes[p] == b'-'
-                        && rest[p + 1..]
-                            .chars()
-                            .all(|c| c.is_ascii_hexdigit())
-                    {
+                    if bytes[p] == b'-' && rest[p + 1..].chars().all(|c| c.is_ascii_hexdigit()) {
                         Some(rest[..p].to_string())
                     } else {
                         None
                     }
                 });
-                trimmed.unwrap_or_else(|| {
-                    rest.split('-').next().unwrap_or(rest).to_string()
-                })
+                trimmed.unwrap_or_else(|| rest.split('-').next().unwrap_or(rest).to_string())
             };
 
             let group_name = event
@@ -6126,8 +6104,7 @@ pub fn fetch_contact_list_with_client_id(
 ) -> Result<Vec<String>> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        let public_key =
-            PublicKey::from_hex(&pubkey_hex).context("Failed to parse pubkey hex")?;
+        let public_key = PublicKey::from_hex(&pubkey_hex).context("Failed to parse pubkey hex")?;
 
         let filter = Filter::new()
             .kind(Kind::ContactList)
@@ -6156,10 +6133,7 @@ pub fn fetch_contact_list_with_client_id(
                     }
                 }
             }
-            dev_println!(
-                "📥 [Contacts] kind:3 found, {} contacts",
-                contacts.len()
-            );
+            dev_println!("📥 [Contacts] kind:3 found, {} contacts", contacts.len());
         } else {
             dev_println!("⚠️ [Contacts] No kind:3 event found");
         }
