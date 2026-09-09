@@ -1810,6 +1810,10 @@ fn lock_recovering<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, 
 /// broadcast channel は receiver 生成以降のメッセージしか受け取れないため、
 /// ポーリング毎に receiver を作る方式ではポーリング間隙のイベントを恒久的に
 /// 取りこぼす。subscribe 時に一度だけ常駐タスクを起動して解決する。
+fn detach_subscription_listener(client_id: &str) {
+    lock_recovering(&SUBSCRIPTION_LISTENERS).remove(client_id);
+}
+
 fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
     let my_generation = LISTENER_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
     {
@@ -1888,7 +1892,7 @@ async fn install_client(client_id: String, client: MeisoNostrClient) {
 
     // Remove the old registration before the new client can start a listener. The
     // generation check makes a late old listener unable to remove the new one.
-    lock_recovering(&SUBSCRIPTION_LISTENERS).remove(&client_id);
+    detach_subscription_listener(&client_id);
 
     let mut clients = NOSTR_CLIENTS.lock().await;
     clients.insert(client_id, client);
@@ -6426,8 +6430,9 @@ pub fn sign_nip98_auth_event_with_client_id(
 #[cfg(test)]
 mod subscription_event_queue_tests {
     use super::{
-        drain_subscription_events, enqueue_subscription_event, lock_recovering, ReceivedEvent,
-        SubscriptionEventQueue, SUBSCRIPTION_EVENT_QUEUES,
+        detach_subscription_listener, drain_subscription_events, enqueue_subscription_event,
+        lock_recovering, ReceivedEvent, SubscriptionEventQueue, SUBSCRIPTION_EVENT_QUEUES,
+        SUBSCRIPTION_LISTENERS,
     };
     use std::collections::HashMap;
     use std::sync::Mutex;
@@ -6444,6 +6449,15 @@ mod subscription_event_queue_tests {
             subscription_id: "sub".to_string(),
         }
     }
+    #[test]
+    fn detach_subscription_listener_removes_registration() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        lock_recovering(&SUBSCRIPTION_LISTENERS)
+            .insert("replacement".to_string(), 1);
+        detach_subscription_listener("replacement");
+        assert!(!lock_recovering(&SUBSCRIPTION_LISTENERS).contains_key("replacement"));
+    }
+
     #[test]
     fn draining_one_client_does_not_remove_another_clients_events() {
         let _guard = TEST_LOCK.lock().unwrap();
