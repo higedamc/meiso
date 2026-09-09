@@ -1775,11 +1775,16 @@ static SUBSCRIPTION_EVENT_QUEUES: once_cell::sync::Lazy<
     std::sync::Mutex<std::collections::HashMap<String, SubscriptionEventQueue>>,
 > = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
 
-fn enqueue_subscription_event(client_id: &str, event: ReceivedEvent) {
-    lock_recovering(&SUBSCRIPTION_EVENT_QUEUES)
-        .entry(client_id.to_string())
-        .or_default()
-        .push(event);
+fn enqueue_subscription_event(client_id: &str, generation: u64, event: ReceivedEvent) {
+    // Check the listener registry before taking the queue lock. Detach/logout
+    // invalidates the generation first, so a late event from the old listener
+    // cannot recreate or populate the new session's queue.
+    let listeners = lock_recovering(&SUBSCRIPTION_LISTENERS);
+    if listeners.get(client_id) != Some(&generation) {
+        return;
+    }
+    let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
+    queues.entry(client_id.to_string()).or_default().push(event);
 }
 
 fn drain_subscription_events(client_id: &str) -> Vec<ReceivedEvent> {
@@ -1850,7 +1855,7 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
                         received_at,
                         subscription_id: subscription_id.to_string(),
                     };
-                    enqueue_subscription_event(&client_id, received);
+                    enqueue_subscription_event(&client_id, my_generation, received);
                 }
                 Ok(RelayPoolNotification::Shutdown) => break,
                 Ok(_) => {}
@@ -6452,10 +6457,46 @@ mod subscription_event_queue_tests {
     #[test]
     fn detach_subscription_listener_removes_registration() {
         let _guard = TEST_LOCK.lock().unwrap();
-        lock_recovering(&SUBSCRIPTION_LISTENERS)
-            .insert("replacement".to_string(), 1);
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("replacement".to_string(), 1);
         detach_subscription_listener("replacement");
         assert!(!lock_recovering(&SUBSCRIPTION_LISTENERS).contains_key("replacement"));
+    }
+
+    #[test]
+    fn stale_generation_is_rejected() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).clear();
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("session".to_string(), 2);
+
+        enqueue_subscription_event("session", 1, event("stale"));
+
+        assert!(drain_subscription_events("session").is_empty());
+        assert!(!lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).contains_key("session"));
+        detach_subscription_listener("session");
+    }
+
+    #[test]
+    fn detached_generation_does_not_recreate_queue() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).clear();
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("session".to_string(), 1);
+        detach_subscription_listener("session");
+
+        enqueue_subscription_event("session", 1, event("late"));
+
+        assert!(!lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).contains_key("session"));
+    }
+
+    #[test]
+    fn current_generation_is_accepted() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        lock_recovering(&SUBSCRIPTION_EVENT_QUEUES).clear();
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("session".to_string(), 3);
+
+        enqueue_subscription_event("session", 3, event("current"));
+
+        assert_eq!(drain_subscription_events("session")[0].event_id, "current");
+        detach_subscription_listener("session");
     }
 
     #[test]
@@ -6464,12 +6505,15 @@ mod subscription_event_queue_tests {
         let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
         queues.clear();
         drop(queues);
-        enqueue_subscription_event("ui", event("ui-event"));
-        enqueue_subscription_event("background", event("background-event"));
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("ui".to_string(), 4);
+        lock_recovering(&SUBSCRIPTION_LISTENERS).insert("background".to_string(), 5);
+        enqueue_subscription_event("ui", 4, event("ui-event"));
+        enqueue_subscription_event("background", 5, event("background-event"));
         let ui = drain_subscription_events("ui");
         assert_eq!(ui[0].event_id, "ui-event");
         let bg = drain_subscription_events("background");
         assert_eq!(bg[0].event_id, "background-event");
+        lock_recovering(&SUBSCRIPTION_LISTENERS).clear();
     }
     #[test]
     fn queue_limits_are_independent_per_client() {
