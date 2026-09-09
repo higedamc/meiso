@@ -1012,6 +1012,47 @@
 
   "deleteCommentConfirmTitle": "¿Eliminar este comentario?",
 
-  "commentEditedLabel": "editado"
-}
+  "commentEditedLabel": "editado",
 
+  "notificationSettingsTitle": "Notificaciones",
+
+  "notificationSettingsSubtitle": "Comentarios en tareas compartidas, incluso con la app cerrada",
+
+  "notificationsSectionHeader": "Notificaciones",
+
+  "notificationsMasterTitle": "Activar notificaciones",
+
+  "notificationsMasterSubtitle": "Mantiene abierta una conexión con tus relés en segundo plano. Desactivado por defecto.",
+
+  "notificationsSharedCommentsTitle": "Comentarios en tareas compartidas",
+
+  "notificationsSharedCommentsSubtitle": "Avisar cuando alguien comente una tarea de una lista compartida",
+
+  "notificationsBatteryHeader": "Batería",
+
+  "batteryOptimizationTitle": "Optimización de batería",
+
+  "batteryOptimizationExempt": "Excluida. Android no cerrará la conexión para ahorrar batería.",
+
+  "batteryOptimizationRestricted": "No excluida. Android puede cerrar la conexión y las notificaciones se detendrán sin aviso.",
+
+  "batteryOptimizationChecking": "Comprobando…",
+
+  "batteryOptimizationUnavailable": "No se pudo leer el estado actual.",
+
+  "batteryOptimizationAllow": "Permitir",
+
+  "notificationsNotesHeader": "Conviene saber",
+
+  "notificationsRestartCaveatTitle": "Tras reiniciar el dispositivo",
+
+  "notificationsRestartCaveatBody": "Las notificaciones se reanudan solo después de abrir Meiso una vez. Si reinicias el dispositivo justo después de instalar, no llegará nada hasta el primer inicio.",
+
+  "notificationsPersonalTasksTitle": "Tareas personales",
+
+  "notificationsPersonalTasksBody": "Los comentarios en tus tareas personales no se notifican. Solo tú puedes escribirlos, así que una notificación solo repetiría lo que escribiste en otro dispositivo.",
+
+  "notificationSettingsLoadError": "No se pudieron cargar los ajustes de notificaciones.",
+
+  "notificationSettingsSaveError": "No se pudo guardar el cambio. Se muestran los últimos valores guardados."
+}

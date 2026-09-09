@@ -114,6 +114,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Test-only: lets the notification settings store test install a
+  # platform store that refuses one key.
+  shared_preferences_platform_interface: ^2.4.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

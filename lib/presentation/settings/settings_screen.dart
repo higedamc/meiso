@@ -11,6 +11,7 @@ import 'package:meiso/core/config/app_config.dart';
 import '../../app_theme.dart';
 import '../../features/feature_gate/feature_gate_service.dart';
 import '../../features/feature_gate/feature_id.dart';
+import '../../features/notifications/presentation/notification_settings_screen.dart';
 import '../../models/app_settings.dart';
 import '../../providers/app_lifecycle_provider.dart';
 import '../../providers/app_settings_provider.dart';
@@ -175,6 +176,20 @@ class SettingsScreen extends ConsumerWidget {
                   title: l10n.appSettings,
                   subtitle: l10n.appSettingsSubtitle,
                   onTap: () => context.push('/settings/app'),
+                ),
+                _insetDivider(context),
+                _buildSettingTile(
+                  context,
+                  icon: Icons.notifications_outlined,
+                  title: l10n.notificationSettingsTitle,
+                  subtitle: l10n.notificationSettingsSubtitle,
+                  // Pushed directly rather than through a GoRouter path so this
+                  // leaf stays out of main.dart (routes live there).
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const NotificationSettingsScreen(),
+                    ),
+                  ),
                 ),
                 if (kDebugMode) ...[
                   _insetDivider(context),
