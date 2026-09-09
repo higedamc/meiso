@@ -1722,6 +1722,11 @@ static TOKIO_RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> =
         tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime")
     });
 
+// Serialize session replacement/logout with listener startup so a new session cannot
+// repopulate queues while the previous session is being torn down.
+static SESSION_STATE_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
+    once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
+
 /// 常駐リスナーが受信したイベントを蓄積するグローバルキュー。
 /// `receive_subscription_events` がポーリング毎に drain する。
 /// Dart 側は subscription_id でディスパッチ + event_id で dedupe するため、
@@ -1863,6 +1868,32 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
     });
 }
 
+/// Replace the client registered under `client_id` and detach its listener before
+/// installing the replacement. Callers must hold `SESSION_STATE_LOCK`.
+async fn install_client(client_id: String, client: MeisoNostrClient) {
+    let previous = {
+        let mut clients = NOSTR_CLIENTS.lock().await;
+        clients.remove(&client_id)
+    };
+
+    if let Some(previous) = previous {
+        if let Err(e) = previous.client.shutdown().await {
+            dev_eprintln!(
+                "⚠️ Failed to shutdown replaced client [{}]: {}",
+                client_id,
+                e
+            );
+        }
+    }
+
+    // Remove the old registration before the new client can start a listener. The
+    // generation check makes a late old listener unable to remove the new one.
+    lock_recovering(&SUBSCRIPTION_LISTENERS).remove(&client_id);
+
+    let mut clients = NOSTR_CLIENTS.lock().await;
+    clients.insert(client_id, client);
+}
+
 /// WebSocket `User-Agent` on relay connections (issue #130). Call before any `init_nostr_client*`.
 pub fn set_relay_websocket_user_agent(user_agent: String) {
     let opt = if user_agent.trim().is_empty() {
@@ -1913,6 +1944,7 @@ pub fn init_nostr_client_with_tor_mode(
     }
 
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         match MeisoNostrClient::new_with_tor_mode(&secret_key_hex, relays, tor_mode, proxy_url)
             .await
         {
@@ -1923,8 +1955,7 @@ pub fn init_nostr_client_with_tor_mode(
                     &public_key[..16]
                 );
 
-                let mut clients = NOSTR_CLIENTS.lock().await;
-                clients.insert(DEFAULT_CLIENT_ID.to_string(), client);
+                install_client(DEFAULT_CLIENT_ID.to_string(), client).await;
 
                 Ok(public_key)
             }
@@ -1958,6 +1989,7 @@ pub fn init_nostr_client_with_id(
     }
 
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         match MeisoNostrClient::new_with_proxy(&secret_key_hex, relays, proxy_url).await {
             Ok(client) => {
                 let public_key = client.public_key_hex();
@@ -1967,8 +1999,7 @@ pub fn init_nostr_client_with_id(
                     &public_key[..16]
                 );
 
-                let mut clients = NOSTR_CLIENTS.lock().await;
-                clients.insert(client_id, client);
+                install_client(client_id, client).await;
 
                 Ok(public_key)
             }
@@ -2236,6 +2267,7 @@ pub fn init_nostr_client_with_pubkey_and_tor_mode(
     }
 
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         match MeisoNostrClient::new_amber_mode_with_tor(
             public_key_hex.clone(),
             relays,
@@ -2247,8 +2279,7 @@ pub fn init_nostr_client_with_pubkey_and_tor_mode(
             Ok(client) => {
                 dev_println!("✅ Nostr client (Amber mode) initialized with Tor mode");
 
-                let mut clients = NOSTR_CLIENTS.lock().await;
-                clients.insert(DEFAULT_CLIENT_ID.to_string(), client);
+                install_client(DEFAULT_CLIENT_ID.to_string(), client).await;
 
                 Ok(public_key_hex)
             }
@@ -2289,12 +2320,12 @@ pub fn init_nostr_client_with_pubkey_and_id(
     }
 
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         match MeisoNostrClient::new_amber_mode(public_key_hex.clone(), relays, proxy_url).await {
             Ok(client) => {
                 dev_println!("✅ Nostr client [{}] initialized in Amber mode", client_id);
 
-                let mut clients = NOSTR_CLIENTS.lock().await;
-                clients.insert(client_id, client);
+                install_client(client_id, client).await;
 
                 Ok(public_key_hex)
             }
@@ -4207,6 +4238,7 @@ pub fn start_subscription_with_client_id(
         .clone()
         .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         let client = get_client(client_id).await?;
 
         // JSON文字列からFilterのリストをパース
@@ -4266,6 +4298,7 @@ pub fn stop_all_subscriptions_with_client_id(client_id: Option<String>) -> Resul
 /// 致命的な状況のみ Err を返す。
 pub fn clear_all_session_state() -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         // NOSTR_CLIENTS をクリア。常駐リスナーが Client の clone を保持している
         // ため Drop 任せではリレー接続が閉じない。明示的に shutdown して
         // notification channel を閉じ、リスナーを終了させる。
@@ -4387,6 +4420,7 @@ pub fn ensure_client_for_relays(
     public_key_hex: Option<String>,
 ) -> Result<()> {
     TOKIO_RUNTIME.block_on(async {
+        let _session_guard = SESSION_STATE_LOCK.lock().await;
         {
             let clients = NOSTR_CLIENTS.lock().await;
             if clients.contains_key(&client_id) {
@@ -4403,8 +4437,7 @@ pub fn ensure_client_for_relays(
             .ok_or_else(|| anyhow::anyhow!("public_key_hex required for new Amber client"))?;
         dev_println!("🆕 Creating new Amber client [{}]", client_id);
         let new_client = MeisoNostrClient::new_amber_mode(pk, relays, None).await?;
-        let mut clients = NOSTR_CLIENTS.lock().await;
-        clients.insert(client_id, new_client);
+        install_client(client_id, new_client).await;
         Ok(())
     })
 }
