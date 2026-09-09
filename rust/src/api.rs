@@ -1555,18 +1555,20 @@ impl MeisoNostrClient {
     /// event_json を二重エンコードしていて Dart 側のパースが常に失敗していた。
     pub(crate) async fn receive_subscription_events(
         &self,
+        client_id: &str,
         timeout_ms: u64,
     ) -> Result<Vec<ReceivedEvent>> {
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
 
         loop {
-            {
-                let mut queue = lock_recovering(&SUBSCRIPTION_EVENT_QUEUE);
-                if !queue.events.is_empty() {
-                    let events = queue.drain_all();
-                    dev_println!("📥 Received {} events via subscription", events.len());
-                    return Ok(events);
-                }
+            let events = drain_subscription_events(client_id);
+            if !events.is_empty() {
+                dev_println!(
+                    "📥 Received {} events via subscription [{}]",
+                    events.len(),
+                    client_id
+                );
+                return Ok(events);
             }
 
             if tokio::time::Instant::now() >= deadline {
@@ -1729,6 +1731,15 @@ struct SubscriptionEventQueue {
     total_bytes: usize,
 }
 
+impl Default for SubscriptionEventQueue {
+    fn default() -> Self {
+        Self {
+            events: std::collections::VecDeque::new(),
+            total_bytes: 0,
+        }
+    }
+}
+
 impl SubscriptionEventQueue {
     // メモリ保護: Flutter 側のポーリングが止まっても無限に溜めない。
     // 件数上限に加え、悪意あるリレーが最大サイズのイベントで埋めても
@@ -1755,13 +1766,24 @@ impl SubscriptionEventQueue {
     }
 }
 
-static SUBSCRIPTION_EVENT_QUEUE: once_cell::sync::Lazy<std::sync::Mutex<SubscriptionEventQueue>> =
-    once_cell::sync::Lazy::new(|| {
-        std::sync::Mutex::new(SubscriptionEventQueue {
-            events: std::collections::VecDeque::new(),
-            total_bytes: 0,
-        })
-    });
+static SUBSCRIPTION_EVENT_QUEUES: once_cell::sync::Lazy<
+    std::sync::Mutex<std::collections::HashMap<String, SubscriptionEventQueue>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+fn enqueue_subscription_event(client_id: &str, event: ReceivedEvent) {
+    lock_recovering(&SUBSCRIPTION_EVENT_QUEUES)
+        .entry(client_id.to_string())
+        .or_default()
+        .push(event);
+}
+
+fn drain_subscription_events(client_id: &str) -> Vec<ReceivedEvent> {
+    let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
+    queues
+        .get_mut(client_id)
+        .map(SubscriptionEventQueue::drain_all)
+        .unwrap_or_default()
+}
 
 /// 常駐リスナーの登録簿: client_id -> 世代トークン（多重起動防止）。
 /// 世代トークンにより、ログアウトで登録簿をクリアした直後に旧リスナーが
@@ -1784,8 +1806,7 @@ fn lock_recovering<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, 
 /// ポーリング毎に receiver を作る方式ではポーリング間隙のイベントを恒久的に
 /// 取りこぼす。subscribe 時に一度だけ常駐タスクを起動して解決する。
 fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
-    let my_generation =
-        LISTENER_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    let my_generation = LISTENER_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
     {
         let mut listeners = lock_recovering(&SUBSCRIPTION_LISTENERS);
         if listeners.contains_key(client_id) {
@@ -1820,7 +1841,7 @@ fn ensure_subscription_event_listener(client_id: &str, client: &Client) {
                         received_at,
                         subscription_id: subscription_id.to_string(),
                     };
-                    lock_recovering(&SUBSCRIPTION_EVENT_QUEUE).push(received);
+                    enqueue_subscription_event(&client_id, received);
                 }
                 Ok(RelayPoolNotification::Shutdown) => break,
                 Ok(_) => {}
@@ -4282,9 +4303,9 @@ pub fn clear_all_session_state() -> Result<()> {
         // 未配信の購読イベントを破棄（アカウント切替時に前ユーザーの
         // イベントが次ユーザーへ流れるのを防ぐ）
         {
-            let mut queue = lock_recovering(&SUBSCRIPTION_EVENT_QUEUE);
-            let count = queue.events.len();
-            queue.drain_all();
+            let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
+            let count: usize = queues.values().map(|queue| queue.events.len()).sum();
+            queues.clear();
             dev_println!("🧹 Cleared {} queued subscription events", count);
         }
 
@@ -4303,9 +4324,14 @@ pub fn receive_subscription_events_with_client_id(
     timeout_ms: u64,
     client_id: Option<String>,
 ) -> Result<Vec<ReceivedEvent>> {
+    let resolved_id = client_id
+        .clone()
+        .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
-        client.receive_subscription_events(timeout_ms).await
+        client
+            .receive_subscription_events(&resolved_id, timeout_ms)
+            .await
     })
 }
 
@@ -6390,6 +6416,62 @@ pub fn sign_nip98_auth_event_with_client_id(
 }
 
 /// Kind 27235 未署名イベントを作成（Amber 署名用）
+#[cfg(test)]
+mod subscription_event_queue_tests {
+    use super::{
+        drain_subscription_events, enqueue_subscription_event, lock_recovering, ReceivedEvent,
+        SubscriptionEventQueue, SUBSCRIPTION_EVENT_QUEUES,
+    };
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn event(id: &str) -> ReceivedEvent {
+        ReceivedEvent {
+            event_id: id.to_string(),
+            kind: 1,
+            created_at: 0,
+            event_json: format!(r#"{{"id":"{id}"}}"#),
+            received_at: 0,
+            subscription_id: "sub".to_string(),
+        }
+    }
+    #[test]
+    fn draining_one_client_does_not_remove_another_clients_events() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let mut queues = lock_recovering(&SUBSCRIPTION_EVENT_QUEUES);
+        queues.clear();
+        drop(queues);
+        enqueue_subscription_event("ui", event("ui-event"));
+        enqueue_subscription_event("background", event("background-event"));
+        let ui = drain_subscription_events("ui");
+        assert_eq!(ui[0].event_id, "ui-event");
+        let bg = drain_subscription_events("background");
+        assert_eq!(bg[0].event_id, "background-event");
+    }
+    #[test]
+    fn queue_limits_are_independent_per_client() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let mut queues: HashMap<String, SubscriptionEventQueue> = HashMap::new();
+        for id in 0..SubscriptionEventQueue::MAX_EVENTS + 1 {
+            queues
+                .entry("busy".into())
+                .or_default()
+                .push(event(&format!("busy-{id}")));
+        }
+        queues
+            .entry("quiet".into())
+            .or_default()
+            .push(event("quiet-event"));
+        assert_eq!(
+            queues.get("busy").unwrap().events.len(),
+            SubscriptionEventQueue::MAX_EVENTS
+        );
+        assert_eq!(queues.get("quiet").unwrap().events.len(), 1);
+    }
+}
+
 pub fn create_unsigned_nip98_auth_event(
     url: String,
     method: String,
