@@ -85,6 +85,11 @@ class TodosNotifier
   // バッチ同期用のタイマー
   Timer? _batchSyncTimer;
 
+  // B: 各リストの「前回送信時の内容署名」キャッシュ（同期管理フィールドは除外）。
+  // 無変更リストの再暗号化・再送信をスキップするために使用。プロセス内のみ保持し、
+  // ログアウト/未初期化化でクリアする（アカウント切替時の取り違え防止）。
+  final Map<String, String> _publishedListSignatures = {};
+
   // MLS初期化フラグ（Option B PoC）
   bool _mlsInitialized = false;
 
@@ -141,6 +146,8 @@ class TodosNotifier
         } else {
           // ログアウト等で未初期化に戻ったら停止
           _batchSyncTimer?.cancel();
+          // 内容署名キャッシュもクリア（アカウント切替時の取り違え防止）
+          _publishedListSignatures.clear();
         }
       },
     );
@@ -1379,6 +1386,9 @@ class TodosNotifier
       final index = list.indexWhere((t) => t.id == id);
 
       if (index != -1) {
+        // 移動元リストIDを保持（移動先がグループか／移動元がグループかで同期先を分岐）
+        final oldCustomListId = list[index].customListId;
+
         list[index] = list[index].copyWith(
           customListId: customListId,
           updatedAt: DateTime.now(),
@@ -1398,7 +1408,34 @@ class TodosNotifier
 
         // 【楽観的UI更新】即座に同期（バックグラウンド）
         _updateUnsyncedCount();
-        _syncToNostrBackground();
+
+        // 移動先/移動元がグループリストかを判定。
+        // 個人同期(_syncAllTodosToNostr)はグループTodoを除外するため、
+        // グループへ移動した場合は明示的に _syncGroupToNostr を呼ばないと
+        // リレーへ届かない（次のグループ操作まで取りこぼされる）。
+        final customLists =
+            _ref.read(customListsProvider).valueOrNull ??
+            const <CustomList>[];
+        bool isGroupId(String? listId) =>
+            listId != null &&
+            customLists.any((l) => l.id == listId && l.isGroup);
+
+        final newIsGroup = isGroupId(customListId);
+        final oldIsGroup = isGroupId(oldCustomListId);
+
+        // 移動先がグループ → グループタスクとして即時同期
+        if (newIsGroup) {
+          AppLogger.info('📤 Moving todo into group list: $customListId');
+          _syncToNostr(() async {
+            await _syncGroupToNostr(customListId!);
+          });
+        }
+
+        // 個人リスト側に変化がある場合（移動元 or 移動先が個人）のみ個人同期。
+        // 両方グループのときは個人リストに変化がないのでスキップ（無駄な全再送を回避）。
+        if (!newIsGroup || !oldIsGroup) {
+          _syncToNostrBackground();
+        }
       }
     }).value;
   }
@@ -3037,6 +3074,41 @@ class TodosNotifier
     super.dispose();
   }
 
+  /// リスト内容の安定署名を計算する。
+  ///
+  /// needsSync / eventId / localRelaySyncedAt など「同期の副作用で変化する
+  /// 揮発フィールド」は含めない。これが前回送信時の署名と一致するリストは、
+  /// リレー上のイベントが既に最新なので再送をスキップできる。
+  /// id でソートしてMapのイテレーション順に依存しない安定値にする
+  /// （並び替えは order フィールドに反映されるので変更として検出される）。
+  String _listContentSignature(List<Todo> listTodos, String listKey) {
+    final items = listTodos
+        .map(
+          (t) => <String, dynamic>{
+            'id': t.id,
+            'title': t.title,
+            'completed': t.completed,
+            'date': t.date?.toIso8601String(),
+            'order': t.order,
+            'created_at': t.createdAt.toIso8601String(),
+            'updated_at': t.updatedAt.toIso8601String(),
+            'custom_list_id': listKey == 'default' ? null : listKey,
+            'recurrence': t.recurrence?.toJson(),
+            'parent_recurring_id': t.parentRecurringId,
+            'parent_task_id': t.parentTaskId,
+            'depth': t.depth,
+            'task_links': t.taskLinks.isNotEmpty
+                ? t.taskLinks.map((l) => l.toJson()).toList()
+                : null,
+            'image_url': t.imageUrl,
+            'link_preview': t.linkPreview?.toJson(),
+          },
+        )
+        .toList()
+      ..sort((a, b) => (a['id'] as String).compareTo(b['id'] as String));
+    return jsonEncode(items);
+  }
+
   /// 全TODOリストをNostrに同期（新実装 - Kind 30001）
   /// すべてのTodo操作後に呼び出される
   Future<void> _syncAllTodosToNostr() async {
@@ -3217,6 +3289,18 @@ class TodosNotifier
                 ? null
                 : customListNames[listId]; // 名前ベースIDから名前を取得
 
+            // B: 内容が前回送信時と同一なら、暗号化・署名・送信を丸ごとスキップ。
+            // Amberモードはリストごとに IPC 2回（暗号化＋署名）＋リレー送信が
+            // 走るため、無変更リストのスキップ効果が大きい。
+            final signatureKey = 'amber:$listId';
+            final signature = _listContentSignature(listTodos, listId);
+            if (_publishedListSignatures[signatureKey] == signature) {
+              AppLogger.debug(
+                '⏭️ List "$listId" unchanged since last publish, skipping',
+              );
+              continue;
+            }
+
             AppLogger.debug(
               ' Processing list "$listId" (${listTodos.length} todos)',
             );
@@ -3371,6 +3455,9 @@ class TodosNotifier
               sendResult.primarySendResult.eventId,
               globalBackfillPending: sendResult.localBackfillQueued,
             );
+            // 送信成功後に署名を記録（次回以降、無変更ならスキップ）。
+            // 失敗時はここに到達せず署名も更新されないため、再送される。
+            _publishedListSignatures[signatureKey] = signature;
             AppLogger.info(
               ' Updated eventId for ${listTodos.length} todos in list "$listId"',
             );
@@ -3405,29 +3492,62 @@ class TodosNotifier
             return true;
           }).toList();
 
-          AppLogger.info(
-            ' Calling nostrService.createTodoListOnNostr with ${nonGroupTodos.length} non-group todos (excluded ${allTodos.length - nonGroupTodos.length} group todos)...',
-          );
+          // B: リスト単位でグループ化し、内容が前回送信時と変わったリストの
+          // Todoだけを Rust に渡す（Rust側は d-tag 単位の置換可能イベントを
+          // リストごとに publish するため、部分送信しても他リストは無傷）。
+          // 削除・移動で縮んだリストは内容が変わるので署名が変わり再送される。
+          final groupedNonGroup = <String, List<Todo>>{};
+          for (final todo in nonGroupTodos) {
+            final key = todo.customListId ?? 'default';
+            groupedNonGroup.putIfAbsent(key, () => []).add(todo);
+          }
 
-          try {
-            final sendResult = await nostrService.createTodoListOnNostr(
-              nonGroupTodos,
-            );
+          final changedTodos = <Todo>[];
+          final pendingSignatures = <String, String>{};
+          for (final entry in groupedNonGroup.entries) {
+            final signatureKey = 'nsec:${entry.key}';
+            final signature = _listContentSignature(entry.value, entry.key);
+            if (_publishedListSignatures[signatureKey] == signature) {
+              AppLogger.debug(
+                '⏭️ List "${entry.key}" unchanged since last publish, skipping',
+              );
+              continue;
+            }
+            pendingSignatures[signatureKey] = signature;
+            changedTodos.addAll(entry.value);
+          }
+
+          if (changedTodos.isEmpty) {
             AppLogger.info(
-              '✅✅ TODOリスト送信完了: ${sendResult.eventId} (${nonGroupTodos.length}件)',
+              ' No changed lists to sync (normal mode), skipping relay send',
+            );
+          } else {
+            AppLogger.info(
+              ' Calling nostrService.createTodoListOnNostr with ${changedTodos.length} todos in ${pendingSignatures.length} changed lists (of ${groupedNonGroup.length} total)...',
             );
 
-            await _markTodosSyncedWithEventId(
-              nonGroupTodos,
-              sendResult.eventId,
-              globalBackfillPending: false,
-            );
-            AppLogger.info(
-              ' Updated eventId for ${nonGroupTodos.length} todos',
-            );
-          } catch (e) {
-            AppLogger.error('❌❌ createTodoListOnNostr failed: $e');
-            rethrow;
+            try {
+              final sendResult = await nostrService.createTodoListOnNostr(
+                changedTodos,
+              );
+              AppLogger.info(
+                '✅✅ TODOリスト送信完了: ${sendResult.eventId} (${changedTodos.length}件)',
+              );
+
+              await _markTodosSyncedWithEventId(
+                changedTodos,
+                sendResult.eventId,
+                globalBackfillPending: false,
+              );
+              // 送信成功後に署名を記録（失敗時はここに到達せず再送される）。
+              _publishedListSignatures.addAll(pendingSignatures);
+              AppLogger.info(
+                ' Updated eventId for ${changedTodos.length} todos',
+              );
+            } catch (e) {
+              AppLogger.error('❌❌ createTodoListOnNostr failed: $e');
+              rethrow;
+            }
           }
         }
       } catch (e, stackTrace) {
