@@ -45,6 +45,29 @@ go run ./cmd/meiso status
 - `MEISO_CUI_AUTH_URL` (default: `auto`; uses local NIP-07 bridge page)
 - `MEISO_CUI_RELAY_URL` (default: `wss://relay.damus.io`, supports comma-separated values)
 - `MEISO_CUI_MASTER_KEY` (optional; required outside macOS if Keychain is unavailable)
+- `MEISO_CUI_SOCKS_PROXY` (optional; route all relay traffic through Tor/Orbot — see below)
+
+## Tor / SOCKS5 proxy
+
+Set `MEISO_CUI_SOCKS_PROXY` to send every outbound connection (relay
+WebSockets, NIP-65 resolution, remote signer calls) through a SOCKS5 proxy:
+
+```bash
+# Tor daemon
+export MEISO_CUI_SOCKS_PROXY="127.0.0.1:9050"
+# Orbot (Android tethering / desktop) often uses 9050 as well
+meiso status        # shows the active proxy
+meiso shared sync
+```
+
+Accepted forms: `host:port`, `socks5://host:port`, or `socks5h://host:port`.
+The scheme is normalized to `socks5h`, so **hostnames are resolved by the proxy
+(no local DNS leak)**. When unset, the CLI connects directly.
+
+Implementation note: go-nostr v0.52 has no per-connection dialer hook, so the
+proxy is applied to `http.DefaultTransport`, which the relay WebSocket dials
+fall back to. This is process-wide and intentional — in Tor mode nothing should
+bypass the proxy.
 
 ## Commands
 
@@ -57,6 +80,53 @@ meiso done --id <task-id>
 meiso sync
 meiso logout
 ```
+
+## Shared-Key Collaborative Lists (`shared-v1`)
+
+Catches up with app 1.4.0. A shared list has its own dedicated Nostr key `G`:
+tasks are addressable events (`kind:35000`, `d=task-id`) signed by `G` with
+NIP-44 v2 self-encrypted content, so relays only see opaque ciphertext and
+Last-Write-Wins is resolved at the relay layer. Members join by receiving
+`nsec_G` through a NIP-44 envelope (`kind:30078`, addressed with `#p`).
+
+This is wire-compatible with the Android client (`rust/src/group_tasks_shared.rs`):
+events created here are read by the app and vice versa.
+
+```bash
+# create a list (generates the group key, publishes kind:35001 metadata)
+meiso shared create --name "Groceries"
+meiso shared groups
+
+# invite a member (seals nsec_G for them; needs local secret-key login)
+meiso shared invite --group "Groceries" --to npub1...
+
+# on the invitee's machine: list and accept pending invitations
+meiso shared invites
+meiso shared accept                 # accept all (or: accept <group-id>)
+
+# work with tasks (group can be referenced by id or name)
+meiso shared add   --group "Groceries" --title "Milk" --date today
+meiso shared tasks --group "Groceries"
+meiso shared done  --group "Groceries" --id <task-id>
+meiso shared delete --group "Groceries" --id <task-id>   # publishes a tombstone
+
+# pull collaborators' edits and push local changes
+meiso shared sync                   # all groups (or: --group "Groceries")
+```
+
+Notes:
+
+- Invitations require a signer that can NIP-44 encrypt — use `login-local`
+  (or a NIP-07 extension that exposes `nip44.encrypt`). The group key `G` itself
+  signs/encrypts all task events, so collaboration works regardless of how you
+  authenticate.
+- Group credentials (including the shared secret `nsec_G`) are stored encrypted
+  at rest in `shared_groups.enc`; shared task state lives in `shared_tasks.json`,
+  separate from your personal list so group content is never published to your
+  own `kind:30001` list.
+- `logout` wipes group secrets and shared task state along with the session.
+- For two clients to collaborate they must share at least one relay
+  (`MEISO_CUI_RELAY_URL`).
 
 ## NIP-07-like flow
 
