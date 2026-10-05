@@ -72,12 +72,14 @@ fvm flutter build apk --flavor production --release
 
 ### Collaborative Lists Encryption
 
-Shared lists use a hybrid encryption scheme: task data is encrypted with a
-random AES-256-GCM key, and that key is distributed to each member via NIP-44
-v2 (ECDH over secp256k1). Members can be added or revoked without
-re-encrypting the payload for every change; revocation triggers a full key
-rotation to enforce forward secrecy. Event authenticity is guaranteed by
-Nostr's Schnorr signatures.
+Shared lists use the shared-v1 scheme: each list gets its own Nostr keypair
+`G`, shared out-of-band with every member. Tasks are addressable Nostr
+events signed by `G`, with content self-encrypted to `G` via NIP-44 v2.
+Adding a member just means handing them `nsec_G`. Removing a member does
+**not** currently revoke access — there is no key rotation on removal, so a
+removed member who already has `nsec_G` keeps the ability to decrypt the
+list. Event authenticity is guaranteed by Nostr's Schnorr signatures, but
+only proves "signed by someone holding `nsec_G`," not a specific member.
 
 → **[Full design doc: docs/COLLABORATIVE_LISTS_ENCRYPTION.md](docs/COLLABORATIVE_LISTS_ENCRYPTION.md)**
 
