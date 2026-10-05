@@ -33,6 +33,7 @@ class LocalStorageService {
   // === Sync state (Joplin-like) ===
   // 背景復帰/再起動時に「全履歴fetch」を避けるため、最終成功同期時刻を永続化する。
   static const String _lastTodoListSyncTimeKey = 'last_todo_list_sync_time';
+  static const String _knownListTodoCountsKey = 'known_list_todo_counts';
   static const String _lastAppSettingsSyncTimeKey =
       'last_app_settings_sync_time';
   static const String _lastCustomListsSyncTimeKey =
@@ -651,6 +652,35 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.delete(_lastTodoListSyncTimeKey);
+  }
+
+  // === Known list todo counts (shrink guard baseline) ===
+  // Per-list todo counts last confirmed on the relays (after a publish or a
+  // fetch). Persisted so a publish from an incomplete state can be detected
+  // across sessions, before the first fetch of the session has completed.
+
+  Map<String, int> getKnownListTodoCounts() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    final raw = _settingsBox!.get(_knownListTodoCountsKey);
+    if (raw is Map) {
+      final result = <String, int>{};
+      raw.forEach((key, value) {
+        if (value is num) {
+          result[key.toString()] = value.toInt();
+        }
+      });
+      return result;
+    }
+    return {};
+  }
+
+  Future<void> setKnownListTodoCounts(Map<String, int> counts) async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_knownListTodoCountsKey, counts);
   }
 
   Future<void> setLastAppSettingsSyncTime(DateTime dateTime) async {

@@ -1,0 +1,497 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:meiso/bridge_generated.dart/api.dart' as rust_api;
+import 'package:meiso/models/todo.dart';
+import 'package:meiso/providers/custom_lists_provider.dart';
+import 'package:meiso/providers/nostr_provider.dart';
+import 'package:meiso/providers/sync_status_provider.dart';
+import 'package:meiso/providers/todos_provider.dart';
+import 'package:meiso/services/local_storage_service.dart';
+
+/// Task-loss guards (PLANS/MEISO_TASK_LOSS_FIX_PLAN.md, decision 1).
+///
+/// Kind 30001 is replaceable and carries the whole list, so a publish from an
+/// incomplete local state replaces every task on the relays. These tests
+/// drive the real `TodosNotifier` against a fake `NostrService` and check
+/// each guard from the outside: what gets sent, what stays `needsSync`, and
+/// what the sync status reports.
+///
+/// Every test names its negative control: what the assertion sees when the
+/// guard under test is removed from `todos_provider.dart`.
+class _FakeNostrService implements NostrService {
+  bool sendSucceeds = true;
+
+  /// When set, `syncTodoListFromNostr` throws it instead of returning.
+  Object? fetchError;
+
+  /// When set, `syncTodoListFromNostr` waits for it before returning.
+  Completer<void>? fetchGate;
+
+  List<Todo> remoteTodos = const [];
+
+  int createTodoListCalls = 0;
+  int fetchCalls = 0;
+  final List<List<Todo>> sentBatches = [];
+
+  @override
+  Future<rust_api.EventSendResult> createTodoListOnNostr(
+    List<Todo> todos,
+  ) async {
+    createTodoListCalls += 1;
+    sentBatches.add(List<Todo>.from(todos));
+    return rust_api.EventSendResult(
+      eventId: 'event-$createTodoListCalls',
+      success: sendSucceeds,
+      successfulRelays: BigInt.from(sendSucceeds ? 1 : 0),
+      failedRelays: BigInt.from(sendSucceeds ? 0 : 2),
+      timedOut: false,
+      errorMessage: sendSucceeds ? null : 'Send failed: all relays failed',
+    );
+  }
+
+  @override
+  Future<List<Todo>> syncTodoListFromNostr() async {
+    fetchCalls += 1;
+    final gate = fetchGate;
+    if (gate != null) await gate.future;
+    final error = fetchError;
+    if (error != null) throw error;
+    return List<Todo>.from(remoteTodos);
+  }
+
+  // The custom-list and app-settings phases of a full sync ask for the
+  // pubkey first and bail out quietly when there is none.
+  @override
+  Future<String?> getPublicKey() async => null;
+
+  @override
+  Future<void> processGlobalBackfillQueue() async {}
+
+  @override
+  void setGlobalBackfillResultHandler(dynamic handler) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Todo _todo(
+  String id, {
+  bool needsSync = false,
+  String? customListId,
+  String? parentRecurringId,
+}) {
+  final now = DateTime(2026, 1, 1, 12);
+  return Todo(
+    id: id,
+    title: id,
+    createdAt: now,
+    updatedAt: now,
+    needsSync: needsSync,
+    customListId: customListId,
+    parentRecurringId: parentRecurringId,
+  );
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Directory tempDir;
+
+  Future<void> mockPathProvider(String path) async {
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (MethodCall call) async {
+          switch (call.method) {
+            case 'getApplicationDocumentsDirectory':
+            case 'getApplicationSupportDirectory':
+            case 'getTemporaryDirectory':
+              return path;
+          }
+          return null;
+        });
+  }
+
+  setUp(() async {
+    tempDir = await Directory.systemTemp.createTemp('meiso_task_loss_');
+    await mockPathProvider(tempDir.path);
+  });
+
+  tearDown(() async {
+    try {
+      await localStorageService.close();
+    } catch (_) {}
+    await Hive.deleteFromDisk();
+    if (tempDir.existsSync()) {
+      tempDir.deleteSync(recursive: true);
+    }
+  });
+
+  Future<void> pumpUntil(
+    bool Function() condition, {
+    Duration timeout = const Duration(seconds: 15),
+    required String reason,
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (!condition()) {
+      if (DateTime.now().isAfter(deadline)) {
+        fail('timed out: $reason');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
+  /// Initialises local storage and seeds it with already-synced todos.
+  Future<void> seedLocal(List<Todo> todos) async {
+    await localStorageService.initialize();
+    await localStorageService.saveTodos(todos);
+  }
+
+  ({ProviderContainer container, TodosNotifier notifier}) createNotifier(
+    _FakeNostrService service,
+  ) {
+    final container = ProviderContainer(
+      overrides: [nostrServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+    // Custom lists initialise from local storage; read them first so the
+    // notifier is not created for the first time inside a sync.
+    container.read(customListsProvider);
+    final notifier = container.read(todosProvider.notifier);
+    return (container: container, notifier: notifier);
+  }
+
+  /// Starts the notifier with seeded local data and marks Nostr initialised.
+  Future<({ProviderContainer container, TodosNotifier notifier})> startNotifier(
+    _FakeNostrService service,
+  ) async {
+    final started = createNotifier(service);
+    await pumpUntil(
+      () =>
+          started.container.read(todosProvider).valueOrNull?.isNotEmpty == true,
+      reason: 'todosProvider did not load local todos',
+    );
+    started.container.read(nostrInitializedProvider.notifier).state = true;
+    await Future<void>.delayed(Duration.zero);
+    return started;
+  }
+
+  /// Finds a todo by title (`addTodo` generates the id).
+  Todo? findTodo(ProviderContainer container, String title) {
+    final todos = container.read(todosProvider).valueOrNull;
+    if (todos == null) return null;
+    for (final list in todos.values) {
+      for (final todo in list) {
+        if (todo.title == title) return todo;
+      }
+    }
+    return null;
+  }
+
+  SyncState syncState(ProviderContainer container) =>
+      container.read(syncStatusProvider).state;
+
+  /// Runs [action], which kicks off `_syncToNostrBackground`, and waits for
+  /// that background sync to give up. The background sync retries once after
+  /// 3 s and only then reports `Background sync error`; inner fetches may
+  /// flip the status to error/success earlier, so the final message is the
+  /// only reliable "settled" signal. The status is reset first so a message
+  /// left over from an earlier action cannot satisfy the wait.
+  Future<void> expectBackgroundSyncFailure(
+    ProviderContainer container,
+    Future<void> Function() action,
+  ) async {
+    final statusNotifier = container.read(syncStatusProvider.notifier);
+    statusNotifier.state = container
+        .read(syncStatusProvider)
+        .copyWith(state: SyncState.idle, errorMessage: null);
+    await action();
+    await pumpUntil(
+      () =>
+          container
+              .read(syncStatusProvider)
+              .errorMessage
+              ?.contains('Background sync error') ==
+          true,
+      timeout: const Duration(seconds: 20),
+      reason: 'background sync did not report its failure',
+    );
+  }
+
+  group('read failure vs empty', () {
+    test(
+      'a local load failure becomes an error state, not an empty list',
+      () async {
+        // Local storage is deliberately NOT initialised, so every read throws.
+        // Negative control: with the old `state = const AsyncValue.data({})`
+        // fallback this test sees AsyncData with an empty map, and addTodo
+        // then publishes a one-task list over the relay copy.
+        final service = _FakeNostrService();
+        final started = createNotifier(service);
+
+        await pumpUntil(
+          () => started.container.read(todosProvider).hasError,
+          reason: 'todosProvider did not report the load failure',
+        );
+        expect(started.container.read(todosProvider).hasValue, isFalse);
+
+        started.container.read(nostrInitializedProvider.notifier).state = true;
+        // Edits run through `state.whenData(...).value`, which rethrows the
+        // load failure instead of operating on an empty map.
+        await expectLater(
+          started.notifier.addTodo('created on a broken device', null),
+          throwsException,
+          reason: 'editing must stay blocked while the local read has failed',
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+
+        expect(started.container.read(todosProvider).hasError, isTrue);
+        expect(
+          service.createTodoListCalls,
+          0,
+          reason: 'nothing may be published from an unreadable state',
+        );
+      },
+    );
+  });
+
+  group('publish gate', () {
+    test('no publish until a relay fetch has succeeded this session', () async {
+      await seedLocal([_todo('a'), _todo('b')]);
+      final service = _FakeNostrService()
+        ..fetchError = Exception('relay unreachable');
+      final started = await startNotifier(service);
+
+      await expectBackgroundSyncFailure(
+        started.container,
+        () => started.notifier.addTodo('c', null),
+      );
+
+      // Negative control: without the gate createTodoListCalls is 1 here
+      // (the three-task list is sent without ever reading the relays).
+      expect(
+        service.fetchCalls,
+        greaterThanOrEqualTo(1),
+        reason: 'the gate must try to fetch before publishing',
+      );
+      expect(
+        service.createTodoListCalls,
+        0,
+        reason: 'publish must be blocked while no fetch has succeeded',
+      );
+      expect(syncState(started.container), SyncState.error);
+      final pending = findTodo(started.container, 'c')!;
+      expect(
+        pending.needsSync,
+        isTrue,
+        reason: 'the blocked task must stay queued for a later publish',
+      );
+
+      // The relays come back; a successful fetch opens the gate and the
+      // pending task is published without another user action.
+      service.fetchError = null;
+      await started.notifier.syncFromNostr();
+      await pumpUntil(
+        () => service.createTodoListCalls == 1,
+        reason: 'pending task was not published after the fetch succeeded',
+      );
+      expect(
+        service.sentBatches.single.map((t) => t.title),
+        containsAll(['a', 'b', 'c']),
+      );
+      await pumpUntil(
+        () => findTodo(started.container, 'c')?.needsSync == false,
+        reason: 'published task did not get needsSync cleared',
+      );
+    });
+
+    test('logout closes the gate again', () async {
+      await seedLocal([_todo('a'), _todo('b')]);
+      final service = _FakeNostrService();
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await started.notifier.addTodo('c', null);
+      await pumpUntil(
+        () => service.createTodoListCalls == 1,
+        reason: 'publish after a successful fetch must go through',
+      );
+
+      // Logout, then another session before any fetch. Negative control:
+      // without the reset on the nostrInitialized listener the second add
+      // publishes immediately (createTodoListCalls becomes 2 with
+      // fetchCalls unchanged).
+      started.container.read(nostrInitializedProvider.notifier).state = false;
+      await Future<void>.delayed(Duration.zero);
+      service.fetchError = Exception('relay unreachable');
+      final fetchCallsBefore = service.fetchCalls;
+      started.container.read(nostrInitializedProvider.notifier).state = true;
+      await Future<void>.delayed(Duration.zero);
+
+      await expectBackgroundSyncFailure(
+        started.container,
+        () => started.notifier.addTodo('d', null),
+      );
+
+      expect(service.fetchCalls, greaterThan(fetchCallsBefore));
+      expect(
+        service.createTodoListCalls,
+        1,
+        reason: 'after logout the gate must be closed again',
+      );
+    });
+  });
+
+  group('shrink guard', () {
+    test(
+      'refuses to publish a list that shrank below half its known count',
+      () async {
+        await seedLocal([_todo('a'), _todo('b')]);
+        // A previous session confirmed 20 tasks in the default list on the
+        // relays; this device only managed to load 2 of them.
+        await localStorageService.setKnownListTodoCounts({'default': 20});
+        final service = _FakeNostrService();
+        final started = await startNotifier(service);
+
+        // Open the gate with a fetch that returns nothing (relay-side empty
+        // response); local data is kept, the baseline stays at 20.
+        await started.notifier.syncFromNostr();
+
+        await expectBackgroundSyncFailure(
+          started.container,
+          () => started.notifier.addTodo('c', null),
+        );
+
+        // Negative control: without _assertNoSuspiciousShrink the 3-task list
+        // is sent here (createTodoListCalls == 1) and replaces 20 tasks.
+        expect(
+          service.createTodoListCalls,
+          0,
+          reason: '3 of 20 known tasks must not be published',
+        );
+        expect(syncState(started.container), SyncState.error);
+        expect(findTodo(started.container, 'c')!.needsSync, isTrue);
+
+        // Manual sync is the escape hatch: it forces the publish and the new
+        // count becomes the baseline.
+        await started.notifier.manualSyncToNostr();
+        expect(service.createTodoListCalls, 1);
+        expect(localStorageService.getKnownListTodoCounts()['default'], 3);
+
+        // Ordinary edits against the new baseline go through again.
+        await started.notifier.addTodo('d', null);
+        await pumpUntil(
+          () => service.createTodoListCalls == 2,
+          reason: 'a 4-task publish against a baseline of 3 must go through',
+        );
+      },
+    );
+
+    test('a deliberate bulk delete passes the guard exactly once', () async {
+      // One recurring parent with five instances, plus two ordinary tasks.
+      await seedLocal([
+        _todo('a'),
+        _todo('b'),
+        _todo('parent'),
+        for (var i = 0; i < 5; i++)
+          _todo('instance-$i', parentRecurringId: 'parent'),
+      ]);
+      await localStorageService.setKnownListTodoCounts({'default': 8});
+      final service = _FakeNostrService();
+      final started = await startNotifier(service);
+      await started.notifier.syncFromNostr();
+
+      // 8 -> 2 is a suspicious shrink, but it is what the user asked for.
+      // Negative control: without _allowShrinkOnce this publish is blocked
+      // and createTodoListCalls stays 0.
+      await started.notifier.deleteAllRecurringInstances('parent', null);
+      await pumpUntil(
+        () => service.createTodoListCalls == 1,
+        reason: 'bulk delete must be allowed to publish the shrunken list',
+      );
+      expect(
+        service.sentBatches.single.map((t) => t.title),
+        unorderedEquals(['a', 'b']),
+      );
+      expect(localStorageService.getKnownListTodoCounts()['default'], 2);
+
+      // The allowance is consumed: a later suspicious shrink is blocked.
+      // Negative control: if _allowShrinkOnce were never reset this add
+      // would publish (createTodoListCalls == 2).
+      await localStorageService.setKnownListTodoCounts({'default': 20});
+      await expectBackgroundSyncFailure(
+        started.container,
+        () => started.notifier.addTodo('c', null),
+      );
+      expect(service.createTodoListCalls, 1);
+      expect(syncState(started.container), SyncState.error);
+    });
+  });
+
+  group('failed relay send (issue c121754a)', () {
+    test(
+      'a send that reached no relay keeps needsSync and reports an error',
+      () async {
+        await seedLocal([_todo('a'), _todo('b')]);
+        final service = _FakeNostrService()..sendSucceeds = false;
+        final started = await startNotifier(service);
+        await started.notifier.syncFromNostr();
+
+        await expectBackgroundSyncFailure(
+          started.container,
+          () => started.notifier.addTodo('c', null),
+        );
+
+        // Negative control: with _markTodosSyncedWithEventId running before
+        // the success check, 'c' has needsSync == false and eventId
+        // 'event-1' here, and the status is SyncState.success.
+        expect(service.createTodoListCalls, greaterThanOrEqualTo(1));
+        final todo = findTodo(started.container, 'c')!;
+        expect(
+          todo.needsSync,
+          isTrue,
+          reason: 'an undelivered task must stay queued for retry',
+        );
+        expect(
+          todo.eventId,
+          isNull,
+          reason: 'no eventId may be stamped for an undelivered send',
+        );
+        expect(
+          syncState(started.container),
+          SyncState.error,
+          reason: 'the UI must not report a successful sync',
+        );
+
+        // Once the relays accept the send, the task is marked synced.
+        service.sendSucceeds = true;
+        await started.notifier.manualSyncToNostr();
+        final synced = findTodo(started.container, 'c')!;
+        expect(synced.needsSync, isFalse);
+        expect(synced.eventId, isNotNull);
+      },
+    );
+  });
+
+  group('full sync re-entry', () {
+    test('concurrent full syncs share a single relay fetch', () async {
+      await seedLocal([_todo('a'), _todo('b')]);
+      final service = _FakeNostrService()..fetchGate = Completer<void>();
+      final started = await startNotifier(service);
+
+      // Negative control: without _activeFullSync both calls fetch and
+      // fetchCalls is 2.
+      final first = started.notifier.syncFromNostr();
+      final second = started.notifier.syncFromNostr();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      service.fetchGate!.complete();
+      await Future.wait([first, second]);
+
+      expect(service.fetchCalls, 1);
+    });
+  });
+}

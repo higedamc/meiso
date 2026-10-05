@@ -134,10 +134,12 @@ void main() {
       final service = _FakeNostrService(sendSucceeds: false);
       final notifier = await startNotifier(service);
 
-      await notifier.manualSyncToNostr();
+      // A send that reached no relay is now reported as a failure
+      // (issue c121754a), so manual sync throws instead of claiming success.
+      await expectLater(notifier.manualSyncToNostr(), throwsException);
       expect(service.createTodoListCalls, 1);
 
-      await notifier.manualSyncToNostr();
+      await expectLater(notifier.manualSyncToNostr(), throwsException);
       expect(
         service.createTodoListCalls,
         2,
