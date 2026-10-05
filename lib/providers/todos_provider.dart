@@ -37,6 +37,8 @@ import '../features/shared_list/infrastructure/providers/repository_providers.da
 import '../features/task_comments/infrastructure/providers/repository_providers.dart'
     as task_comment_providers;
 import '../utils/fractional_index.dart';
+import '../utils/todo_delta_merge.dart';
+import '../utils/todo_list_shrink_guard.dart';
 
 // Amberモード判定のためのインポート
 export 'nostr_provider.dart' show isAmberModeProvider;
@@ -89,6 +91,26 @@ class TodosNotifier
   // 無変更リストの再暗号化・再送信をスキップするために使用。プロセス内のみ保持し、
   // ログアウト/未初期化化でクリアする（アカウント切替時の取り違え防止）。
   final Map<String, String> _publishedListSignatures = {};
+
+  // ===== Task-loss guards (relay overwrite protection) =====
+  // Kind 30001 is replaceable and carries the whole list, so publishing from
+  // an incomplete state (fresh device, failed initial sync, local read error)
+  // replaces every task on the relays with that incomplete list. These guards
+  // keep that from happening. Spec: PLANS/MEISO_TASK_LOSS_FIX_PLAN.md,
+  // decision 1 (re-derived from e27362d).
+
+  // Publish gate: no full publish until at least one relay fetch (full or
+  // delta) has succeeded in this session. Reset on logout so another account
+  // does not inherit the open gate.
+  bool _remoteFetchSucceeded = false;
+
+  // The full sync currently in flight, so concurrent callers (publish gate,
+  // initial sync, pull-to-refresh) await it instead of starting another.
+  Future<void>? _activeFullSync;
+
+  // Deliberate bulk deletes (all recurring instances, whole list) set this so
+  // the shrink guard lets the next publish through exactly once.
+  bool _allowShrinkOnce = false;
 
   // MLS初期化フラグ（Option B PoC）
   bool _mlsInitialized = false;
@@ -148,6 +170,9 @@ class TodosNotifier
           _batchSyncTimer?.cancel();
           // 内容署名キャッシュもクリア（アカウント切替時の取り違え防止）
           _publishedListSignatures.clear();
+          // Close the publish gate again: the next account must fetch its own
+          // relay state before it is allowed to publish.
+          _remoteFetchSucceeded = false;
         }
       },
     );
@@ -228,11 +253,17 @@ class TodosNotifier
           AppLogger.debug(' [Todos] Nostr未初期化（ログイン前）のため、同期をスキップ');
         }
       }
-    } catch (e) {
-      AppLogger.warning(' Todo初期化エラー: $e');
-      // エラー時は空のマップで初期化
-      AppLogger.warning(' エラー発生のため空のリストで開始');
-      state = const AsyncValue.data({});
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        ' Todo初期化エラー: failed to load local data',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      // Never fall back to data({}) here. An empty map is indistinguishable
+      // from "this user has no tasks", and the next task operation would
+      // publish that empty list over the relay copy. Report the read failure
+      // as an error state instead, which stops edits and syncs.
+      state = AsyncValue.error(e, stackTrace);
     }
   }
 
@@ -2301,6 +2332,8 @@ class TodosNotifier
 
       // 【楽観的UI更新】バックグラウンドでNostr同期（awaitしない）
       _updateUnsyncedCount();
+      // Deliberate bulk delete: let the shrink guard pass once.
+      _allowShrinkOnce = true;
       _syncToNostrBackground();
     }).value;
   }
@@ -2432,6 +2465,8 @@ class TodosNotifier
 
       // バックグラウンドでNostr同期
       _updateUnsyncedCount();
+      // Deliberate bulk delete (whole list): let the shrink guard pass once.
+      _allowShrinkOnce = true;
       _syncToNostrBackground();
     }).value;
   }
@@ -3111,8 +3146,12 @@ class TodosNotifier
 
   /// 全TODOリストをNostrに同期（新実装 - Kind 30001）
   /// すべてのTodo操作後に呼び出される
-  Future<void> _syncAllTodosToNostr() async {
-    AppLogger.info(' _syncAllTodosToNostr called');
+  ///
+  /// [force] is the manual-sync escape hatch: it bypasses the publish gate and
+  /// the shrink guard because the user has just looked at the list they are
+  /// sending, and it is the way out when a guard misfires.
+  Future<void> _syncAllTodosToNostr({bool force = false}) async {
+    AppLogger.info(' _syncAllTodosToNostr called (force: $force)');
     final syncStopwatch = Stopwatch()..start();
     unawaited(_ref.read(nostrServiceProvider).processGlobalBackfillQueue());
 
@@ -3134,6 +3173,39 @@ class TodosNotifier
       );
       throw Exception('State is not ready for sync');
     }
+
+    // Publish gate. Until a relay fetch has succeeded in this session the
+    // local state may be incomplete (new device, empty local store, initial
+    // sync not finished), so fetch and merge first. Kind 30001 is replaceable:
+    // skipping this would replace every task on the relays with the local
+    // subset.
+    if (!force && !_remoteFetchSucceeded) {
+      AppLogger.warning(
+        ' [Guard] No successful remote fetch this session - fetching from '
+        'relays before publish to avoid overwriting remote data',
+      );
+      try {
+        // The caller publishes right after this, so do not schedule a second
+        // publish from the fetch itself.
+        await syncFromNostr(schedulePendingPublish: false);
+      } catch (e) {
+        AppLogger.warning(' [Guard] Pre-publish fetch failed: $e');
+      }
+      if (!_remoteFetchSucceeded) {
+        AppLogger.warning(
+          ' [Guard] Remote fetch still not confirmed - publish BLOCKED. '
+          'Local changes stay needsSync and are sent after a successful fetch.',
+        );
+        throw Exception(
+          'Publish deferred: no successful relay fetch yet this session '
+          '(data protection)',
+        );
+      }
+    }
+
+    // Shrink guard bypass for this run. _allowShrinkOnce is consumed only
+    // when the publish completes, so a failed attempt keeps the allowance.
+    final allowShrink = force || _allowShrinkOnce;
 
     await state.whenData((todos) async {
       // ← awaitを追加！
@@ -3280,6 +3352,22 @@ class TodosNotifier
           }
 
           final amberService = _ref.read(amberServiceProvider);
+
+          // Shrink guard: inspect every list that is about to be sent before
+          // the first send goes out. Lists skipped as unchanged are not
+          // published and therefore not checked.
+          final amberPublishCounts = <String, int>{};
+          for (final entry in groupedTodos.entries) {
+            final unchanged =
+                _publishedListSignatures['amber:${entry.key}'] ==
+                _listContentSignature(entry.value, entry.key);
+            if (unchanged) continue;
+            amberPublishCounts[entry.key] = entry.value.length;
+          }
+          _assertNoSuspiciousShrink(
+            amberPublishCounts,
+            allowShrink: allowShrink,
+          );
 
           // 3. 各リストごとに暗号化・署名・送信
           for (final entry in groupedTodos.entries) {
@@ -3458,6 +3546,9 @@ class TodosNotifier
             // 送信成功後に署名を記録（次回以降、無変更ならスキップ）。
             // 失敗時はここに到達せず署名も更新されないため、再送される。
             _publishedListSignatures[signatureKey] = signature;
+            // A successful publish fixes the relay-side count of this list;
+            // it becomes the shrink guard's baseline.
+            await _recordKnownListTodoCounts({listId: listTodos.length});
             AppLogger.info(
               ' Updated eventId for ${listTodos.length} todos in list "$listId"',
             );
@@ -3517,6 +3608,15 @@ class TodosNotifier
             changedTodos.addAll(entry.value);
           }
 
+          // Shrink guard over the lists that will actually be sent (Rust
+          // groups by customListId the same way). Skipped lists are exempt.
+          final publishCounts = <String, int>{};
+          for (final entry in groupedNonGroup.entries) {
+            if (!pendingSignatures.containsKey('nsec:${entry.key}')) continue;
+            publishCounts[entry.key] = entry.value.length;
+          }
+          _assertNoSuspiciousShrink(publishCounts, allowShrink: allowShrink);
+
           if (changedTodos.isEmpty) {
             AppLogger.info(
               ' No changed lists to sync (normal mode), skipping relay send',
@@ -3530,6 +3630,29 @@ class TodosNotifier
               final sendResult = await nostrService.createTodoListOnNostr(
                 changedTodos,
               );
+              // Rust's send_event_with_result reports "all relays failed" and
+              // the 3 s timeout as `success: false` without throwing, and
+              // create_todo_list returns only the last list's result. Treat
+              // anything but success as a failed publish (issue c121754a):
+              // leave needsSync set and the eventId unstamped so the batch
+              // sync retries, record neither signatures nor the shrink
+              // baseline so every changed list is resent, and throw so
+              // _syncToNostr reports an error instead of syncSuccess().
+              if (!sendResult.success) {
+                AppLogger.warning(
+                  ' Relay send did not succeed for '
+                  '${pendingSignatures.keys.join(', ')} '
+                  '(successfulRelays: ${sendResult.successfulRelays}, '
+                  'failedRelays: ${sendResult.failedRelays}, '
+                  'timedOut: ${sendResult.timedOut}, '
+                  'error: ${sendResult.errorMessage}). '
+                  'Todos stay needsSync; these lists will be resent.',
+                );
+                throw Exception(
+                  sendResult.errorMessage ??
+                      'Relay send failed: no relay accepted the todo list',
+                );
+              }
               AppLogger.info(
                 '✅✅ TODOリスト送信完了: ${sendResult.eventId} (${changedTodos.length}件)',
               );
@@ -3542,27 +3665,10 @@ class TodosNotifier
               AppLogger.info(
                 ' Updated eventId for ${changedTodos.length} todos',
               );
-              // Record the signatures only when the relay send actually
-              // succeeded. Rust's send_event_with_result reports "all relays
-              // failed" and the 3 s timeout as `success: false` without
-              // throwing, so checking for an exception alone would mark an
-              // undelivered list as published and skip it until its content
-              // changes again. create_todo_list returns only the last list's
-              // result, so on any failure nothing is recorded and every
-              // changed list is resent on the next mutation.
-              if (sendResult.success) {
-                _publishedListSignatures.addAll(pendingSignatures);
-              } else {
-                AppLogger.warning(
-                  ' Relay send did not succeed for '
-                  '${pendingSignatures.keys.join(', ')} '
-                  '(successfulRelays: ${sendResult.successfulRelays}, '
-                  'failedRelays: ${sendResult.failedRelays}, '
-                  'timedOut: ${sendResult.timedOut}, '
-                  'error: ${sendResult.errorMessage}). '
-                  'Signatures not recorded; these lists will be resent.',
-                );
-              }
+              _publishedListSignatures.addAll(pendingSignatures);
+              // A successful publish fixes the relay-side counts of these
+              // lists; they become the shrink guard's baseline.
+              await _recordKnownListTodoCounts(publishCounts);
             } catch (e) {
               AppLogger.error('❌❌ createTodoListOnNostr failed: $e');
               rethrow;
@@ -3579,11 +3685,92 @@ class TodosNotifier
         ' _syncAllTodosToNostr: state.whenData callback COMPLETED successfully',
       );
     }).value; // ← .value追加で確実に完了を待つ
+    // The publish went through, so the one-shot bulk-delete allowance is used.
+    _allowShrinkOnce = false;
     syncStopwatch.stop();
     AppLogger.info(
       '⚡ _syncAllTodosToNostr completed in ${syncStopwatch.elapsedMilliseconds}ms',
     );
     AppLogger.debug(' _syncAllTodosToNostr: method COMPLETED');
+  }
+
+  /// Shrink guard: refuse to publish any list that shrank below half of the
+  /// count last confirmed on the relays (after a publish or a fetch).
+  ///
+  /// Kind 30001 is replaceable, so publishing from an incomplete state
+  /// effectively deletes the relay copy. Partial fetch failures and merge bugs
+  /// both end up as "nearly empty list", which this catches. Deliberate bulk
+  /// deletes and manual sync pass [allowShrink].
+  void _assertNoSuspiciousShrink(
+    Map<String, int> publishCounts, {
+    required bool allowShrink,
+  }) {
+    if (allowShrink || publishCounts.isEmpty) return;
+    final Map<String, int> knownCounts;
+    try {
+      knownCounts = localStorageService.getKnownListTodoCounts();
+    } catch (e) {
+      AppLogger.warning(' [Guard] Known list counts unavailable: $e');
+      return;
+    }
+    final hits = findSuspiciousListShrinks(
+      knownCounts: knownCounts,
+      publishCounts: publishCounts,
+    );
+    if (hits.isEmpty) return;
+    for (final hit in hits) {
+      AppLogger.error(
+        ' [Guard] Suspicious shrink for list "${hit.listKey}": '
+        '${hit.known} -> ${hit.next} todos. Publish BLOCKED to prevent data loss.',
+      );
+    }
+    final first = hits.first;
+    throw Exception(
+      'Publish blocked: list "${first.listKey}" shrank from ${first.known} to '
+      '${first.next} todos (data protection). If this is intended, run a '
+      'manual sync.',
+    );
+  }
+
+  /// Record the per-list counts that were confirmed on the relays. Called
+  /// after a successful publish and after a fetch.
+  Future<void> _recordKnownListTodoCounts(Map<String, int> counts) async {
+    if (counts.isEmpty) return;
+    try {
+      final knownCounts = localStorageService.getKnownListTodoCounts();
+      knownCounts.addAll(counts);
+      await localStorageService.setKnownListTodoCounts(knownCounts);
+    } catch (e) {
+      AppLogger.warning(' Failed to record known list todo counts: $e');
+    }
+  }
+
+  /// Per-list counts of [todos], keyed the way the normal-mode publish groups
+  /// them (`customListId`, `default` for none).
+  Map<String, int> _countTodosPerList(Iterable<Todo> todos) {
+    final counts = <String, int>{};
+    for (final todo in todos) {
+      final key = todo.customListId ?? 'default';
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// A relay fetch (full or delta) succeeded: open the publish gate and, if
+  /// local changes are waiting, schedule their publish.
+  ///
+  /// [schedulePendingPublish] is false when the publish gate itself ran the
+  /// fetch, because that caller publishes right after.
+  void _onRemoteFetchSucceeded({bool schedulePendingPublish = true}) {
+    final wasFirstSuccess = !_remoteFetchSucceeded;
+    _remoteFetchSucceeded = true;
+    if (schedulePendingPublish && _getUnsyncedTodos().isNotEmpty) {
+      AppLogger.info(
+        ' [Guard] Remote fetch succeeded (first: $wasFirstSuccess) - '
+        'scheduling publish of pending local changes',
+      );
+      _syncToNostrBackground();
+    }
   }
 
   /// Nostrへの同期処理（リトライ機能付き）
@@ -3750,7 +3937,10 @@ class TodosNotifier
     _ref.read(syncStatusProvider.notifier).startSync();
 
     try {
-      await _syncAllTodosToNostr();
+      // Manual sync is an explicit user action on a list they are looking at,
+      // so it bypasses the publish gate and the shrink guard. It is also the
+      // escape hatch when a guard misfires.
+      await _syncAllTodosToNostr(force: true);
 
       // 同期成功後、needsSyncフラグをクリア
       await _clearNeedsSyncFlagsForNonGroup();
@@ -3844,6 +4034,7 @@ class TodosNotifier
   Future<void> syncFromNostr({
     bool isInitialSync = false,
     TodoSyncTrigger trigger = TodoSyncTrigger.manual,
+    bool schedulePendingPublish = true,
   }) async {
     AppLogger.warning(
       '⬇️ [SYNC] syncFromNostr called: trigger=$trigger, isInitialSync=$isInitialSync',
@@ -3870,6 +4061,21 @@ class TodosNotifier
       }
       // lastSync がない場合は初回相当 → 既存フル同期へフォールバック
     }
+
+    // Only one full sync at a time. The publish gate, the initial sync and
+    // pull-to-refresh can all ask for one; later callers await the one in
+    // flight instead of racing it (and its state replacement).
+    final inflight = _activeFullSync;
+    if (inflight != null) {
+      AppLogger.debug(' [SYNC] Full sync already in progress - awaiting it');
+      await inflight;
+      return;
+    }
+    final fullSyncCompleter = Completer<void>();
+    _activeFullSync = fullSyncCompleter.future;
+    // Set when relay events exist but none could be read; the gate must stay
+    // closed then, or we would overwrite data we could not see.
+    var remoteContentUnreadable = false;
 
     // Phase 8.5.1: 進捗付き同期開始（全3ステップ）
     _ref
@@ -3989,6 +4195,10 @@ class TodosNotifier
 
               // Phase 8.5.3: グループ系はバックグラウンドで同期
               _ref.read(syncStatusProvider.notifier).syncSuccess();
+              // Fetch succeeded (confirmed the relays hold nothing).
+              _onRemoteFetchSucceeded(
+                schedulePendingPublish: schedulePendingPublish,
+              );
 
               // バックグラウンドでグループ系同期を開始（UIをブロックしない）
               Future.microtask(_syncGroupDataInBackground);
@@ -4001,6 +4211,10 @@ class TodosNotifier
 
             // Phase 8.5.3: グループ系はバックグラウンドで同期
             _ref.read(syncStatusProvider.notifier).syncSuccess();
+            // Fetch succeeded (confirmed the relays hold nothing).
+            _onRemoteFetchSucceeded(
+              schedulePendingPublish: schedulePendingPublish,
+            );
 
             // バックグラウンドでグループ系同期を開始（UIをブロックしない）
             Future.microtask(_syncGroupDataInBackground);
@@ -4274,6 +4488,10 @@ class TodosNotifier
           // ローカルデータを保持するために、マージをスキップする
           if (allSyncedTodos.isEmpty) {
             AppLogger.warning('⚠️ リモートから復号化できたTodoが0件です。ローカルデータを保持します。');
+            // Relay events exist but their content could not be read. Keep
+            // the publish gate closed: publishing now would overwrite data
+            // we never saw.
+            remoteContentUnreadable = true;
 
             // ローカルデータの有無をチェック
             final hasLocalData = state.maybeWhen(
@@ -4386,6 +4604,10 @@ class TodosNotifier
             if (hasLocalData) {
               AppLogger.info(' ローカルデータを保持（リモートは空）');
               _ref.read(syncStatusProvider.notifier).syncSuccess();
+              // Fetch succeeded (confirmed the relays hold nothing).
+              _onRemoteFetchSucceeded(
+                schedulePendingPublish: schedulePendingPublish,
+              );
               return; // ここで関数を抜ける
             }
           }
@@ -4411,6 +4633,17 @@ class TodosNotifier
         _ref.read(syncStatusProvider.notifier).syncSuccess();
         // 次回の復帰/再起動時に差分同期を行うため、最終成功同期時刻を保存
         await localStorageService.setLastTodoListSyncTime(DateTime.now());
+        if (remoteContentUnreadable) {
+          AppLogger.warning(
+            ' [Guard] Remote lists exist but none could be read - '
+            'publish gate stays closed',
+          );
+        } else {
+          // Fetch succeeded: open the publish gate and send pending changes.
+          _onRemoteFetchSucceeded(
+            schedulePendingPublish: schedulePendingPublish,
+          );
+        }
         AppLogger.info(' Nostr同期成功');
 
         // フル同期成功時もグループ系（MLS/shared-v1）を必ず同期する。
@@ -4434,6 +4667,9 @@ class TodosNotifier
       AppLogger.error(
         'Stack trace: ${stackTrace.toString().split('\n').take(5).join('\n')}',
       );
+    } finally {
+      _activeFullSync = null;
+      fullSyncCompleter.complete();
     }
   }
 
@@ -4480,6 +4716,8 @@ class TodosNotifier
         if (encryptedEvents.isEmpty) {
           await localStorageService.setLastTodoListSyncTime(now);
           _ref.read(syncStatusProvider.notifier).syncSuccess();
+          // Fetch succeeded (nothing changed since the last sync).
+          _onRemoteFetchSucceeded();
           // 個人Todoの差分が空でもグループ系イベントは存在しうるため、
           // グループ同期は必ずスケジュールする
           Future.microtask(_syncGroupDataInBackground);
@@ -4580,6 +4818,8 @@ class TodosNotifier
         if (deltaTodos.isEmpty) {
           await localStorageService.setLastTodoListSyncTime(now);
           _ref.read(syncStatusProvider.notifier).syncSuccess();
+          // Fetch succeeded (nothing changed since the last sync).
+          _onRemoteFetchSucceeded();
           // 個人Todoの差分が空でもグループ系イベントは存在しうるため、
           // グループ同期は必ずスケジュールする
           Future.microtask(_syncGroupDataInBackground);
@@ -4610,11 +4850,32 @@ class TodosNotifier
         );
       }
 
-      await localStorageService.saveTodos(updatedFlat);
-      state = AsyncValue.data(_groupTodosByDate(updatedFlat));
+      // Tasks added or edited locally while the delta was in flight
+      // (needsSync == true) must survive the per-list snapshot replacement.
+      final inFlightState = state.valueOrNull;
+      final mergedFlat = inFlightState == null
+          ? updatedFlat
+          : preserveInFlightTodos(
+              merged: updatedFlat,
+              current: inFlightState.values.expand((list) => list),
+            );
+      if (mergedFlat.length != updatedFlat.length) {
+        AppLogger.info(
+          ' [Todos] Preserved ${mergedFlat.length - updatedFlat.length} '
+          'in-flight local todos during delta sync',
+        );
+      }
+
+      await localStorageService.saveTodos(mergedFlat);
+      state = AsyncValue.data(_groupTodosByDate(mergedFlat));
 
       await localStorageService.setLastTodoListSyncTime(now);
       _ref.read(syncStatusProvider.notifier).syncSuccess();
+
+      // Shrink baseline: the list sizes after the delta merge.
+      await _recordKnownListTodoCounts(_countTodosPerList(mergedFlat));
+      // Fetch succeeded: open the publish gate and send pending changes.
+      _onRemoteFetchSucceeded();
 
       // グループ系は重いので、復帰時はバックグラウンドでのみ実行
       Future.microtask(_syncGroupDataInBackground);
@@ -4691,6 +4952,9 @@ class TodosNotifier
       AppLogger.warning(
         '🔀 [MERGE] Starting merge: ${syncedTodos.length} remote todos',
       );
+
+      // Shrink baseline: the per-list counts actually held on the relays.
+      await _recordKnownListTodoCounts(_countTodosPerList(syncedTodos));
 
       // 防御的コーディング: stateから現在のTodoを取得
       final Map<DateTime?, List<Todo>> localTodos;
