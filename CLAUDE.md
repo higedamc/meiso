@@ -1,54 +1,64 @@
-# meiso プロジェクトルール
+# meiso — project rules for Claude Code sessions
 
-## 言語ポリシー
+## Language policy
 
-**対外的な成果物はすべて英語で書く**: GitHub の issue、PR のタイトル・本文、README.md、コード内の実装コメント（注釈）、コミットメッセージ。ユーザーとの会話や CLAUDE.md 等の内部メモは日本語でよい。
+**Everything outward-facing is written in English**: GitHub issues, pull request titles and bodies, `README.md`, code comments, commit messages, and documentation (including this file). Conversation with the repository owner stays Japanese.
 
-## スタック概要
+## Stack overview
 
-- Flutter（**fvm 管理**: `fvm flutter ...`。素の `flutter` は PATH に無い）+ Rust（flutter_rust_bridge）。Rust はビルド中に cargokit が Android 3 ABI をクロスコンパイルする（初回は非常に重い）。
-- 公開 `#[frb]` API を変更したら `./generate.sh` で FRB 再生成（数分かかる）。変更していなければ再生成不要。
-- `cui/` は Go 製 CLI（module `github.com/higedamc/meiso/cui`）。アプリと同じ Nostr プロトコルを喋る。
+- Flutter + Rust (flutter_rust_bridge). Rust is cross-compiled for three Android ABIs by cargokit during the build; the first build is very heavy.
+- After changing any public `#[frb]` API, regenerate the bridge with `./generate.sh` (takes minutes). Not needed if you did not touch the public API.
+- `cui/` is a Go CLI (module `github.com/higedamc/meiso/cui`, go 1.24.1) that speaks the same Nostr protocol as the app.
+- **Flutter version: the repository pins nothing** — there is no `.fvmrc` and no `.fvm/`. CI uses **3.38.5** (`.github/workflows/ci.yml`); 3.41.6 is known to work locally. Bare `flutter` may not be on `PATH`; if you use fvm, name the version explicitly rather than relying on `fvm flutter` picking up a project pin that does not exist.
 
-## ブランチの罠
+## CI gates a pull request has to pass
 
-- **`main` には 1.4.0 の実装が未マージ**（2026-07-15 時点で `origin/release/1.4.0` が main より 31 コミット先行）。shared-v1 の Rust 実装（`group_tasks_shared.rs` 等）は main に存在しない。1.4.0 の機能を触る作業は `release/1.4.0` 系をベースにすること。着手前に `git rev-list --count origin/main..origin/release/1.4.0` で最新状況を確認する。
+- `flutter analyze --no-fatal-infos --no-fatal-warnings` — errors only. The repository carries a large pre-existing info/warning lint backlog, so gate on real breakage, not style noise.
+- `flutter test --no-pub --exclude-tags golden`
+- The `golden` job runs separately and is currently non-blocking. **Record goldens on the Linux runner only**, via `workflow_dispatch` with `update_goldens=true`, then commit the uploaded artifact. Never record goldens on macOS.
 
-## 実機へのインストール（必読）
+Report verification results at the exact commit you pushed — working trees move underneath you.
 
-実機にアプリを入れる際は、**`flutter run` / `flutter install` を使わず、ビルドのみ行って必ず `adb install --user 0` でインストールする**こと。Flutter コマンドではインストール先のユーザープロファイルを選べないため。
+## Which branch to start from
+
+**Branch from `origin/main`.** `release/1.4.0` is fully merged: as of 2026-10-05 `git rev-list --count origin/main..origin/release/1.4.0` is 0 while `main` is 68 commits ahead, and the shared-v1 Rust implementation (`rust/src/group_tasks_shared.rs`) is on `main`. Older notes telling you to base 1.4.0 work on `release/1.4.0` are obsolete — following them puts you three months behind.
+
+## Installing on a device (required reading)
+
+Build only, then install with `adb install --user 0` — do **not** use `flutter run` or `flutter install`, because the Flutter commands cannot choose the target user profile.
 
 ```bash
-# 1. ビルドのみ（テスト配布・実機併存は必ず beta flavor を使うこと）
-fvm flutter build apk --flavor beta --debug
+# 1. Build only. Always use the beta flavor for test builds on a real device.
+flutter build apk --flavor beta --debug
 
-# 2. adb で --user 0 を指定してインストール
+# 2. Install with an explicit user profile.
 adb install --user 0 build/app/outputs/flutter-apk/app-beta-debug.apk
 ```
 
-- `adb install` には**必ず `--user 0` を付ける**。
+- `adb install` **always** needs `--user 0`.
 
-### ⚠️ flavor の罠
+### The flavor trap
 
-`production` flavor は appId・署名ともリリース版と同一（release ビルドも debug keystore 署名。zapstore 互換のため変更不可）。`app-production-debug.apk` を実機に入れると**ユーザーのリリース版を上書きしてしまう**。実機テスト用 APK は必ず `--flavor beta`（appId `jp.godzhigella.meiso.beta`、別アプリとして併存）。復旧は正規リリース APK の再インストール（データ維持）。詳細は `docs/FLAVOR_BUILD_AND_ISSUE_128_IMPLEMENTATION.md`。
+The `production` flavor shares its application id and signing key with the release build (release builds are signed with the debug keystore too, for zapstore compatibility — this cannot be changed). Installing `app-production-debug.apk` on a real device therefore **overwrites the owner's release install**. Test builds must use `--flavor beta` (application id `jp.godzhigella.meiso.beta`), which coexists as a separate app. Recovery is reinstalling the official release APK; data survives. See `docs/FLAVOR_BUILD_AND_ISSUE_128_IMPLEMENTATION.md`.
 
-## ビルド環境の注意
+## Build environment
 
-- **ディスク**: 1 回のビルドで `build/` が 20GB 超になる。ビルド前に `df -h` を確認し、使い終わった worktree は `flutter clean` する。逼迫時は `build/app/intermediates`（再生成可能な Gradle 中間物）から削除。
-- **エミュレーター**: `-gpu host` 必須（swiftshader はシステム ANR 連発で使用不能）。RAM は `-memory 4096` 推奨。
+- **Disk**: one debug build grows `build/` past 20 GB. Check `df -h` first and `flutter clean` worktrees you are done with. When space is tight, delete `build/app/intermediates` (regenerable Gradle intermediates) first.
+- **Emulator**: `-gpu host` is required (swiftshader produces constant system ANRs and is unusable). `-memory 4096` recommended.
 
-## Nostr プロトコル（共同編集リスト）
+## Nostr protocol (collaborative lists)
 
-現行は **shared-v1**（1.4.0〜）。MLS 経路と NIP-72 型 `rust/src/group_tasks.rs` はレガシーで、shared-v1 と混同しないこと。
+The current scheme is **shared-v1** (since 1.4.0). The MLS path and the NIP-72-style `rust/src/group_tasks.rs` are legacy; do not conflate them with shared-v1.
 
-- **タスク**: `kind:35000`（addressable）、author = グループ専用鍵 `G`、`d=<task-uuid>`、content = NIP-44 自己暗号化。LWW は relay の replaceable で成立。
-- **グループメタ**: `kind:35001`、author=`G`、`d="meta"`。
-- **招待**: `kind:30078`、author=招待者の実鍵、`d="shared-invite-<group_id>-<recipientHex>"`、`p=<受信者hex>`、content = NIP-44(inviter→recipient) で `{group_id, group_nsec, group_name, key_epoch}`。
-- 同じ kind:30078 に旧 MLS 互換の `d="group-invitation-*"` が混在するため、**`d` プレフィクスで必ず分岐**する。
-- **既知の構造的欠落**: 作成者（inviter）の新端末復旧経路が無い（`#p=self` の自分宛招待を publish していないため、新端末で招待 0 件 → credentials 復元不能）。「共有リストが新端末で見えない」相談はまずこのパターンを疑う。暫定回避は既存メンバーから作成者を招待し直してもらうこと。
+- **Task**: `kind:35000` (addressable), author = the group-only key `G`, `d=<task-uuid>`, content = NIP-44 self-encrypted. Last-write-wins comes from relay replaceable semantics.
+- **Group metadata**: `kind:35001`, author `G`, `d="meta"`.
+- **Invitation**: `kind:30078`, author = the inviter's real key, `d="shared-invite-<group_id>-<recipientHex>"`, `p=<recipient hex>`, content = NIP-44 (inviter→recipient) carrying `{group_id, group_nsec, group_name, key_epoch}`.
+- The same `kind:30078` also carries legacy MLS-compatible `d="group-invitation-*"` events, so **always branch on the `d` prefix**.
+- **Known structural gap**: the creator (inviter) has no new-device recovery path, because no self-addressed (`#p=self`) invitation is published — on a new device they see zero invitations and cannot restore the credentials. Suspect this first when someone reports "my shared list does not appear on my new device". The workaround is to have an existing member invite the creator again.
 
-## 同期まわりの開発原則
+## Sync development principles
 
-- **署名・権限コードには触らない**: per-event 署名（Amber の都度承認）は Nostr 理念に沿った仕様であり、「直すべき摩擦」ではない。広い権限へ誘導する変更は NG。
-- **ログインモード非依存**: Amber モードとシークレットキー・モードで体験に差を生まない（フェッチの EOSE 化などは両モードに適用してパリティを取る）。
-- **group / giftwrap（kind:445 / 1059）のフェッチは all-relay 信頼性が必要なため EOSE 早期打ち切り不可**。todo リスト等の replaceable 取得のみ EOSE 化してよい。
+- **Do not touch the signing or permission code.** Per-event signing (Amber asking for approval each time) is intended behaviour aligned with Nostr's model, not friction to be removed. Changes that nudge the user toward broader permissions are not acceptable.
+- **Keep the two login modes at parity.** Amber mode and secret-key mode must not diverge in behaviour; an optimisation such as EOSE early-exit has to be applied to both.
+- **`group` / giftwrap fetches (`kind:445` / `1059`) must not use EOSE early-exit** — they need all-relay reliability. Only replaceable fetches may early-exit.
+- **"First EOSE wins" makes the fastest relay authoritative.** A relay that answers first may hold an older copy of a replaceable event. Any fetch whose result feeds *deletion inference* — the `kind:30001` list fetches, where a task's absence from a newer list is read as a delete — must therefore not stop at a single EOSE. The authority for those is the highest `created_at` seen across relays.
