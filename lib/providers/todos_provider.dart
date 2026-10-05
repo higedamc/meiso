@@ -3539,11 +3539,30 @@ class TodosNotifier
                 sendResult.eventId,
                 globalBackfillPending: false,
               );
-              // 送信成功後に署名を記録（失敗時はここに到達せず再送される）。
-              _publishedListSignatures.addAll(pendingSignatures);
               AppLogger.info(
                 ' Updated eventId for ${changedTodos.length} todos',
               );
+              // Record the signatures only when the relay send actually
+              // succeeded. Rust's send_event_with_result reports "all relays
+              // failed" and the 3 s timeout as `success: false` without
+              // throwing, so checking for an exception alone would mark an
+              // undelivered list as published and skip it until its content
+              // changes again. create_todo_list returns only the last list's
+              // result, so on any failure nothing is recorded and every
+              // changed list is resent on the next mutation.
+              if (sendResult.success) {
+                _publishedListSignatures.addAll(pendingSignatures);
+              } else {
+                AppLogger.warning(
+                  ' Relay send did not succeed for '
+                  '${pendingSignatures.keys.join(', ')} '
+                  '(successfulRelays: ${sendResult.successfulRelays}, '
+                  'failedRelays: ${sendResult.failedRelays}, '
+                  'timedOut: ${sendResult.timedOut}, '
+                  'error: ${sendResult.errorMessage}). '
+                  'Signatures not recorded; these lists will be resent.',
+                );
+              }
             } catch (e) {
               AppLogger.error('❌❌ createTodoListOnNostr failed: $e');
               rethrow;
