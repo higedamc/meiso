@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-06
+
+### Fixed
+- **Task-loss protection for synced lists.** A transient local read failure (a fresh device, an interrupted initial sync, or a relay publish that reached no relay) could replace the relay copy of a list with an incomplete one and delete tasks older than a day across every device. Publishing now waits for at least one successful relay fetch in the session, refuses to publish a list that shrank below half of its last relay-confirmed size unless you run a manual sync, treats a read failure as an error instead of an empty list, and keeps a change queued (rather than reporting success) when a send reaches no relay. Local edits made while a sync is in flight are preserved.
+
+### CLI (cui)
+- Shared-v1 collaborative lists and an optional SOCKS5/Tor proxy for all relay traffic in the Go command-line client.
+
+### Documentation
+- Corrected the collaborative-lists encryption document and README: shared lists use the shared-v1 single-group-key scheme (not the legacy per-member AES key-wrap), and removing a member does not currently revoke access because there is no key rotation yet.
+
+
 ## [1.4.0] - 2026-06-25
 
 ### Added
