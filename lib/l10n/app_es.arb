@@ -670,7 +670,7 @@
 
   "localRelayUrl": "URL del relay local",
 
-  "globalRelays": "Relays Globales",
+  
 
   "cryptoArchPara1": "Meiso adopta una \"Arquitectura de Conocimiento Cero\" y nunca envía sus claves secretas o datos de tareas a servidores. Todo el procesamiento de cifrado se realiza en su dispositivo.",
   
