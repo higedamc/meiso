@@ -3145,6 +3145,21 @@ fn all_expected_relays_reported(
     !expected.is_empty() && expected.iter().all(|url| reported.contains(url))
 }
 
+/// Keeps `event` if its id has not been collected yet. Returns whether it
+/// was added.
+///
+/// The same event reaches the collector up to twice per relay: once as
+/// `RelayPoolNotification::Event` (only when the pool has never seen it)
+/// and once as `RelayMessage::Event` (always), and once more per additional
+/// relay that holds it.
+fn remember_event(seen: &mut HashSet<EventId>, events: &mut Vec<Event>, event: Event) -> bool {
+    if !seen.insert(event.id) {
+        return false;
+    }
+    events.push(event);
+    true
+}
+
 /// Collects the stored kind:30001 events matching `filter` until every relay
 /// that was connected when the subscription opened has sent EOSE, or
 /// `timeout` elapses.
@@ -3156,6 +3171,14 @@ fn all_expected_relays_reported(
 /// `CLAUDE.md`, "Sync development principles". Only events and EOSE for this
 /// subscription are counted; notifications from other subscriptions on the
 /// shared pool are ignored.
+///
+/// Events are taken from the raw `RelayMessage::Event` messages, not only
+/// from `RelayPoolNotification::Event`: nostr-relay-pool 0.37 emits the
+/// latter only for events its database has never seen
+/// (`relay/inner.rs`, `DatabaseEventStatus::NotExistent`), so a list the
+/// live subscription already delivered would otherwise never show up in a
+/// full fetch and its tasks could not be reconciled. Duplicates (two
+/// notification kinds, several relays) are dropped by event id.
 async fn collect_todo_list_events_until_all_eose(
     client: &Client,
     filter: Filter,
@@ -3178,6 +3201,7 @@ async fn collect_todo_list_events_until_all_eose(
 
     let deadline = tokio::time::Instant::now() + timeout;
     let mut events = Vec::new();
+    let mut seen: HashSet<EventId> = HashSet::new();
     let mut reported: HashSet<RelayUrl> = HashSet::new();
 
     dev_println!(
@@ -3204,22 +3228,26 @@ async fn collect_todo_list_events_until_all_eose(
                 event,
                 ..
             })) => {
-                if subscription_id == sub_id && event.kind == Kind::Custom(30001) {
-                    dev_println!(
-                        "📥 [Phase 2] Received event: d={:?}, created_at={}",
-                        event
-                            .tags
-                            .iter()
-                            .find(|tag| tag.kind()
-                                == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)))
-                            .and_then(|tag| tag.content()),
-                        event.created_at.as_u64()
-                    );
-                    events.push(*event);
+                if subscription_id == sub_id
+                    && event.kind == Kind::Custom(30001)
+                    && remember_event(&mut seen, &mut events, *event)
+                {
+                    dev_println!("📥 [Phase 2] Received event (pool notification)");
                 }
             }
-            Ok(Ok(RelayPoolNotification::Message { relay_url, message })) => {
-                if let RelayMessage::EndOfStoredEvents(id) = message {
+            Ok(Ok(RelayPoolNotification::Message { relay_url, message })) => match message {
+                RelayMessage::Event {
+                    subscription_id,
+                    event,
+                } => {
+                    if subscription_id == sub_id
+                        && event.kind == Kind::Custom(30001)
+                        && remember_event(&mut seen, &mut events, *event)
+                    {
+                        dev_println!("📥 [Phase 2] Received event (relay message)");
+                    }
+                }
+                RelayMessage::EndOfStoredEvents(id) => {
                     if id == sub_id {
                         reported.insert(relay_url);
                         dev_println!(
@@ -3236,7 +3264,8 @@ async fn collect_todo_list_events_until_all_eose(
                         }
                     }
                 }
-            }
+                _ => {}
+            },
             Ok(Ok(_)) => {}
             Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped))) => {
                 dev_println!("⚠️ [Phase 2] Notification receiver lagged, {} skipped", skipped);
@@ -6640,6 +6669,27 @@ mod eose_wait_tests {
         let expected = urls(&["wss://a.example"]);
         let reported = urls(&["wss://c.example"]);
         assert!(!all_expected_relays_reported(&expected, &reported));
+    }
+
+    #[test]
+    fn the_same_event_from_two_sources_is_collected_once() {
+        // Both notification kinds (and several relays) can deliver one event.
+        use super::remember_event;
+        use nostr_sdk::prelude::*;
+        let keys = Keys::generate();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let event = rt
+            .block_on(EventBuilder::new(Kind::Custom(30001), "x").sign(&keys))
+            .unwrap();
+        let other = rt
+            .block_on(EventBuilder::new(Kind::Custom(30001), "y").sign(&keys))
+            .unwrap();
+        let mut seen = std::collections::HashSet::new();
+        let mut events = Vec::new();
+        assert!(remember_event(&mut seen, &mut events, event.clone()));
+        assert!(!remember_event(&mut seen, &mut events, event));
+        assert!(remember_event(&mut seen, &mut events, other));
+        assert_eq!(events.len(), 2);
     }
 
     #[test]
