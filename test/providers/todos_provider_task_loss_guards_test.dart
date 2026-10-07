@@ -26,17 +26,31 @@ import 'package:meiso/services/local_storage_service.dart';
 class _FakeNostrService implements NostrService {
   bool sendSucceeds = true;
 
-  /// When set, `syncTodoListFromNostr` throws it instead of returning.
+  /// When set, `syncTodoListsFromNostr` throws it instead of returning.
   Object? fetchError;
 
-  /// When set, `syncTodoListFromNostr` waits for it before returning.
+  /// When set, `syncTodoListsFromNostr` waits for it before returning.
   Completer<void>? fetchGate;
 
+  /// Tasks the relays hold. They are grouped by list for the fetch, each
+  /// list stamped with [remoteListCreatedAt]. An empty list here means the
+  /// relays returned no list event at all.
   List<Todo> remoteTodos = const [];
+
+  /// `created_at` (unix seconds) given to every list built from
+  /// [remoteTodos]. Defaults to "now", i.e. newer than any seeded edit.
+  int? remoteListCreatedAt;
+
+  /// Lists returned as-is, in addition to those built from [remoteTodos].
+  /// Lets a test return an emptied list or a list for another key.
+  List<SyncedTodoList> remoteLists = const [];
 
   int createTodoListCalls = 0;
   int fetchCalls = 0;
   final List<List<Todo>> sentBatches = [];
+
+  /// Lists published empty (normalised key, null = default list).
+  final List<String?> emptyListPublishes = [];
 
   @override
   Future<rust_api.EventSendResult> createTodoListOnNostr(
@@ -55,13 +69,44 @@ class _FakeNostrService implements NostrService {
   }
 
   @override
-  Future<List<Todo>> syncTodoListFromNostr() async {
+  Future<rust_api.EventSendResult> publishEmptyTodoList({
+    String? listKey,
+  }) async {
+    emptyListPublishes.add(listKey);
+    return rust_api.EventSendResult(
+      eventId: 'empty-${emptyListPublishes.length}',
+      success: sendSucceeds,
+      successfulRelays: BigInt.from(sendSucceeds ? 1 : 0),
+      failedRelays: BigInt.from(sendSucceeds ? 0 : 2),
+      timedOut: false,
+      errorMessage: sendSucceeds ? null : 'Send failed: all relays failed',
+    );
+  }
+
+  @override
+  Future<List<SyncedTodoList>> syncTodoListsFromNostr() async {
     fetchCalls += 1;
     final gate = fetchGate;
     if (gate != null) await gate.future;
     final error = fetchError;
     if (error != null) throw error;
-    return List<Todo>.from(remoteTodos);
+
+    final createdAt =
+        remoteListCreatedAt ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final byList = <String?, List<Todo>>{};
+    for (final todo in remoteTodos) {
+      byList.putIfAbsent(todo.customListId, () => []).add(todo);
+    }
+    return [
+      for (final entry in byList.entries)
+        (
+          listId: entry.key == null ? 'meiso-todos' : 'meiso-list-${entry.key}',
+          eventId: 'list-event-${entry.key ?? 'default'}',
+          createdAt: createdAt,
+          todos: List<Todo>.from(entry.value),
+        ),
+      ...remoteLists,
+    ];
   }
 
   // The custom-list and app-settings phases of a full sync ask for the
@@ -84,13 +129,14 @@ Todo _todo(
   bool needsSync = false,
   String? customListId,
   String? parentRecurringId,
+  DateTime? updatedAt,
 }) {
   final now = DateTime(2026, 1, 1, 12);
   return Todo(
     id: id,
     title: id,
     createdAt: now,
-    updatedAt: now,
+    updatedAt: updatedAt ?? now,
     needsSync: needsSync,
     customListId: customListId,
     parentRecurringId: parentRecurringId,
@@ -144,6 +190,15 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
   }
+
+  /// Background work started by the container keeps reading providers
+  /// after a sync resolved: the group sync scheduled by `syncFromNostr` and
+  /// `AppSettingsNotifier._backgroundSync`, which fires 1 s after the
+  /// container was created. A test that ends before they finish lets their
+  /// error escape into whichever test runs next. Call this before returning
+  /// from any test that does not already wait longer than that.
+  Future<void> settle() =>
+      Future<void>.delayed(const Duration(milliseconds: 1200));
 
   /// Initialises local storage and seeds it with already-synced todos.
   Future<void> seedLocal(List<Todo> todos) async {
@@ -492,6 +547,342 @@ void main() {
       await Future.wait([first, second]);
 
       expect(service.fetchCalls, 1);
+      await settle();
+    });
+  });
+
+  group('emptied list publish', () {
+    test('deleting the last task publishes the list empty exactly once',
+        () async {
+      // The relays confirmed the default list with one task (fetch), then
+      // that task is deleted locally. The publish path has no todo left to
+      // group, so without this guard nothing is sent and the relay keeps
+      // the task forever (seen on device). Negative control: without the
+      // emptied-list step emptyListPublishes stays empty.
+      await seedLocal([_todo('task-alpha')]);
+      final service = _FakeNostrService()..remoteTodos = [_todo('task-alpha')];
+      final started = await startNotifier(service);
+      await started.notifier.syncFromNostr();
+
+      final alpha = findTodo(started.container, 'task-alpha')!;
+      await started.notifier.deleteTodo(alpha.id, alpha.date);
+      await pumpUntil(
+        () => service.emptyListPublishes.length == 1,
+        reason: 'the emptied default list was not published',
+      );
+      expect(service.emptyListPublishes.single, isNull);
+
+      // A later sync must not send it again: the baseline now says 0.
+      await started.notifier.manualSyncToNostr();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(service.emptyListPublishes.length, 1);
+      await settle();
+    });
+
+    test('a list fetched empty is not published empty again', () async {
+      // The relays already hold the default list empty (another device
+      // emptied it). This device has no default-list task either, but its
+      // persisted baseline still says 1. After the fetch the baseline must
+      // read 0, or the next publish run sends an empty default list of its
+      // own, which would wipe the list if another device refilled it in
+      // between. Negative control: without the zero baseline the manual
+      // sync below publishes [null].
+      await localStorageService.initialize();
+      await localStorageService.setKnownListTodoCounts({'default': 1});
+      await localStorageService.saveTodos([
+        _todo('task-work', customListId: 'work'),
+      ]);
+      final service = _FakeNostrService()
+        ..remoteTodos = [_todo('task-work', customListId: 'work')]
+        ..remoteLists = [
+          (
+            listId: 'meiso-todos',
+            eventId: 'default-empty',
+            createdAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            todos: const [],
+          ),
+        ];
+      final started = await startNotifier(service);
+      await started.notifier.syncFromNostr();
+      expect(localStorageService.getKnownListTodoCounts()['default'], 0);
+
+      await started.notifier.manualSyncToNostr();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(
+        service.emptyListPublishes,
+        isEmpty,
+        reason: 'a list the relays returned empty is not re-published empty',
+      );
+      await settle();
+    });
+
+    test('no empty publish before a relay fetch succeeded this session',
+        () async {
+      // The persisted baseline says the default list has one task on the
+      // relays, the local store has no default-list task, and no fetch has
+      // succeeded yet: the local state may simply be incomplete. A manual
+      // sync bypasses the publish gate for the lists it has todos for, but
+      // must not publish the default list empty. Negative control: with
+      // the `_remoteFetchSucceeded` check removed from the emptied-list
+      // step this manual sync sends the empty list and wipes the relay.
+      await localStorageService.initialize();
+      await localStorageService.setKnownListTodoCounts({'default': 1});
+      await localStorageService.saveTodos([
+        _todo('task-work', customListId: 'work'),
+      ]);
+      final service = _FakeNostrService()
+        ..fetchError = Exception('relay unreachable');
+      final started = await startNotifier(service);
+
+      await started.notifier.manualSyncToNostr();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(
+        service.emptyListPublishes,
+        isEmpty,
+        reason: 'no fetch succeeded, so the emptied list must not be sent',
+      );
+      expect(
+        service.createTodoListCalls,
+        1,
+        reason: 'the manual sync itself still publishes the list it has',
+      );
+      await settle();
+    });
+  });
+
+  group('causal deletion inference (decision 2)', () {
+    // Local edits happened at this instant; every seeded task is well over
+    // 24 hours old by the time the test runs, which is the input the old
+    // wall-clock rule deleted on.
+    final editedAt = DateTime.utc(2026, 1, 1, 12);
+    final editedAtSec = editedAt.millisecondsSinceEpoch ~/ 1000;
+
+    test('a list that was not fetched keeps its tasks, however old', () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      // The relays return only another list, newer than the local edits.
+      // The default list never arrives, so there is nothing to compare.
+      // Negative control: the 24-hour rule deleted a and b here (absent
+      // from the fetch and older than a day).
+      final service = _FakeNostrService()
+        ..remoteLists = [
+          (
+            listId: 'meiso-list-other',
+            eventId: 'other-event',
+            createdAt: editedAtSec + 86400,
+            todos: [_todo('task-xray', customListId: 'other')],
+          ),
+        ];
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      final a = findTodo(started.container, 'task-alpha');
+      final b = findTodo(started.container, 'task-bravo');
+      expect(a, isNotNull, reason: 'a must survive: its list was not fetched');
+      expect(b, isNotNull, reason: 'b must survive: its list was not fetched');
+      expect(
+        a!.needsSync,
+        isFalse,
+        reason: 'no evidence the relays disagree, so no resync either',
+      );
+      expect(findTodo(started.container, 'task-xray'), isNotNull);
+    });
+
+    test('a list older than the local edit keeps the task and resyncs',
+        () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      // The relays hold a version of the default list from before the
+      // edit, and it does not contain b. That is not evidence of deletion:
+      // b must be kept and published again.
+      // Negative control: with the comparison removed (or inverted) b is
+      // dropped here exactly as under the 24-hour rule.
+      final service = _FakeNostrService()
+        ..remoteTodos = [_todo('task-alpha', updatedAt: editedAt)]
+        ..remoteListCreatedAt = editedAtSec - 3600;
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(findTodo(started.container, 'task-bravo'), isNotNull);
+      // The fetch succeeded, so the gate is open and the resync goes out.
+      await pumpUntil(
+        () => service.createTodoListCalls >= 1,
+        reason: 'the kept task was not re-published',
+      );
+      expect(
+        service.sentBatches.last.map((t) => t.title),
+        containsAll(['task-alpha', 'task-bravo']),
+      );
+    });
+
+    test('a list newer than the local edit drops the absent task', () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      // The default list was rewritten after the edit and omits b: it was
+      // deleted on another device. Negative control: without deletion
+      // inference b resurrects on every device.
+      final service = _FakeNostrService()
+        ..remoteTodos = [_todo('task-alpha', updatedAt: editedAt)]
+        ..remoteListCreatedAt = editedAtSec + 3600;
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(findTodo(started.container, 'task-alpha'), isNotNull);
+      expect(findTodo(started.container, 'task-bravo'), isNull);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(
+        service.createTodoListCalls,
+        0,
+        reason: 'a deletion applied locally must not trigger a publish',
+      );
+    });
+
+    test('an emptied list drops its tasks', () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      // Deleting the last task on another device publishes an empty list.
+      // Negative control: a fetch flattened to tasks (or a guard on the
+      // task count) cannot see this list at all and keeps both forever.
+      final service = _FakeNostrService()
+        ..remoteLists = [
+          (
+            listId: 'meiso-todos',
+            eventId: 'default-event',
+            createdAt: editedAtSec + 3600,
+            todos: const [],
+          ),
+        ];
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(findTodo(started.container, 'task-alpha'), isNull);
+      expect(findTodo(started.container, 'task-bravo'), isNull);
+    });
+
+    test('a list older than the last publish is sent again, same content',
+        () async {
+      // B publishes [a, b, c]; a relay later answers with an older copy
+      // [a, b]. The merge keeps c and marks it for resync, but the publish
+      // signature cache still holds the signature of [a, b, c], which is
+      // exactly what is about to be sent. Negative control: without the
+      // invalidation the second publish is skipped as "unchanged since last
+      // publish" (createTodoListCalls stays 1) and the relay never catches
+      // up, which is what the device run showed.
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      final service = _FakeNostrService()
+        ..remoteTodos = [
+          _todo('task-alpha', updatedAt: editedAt),
+          _todo('task-bravo', updatedAt: editedAt),
+        ]
+        ..remoteListCreatedAt = editedAtSec + 10;
+      final started = await startNotifier(service);
+      await started.notifier.syncFromNostr();
+      await started.notifier.addTodo('task-charlie', null);
+      await pumpUntil(
+        () => service.createTodoListCalls == 1,
+        reason: 'first publish did not go out',
+      );
+      final firstBatch = service.sentBatches.single.map((t) => t.title).toSet();
+      expect(firstBatch, {'task-alpha', 'task-bravo', 'task-charlie'});
+
+      // The relay now serves a copy that predates task-charlie.
+      service.remoteListCreatedAt = editedAtSec - 3600;
+      await started.notifier.syncFromNostr();
+
+      await pumpUntil(
+        () => service.createTodoListCalls == 2,
+        reason: 'the resync after an older fetch was not sent',
+      );
+      final secondBatch = service.sentBatches[1].map((t) => t.title).toSet();
+      expect(
+        secondBatch,
+        firstBatch,
+        reason: 'the resync carries the same content as the first publish',
+      );
+      await pumpUntil(
+        () => findTodo(started.container, 'task-charlie')?.needsSync == false,
+        reason: 'needsSync is cleared by the real send',
+      );
+      await settle();
+    });
+
+    test('a custom list with the id "default" is not the built-in list',
+        () async {
+      // A list named "Default" slugs to the id 'default'; another client can
+      // publish any d tag at all. Both are distinct from the built-in list
+      // (customListId null). Only the custom list is fetched here, newer and
+      // without its task. Negative control: with the map keyed by
+      // `customListId ?? 'default'` the built-in list's task compares
+      // against the custom list's created_at and is dropped.
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-delta', customListId: 'default', updatedAt: editedAt),
+      ]);
+      final service = _FakeNostrService()
+        ..remoteLists = [
+          (
+            listId: 'meiso-list-default',
+            eventId: 'custom-default-event',
+            createdAt: editedAtSec + 3600,
+            todos: const [],
+          ),
+        ];
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(
+        findTodo(started.container, 'task-alpha'),
+        isNotNull,
+        reason: 'the built-in list was not fetched, so its task is kept',
+      );
+      expect(
+        findTodo(started.container, 'task-delta'),
+        isNull,
+        reason: 'the custom list "default" is newer and omits its task',
+      );
+    });
+
+    test('a newer snapshot of another list does not touch this one',
+        () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-charlie', customListId: 'other', updatedAt: editedAt),
+      ]);
+      // Only the default list is fetched, newer and without c. c belongs
+      // to 'other', which was not fetched, so c is kept; a is in the
+      // snapshot and stays as well.
+      final service = _FakeNostrService()
+        ..remoteTodos = [_todo('task-alpha', updatedAt: editedAt)]
+        ..remoteListCreatedAt = editedAtSec + 3600;
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(findTodo(started.container, 'task-alpha'), isNotNull);
+      expect(findTodo(started.container, 'task-charlie'), isNotNull);
     });
   });
 }

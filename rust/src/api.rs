@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
+use flutter_rust_bridge::frb;
 use chrono::{DateTime as ChronoDateTime, NaiveDate, NaiveDateTime};
 use nostr_sdk::nips::nip44; // NIP-44暗号化を明示的にインポート
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::group_tasks;
@@ -98,6 +100,28 @@ pub struct TodoData {
     /// 添付画像URL（Blossom/NIP-96経由）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_url: Option<String>,
+}
+
+/// One decrypted kind:30001 list together with the metadata of the event it
+/// was read from.
+///
+/// `created_at` comes from the same event as `todos`, so the Dart merge can use
+/// it as causal evidence: a local task that is missing from a list whose
+/// `created_at` is newer than the task's local `updated_at` was deleted on
+/// another device. A list whose payload is empty is still returned (with
+/// `todos` empty) so that "delete the last task" propagates too; flattening to
+/// `Vec<TodoData>` would make an emptied list indistinguishable from a list
+/// that never arrived.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecryptedTodoList {
+    /// `d` tag of the source event (`meiso-todos` or `meiso-list-<id>`)
+    pub list_id: String,
+    /// id of the source event (hex)
+    pub event_id: String,
+    /// `created_at` of the source event, unix seconds
+    pub created_at: i64,
+    /// Decrypted, normalised tasks of this list
+    pub todos: Vec<TodoData>,
 }
 
 fn normalize_todo_date_string(raw: &str) -> Option<String> {
@@ -968,6 +992,66 @@ impl MeisoNostrClient {
         last_result.ok_or_else(|| anyhow::anyhow!("No lists to send"))
     }
 
+    /// Publish one kind 30001 list event whose payload is an empty array.
+    ///
+    /// `create_todo_list` groups the todos it is given, so a list that has no
+    /// todos left never produces an event and "delete the last task" never
+    /// reaches other devices. The Dart side decides *which* emptied lists
+    /// may be published (only lists that were confirmed on the relays with
+    /// todos, only after a successful fetch this session); this function just
+    /// builds and sends the event. `list_id` is the normalised list key
+    /// (`None` = default list), the same value `TodoData::custom_list_id`
+    /// carries.
+    pub async fn create_empty_todo_list(
+        &self,
+        list_id: Option<String>,
+    ) -> Result<EventSendResult> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!(
+                "Cannot create TODO list in Amber mode. Use create_unsigned_encrypted_todo_list_event + Amber signing instead."
+            ));
+        }
+
+        let keys = self
+            .keys
+            .as_ref()
+            .context("Secret key required for TODO list creation")?;
+
+        let list_id = list_id.unwrap_or_else(|| "default".to_string());
+        let public_key = keys.public_key();
+        let encrypted_content =
+            nip44::encrypt(keys.secret_key(), &public_key, "[]", nip44::Version::V2)?;
+
+        let d_tag_value = if list_id == "default" {
+            "meiso-todos".to_string()
+        } else {
+            format!("meiso-list-{}", list_id)
+        };
+        let title_value = if list_id == "default" {
+            "My TODO List".to_string()
+        } else {
+            format!("Custom List {}", list_id)
+        };
+        let d_tag = Tag::custom(
+            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+            vec![d_tag_value.clone()],
+        );
+        let title_tag = Tag::custom(
+            TagKind::Custom(std::borrow::Cow::Borrowed("title")),
+            vec![title_value],
+        );
+
+        let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
+            .tags(crate::nostr_client_meta::merge_nip89_into_tags(vec![
+                d_tag, title_tag,
+            ]))
+            .sign(keys)
+            .await?;
+
+        dev_println!("📤 Sending empty TODO list event (d='{}')", d_tag_value);
+        self.send_event_with_result(event).await
+    }
+
     /// Todoをリストごとにグループ化
     fn group_todos_by_list(
         &self,
@@ -994,7 +1078,20 @@ impl MeisoNostrClient {
 
     /// TodoリストをNostrから同期（Kind 30001）
     /// すべてのリスト（デフォルト + カスタムリスト）から取得
+    ///
+    /// Flattened view of [`Self::sync_todo_lists`]; it loses the per-list
+    /// event metadata, so callers that infer deletions must use the
+    /// list-shaped variant.
     pub async fn sync_todo_list(&self) -> Result<Vec<TodoData>> {
+        let lists = self.sync_todo_lists().await?;
+        Ok(lists.into_iter().flat_map(|list| list.todos).collect())
+    }
+
+    /// TodoリストをNostrから同期（Kind 30001）、リスト単位で返す
+    ///
+    /// Each entry carries the `created_at` of the event it was decrypted from;
+    /// see [`DecryptedTodoList`].
+    pub async fn sync_todo_lists(&self) -> Result<Vec<DecryptedTodoList>> {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!(
                 "Cannot sync TODO list in Amber mode. Use fetch_encrypted_todo_list_for_pubkey + Amber decryption instead."
@@ -1090,7 +1187,7 @@ impl MeisoNostrClient {
             latest_events.len()
         );
 
-        let mut all_todos = Vec::new();
+        let mut lists = Vec::new();
 
         // 各リストイベントを復号化してTodoを取得
         for (d_tag, event) in latest_events {
@@ -1113,7 +1210,12 @@ impl MeisoNostrClient {
                                 todos.len(),
                                 d_tag
                             );
-                            all_todos.extend(todos);
+                            lists.push(DecryptedTodoList {
+                                list_id: d_tag.clone(),
+                                event_id: event.id.to_hex(),
+                                created_at: event.created_at.as_u64() as i64,
+                                todos,
+                            });
                         }
                         Err(e) => {
                             dev_eprintln!(
@@ -1132,11 +1234,28 @@ impl MeisoNostrClient {
             }
         }
 
-        dev_println!("✅ Total todos synced from all lists: {}", all_todos.len());
-        Ok(all_todos)
+        dev_println!(
+            "✅ Total lists synced: {} ({} todos)",
+            lists.len(),
+            lists.iter().map(|l| l.todos.len()).sum::<usize>()
+        );
+        Ok(lists)
     }
 
     /// TodoリストをNostrから差分同期（Kind 30001）
+    ///
+    /// Flattened view of [`Self::sync_todo_lists_since`]; see
+    /// [`Self::sync_todo_list`] for the caveat.
+    pub async fn sync_todo_list_since(
+        &self,
+        since: i64,
+        timeout_secs: u64,
+    ) -> Result<Vec<TodoData>> {
+        let lists = self.sync_todo_lists_since(since, timeout_secs).await?;
+        Ok(lists.into_iter().flat_map(|list| list.todos).collect())
+    }
+
+    /// TodoリストをNostrから差分同期（Kind 30001）、リスト単位で返す
     ///
     /// - `since` が 0 より大きい場合、そのUNIX秒以降のイベントのみ取得
     /// - 同じ d tag の中で最新（created_at最大）のイベントのみ処理
@@ -1144,11 +1263,11 @@ impl MeisoNostrClient {
     /// Note:
     /// - replaceable event の特性上、差分でも「変更のあったリストの全内容」は取得される。
     /// - `since` 以降にイベントが無い場合は空Vecを返す（= 変更なし）。
-    pub async fn sync_todo_list_since(
+    pub async fn sync_todo_lists_since(
         &self,
         since: i64,
         timeout_secs: u64,
-    ) -> Result<Vec<TodoData>> {
+    ) -> Result<Vec<DecryptedTodoList>> {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!(
                 "Cannot sync TODO list in Amber mode. Use fetch_all_encrypted_todo_lists_for_pubkey_since + Amber decryption instead."
@@ -1209,14 +1328,19 @@ impl MeisoNostrClient {
             }
         }
 
-        let mut all_todos = Vec::new();
+        let mut lists = Vec::new();
         for (d_tag, event) in latest_events {
             match nip44::decrypt(keys.secret_key(), &keys.public_key(), &event.content) {
                 Ok(decrypted) => {
                     if let Ok(todos) = serde_json::from_str::<Vec<TodoData>>(&decrypted) {
                         let list_key = list_key_from_d_tag(&d_tag);
                         let todos = normalize_synced_todos(todos, list_key.as_deref());
-                        all_todos.extend(todos);
+                        lists.push(DecryptedTodoList {
+                            list_id: d_tag.clone(),
+                            event_id: event.id.to_hex(),
+                            created_at: event.created_at.as_u64() as i64,
+                            todos,
+                        });
                     }
                 }
                 Err(_) => {
@@ -1225,7 +1349,7 @@ impl MeisoNostrClient {
             }
         }
 
-        Ok(all_todos)
+        Ok(lists)
     }
 
     // ========================================
@@ -1731,6 +1855,11 @@ static SESSION_STATE_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
 /// `receive_subscription_events` がポーリング毎に drain する。
 /// Dart 側は subscription_id でディスパッチ + event_id で dedupe するため、
 /// 複数クライアントのイベントが混在しても問題ない。
+///
+/// `#[frb(ignore)]` is required: flutter_rust_bridge otherwise picks up the
+/// `Default` impl of this private type and emits a `SubscriptionEventQueue_default`
+/// binding that does not compile (the type is not `pub`).
+#[frb(ignore)]
 struct SubscriptionEventQueue {
     events: std::collections::VecDeque<ReceivedEvent>,
     total_bytes: usize,
@@ -2120,6 +2249,61 @@ pub fn sync_todo_list_since_with_client_id(
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.sync_todo_list_since(since, timeout_secs).await
+    })
+}
+
+/// 全Todoリストを同期（Kind 30001）、リスト単位の結果
+///
+/// Same fetch as [`sync_todo_list`], but keeps each list together with the
+/// `created_at` of the event it was decrypted from. The Dart merge uses that
+/// timestamp as causal evidence for deletions (see [`DecryptedTodoList`]).
+pub fn sync_todo_lists() -> Result<Vec<DecryptedTodoList>> {
+    sync_todo_lists_with_client_id(None)
+}
+
+/// 全Todoリストを同期（client_id指定可能）、リスト単位の結果
+pub fn sync_todo_lists_with_client_id(
+    client_id: Option<String>,
+) -> Result<Vec<DecryptedTodoList>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.sync_todo_lists().await
+    })
+}
+
+/// 全Todoリストを差分同期（Kind 30001）、リスト単位の結果
+///
+/// Same fetch as [`sync_todo_list_since`]; an emptied list is returned with
+/// zero todos so the caller can replace it instead of leaving stale tasks.
+pub fn sync_todo_lists_since(since: i64, timeout_secs: u64) -> Result<Vec<DecryptedTodoList>> {
+    sync_todo_lists_since_with_client_id(since, timeout_secs, None)
+}
+
+pub fn sync_todo_lists_since_with_client_id(
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<DecryptedTodoList>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.sync_todo_lists_since(since, timeout_secs).await
+    })
+}
+
+/// Publish an emptied Todo list (Kind 30001 with an empty payload).
+///
+/// See `MeisoNostrClient::create_empty_todo_list` for the contract.
+pub fn create_empty_todo_list(list_id: Option<String>) -> Result<EventSendResult> {
+    create_empty_todo_list_with_client_id(list_id, None)
+}
+
+pub fn create_empty_todo_list_with_client_id(
+    list_id: Option<String>,
+    client_id: Option<String>,
+) -> Result<EventSendResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.create_empty_todo_list(list_id).await
     })
 }
 
@@ -2945,18 +3129,168 @@ pub fn fetch_todo_list_names_only_with_client_id(
 pub fn fetch_all_encrypted_todo_lists_for_pubkey(
     public_key_hex: String,
 ) -> Result<Vec<EncryptedTodoListEvent>> {
-    // Phase 2: subscribe版を使用（EOSE活用で早期終了）
+    // Phase 2: subscribe版を使用（接続中リレー全 EOSE まで待つ）
     fetch_all_encrypted_todo_lists_subscribe_with_client_id(public_key_hex, None)
 }
 
-/// Phase 2: Subscribe版 - EOSE活用による早期終了
+/// True once every relay in `expected` has reported EOSE.
 ///
-/// jokyoプロジェクトで実証された最適化手法:
+/// An empty `expected` set never satisfies the predicate: with no connected
+/// relay known at subscription time there is nothing to wait for, so the
+/// caller runs to its deadline instead of stopping at the first stray EOSE.
+fn all_expected_relays_reported(
+    expected: &HashSet<RelayUrl>,
+    reported: &HashSet<RelayUrl>,
+) -> bool {
+    !expected.is_empty() && expected.iter().all(|url| reported.contains(url))
+}
+
+/// Keeps `event` if its id has not been collected yet. Returns whether it
+/// was added.
+///
+/// The same event reaches the collector up to twice per relay: once as
+/// `RelayPoolNotification::Event` (only when the pool has never seen it)
+/// and once as `RelayMessage::Event` (always), and once more per additional
+/// relay that holds it.
+fn remember_event(seen: &mut HashSet<EventId>, events: &mut Vec<Event>, event: Event) -> bool {
+    if !seen.insert(event.id) {
+        return false;
+    }
+    events.push(event);
+    true
+}
+
+/// Collects the stored kind:30001 events matching `filter` until every relay
+/// that was connected when the subscription opened has sent EOSE, or
+/// `timeout` elapses.
+///
+/// Stopping at the first EOSE would make the fastest relay authoritative. The
+/// kind:30001 lists feed deletion inference (a task missing from a list newer
+/// than its local `updated_at` is treated as deleted), so an older copy from a
+/// fast relay must not win over a newer copy held by a slower one. See
+/// `CLAUDE.md`, "Sync development principles". Only events and EOSE for this
+/// subscription are counted; notifications from other subscriptions on the
+/// shared pool are ignored.
+///
+/// Events are taken from the raw `RelayMessage::Event` messages, not only
+/// from `RelayPoolNotification::Event`: nostr-relay-pool 0.37 emits the
+/// latter only for events its database has never seen
+/// (`relay/inner.rs`, `DatabaseEventStatus::NotExistent`), so a list the
+/// live subscription already delivered would otherwise never show up in a
+/// full fetch and its tasks could not be reconciled. Duplicates (two
+/// notification kinds, several relays) are dropped by event id.
+async fn collect_todo_list_events_until_all_eose(
+    client: &Client,
+    filter: Filter,
+    timeout: tokio::time::Duration,
+) -> Result<Vec<Event>> {
+    let expected: HashSet<RelayUrl> = client
+        .relays()
+        .await
+        .iter()
+        .filter(|(_, relay)| relay.status() == nostr_sdk::RelayStatus::Connected)
+        .map(|(url, _)| url.clone())
+        .collect();
+
+    // Take the receiver before subscribing so an EOSE that arrives immediately
+    // is not missed (a broadcast receiver only sees messages sent after it was
+    // created).
+    let mut notifications = client.notifications();
+    let output = client.subscribe(vec![filter], None).await?;
+    let sub_id = output.id().clone();
+
+    let deadline = tokio::time::Instant::now() + timeout;
+    let mut events = Vec::new();
+    let mut seen: HashSet<EventId> = HashSet::new();
+    let mut reported: HashSet<RelayUrl> = HashSet::new();
+
+    dev_println!(
+        "📡 [Phase 2] Waiting for EOSE from {} connected relay(s), timeout {:?}",
+        expected.len(),
+        timeout
+    );
+
+    loop {
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
+            dev_println!(
+                "⏱️ [Phase 2] Timeout reached with EOSE from {}/{} relays, {} events",
+                reported.len(),
+                expected.len(),
+                events.len()
+            );
+            break;
+        }
+
+        match tokio::time::timeout(deadline - now, notifications.recv()).await {
+            Ok(Ok(RelayPoolNotification::Event {
+                subscription_id,
+                event,
+                ..
+            })) => {
+                if subscription_id == sub_id
+                    && event.kind == Kind::Custom(30001)
+                    && remember_event(&mut seen, &mut events, *event)
+                {
+                    dev_println!("📥 [Phase 2] Received event (pool notification)");
+                }
+            }
+            Ok(Ok(RelayPoolNotification::Message { relay_url, message })) => match message {
+                RelayMessage::Event {
+                    subscription_id,
+                    event,
+                } => {
+                    if subscription_id == sub_id
+                        && event.kind == Kind::Custom(30001)
+                        && remember_event(&mut seen, &mut events, *event)
+                    {
+                        dev_println!("📥 [Phase 2] Received event (relay message)");
+                    }
+                }
+                RelayMessage::EndOfStoredEvents(id) => {
+                    if id == sub_id {
+                        reported.insert(relay_url);
+                        dev_println!(
+                            "✅ [Phase 2] EOSE from {}/{} relays",
+                            reported.len(),
+                            expected.len()
+                        );
+                        if all_expected_relays_reported(&expected, &reported) {
+                            dev_println!(
+                                "⚡ [Phase 2] All connected relays reported EOSE: {} events",
+                                events.len()
+                            );
+                            break;
+                        }
+                    }
+                }
+                _ => {}
+            },
+            Ok(Ok(_)) => {}
+            Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped))) => {
+                dev_println!("⚠️ [Phase 2] Notification receiver lagged, {} skipped", skipped);
+            }
+            Ok(Err(tokio::sync::broadcast::error::RecvError::Closed)) => {
+                dev_println!("🔌 [Phase 2] Notification channel closed");
+                break;
+            }
+            Err(_) => {
+                // Deadline reached while waiting; the loop head logs it.
+            }
+        }
+    }
+
+    client.unsubscribe(sub_id).await;
+    Ok(events)
+}
+
+/// Phase 2: Subscribe版 - 接続中リレー全 EOSE まで待つ
+///
 /// - subscribe()でストリーミング受信
-/// - EOSE（End of Stored Events）で即座に終了
-/// - タイムアウト: 2.5秒（jokyoの最適値）
+/// - 接続中の全リレーから EOSE が揃うか、2.5 秒のタイムアウトで終了
 ///
-/// 期待効果: 10秒 → 2-3秒（70-80%短縮）
+/// The earlier "first EOSE wins" exit was removed: see
+/// [`collect_todo_list_events_until_all_eose`].
 pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
     public_key_hex: String,
     client_id: Option<String>,
@@ -2973,92 +3307,12 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_with_client_id(
 
         dev_println!("📡 [Phase 2] Starting subscription for TODO lists (Kind 30001)");
 
-        // Phase 2: subscribe()でストリーミング受信開始
-        let output = client.client.subscribe(vec![filter], None).await?;
-        let sub_id = output.id();
-        let mut notifications = client.client.notifications();
-
-        // jokyoの最適値: 2.5秒タイムアウト
-        let timeout = tokio::time::Duration::from_millis(2500);
-        let deadline = tokio::time::Instant::now() + timeout;
-
-        let mut events = Vec::new();
-        let mut eose_count = 0;
-
-        loop {
-            // タイムアウトチェック
-            if tokio::time::Instant::now() >= deadline {
-                dev_println!("⏱️ [Phase 2] Timeout reached (2.5s)");
-                break;
-            }
-
-            // 通知受信（500msタイムアウト）
-            match tokio::time::timeout(
-                tokio::time::Duration::from_millis(500),
-                notifications.recv(),
-            )
-            .await
-            {
-                Ok(Ok(notification)) => {
-                    match notification {
-                        RelayPoolNotification::Event { event, .. } => {
-                            if event.kind == Kind::Custom(30001) {
-                                dev_println!(
-                                    "📥 [Phase 2] Received event: d={:?}, created_at={}",
-                                    event
-                                        .tags
-                                        .iter()
-                                        .find(|tag| tag.kind()
-                                            == TagKind::SingleLetter(SingleLetterTag::lowercase(
-                                                Alphabet::D
-                                            )))
-                                        .and_then(|tag| tag.content()),
-                                    event.created_at.as_u64()
-                                );
-                                events.push(*event);
-                            }
-                        }
-                        RelayPoolNotification::Message { message, .. } => {
-                            if matches!(message, RelayMessage::EndOfStoredEvents(_)) {
-                                eose_count += 1;
-                                dev_println!(
-                                    "✅ [Phase 2] EOSE received from relay (count: {})",
-                                    eose_count
-                                );
-
-                                // Phase 2最適化: 最初のEOSEで即座に終了
-                                // Replaceable Eventなので、1つのリレーからのEOSEで十分
-                                if eose_count >= 1 {
-                                    dev_println!(
-                                        "⚡ [Phase 2] Early exit: {} events collected",
-                                        events.len()
-                                    );
-                                    break;
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(Err(_)) => {
-                    dev_println!("🔌 [Phase 2] Notification channel closed");
-                    break;
-                }
-                Err(_) => {
-                    // 500ms間何も来ない場合、イベントがあれば終了
-                    if !events.is_empty() {
-                        dev_println!(
-                            "⚡ [Phase 2] No more events, exiting with {} events",
-                            events.len()
-                        );
-                        break;
-                    }
-                }
-            }
-        }
-
-        // クリーンアップ
-        client.client.unsubscribe(sub_id.clone()).await;
+        let events = collect_todo_list_events_until_all_eose(
+            &client.client,
+            filter,
+            tokio::time::Duration::from_millis(2500),
+        )
+        .await?;
 
         if events.is_empty() {
             dev_println!("⚠️ [Phase 2] No encrypted TODO list events found");
@@ -3155,10 +3409,13 @@ pub fn fetch_all_encrypted_todo_lists_for_pubkey_since(
     )
 }
 
-/// Phase 2: Subscribe版（差分取得） - EOSE活用による早期終了
+/// Phase 2: Subscribe版（差分取得） - 接続中リレー全 EOSE まで待つ
 ///
 /// バックグラウンド復帰時の体感改善用
 /// タイムアウト短縮: 3秒 → 1.5秒（50%短縮）
+///
+/// Same exit rule as the full fetch: every connected relay's EOSE or the
+/// deadline, never the first EOSE.
 pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
     public_key_hex: String,
     since: i64,
@@ -3185,75 +3442,19 @@ pub fn fetch_all_encrypted_todo_lists_subscribe_since_with_client_id(
             since
         );
 
-        // Phase 2: subscribe()でストリーミング受信開始
-        let output = client.client.subscribe(vec![filter], None).await?;
-        let sub_id = output.id();
-        let mut notifications = client.client.notifications();
-
         // タイムアウトをさらに短縮（差分取得は高速化が重要）
         let timeout_ms = if timeout_secs >= 3 {
             1500
         } else {
             timeout_secs * 1000
         };
-        let timeout = tokio::time::Duration::from_millis(timeout_ms);
-        let deadline = tokio::time::Instant::now() + timeout;
 
-        let mut events = Vec::new();
-        let mut eose_count = 0;
-
-        loop {
-            // タイムアウトチェック
-            if tokio::time::Instant::now() >= deadline {
-                dev_println!("⏱️ [Phase 2] Timeout reached ({}ms)", timeout_ms);
-                break;
-            }
-
-            // 通知受信（300msタイムアウト）
-            match tokio::time::timeout(
-                tokio::time::Duration::from_millis(300),
-                notifications.recv(),
-            )
-            .await
-            {
-                Ok(Ok(notification)) => {
-                    match notification {
-                        RelayPoolNotification::Event { event, .. } => {
-                            if event.kind == Kind::Custom(30001) {
-                                events.push(*event);
-                            }
-                        }
-                        RelayPoolNotification::Message { message, .. } => {
-                            if matches!(message, RelayMessage::EndOfStoredEvents(_)) {
-                                eose_count += 1;
-                                dev_println!("✅ [Phase 2] EOSE received (count: {})", eose_count);
-
-                                // 最初のEOSEで即座に終了
-                                if eose_count >= 1 {
-                                    dev_println!(
-                                        "⚡ [Phase 2] Early exit: {} events",
-                                        events.len()
-                                    );
-                                    break;
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(Err(_)) => break,
-                Err(_) => {
-                    // 300ms間何も来ない場合、終了
-                    if eose_count > 0 || !events.is_empty() {
-                        dev_println!("⚡ [Phase 2] No more events, exiting");
-                        break;
-                    }
-                }
-            }
-        }
-
-        // クリーンアップ
-        client.client.unsubscribe(sub_id.clone()).await;
+        let events = collect_todo_list_events_until_all_eose(
+            &client.client,
+            filter,
+            tokio::time::Duration::from_millis(timeout_ms),
+        )
+        .await?;
 
         if events.is_empty() {
             return Ok(Vec::new());
@@ -6436,6 +6637,69 @@ pub fn sign_nip98_auth_event_with_client_id(
 }
 
 /// Kind 27235 未署名イベントを作成（Amber 署名用）
+#[cfg(test)]
+mod eose_wait_tests {
+    use super::all_expected_relays_reported;
+    use nostr_sdk::RelayUrl;
+    use std::collections::HashSet;
+
+    fn urls(list: &[&str]) -> HashSet<RelayUrl> {
+        list.iter()
+            .map(|u| RelayUrl::parse(u).expect("valid relay url"))
+            .collect()
+    }
+
+    #[test]
+    fn first_eose_is_not_enough_with_two_connected_relays() {
+        // Negative control for the fetch: the old loop broke here.
+        let expected = urls(&["wss://a.example", "wss://b.example"]);
+        let reported = urls(&["wss://a.example"]);
+        assert!(!all_expected_relays_reported(&expected, &reported));
+    }
+
+    #[test]
+    fn every_connected_relay_reporting_completes_the_wait() {
+        let expected = urls(&["wss://a.example", "wss://b.example"]);
+        let reported = urls(&["wss://b.example", "wss://a.example"]);
+        assert!(all_expected_relays_reported(&expected, &reported));
+    }
+
+    #[test]
+    fn eose_from_a_relay_that_was_not_connected_does_not_count() {
+        let expected = urls(&["wss://a.example"]);
+        let reported = urls(&["wss://c.example"]);
+        assert!(!all_expected_relays_reported(&expected, &reported));
+    }
+
+    #[test]
+    fn the_same_event_from_two_sources_is_collected_once() {
+        // Both notification kinds (and several relays) can deliver one event.
+        use super::remember_event;
+        use nostr_sdk::prelude::*;
+        let keys = Keys::generate();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let event = rt
+            .block_on(EventBuilder::new(Kind::Custom(30001), "x").sign(&keys))
+            .unwrap();
+        let other = rt
+            .block_on(EventBuilder::new(Kind::Custom(30001), "y").sign(&keys))
+            .unwrap();
+        let mut seen = std::collections::HashSet::new();
+        let mut events = Vec::new();
+        assert!(remember_event(&mut seen, &mut events, event.clone()));
+        assert!(!remember_event(&mut seen, &mut events, event));
+        assert!(remember_event(&mut seen, &mut events, other));
+        assert_eq!(events.len(), 2);
+    }
+
+    #[test]
+    fn no_connected_relay_means_wait_for_the_deadline() {
+        let expected = HashSet::new();
+        let reported = urls(&["wss://a.example"]);
+        assert!(!all_expected_relays_reported(&expected, &reported));
+    }
+}
+
 #[cfg(test)]
 mod subscription_event_queue_tests {
     use super::{

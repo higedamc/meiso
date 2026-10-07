@@ -78,6 +78,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ContactProfile dco_decode_contact_profile(dynamic raw);
 
   @protected
+  DecryptedTodoList dco_decode_decrypted_todo_list(dynamic raw);
+
+  @protected
   EncryptedAppSettingsEvent dco_decode_encrypted_app_settings_event(dynamic raw);
 
   @protected
@@ -127,6 +130,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ContactProfile> dco_decode_list_contact_profile(dynamic raw);
+
+  @protected
+  List<DecryptedTodoList> dco_decode_list_decrypted_todo_list(dynamic raw);
 
   @protected
   List<EncryptedGroupTodoListEvent> dco_decode_list_encrypted_group_todo_list_event(dynamic raw);
@@ -282,6 +288,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ContactProfile sse_decode_contact_profile(SseDeserializer deserializer);
 
   @protected
+  DecryptedTodoList sse_decode_decrypted_todo_list(SseDeserializer deserializer);
+
+  @protected
   EncryptedAppSettingsEvent sse_decode_encrypted_app_settings_event(SseDeserializer deserializer);
 
   @protected
@@ -331,6 +340,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ContactProfile> sse_decode_list_contact_profile(SseDeserializer deserializer);
+
+  @protected
+  List<DecryptedTodoList> sse_decode_list_decrypted_todo_list(SseDeserializer deserializer);
 
   @protected
   List<EncryptedGroupTodoListEvent> sse_decode_list_encrypted_group_todo_list_event(SseDeserializer deserializer);
@@ -491,6 +503,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_contact_profile(ContactProfile self, SseSerializer serializer);
 
   @protected
+  void sse_encode_decrypted_todo_list(DecryptedTodoList self, SseSerializer serializer);
+
+  @protected
   void sse_encode_encrypted_app_settings_event(EncryptedAppSettingsEvent self, SseSerializer serializer);
 
   @protected
@@ -540,6 +555,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_contact_profile(List<ContactProfile> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_decrypted_todo_list(List<DecryptedTodoList> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_encrypted_group_todo_list_event(

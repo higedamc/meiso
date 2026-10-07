@@ -11,7 +11,10 @@ class EncryptedKey {
   final String memberPubkey;
   final String encryptedAesKey;
 
-  const EncryptedKey({required this.memberPubkey, required this.encryptedAesKey});
+  const EncryptedKey({
+    required this.memberPubkey,
+    required this.encryptedAesKey,
+  });
 
   @override
   int get hashCode => memberPubkey.hashCode ^ encryptedAesKey.hashCode;
