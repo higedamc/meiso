@@ -2761,8 +2761,10 @@ class TodosNotifier
       for (var attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           AppLogger.info(' Background sync attempt $attempt/$maxAttempts');
+          // needsSync is cleared per todo by _markTodosSyncedWithEventId
+          // when its list was actually sent; lists skipped as unchanged keep
+          // their flags, so a skipped send never looks like a delivered one.
           await _syncAllTodosToNostr();
-          await _clearNeedsSyncFlagsForNonGroup();
 
           AppLogger.info(' Background sync completed successfully');
           _ref.read(syncStatusProvider.notifier).syncSuccess();
@@ -2930,45 +2932,6 @@ class TodosNotifier
       success: success,
       errorMessage: errorMessage,
     );
-  }
-
-  Set<String> _currentGroupListIds() {
-    final lists = _ref.read(customListsProvider).valueOrNull;
-    if (lists == null) return <String>{};
-    return lists.where((l) => l.isGroup).map((l) => l.id).toSet();
-  }
-
-  /// `syncAllTodosToNostr` はグループTODOを送らないので、ここで全消しすると
-  /// 「送れていないグループTODOまで同期済みに見える」不整合になる。
-  Future<void> _clearNeedsSyncFlagsForNonGroup() async {
-    final todos = state.valueOrNull;
-    if (todos == null) return;
-
-    final groupIds = _currentGroupListIds();
-
-    final updatedTodos = <DateTime?, List<Todo>>{};
-    var hasChanges = false;
-
-    for (final entry in todos.entries) {
-      final date = entry.key;
-      final list = entry.value.map((todo) {
-        final isGroupTodo =
-            todo.customListId != null && groupIds.contains(todo.customListId);
-        if (todo.needsSync && !isGroupTodo) {
-          hasChanges = true;
-          return todo.copyWith(needsSync: false);
-        }
-        return todo;
-      }).toList();
-      updatedTodos[date] = list;
-    }
-
-    if (!hasChanges) return;
-
-    state = AsyncValue.data(updatedTodos);
-    await _saveAllTodosToLocal();
-    _updateUnsyncedCount();
-    AppLogger.info(' Cleared needsSync flags for non-group todos');
   }
 
   /// 自動バッチ同期タイマーを開始（3秒後に一度だけ実行）
@@ -3942,9 +3905,6 @@ class TodosNotifier
       // so it bypasses the publish gate and the shrink guard. It is also the
       // escape hatch when a guard misfires.
       await _syncAllTodosToNostr(force: true);
-
-      // 同期成功後、needsSyncフラグをクリア
-      await _clearNeedsSyncFlagsForNonGroup();
 
       _ref.read(syncStatusProvider.notifier).syncSuccess();
       AppLogger.info(' Manual sync completed successfully');
@@ -5101,6 +5061,13 @@ class TodosNotifier
             // ローカルの方が新しい → ローカルを採用（リレーに再送信が必要）
             mergedTodos[remoteTodo.id] = localTodo.copyWith(needsSync: true);
             localWinsCount++;
+            // Same as the absent-task case below: the relay served an older
+            // copy, so the cached publish signature must not suppress the
+            // resend even when the local content equals the last publish.
+            final staleListKey = localTodo.customListId ?? 'default';
+            _publishedListSignatures
+              ..remove('nsec:$staleListKey')
+              ..remove('amber:$staleListKey');
 
             if (localTodo.title != remoteTodo.title) {
               AppLogger.debug(
@@ -5202,6 +5169,17 @@ class TodosNotifier
               // older version, so keep the task and publish it again.
               mergedTodos[localTodo.id] = localTodo.copyWith(needsSync: true);
               localOnlyCount++;
+              // The publish-signature cache would skip this list as
+              // "unchanged since last publish" when the local content is
+              // exactly what we sent before, which is the usual case here:
+              // the relay that answered simply never got that publish.
+              // Drop the cached signature so the resync is actually sent.
+              // The publish path keys its signature cache by
+              // `customListId ?? 'default'`; the same collapse is used here
+              // and nowhere else.
+              _publishedListSignatures
+                ..remove('nsec:$listLabel')
+                ..remove('amber:$listLabel');
               AppLogger.debug(
                 ' Local only (list "$listLabel" older than local edit): '
                 '"${localTodo.title}" - will resync',

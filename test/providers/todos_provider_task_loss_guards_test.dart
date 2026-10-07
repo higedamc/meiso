@@ -658,6 +658,56 @@ void main() {
       expect(findTodo(started.container, 'task-bravo'), isNull);
     });
 
+    test('a list older than the last publish is sent again, same content',
+        () async {
+      // B publishes [a, b, c]; a relay later answers with an older copy
+      // [a, b]. The merge keeps c and marks it for resync, but the publish
+      // signature cache still holds the signature of [a, b, c], which is
+      // exactly what is about to be sent. Negative control: without the
+      // invalidation the second publish is skipped as "unchanged since last
+      // publish" (createTodoListCalls stays 1) and the relay never catches
+      // up, which is what the device run showed.
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      final service = _FakeNostrService()
+        ..remoteTodos = [
+          _todo('task-alpha', updatedAt: editedAt),
+          _todo('task-bravo', updatedAt: editedAt),
+        ]
+        ..remoteListCreatedAt = editedAtSec + 10;
+      final started = await startNotifier(service);
+      await started.notifier.syncFromNostr();
+      await started.notifier.addTodo('task-charlie', null);
+      await pumpUntil(
+        () => service.createTodoListCalls == 1,
+        reason: 'first publish did not go out',
+      );
+      final firstBatch = service.sentBatches.single.map((t) => t.title).toSet();
+      expect(firstBatch, {'task-alpha', 'task-bravo', 'task-charlie'});
+
+      // The relay now serves a copy that predates task-charlie.
+      service.remoteListCreatedAt = editedAtSec - 3600;
+      await started.notifier.syncFromNostr();
+
+      await pumpUntil(
+        () => service.createTodoListCalls == 2,
+        reason: 'the resync after an older fetch was not sent',
+      );
+      final secondBatch = service.sentBatches[1].map((t) => t.title).toSet();
+      expect(
+        secondBatch,
+        firstBatch,
+        reason: 'the resync carries the same content as the first publish',
+      );
+      await pumpUntil(
+        () => findTodo(started.container, 'task-charlie')?.needsSync == false,
+        reason: 'needsSync is cleared by the real send',
+      );
+      await settle();
+    });
+
     test('a custom list with the id "default" is not the built-in list',
         () async {
       // A list named "Default" slugs to the id 'default'; another client can
