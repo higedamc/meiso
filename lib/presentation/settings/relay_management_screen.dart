@@ -10,6 +10,7 @@ import '../../providers/app_settings_provider.dart';
 import '../../models/relay_config.dart';
 import '../../services/logger_service.dart';
 import '../../bridge_generated.dart/api.dart' as bridge;
+import 'widgets/settings_info_card.dart';
 
 class RelayManagementScreen extends ConsumerStatefulWidget {
   const RelayManagementScreen({super.key});
@@ -272,7 +273,10 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                       Icon(Icons.check_circle,
                           color: Colors.green.shade700, size: 20),
                       const SizedBox(width: 8),
-                      Text(torEnabled ? l10n.nostrConnectedViaTor : l10n.nostrConnectedStatus),
+                      Text(
+                        torEnabled ? l10n.nostrConnectedViaTor : l10n.nostrConnectedStatus,
+                        style: TextStyle(color: Colors.green.shade900),
+                      ),
                     ],
                   ),
                 ),
@@ -287,7 +291,10 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                       Icon(Icons.warning,
                           color: Colors.orange.shade700, size: 20),
                       const SizedBox(width: 8),
-                      Text(l10n.nostrDisconnectedStatus),
+                      Text(
+                        l10n.nostrDisconnectedStatus,
+                        style: TextStyle(color: Colors.orange.shade900),
+                      ),
                     ],
                   ),
                 ),
@@ -317,6 +324,14 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                   ),
                 ),
               ),
+            const SizedBox(height: 16),
+
+            // 注意事項
+            SettingsInfoCard(
+              icon: Icons.info_outline,
+              title: l10n.autoSyncInfoTitle,
+              body: l10n.autoSyncInfo,
+            ),
             const SizedBox(height: 16),
 
             // リレー追加
@@ -459,7 +474,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
                   child: Text(
                     l10n.noRelaysRegistered,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
                 ),
@@ -467,7 +482,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
             else
               ...relayStatuses.values.map((relay) => Card(
                     child: ListTile(
-                      leading: _buildRelayStatusIcon(relay.state),
+                      leading: _buildRelayStatusIcon(context, relay.state),
                       title: Text(
                         relay.url,
                         style: const TextStyle(fontSize: 13),
@@ -532,7 +547,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
   }
 
   /// リレー状態アイコン
-  Widget _buildRelayStatusIcon(RelayConnectionState state) {
+  Widget _buildRelayStatusIcon(BuildContext context, RelayConnectionState state) {
     switch (state) {
       case RelayConnectionState.connected:
         return Icon(Icons.cloud_done, color: Colors.green.shade400, size: 20);
@@ -550,7 +565,7 @@ class _RelayManagementScreenState extends ConsumerState<RelayManagementScreen> {
         return Icon(Icons.error, color: Colors.red.shade600, size: 20);
       case RelayConnectionState.disconnected:
         return Icon(Icons.circle_outlined,
-            color: Colors.grey.shade400, size: 20);
+            color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20);
     }
   }
 }

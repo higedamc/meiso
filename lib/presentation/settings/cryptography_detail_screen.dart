@@ -526,7 +526,7 @@ class CryptographyDetailScreen extends StatelessWidget {
         Text(
           AppLocalizations.of(context).cryptographyIntroDescription,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.grey.shade700,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.6,
               ),
         ),
@@ -549,10 +549,10 @@ class CryptographyDetailScreen extends StatelessWidget {
         children: [
           Text(
             AppLocalizations.of(context).cryptoTableOfContents,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppTheme.darkPurple,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(height: 16),
@@ -585,7 +585,7 @@ class CryptographyDetailScreen extends StatelessWidget {
               text,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade800,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.4,
               ),
             ),
@@ -625,7 +625,7 @@ class CryptographyDetailScreen extends StatelessWidget {
                 title,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.darkPurple,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
               ),
             ),
@@ -642,7 +642,7 @@ class CryptographyDetailScreen extends StatelessWidget {
       text,
       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             height: 1.7,
-            color: Colors.grey.shade800,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
     );
   }
@@ -652,7 +652,7 @@ class CryptographyDetailScreen extends StatelessWidget {
       text,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: AppTheme.darkPurple,
+            color: Theme.of(context).colorScheme.primary,
           ),
     );
   }
@@ -678,7 +678,7 @@ class CryptographyDetailScreen extends StatelessWidget {
               text: TextSpan(
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       height: 1.6,
-                      color: Colors.grey.shade800,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                 children: [
                   TextSpan(
@@ -700,10 +700,10 @@ class CryptographyDetailScreen extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppTheme.sectionCardColor(context),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: Text(
@@ -711,7 +711,7 @@ class CryptographyDetailScreen extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           fontSize: 13,
-          color: Colors.grey.shade800,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
           height: 1.5,
         ),
       ),
@@ -822,9 +822,9 @@ class CryptographyDetailScreen extends StatelessWidget {
         children: [
           Text(
             AppLocalizations.of(context).cryptoFooterSecurityTitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: AppTheme.darkPurple,
+              color: Theme.of(context).colorScheme.primary,
               fontSize: 16,
             ),
           ),
@@ -832,7 +832,7 @@ class CryptographyDetailScreen extends StatelessWidget {
           Text(
             AppLocalizations.of(context).cryptoFooterSecurityDesc,
             style: TextStyle(
-              color: Colors.grey.shade800,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 14,
               height: 1.6,
             ),
@@ -845,7 +845,7 @@ class CryptographyDetailScreen extends StatelessWidget {
               Text(
                 AppLocalizations.of(context).cryptoFooterOpenSource,
                 style: TextStyle(
-                  color: Colors.grey.shade700,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
                 ),
