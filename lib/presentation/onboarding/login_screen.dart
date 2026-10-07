@@ -13,6 +13,7 @@ import '../../bridge_generated.dart/api.dart' as rust_api;
 import '../../features/mls/application/providers/usecase_providers.dart';
 import '../../features/mls/application/usecases/auto_publish_key_package_usecase.dart';
 import '../../features/mls/domain/value_objects/key_package_publish_policy.dart';
+import '../../utils/relay_list_sync_guard.dart';
 
 /// ログインスクリーン
 /// AmberまたはNostr秘密鍵生成でログイン
@@ -390,8 +391,15 @@ class _LoginScreenState extends State<LoginScreen> {
             
             // Nostrクライアントを公開鍵のみで初期化（Amberモード）
             // リレー接続は非同期でバックグラウンド実行
+            // Relays come from the persisted settings when they exist (e.g.
+            // a re-login after a reinstall that kept the data); null means
+            // no relay was ever saved and the service applies the defaults
+            // (issue #193).
             await nostrService.initializeNostrWithPubkey(
               publicKeyHex: publicKeyHex,
+              relays: startupRelaysFromSaved(
+                await localStorageService.loadAppSettings(),
+              ),
             );
             AppLogger.info('Nostr client initialized with public key (relay connection in background)', tag: 'NOSTR');
             
@@ -655,8 +663,14 @@ class _LoginScreenState extends State<LoginScreen> {
       AppLogger.info('Onboarding completed flag set (before Nostr init)', tag: 'KEYPAIR');
       
       // Nostrクライアントを初期化（リレー接続は非同期でバックグラウンド実行）
+      // Relays come from the persisted settings when they exist; null means
+      // no relay was ever saved and the service applies the defaults
+      // (issue #193).
       final publicKeyHex = await nostrService.initializeNostr(
         secretKey: keypair.privateKeyNsec,
+        relays: startupRelaysFromSaved(
+          await localStorageService.loadAppSettings(),
+        ),
       );
       AppLogger.info('Nostr client initialized with secret key (relay connection in background)', tag: 'NOSTR');
       AppLogger.debug('Public key (hex): ${publicKeyHex.substring(0, 16)}...', tag: 'NOSTR');

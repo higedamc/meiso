@@ -207,6 +207,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RelayConnectionInfo dco_decode_relay_connection_info(dynamic raw);
 
   @protected
+  RelayListSyncResult dco_decode_relay_list_sync_result(dynamic raw);
+
+  @protected
+  RelayListSyncStatus dco_decode_relay_list_sync_status(dynamic raw);
+
+  @protected
   RelayStatusInfo dco_decode_relay_status_info(dynamic raw);
 
   @protected
@@ -417,6 +423,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RelayConnectionInfo sse_decode_relay_connection_info(SseDeserializer deserializer);
+
+  @protected
+  RelayListSyncResult sse_decode_relay_list_sync_result(SseDeserializer deserializer);
+
+  @protected
+  RelayListSyncStatus sse_decode_relay_list_sync_status(SseDeserializer deserializer);
 
   @protected
   RelayStatusInfo sse_decode_relay_status_info(SseDeserializer deserializer);
@@ -639,6 +651,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_relay_connection_info(RelayConnectionInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_relay_list_sync_result(RelayListSyncResult self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_relay_list_sync_status(RelayListSyncStatus self, SseSerializer serializer);
 
   @protected
   void sse_encode_relay_status_info(RelayStatusInfo self, SseSerializer serializer);

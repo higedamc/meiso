@@ -11,7 +11,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `all_expected_relays_reported`, `check_connection_info`, `check_connection_status`, `collect_todo_list_events_until_all_eose`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `detach_subscription_listener`, `drain_all`, `drain_subscription_events`, `enqueue_subscription_event`, `ensure_subscription_event_listener`, `get_client`, `group_todos_by_list`, `install_client`, `list_key_from_d_tag`, `lock_recovering`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `push`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `remember_event`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`, `SubscriptionEventQueue`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
 /// MLS/NIP-17: listen_key(#p) 宛の sealed event(kind=1059) を差分取得
@@ -561,6 +561,15 @@ Future<List<String>> syncRelayList() => RustLib.instance.api.crateApiSyncRelayLi
 /// リレーリストをNostrから同期（client_id指定可能）
 Future<List<String>> syncRelayListWithClientId({String? clientId}) =>
     RustLib.instance.api.crateApiSyncRelayListWithClientId(clientId: clientId);
+
+/// リレーリストをNostrから同期（Kind 10002）、読めたかどうか付き
+///
+/// See [`RelayListSyncStatus`]. The settings sync uses this so that an
+/// unreachable relay or a missing event never replaces the saved list.
+Future<RelayListSyncResult> syncRelayListStatus() => RustLib.instance.api.crateApiSyncRelayListStatus();
+
+Future<RelayListSyncResult> syncRelayListStatusWithClientId({String? clientId}) =>
+    RustLib.instance.api.crateApiSyncRelayListStatusWithClientId(clientId: clientId);
 
 /// リレーリストを動的に更新（リアルタイム反映）
 Future<void> updateRelayList({required List<String> relays}) =>
@@ -1386,6 +1395,10 @@ abstract class MeisoNostrClient implements RustOpaqueInterface {
   /// リレーリストをNostrから同期（NIP-65 Kind 10002）
   Future<List<String>> syncRelayList();
 
+  /// Like [`Self::sync_relay_list`], but reports whether the account's own
+  /// kind 10002 event was actually read. See [`RelayListSyncStatus`].
+  Future<RelayListSyncResult> syncRelayListStatus();
+
   /// TodoリストをNostrから同期（Kind 30001）
   /// すべてのリスト（デフォルト + カスタムリスト）から取得
   ///
@@ -1970,6 +1983,46 @@ class RelayConnectionInfo {
           connected == other.connected &&
           total == other.total &&
           relayStatuses == other.relayStatuses;
+}
+
+/// Relay list fetch result with its provenance, see [`RelayListSyncStatus`].
+class RelayListSyncResult {
+  final RelayListSyncStatus status;
+  final List<String> relays;
+
+  const RelayListSyncResult({
+    required this.status,
+    required this.relays,
+  });
+
+  @override
+  int get hashCode => status.hashCode ^ relays.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelayListSyncResult &&
+          runtimeType == other.runtimeType &&
+          status == other.status &&
+          relays == other.relays;
+}
+
+/// Outcome of reading the account's own relay list (NIP-65 kind 10002).
+///
+/// `sync_relay_list` flattens this to `Vec<String>`, which cannot tell "no
+/// relay could be reached" from "the account has no relay list": both come
+/// back empty. The settings sync must only replace the saved relay list when
+/// the account's own event was actually read, so it uses the status.
+enum RelayListSyncStatus {
+  /// No relay was connected when the fetch ran; nothing was read.
+  unreachable,
+
+  /// Relays answered, but no kind 10002 event exists for this pubkey.
+  notFound,
+
+  /// The account's own kind 10002 event was read; `relays` holds its
+  /// `r` tags (possibly none).
+  found,
 }
 
 /// 個別リレーの接続状態

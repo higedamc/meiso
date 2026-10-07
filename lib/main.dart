@@ -23,6 +23,7 @@ import 'providers/app_lifecycle_provider.dart';
 import 'providers/relay_connectivity_monitor_provider.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/locale_provider.dart';
+import 'utils/relay_list_sync_guard.dart';
 import 'widgets/sync_loading_overlay.dart'; // Phase 8.5.1
 // Phase D.5: MLS UseCase統合
 import 'features/mls/application/providers/usecase_providers.dart';
@@ -210,9 +211,13 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           
           // アプリ設定からリレーリストとプロキシURLを取得
           final appSettingsAsync = ref.read(appSettingsProvider);
-          final relays = appSettingsAsync.value?.relays.isNotEmpty == true
-              ? appSettingsAsync.value!.relays
-              : null;
+          // Read the persisted settings directly: the provider may still be
+          // loading here (value null), and the old `isNotEmpty ? : null`
+          // also turned a saved list into the defaults. Null only when no
+          // relay was ever saved (issue #193).
+          final relays = startupRelaysFromSaved(
+            await localStorageService.loadAppSettings(),
+          );
           // TorMode に応じてプロキシURLを設定
           final torMode = appSettingsAsync.value?.torMode ?? TorMode.disabled;
           final proxyUrl = torMode == TorMode.orbot

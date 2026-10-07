@@ -62,6 +62,30 @@ pub struct RelayConnectionInfo {
     pub relay_statuses: Vec<RelayStatusInfo>,
 }
 
+/// Outcome of reading the account's own relay list (NIP-65 kind 10002).
+///
+/// `sync_relay_list` flattens this to `Vec<String>`, which cannot tell "no
+/// relay could be reached" from "the account has no relay list": both come
+/// back empty. The settings sync must only replace the saved relay list when
+/// the account's own event was actually read, so it uses the status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RelayListSyncStatus {
+    /// No relay was connected when the fetch ran; nothing was read.
+    Unreachable,
+    /// Relays answered, but no kind 10002 event exists for this pubkey.
+    NotFound,
+    /// The account's own kind 10002 event was read; `relays` holds its
+    /// `r` tags (possibly none).
+    Found,
+}
+
+/// Relay list fetch result with its provenance, see [`RelayListSyncStatus`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelayListSyncResult {
+    pub status: RelayListSyncStatus,
+    pub relays: Vec<String>,
+}
+
 /// 個別リレーの接続状態
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelayStatusInfo {
@@ -1485,7 +1509,24 @@ impl MeisoNostrClient {
 
     /// リレーリストをNostrから同期（NIP-65 Kind 10002）
     pub async fn sync_relay_list(&self) -> Result<Vec<String>> {
+        Ok(self.sync_relay_list_status().await?.relays)
+    }
+
+    /// Like [`Self::sync_relay_list`], but reports whether the account's own
+    /// kind 10002 event was actually read. See [`RelayListSyncStatus`].
+    pub async fn sync_relay_list_status(&self) -> Result<RelayListSyncResult> {
         dev_println!("🔄 Syncing relay list from Nostr (Kind 10002)...");
+
+        // With no connected relay the fetch below returns an empty set that is
+        // indistinguishable from "no relay list published"; report it apart.
+        let connection = self.check_connection_info().await?;
+        if connection.connected == 0 {
+            dev_println!("⚠️ No connected relay - relay list not read");
+            return Ok(RelayListSyncResult {
+                status: RelayListSyncStatus::Unreachable,
+                relays: Vec::new(),
+            });
+        }
 
         // 公開鍵を取得（モードに応じて）
         let pubkey_hex = self.public_key_hex();
@@ -1545,11 +1586,17 @@ impl MeisoNostrClient {
             }
 
             dev_println!("✅ Relay list synced: {} relays", relays.len());
-            return Ok(relays);
+            return Ok(RelayListSyncResult {
+                status: RelayListSyncStatus::Found,
+                relays,
+            });
         }
 
         dev_println!("⚠️ No relay list found (no Kind 10002 events)");
-        Ok(Vec::new())
+        Ok(RelayListSyncResult {
+            status: RelayListSyncStatus::NotFound,
+            relays: Vec::new(),
+        })
     }
 
     /// リレーリストを動的に更新（既存の接続を維持しつつ追加・削除）
@@ -4204,6 +4251,23 @@ pub fn sync_relay_list_with_client_id(client_id: Option<String>) -> Result<Vec<S
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.sync_relay_list().await
+    })
+}
+
+/// リレーリストをNostrから同期（Kind 10002）、読めたかどうか付き
+///
+/// See [`RelayListSyncStatus`]. The settings sync uses this so that an
+/// unreachable relay or a missing event never replaces the saved list.
+pub fn sync_relay_list_status() -> Result<RelayListSyncResult> {
+    sync_relay_list_status_with_client_id(None)
+}
+
+pub fn sync_relay_list_status_with_client_id(
+    client_id: Option<String>,
+) -> Result<RelayListSyncResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.sync_relay_list_status().await
     })
 }
 
