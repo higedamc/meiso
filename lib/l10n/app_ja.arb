@@ -509,7 +509,55 @@
   "embeddedTorDescription": "組み込みTorクライアントを使用。追加のアプリは不要です。",
   
   "secretKeyNsecLabel": "秘密鍵 (nsec)",
-  
+
+  "secretKeyLabel": "秘密鍵",
+
+  "secretKeyColonLabel": "秘密鍵:",
+
+  "secretKeyNsecWarningTitle": "⚠️ 重要な注意事項",
+
+  "secretKeyNsecWarningBody": "• 秘密鍵は絶対に他人に見せないでください\n• スクリーンショットは推奨しません\n• 秘密鍵を失うとアカウントを復元できません\n• 安全な場所にバックアップしてください",
+
+  "secretKeyFormatNsecValid": "nsec (Bech32)",
+
+  "secretKeyFormatNsecIncomplete": "nsec (不完全)",
+
+  "secretKeyFormatHexComplete": "hex (64文字)",
+
+  "secretKeyFormatHexProgress": "hex ({count}/64文字)",
+
+  "secretKeyValidatorEmpty": "秘密鍵を入力してください",
+
+  "secretKeyValidatorNsecLength": "nsec形式は63文字以上必要です",
+
+  "secretKeyValidatorHexLength": "hex形式は64文字である必要があります（現在{count}文字）",
+
+  "secretKeyValidatorFormat": "秘密鍵はnsec形式（nsec1...）またはhex形式（64文字の16進数）である必要があります",
+
+  "secretKeySetPasswordMessage": "新しい秘密鍵を暗号化するためのパスワードを設定してください。\n（8文字以上推奨）",
+
+  "secretKeyGenerateSuccess": "新しい秘密鍵を生成して暗号化保存しました",
+
+  "publicKeyHexPrefix": "公開鍵: {hex}...",
+
+  "secretKeyHint": "nsec1... または 64文字のhex",
+
+  "secretKeyDetectedFormat": "検出: {format}",
+
+  "secretKeyTapEyeToShow": "目のアイコンをタップして秘密鍵を表示",
+
+  "secretKeyEnterFormat": "nsecまたはhex形式の秘密鍵を入力",
+
+  "secretKeyDecryptToShow": "秘密鍵を復号して表示",
+
+  "secretKeyShow": "秘密鍵を表示",
+
+  "secretKeyHide": "秘密鍵を非表示",
+
+  "importantTitle": "重要",
+
+  "secretKeyImportantInfo": "• 秘密鍵はパスワードで暗号化されて保存されます\n• パスワードと秘密鍵は安全に保管してください\n• パスワードを忘れると秘密鍵を復元できません\n• 秘密鍵を保存すると自動的にリレーに接続します\n• タスクの変更は自動的にリレーに同期されます\n\n対応形式:\n  • nsec形式: nsec1... (Bech32エンコード)\n  • hex形式: 64文字の16進数",
+
   "copiedToClipboard": "{label}をコピーしました",
   
   "copyNpub": "npubコピー",

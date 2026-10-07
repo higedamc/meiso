@@ -519,7 +519,55 @@
   "embeddedTorDescription": "Usando cliente Tor integrado. No se requieren aplicaciones adicionales.",
   
   "secretKeyNsecLabel": "Clave Secreta (nsec)",
-  
+
+  "secretKeyLabel": "Clave secreta",
+
+  "secretKeyColonLabel": "Clave secreta:",
+
+  "secretKeyNsecWarningTitle": "⚠️ Notas importantes",
+
+  "secretKeyNsecWarningBody": "• Nunca muestres tu clave secreta a nadie\n• No se recomienda tomar capturas de pantalla\n• No podrás recuperar tu cuenta si pierdes tu clave secreta\n• Guárdala en un lugar seguro",
+
+  "secretKeyFormatNsecValid": "nsec (Bech32)",
+
+  "secretKeyFormatNsecIncomplete": "nsec (incompleto)",
+
+  "secretKeyFormatHexComplete": "hex (64 caracteres)",
+
+  "secretKeyFormatHexProgress": "hex ({count}/64 caracteres)",
+
+  "secretKeyValidatorEmpty": "Introduce una clave secreta",
+
+  "secretKeyValidatorNsecLength": "El formato nsec requiere al menos 63 caracteres",
+
+  "secretKeyValidatorHexLength": "El formato hex debe tener 64 caracteres (actualmente {count} caracteres)",
+
+  "secretKeyValidatorFormat": "La clave secreta debe estar en formato nsec (nsec1...) o en formato hex (64 caracteres hexadecimales)",
+
+  "secretKeySetPasswordMessage": "Establece una contraseña para cifrar tu nueva clave secreta.\n(Se recomiendan 8 caracteres o más)",
+
+  "secretKeyGenerateSuccess": "Se generó y guardó la nueva clave secreta cifrada",
+
+  "publicKeyHexPrefix": "Clave pública: {hex}...",
+
+  "secretKeyHint": "nsec1... o hex de 64 caracteres",
+
+  "secretKeyDetectedFormat": "Detectado: {format}",
+
+  "secretKeyTapEyeToShow": "Toca el icono del ojo para mostrar la clave secreta",
+
+  "secretKeyEnterFormat": "Introduce la clave secreta en formato nsec o hex",
+
+  "secretKeyDecryptToShow": "Descifrar y mostrar la clave secreta",
+
+  "secretKeyShow": "Mostrar clave secreta",
+
+  "secretKeyHide": "Ocultar clave secreta",
+
+  "importantTitle": "Importante",
+
+  "secretKeyImportantInfo": "• La clave secreta se cifra con tu contraseña antes de guardarse\n• Guarda tu contraseña y tu clave secreta de forma segura\n• Si olvidas tu contraseña, no podrás recuperar tu clave secreta\n• Guardar la clave secreta conecta automáticamente al relay\n• Los cambios en las tareas se sincronizan automáticamente con el relay\n\nFormatos admitidos:\n  • Formato nsec: nsec1... (codificado en Bech32)\n  • Formato hex: hexadecimal de 64 caracteres",
+
   "copiedToClipboard": "{label} copiado al portapapeles",
   
   "copyNpub": "Copiar npub",

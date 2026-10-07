@@ -888,6 +888,94 @@ class AppLocalizationsEs extends AppLocalizations {
   String get secretKeyNsecLabel => 'Clave Secreta (nsec)';
 
   @override
+  String get secretKeyLabel => 'Clave secreta';
+
+  @override
+  String get secretKeyColonLabel => 'Clave secreta:';
+
+  @override
+  String get secretKeyNsecWarningTitle => '⚠️ Notas importantes';
+
+  @override
+  String get secretKeyNsecWarningBody =>
+      '• Nunca muestres tu clave secreta a nadie\n• No se recomienda tomar capturas de pantalla\n• No podrás recuperar tu cuenta si pierdes tu clave secreta\n• Guárdala en un lugar seguro';
+
+  @override
+  String get secretKeyFormatNsecValid => 'nsec (Bech32)';
+
+  @override
+  String get secretKeyFormatNsecIncomplete => 'nsec (incompleto)';
+
+  @override
+  String get secretKeyFormatHexComplete => 'hex (64 caracteres)';
+
+  @override
+  String secretKeyFormatHexProgress(int count) {
+    return 'hex ($count/64 caracteres)';
+  }
+
+  @override
+  String get secretKeyValidatorEmpty => 'Introduce una clave secreta';
+
+  @override
+  String get secretKeyValidatorNsecLength =>
+      'El formato nsec requiere al menos 63 caracteres';
+
+  @override
+  String secretKeyValidatorHexLength(int count) {
+    return 'El formato hex debe tener 64 caracteres (actualmente $count caracteres)';
+  }
+
+  @override
+  String get secretKeyValidatorFormat =>
+      'La clave secreta debe estar en formato nsec (nsec1...) o en formato hex (64 caracteres hexadecimales)';
+
+  @override
+  String get secretKeySetPasswordMessage =>
+      'Establece una contraseña para cifrar tu nueva clave secreta.\n(Se recomiendan 8 caracteres o más)';
+
+  @override
+  String get secretKeyGenerateSuccess =>
+      'Se generó y guardó la nueva clave secreta cifrada';
+
+  @override
+  String publicKeyHexPrefix(String hex) {
+    return 'Clave pública: $hex...';
+  }
+
+  @override
+  String get secretKeyHint => 'nsec1... o hex de 64 caracteres';
+
+  @override
+  String secretKeyDetectedFormat(String format) {
+    return 'Detectado: $format';
+  }
+
+  @override
+  String get secretKeyTapEyeToShow =>
+      'Toca el icono del ojo para mostrar la clave secreta';
+
+  @override
+  String get secretKeyEnterFormat =>
+      'Introduce la clave secreta en formato nsec o hex';
+
+  @override
+  String get secretKeyDecryptToShow => 'Descifrar y mostrar la clave secreta';
+
+  @override
+  String get secretKeyShow => 'Mostrar clave secreta';
+
+  @override
+  String get secretKeyHide => 'Ocultar clave secreta';
+
+  @override
+  String get importantTitle => 'Importante';
+
+  @override
+  String get secretKeyImportantInfo =>
+      '• La clave secreta se cifra con tu contraseña antes de guardarse\n• Guarda tu contraseña y tu clave secreta de forma segura\n• Si olvidas tu contraseña, no podrás recuperar tu clave secreta\n• Guardar la clave secreta conecta automáticamente al relay\n• Los cambios en las tareas se sincronizan automáticamente con el relay\n\nFormatos admitidos:\n  • Formato nsec: nsec1... (codificado en Bech32)\n  • Formato hex: hexadecimal de 64 caracteres';
+
+  @override
   String copiedToClipboard(String label) {
     return '$label copiado al portapapeles';
   }

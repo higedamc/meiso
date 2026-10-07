@@ -1391,7 +1391,147 @@
   "@secretKeyNsecLabel": {
     "description": "Label for secret key in nsec format"
   },
-  
+
+  "secretKeyLabel": "Secret Key",
+  "@secretKeyLabel": {
+    "description": "Generic label for the secret key, used as a TextField label and as a clipboard-copy item name"
+  },
+
+  "secretKeyColonLabel": "Secret Key:",
+  "@secretKeyColonLabel": {
+    "description": "Field label with trailing colon in the nsec reveal dialog"
+  },
+
+  "secretKeyNsecWarningTitle": "⚠️ Important Notes",
+  "@secretKeyNsecWarningTitle": {
+    "description": "Title of the warning box in the nsec reveal dialog"
+  },
+
+  "secretKeyNsecWarningBody": "• Never show your secret key to anyone else\n• Screenshots are not recommended\n• You cannot recover your account if you lose your secret key\n• Please back it up in a safe place",
+  "@secretKeyNsecWarningBody": {
+    "description": "Body of the warning box in the nsec reveal dialog"
+  },
+
+  "secretKeyFormatNsecValid": "nsec (Bech32)",
+  "@secretKeyFormatNsecValid": {
+    "description": "Detected-format label for a well-formed nsec key"
+  },
+
+  "secretKeyFormatNsecIncomplete": "nsec (incomplete)",
+  "@secretKeyFormatNsecIncomplete": {
+    "description": "Detected-format label for a too-short nsec key"
+  },
+
+  "secretKeyFormatHexComplete": "hex (64 chars)",
+  "@secretKeyFormatHexComplete": {
+    "description": "Detected-format label for a well-formed 64-char hex key"
+  },
+
+  "secretKeyFormatHexProgress": "hex ({count}/64 chars)",
+  "@secretKeyFormatHexProgress": {
+    "description": "Detected-format label for an in-progress hex key",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+
+  "secretKeyValidatorEmpty": "Please enter a secret key",
+  "@secretKeyValidatorEmpty": {
+    "description": "Validation error when the secret key field is empty"
+  },
+
+  "secretKeyValidatorNsecLength": "nsec format requires at least 63 characters",
+  "@secretKeyValidatorNsecLength": {
+    "description": "Validation error for a too-short nsec key"
+  },
+
+  "secretKeyValidatorHexLength": "hex format must be 64 characters (currently {count} characters)",
+  "@secretKeyValidatorHexLength": {
+    "description": "Validation error for a hex key with the wrong length",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+
+  "secretKeyValidatorFormat": "Secret key must be in nsec format (nsec1...) or hex format (64 hex characters)",
+  "@secretKeyValidatorFormat": {
+    "description": "Validation error when the key matches neither nsec nor hex format"
+  },
+
+  "secretKeySetPasswordMessage": "Please set a password to encrypt your new secret key.\n(8+ characters recommended)",
+  "@secretKeySetPasswordMessage": {
+    "description": "Message of the dialog asking the user to set a password for a new secret key"
+  },
+
+  "secretKeyGenerateSuccess": "Generated and saved new secret key with encryption",
+  "@secretKeyGenerateSuccess": {
+    "description": "Success message after generating and saving a new secret key"
+  },
+
+  "publicKeyHexPrefix": "Public key: {hex}...",
+  "@publicKeyHexPrefix": {
+    "description": "Truncated public key display, hex is already truncated by the caller",
+    "placeholders": {
+      "hex": {
+        "type": "String"
+      }
+    }
+  },
+
+  "secretKeyHint": "nsec1... or 64-char hex",
+  "@secretKeyHint": {
+    "description": "Hint text for the secret key input field"
+  },
+
+  "secretKeyDetectedFormat": "Detected: {format}",
+  "@secretKeyDetectedFormat": {
+    "description": "Helper text showing the auto-detected key format",
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+
+  "secretKeyTapEyeToShow": "Tap the eye icon to show secret key",
+  "@secretKeyTapEyeToShow": {
+    "description": "Helper text shown when the field holds the encrypted placeholder"
+  },
+
+  "secretKeyEnterFormat": "Enter secret key in nsec or hex format",
+  "@secretKeyEnterFormat": {
+    "description": "Default helper text for the secret key input field"
+  },
+
+  "secretKeyDecryptToShow": "Decrypt and show secret key",
+  "@secretKeyDecryptToShow": {
+    "description": "Tooltip for the visibility toggle when the field holds the encrypted placeholder"
+  },
+
+  "secretKeyShow": "Show secret key",
+  "@secretKeyShow": {
+    "description": "Tooltip for the visibility toggle when the key is currently hidden"
+  },
+
+  "secretKeyHide": "Hide secret key",
+  "@secretKeyHide": {
+    "description": "Tooltip for the visibility toggle when the key is currently shown"
+  },
+
+  "importantTitle": "Important",
+  "@importantTitle": {
+    "description": "Generic title for an important-notice card"
+  },
+
+  "secretKeyImportantInfo": "• Secret key is encrypted with your password before being saved\n• Keep your password and secret key safe\n• If you forget your password, your secret key cannot be recovered\n• Saving the secret key automatically connects to the relay\n• Task changes are automatically synced to the relay\n\nSupported formats:\n  • nsec format: nsec1... (Bech32-encoded)\n  • hex format: 64-character hex",
+  "@secretKeyImportantInfo": {
+    "description": "Body of the Important info card on the Secret Key Management screen"
+  },
+
   "copiedToClipboard": "{label} copied to clipboard",
   "@copiedToClipboard": {
     "description": "Message when text is copied",

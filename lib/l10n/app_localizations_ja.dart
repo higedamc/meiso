@@ -854,6 +854,90 @@ class AppLocalizationsJa extends AppLocalizations {
   String get secretKeyNsecLabel => '秘密鍵 (nsec)';
 
   @override
+  String get secretKeyLabel => '秘密鍵';
+
+  @override
+  String get secretKeyColonLabel => '秘密鍵:';
+
+  @override
+  String get secretKeyNsecWarningTitle => '⚠️ 重要な注意事項';
+
+  @override
+  String get secretKeyNsecWarningBody =>
+      '• 秘密鍵は絶対に他人に見せないでください\n• スクリーンショットは推奨しません\n• 秘密鍵を失うとアカウントを復元できません\n• 安全な場所にバックアップしてください';
+
+  @override
+  String get secretKeyFormatNsecValid => 'nsec (Bech32)';
+
+  @override
+  String get secretKeyFormatNsecIncomplete => 'nsec (不完全)';
+
+  @override
+  String get secretKeyFormatHexComplete => 'hex (64文字)';
+
+  @override
+  String secretKeyFormatHexProgress(int count) {
+    return 'hex ($count/64文字)';
+  }
+
+  @override
+  String get secretKeyValidatorEmpty => '秘密鍵を入力してください';
+
+  @override
+  String get secretKeyValidatorNsecLength => 'nsec形式は63文字以上必要です';
+
+  @override
+  String secretKeyValidatorHexLength(int count) {
+    return 'hex形式は64文字である必要があります（現在$count文字）';
+  }
+
+  @override
+  String get secretKeyValidatorFormat =>
+      '秘密鍵はnsec形式（nsec1...）またはhex形式（64文字の16進数）である必要があります';
+
+  @override
+  String get secretKeySetPasswordMessage =>
+      '新しい秘密鍵を暗号化するためのパスワードを設定してください。\n（8文字以上推奨）';
+
+  @override
+  String get secretKeyGenerateSuccess => '新しい秘密鍵を生成して暗号化保存しました';
+
+  @override
+  String publicKeyHexPrefix(String hex) {
+    return '公開鍵: $hex...';
+  }
+
+  @override
+  String get secretKeyHint => 'nsec1... または 64文字のhex';
+
+  @override
+  String secretKeyDetectedFormat(String format) {
+    return '検出: $format';
+  }
+
+  @override
+  String get secretKeyTapEyeToShow => '目のアイコンをタップして秘密鍵を表示';
+
+  @override
+  String get secretKeyEnterFormat => 'nsecまたはhex形式の秘密鍵を入力';
+
+  @override
+  String get secretKeyDecryptToShow => '秘密鍵を復号して表示';
+
+  @override
+  String get secretKeyShow => '秘密鍵を表示';
+
+  @override
+  String get secretKeyHide => '秘密鍵を非表示';
+
+  @override
+  String get importantTitle => '重要';
+
+  @override
+  String get secretKeyImportantInfo =>
+      '• 秘密鍵はパスワードで暗号化されて保存されます\n• パスワードと秘密鍵は安全に保管してください\n• パスワードを忘れると秘密鍵を復元できません\n• 秘密鍵を保存すると自動的にリレーに接続します\n• タスクの変更は自動的にリレーに同期されます\n\n対応形式:\n  • nsec形式: nsec1... (Bech32エンコード)\n  • hex形式: 64文字の16進数';
+
+  @override
   String copiedToClipboard(String label) {
     return '$labelをコピーしました';
   }
