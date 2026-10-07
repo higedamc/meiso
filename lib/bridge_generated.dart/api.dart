@@ -9,9 +9,10 @@ import 'group_tasks_mls.dart';
 import 'group_tasks_shared.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `check_connection_info`, `check_connection_status`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `drain_all`, `ensure_subscription_event_listener`, `get_client`, `group_todos_by_list`, `list_key_from_d_tag`, `lock_recovering`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `push`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
+// These functions are ignored because they are not marked as `pub`: `all_expected_relays_reported`, `check_connection_info`, `check_connection_status`, `collect_todo_list_events_until_all_eose`, `default_nip89_client_tag_enabled`, `default_proxy_url`, `detach_subscription_listener`, `drain_all`, `drain_subscription_events`, `enqueue_subscription_event`, `ensure_subscription_event_listener`, `get_client`, `group_todos_by_list`, `install_client`, `list_key_from_d_tag`, `lock_recovering`, `normalize_custom_list_id`, `normalize_synced_todos`, `normalize_todo_date_string`, `push`, `receive_subscription_events`, `reconnect_with_timeout`, `reconnect`, `send_event_to_relays`, `send_event_with_result`, `subscribe`, `unsubscribe_all`, `unsubscribe`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientMode`, `SubscriptionEventQueue`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
 /// MLS/NIP-17: listen_key(#p) 宛の sealed event(kind=1059) を差分取得
 ///
@@ -150,6 +151,34 @@ Future<List<TodoData>> syncTodoListSinceWithClientId({
   required BigInt timeoutSecs,
   String? clientId,
 }) => RustLib.instance.api.crateApiSyncTodoListSinceWithClientId(
+  since: since,
+  timeoutSecs: timeoutSecs,
+  clientId: clientId,
+);
+
+/// 全Todoリストを同期（Kind 30001）、リスト単位の結果
+///
+/// Same fetch as [`sync_todo_list`], but keeps each list together with the
+/// `created_at` of the event it was decrypted from. The Dart merge uses that
+/// timestamp as causal evidence for deletions (see [`DecryptedTodoList`]).
+Future<List<DecryptedTodoList>> syncTodoLists() => RustLib.instance.api.crateApiSyncTodoLists();
+
+/// 全Todoリストを同期（client_id指定可能）、リスト単位の結果
+Future<List<DecryptedTodoList>> syncTodoListsWithClientId({String? clientId}) =>
+    RustLib.instance.api.crateApiSyncTodoListsWithClientId(clientId: clientId);
+
+/// 全Todoリストを差分同期（Kind 30001）、リスト単位の結果
+///
+/// Same fetch as [`sync_todo_list_since`]; an emptied list is returned with
+/// zero todos so the caller can replace it instead of leaving stale tasks.
+Future<List<DecryptedTodoList>> syncTodoListsSince({required PlatformInt64 since, required BigInt timeoutSecs}) =>
+    RustLib.instance.api.crateApiSyncTodoListsSince(since: since, timeoutSecs: timeoutSecs);
+
+Future<List<DecryptedTodoList>> syncTodoListsSinceWithClientId({
+  required PlatformInt64 since,
+  required BigInt timeoutSecs,
+  String? clientId,
+}) => RustLib.instance.api.crateApiSyncTodoListsSinceWithClientId(
   since: since,
   timeoutSecs: timeoutSecs,
   clientId: clientId,
@@ -365,14 +394,13 @@ Future<List<TodoListName>> fetchTodoListNamesOnlyWithClientId({required String p
 Future<List<EncryptedTodoListEvent>> fetchAllEncryptedTodoListsForPubkey({required String publicKeyHex}) =>
     RustLib.instance.api.crateApiFetchAllEncryptedTodoListsForPubkey(publicKeyHex: publicKeyHex);
 
-/// Phase 2: Subscribe版 - EOSE活用による早期終了
+/// Phase 2: Subscribe版 - 接続中リレー全 EOSE まで待つ
 ///
-/// jokyoプロジェクトで実証された最適化手法:
 /// - subscribe()でストリーミング受信
-/// - EOSE（End of Stored Events）で即座に終了
-/// - タイムアウト: 2.5秒（jokyoの最適値）
+/// - 接続中の全リレーから EOSE が揃うか、2.5 秒のタイムアウトで終了
 ///
-/// 期待効果: 10秒 → 2-3秒（70-80%短縮）
+/// The earlier "first EOSE wins" exit was removed: see
+/// [`collect_todo_list_events_until_all_eose`].
 Future<List<EncryptedTodoListEvent>> fetchAllEncryptedTodoListsSubscribeWithClientId({
   required String publicKeyHex,
   String? clientId,
@@ -397,10 +425,13 @@ Future<List<EncryptedTodoListEvent>> fetchAllEncryptedTodoListsForPubkeySince({
   timeoutSecs: timeoutSecs,
 );
 
-/// Phase 2: Subscribe版（差分取得） - EOSE活用による早期終了
+/// Phase 2: Subscribe版（差分取得） - 接続中リレー全 EOSE まで待つ
 ///
 /// バックグラウンド復帰時の体感改善用
 /// タイムアウト短縮: 3秒 → 1.5秒（50%短縮）
+///
+/// Same exit rule as the full fetch: every connected relay's EOSE or the
+/// deadline, never the first EOSE.
 Future<List<EncryptedTodoListEvent>> fetchAllEncryptedTodoListsSubscribeSinceWithClientId({
   required String publicKeyHex,
   required PlatformInt64 since,
@@ -1243,7 +1274,6 @@ Future<String> signNip98AuthEvent({required String url, required String method})
 Future<String> signNip98AuthEventWithClientId({required String url, required String method, String? clientId}) =>
     RustLib.instance.api.crateApiSignNip98AuthEventWithClientId(url: url, method: method, clientId: clientId);
 
-/// Kind 27235 未署名イベントを作成（Amber 署名用）
 Future<String> createUnsignedNip98AuthEvent({
   required String url,
   required String method,
@@ -1337,9 +1367,25 @@ abstract class MeisoNostrClient implements RustOpaqueInterface {
 
   /// TodoリストをNostrから同期（Kind 30001）
   /// すべてのリスト（デフォルト + カスタムリスト）から取得
+  ///
+  /// Flattened view of [`Self::sync_todo_lists`]; it loses the per-list
+  /// event metadata, so callers that infer deletions must use the
+  /// list-shaped variant.
   Future<List<TodoData>> syncTodoList();
 
   /// TodoリストをNostrから差分同期（Kind 30001）
+  ///
+  /// Flattened view of [`Self::sync_todo_lists_since`]; see
+  /// [`Self::sync_todo_list`] for the caveat.
+  Future<List<TodoData>> syncTodoListSince({required PlatformInt64 since, required BigInt timeoutSecs});
+
+  /// TodoリストをNostrから同期（Kind 30001）、リスト単位で返す
+  ///
+  /// Each entry carries the `created_at` of the event it was decrypted from;
+  /// see [`DecryptedTodoList`].
+  Future<List<DecryptedTodoList>> syncTodoLists();
+
+  /// TodoリストをNostrから差分同期（Kind 30001）、リスト単位で返す
   ///
   /// - `since` が 0 より大きい場合、そのUNIX秒以降のイベントのみ取得
   /// - 同じ d tag の中で最新（created_at最大）のイベントのみ処理
@@ -1347,7 +1393,7 @@ abstract class MeisoNostrClient implements RustOpaqueInterface {
   /// Note:
   /// - replaceable event の特性上、差分でも「変更のあったリストの全内容」は取得される。
   /// - `since` 以降にイベントが無い場合は空Vecを返す（= 変更なし）。
-  Future<List<TodoData>> syncTodoListSince({required PlatformInt64 since, required BigInt timeoutSecs});
+  Future<List<DecryptedTodoList>> syncTodoListsSince({required PlatformInt64 since, required BigInt timeoutSecs});
 
   /// リレーリストを動的に更新（既存の接続を維持しつつ追加・削除）
   Future<void> updateRelayList({required List<String> newRelays});
@@ -1478,7 +1524,9 @@ class CachedEventInfo {
   });
 
   /// キャッシュが有効かチェック
-  Future<bool> isValid() => RustLib.instance.api.crateApiCachedEventInfoIsValid(that: this);
+  Future<bool> isValid() => RustLib.instance.api.crateApiCachedEventInfoIsValid(
+    that: this,
+  );
 
   @override
   int get hashCode =>
@@ -1521,7 +1569,13 @@ class ContactProfile {
   /// NIP-05 識別子
   final String? nip05;
 
-  const ContactProfile({required this.pubkeyHex, this.name, this.displayName, this.picture, this.nip05});
+  const ContactProfile({
+    required this.pubkeyHex,
+    this.name,
+    this.displayName,
+    this.picture,
+    this.nip05,
+  });
 
   @override
   int get hashCode => pubkeyHex.hashCode ^ name.hashCode ^ displayName.hashCode ^ picture.hashCode ^ nip05.hashCode;
@@ -1538,13 +1592,61 @@ class ContactProfile {
           nip05 == other.nip05;
 }
 
+/// One decrypted kind:30001 list together with the metadata of the event it
+/// was read from.
+///
+/// `created_at` comes from the same event as `todos`, so the Dart merge can use
+/// it as causal evidence: a local task that is missing from a list whose
+/// `created_at` is newer than the task's local `updated_at` was deleted on
+/// another device. A list whose payload is empty is still returned (with
+/// `todos` empty) so that "delete the last task" propagates too; flattening to
+/// `Vec<TodoData>` would make an emptied list indistinguishable from a list
+/// that never arrived.
+class DecryptedTodoList {
+  /// `d` tag of the source event (`meiso-todos` or `meiso-list-<id>`)
+  final String listId;
+
+  /// id of the source event (hex)
+  final String eventId;
+
+  /// `created_at` of the source event, unix seconds
+  final PlatformInt64 createdAt;
+
+  /// Decrypted, normalised tasks of this list
+  final List<TodoData> todos;
+
+  const DecryptedTodoList({
+    required this.listId,
+    required this.eventId,
+    required this.createdAt,
+    required this.todos,
+  });
+
+  @override
+  int get hashCode => listId.hashCode ^ eventId.hashCode ^ createdAt.hashCode ^ todos.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DecryptedTodoList &&
+          runtimeType == other.runtimeType &&
+          listId == other.listId &&
+          eventId == other.eventId &&
+          createdAt == other.createdAt &&
+          todos == other.todos;
+}
+
 /// 暗号化されたアプリ設定イベントを取得（Amber復号化用）
 class EncryptedAppSettingsEvent {
   final String eventId;
   final String encryptedContent;
   final PlatformInt64 createdAt;
 
-  const EncryptedAppSettingsEvent({required this.eventId, required this.encryptedContent, required this.createdAt});
+  const EncryptedAppSettingsEvent({
+    required this.eventId,
+    required this.encryptedContent,
+    required this.createdAt,
+  });
 
   @override
   int get hashCode => eventId.hashCode ^ encryptedContent.hashCode ^ createdAt.hashCode;
@@ -1612,7 +1714,10 @@ class EncryptedKeyData {
   final String memberPubkey;
   final String encryptedAesKey;
 
-  const EncryptedKeyData({required this.memberPubkey, required this.encryptedAesKey});
+  const EncryptedKeyData({
+    required this.memberPubkey,
+    required this.encryptedAesKey,
+  });
 
   @override
   int get hashCode => memberPubkey.hashCode ^ encryptedAesKey.hashCode;
@@ -1827,7 +1932,11 @@ class RelayConnectionInfo {
   final BigInt total;
   final List<RelayStatusInfo> relayStatuses;
 
-  const RelayConnectionInfo({required this.connected, required this.total, required this.relayStatuses});
+  const RelayConnectionInfo({
+    required this.connected,
+    required this.total,
+    required this.relayStatuses,
+  });
 
   @override
   int get hashCode => connected.hashCode ^ total.hashCode ^ relayStatuses.hashCode;
@@ -1847,7 +1956,10 @@ class RelayStatusInfo {
   final String url;
   final bool connected;
 
-  const RelayStatusInfo({required this.url, required this.connected});
+  const RelayStatusInfo({
+    required this.url,
+    required this.connected,
+  });
 
   @override
   int get hashCode => url.hashCode ^ connected.hashCode;
@@ -1869,7 +1981,11 @@ class SubscriptionInfo {
   /// 作成日時
   final PlatformInt64 createdAt;
 
-  const SubscriptionInfo({required this.subscriptionId, required this.filtersJson, required this.createdAt});
+  const SubscriptionInfo({
+    required this.subscriptionId,
+    required this.filtersJson,
+    required this.createdAt,
+  });
 
   @override
   int get hashCode => subscriptionId.hashCode ^ filtersJson.hashCode ^ createdAt.hashCode;
@@ -1983,7 +2099,12 @@ class TodoListMetadata {
   /// リスト名（title tag）
   final String? title;
 
-  const TodoListMetadata({required this.eventId, required this.createdAt, this.listId, this.title});
+  const TodoListMetadata({
+    required this.eventId,
+    required this.createdAt,
+    this.listId,
+    this.title,
+  });
 
   @override
   int get hashCode => eventId.hashCode ^ createdAt.hashCode ^ listId.hashCode ^ title.hashCode;
@@ -2011,7 +2132,12 @@ class TodoListName {
   final String eventId;
   final BigInt createdAt;
 
-  const TodoListName({required this.listId, this.title, required this.eventId, required this.createdAt});
+  const TodoListName({
+    required this.listId,
+    this.title,
+    required this.eventId,
+    required this.createdAt,
+  });
 
   @override
   int get hashCode => listId.hashCode ^ title.hashCode ^ eventId.hashCode ^ createdAt.hashCode;

@@ -37,6 +37,7 @@ import '../features/shared_list/infrastructure/providers/repository_providers.da
 import '../features/task_comments/infrastructure/providers/repository_providers.dart'
     as task_comment_providers;
 import '../utils/fractional_index.dart';
+import '../utils/todo_absence_resolution.dart';
 import '../utils/todo_delta_merge.dart';
 import '../utils/todo_list_shrink_guard.dart';
 
@@ -4350,6 +4351,12 @@ class TodosNotifier
 
           // すべてのリストを復号化してマージ
           final allSyncedTodos = <Todo>[];
+          // created_at of each list we could actually read, keyed as in
+          // listKeyForCausalCompare. A list that failed to decrypt is left
+          // out on purpose: its tasks are absent from allSyncedTodos, and
+          // without an entry here the merge keeps them instead of treating
+          // the absence as a deletion.
+          final listCreatedAt = <String, int>{};
 
           for (final encryptedEvent in encryptedEvents) {
             try {
@@ -4430,6 +4437,10 @@ class TodosNotifier
                 ' リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})',
               );
               allSyncedTodos.addAll(syncedTodos);
+              final listKey = listKeyForCausalCompare(
+                _customListIdFromDTag(encryptedEvent.listId),
+              );
+              listCreatedAt[listKey] = encryptedEvent.createdAt;
             } catch (e, stackTrace) {
               // 復号化・パースエラー：このリストをスキップして次へ
               AppLogger.error(
@@ -4484,10 +4495,14 @@ class TodosNotifier
           allSyncedTodos.clear();
           allSyncedTodos.addAll(allSyncedTodosFiltered);
 
-          // allSyncedTodosが空の場合、復号化に失敗した可能性が高い
-          // ローカルデータを保持するために、マージをスキップする
-          if (allSyncedTodos.isEmpty) {
-            AppLogger.warning('⚠️ リモートから復号化できたTodoが0件です。ローカルデータを保持します。');
+          // No list could be decrypted: most likely Amber failed or refused.
+          // Keep the local data and skip the merge. Judged on the lists that
+          // were readable, not on the todo count, so that lists emptied on
+          // another device still reach the merge and their deletions apply.
+          if (listCreatedAt.isEmpty) {
+            AppLogger.warning(
+              '⚠️ リモートから復号化できたリストが0件です。ローカルデータを保持します。',
+            );
             // Relay events exist but their content could not be read. Keep
             // the publish gate closed: publishing now would overwrite data
             // we never saw.
@@ -4517,7 +4532,10 @@ class TodosNotifier
           AppLogger.info(
             '🚀 [DEBUG] Calling _updateStateWithSyncedTodos with ${allSyncedTodos.length} todos...',
           );
-          await _updateStateWithSyncedTodos(allSyncedTodos);
+          await _updateStateWithSyncedTodos(
+            allSyncedTodos,
+            listCreatedAt: listCreatedAt,
+          );
           AppLogger.info('✅ [DEBUG] _updateStateWithSyncedTodos returned!');
           AppLogger.info(' [Sync] Todo同期完了');
         } else {
@@ -4545,8 +4563,22 @@ class TodosNotifier
           // ステップ2: Todoデータを取得
           AppLogger.info(' [Sync] 3/3: Todoを同期中...');
           AppLogger.debug(' ステップ2: Todoデータを取得します');
-          final syncedTodosRaw = await nostrService.syncTodoListFromNostr();
-          AppLogger.debug(' ${syncedTodosRaw.length}件のTodoを取得しました');
+          final syncedLists = await nostrService.syncTodoListsFromNostr();
+          final syncedTodosRaw = syncedLists
+              .expand((list) => list.todos)
+              .toList();
+          // created_at per fetched list, from the same event as its content.
+          // An emptied list is present here with zero todos, so deleting the
+          // last task of a list propagates like any other deletion.
+          final listCreatedAt = <String, int>{
+            for (final list in syncedLists)
+              listKeyForCausalCompare(_customListIdFromDTag(list.listId)):
+                  list.createdAt,
+          };
+          AppLogger.debug(
+            ' ${syncedTodosRaw.length}件のTodoを取得しました '
+            '(${syncedLists.length} lists)',
+          );
 
           // Issue #101: 削除済みタスクIDでフィルタリング（リスト再作成時の復活防止）
           AppLogger.info(
@@ -4582,8 +4614,10 @@ class TodosNotifier
 
           AppLogger.info(' [Sync] Todo同期完了');
 
-          // イベントが見つからない場合（空リスト）はローカルデータを保持
-          if (syncedTodos.isEmpty) {
+          // No list event at all on the relays: keep the local data. Judged
+          // on the fetched lists, not on the todo count, so that lists
+          // emptied on another device still reach the merge.
+          if (syncedLists.isEmpty) {
             final hasLocalData =
                 state.whenData((localTodos) {
                   final localTodoCount = localTodos.values.fold<int>(
@@ -4618,7 +4652,10 @@ class TodosNotifier
               .toList();
           AppLogger.info(' needsSyncフラグをクリア: ${cleanedTodos.length}件');
 
-          await _updateStateWithSyncedTodos(cleanedTodos);
+          await _updateStateWithSyncedTodos(
+            cleanedTodos,
+            listCreatedAt: listCreatedAt,
+          );
         }
 
         // Phase 8.5.1: Phase 3完了（100%）
@@ -4811,11 +4848,12 @@ class TodosNotifier
           }
         }
       } else {
-        final deltaTodos = await nostrService.syncTodoListFromNostrSince(
+        final deltaLists = await nostrService.syncTodoListsFromNostrSince(
           since: effectiveSince,
         );
+        final deltaTodos = deltaLists.expand((list) => list.todos).toList();
 
-        if (deltaTodos.isEmpty) {
+        if (deltaLists.isEmpty) {
           await localStorageService.setLastTodoListSyncTime(now);
           _ref.read(syncStatusProvider.notifier).syncSuccess();
           // Fetch succeeded (nothing changed since the last sync).
@@ -4826,8 +4864,13 @@ class TodosNotifier
           return;
         }
 
-        // 取得できたTodoのcustomListId単位で置換（null=default）
+        // 取得できたリスト単位で置換（null=default）。
+        // Keyed by the fetched lists, not by their todos, so a list that came
+        // back empty is replaced as well instead of keeping stale tasks.
         final affectedListKeys = <String?>{};
+        for (final list in deltaLists) {
+          affectedListKeys.add(_customListIdFromDTag(list.listId));
+        }
         for (final todo in deltaTodos) {
           affectedListKeys.add(
             CustomListHelpers.normalizeListIdFromNostr(todo.customListId),
@@ -4918,6 +4961,12 @@ class TodosNotifier
     return CustomListHelpers.normalizeListIdFromNostr(dTag);
   }
 
+  /// Short form of a task id for log lines. Ids are normally UUIDs, but they
+  /// come from relay payloads; a shorter id must not throw here, because an
+  /// exception inside the merge sends it into the remote-only fallback that
+  /// drops every local-only task.
+  String _shortId(String id) => id.length > 8 ? '${id.substring(0, 8)}...' : id;
+
   /// フラットなTodo配列を日付ごとにグループ化
   Map<DateTime?, List<Todo>> _groupTodosByDate(List<Todo> todos) {
     final grouped = <DateTime?, List<Todo>>{};
@@ -4947,10 +4996,22 @@ class TodosNotifier
   /// 2. updatedAtタイムスタンプを比較 → より新しい方を採用
   /// 3. ローカルのみに存在 → ローカルを保持
   /// 4. リモートのみに存在 → リモートを採用
-  Future<void> _updateStateWithSyncedTodos(List<Todo> syncedTodos) async {
+  ///
+  /// [listCreatedAt] maps each fetched list (key as in
+  /// [listKeyForCausalCompare]) to the `created_at` of the kind 30001 event
+  /// the list was read from, taken from the same event as its content. A
+  /// local task absent from [syncedTodos] is dropped only when its own list
+  /// is in the map with a `created_at` newer than the task's `updatedAt`
+  /// (see `resolveAbsentTodo`). A list that is not in the map was not
+  /// fetched, and its tasks are kept.
+  Future<void> _updateStateWithSyncedTodos(
+    List<Todo> syncedTodos, {
+    required Map<String, int> listCreatedAt,
+  }) async {
     try {
       AppLogger.warning(
-        '🔀 [MERGE] Starting merge: ${syncedTodos.length} remote todos',
+        '🔀 [MERGE] Starting merge: ${syncedTodos.length} remote todos, '
+        '${listCreatedAt.length} list snapshot(s)',
       );
 
       // Shrink baseline: the per-list counts actually held on the relays.
@@ -5001,7 +5062,7 @@ class TodosNotifier
           // ローカルに存在しない → リモートを採用
           mergedTodos[remoteTodo.id] = remoteTodo;
           AppLogger.debug(
-            ' Remote only: "${remoteTodo.title}" (${remoteTodo.id.substring(0, 8)}...)',
+            ' Remote only: "${remoteTodo.title}" (${_shortId(remoteTodo.id)})',
           );
         } else {
           // 両方に存在 → 競合解決
@@ -5069,6 +5130,7 @@ class TodosNotifier
       // ステップ2: ローカルのみに存在するタスクを追加
       var localOnlyCount = 0;
       var deletedByRemoteCount = 0;
+      var keptNoEvidenceCount = 0;
 
       for (final localTodo in localTodoMap.values) {
         if (!mergedTodos.containsKey(localTodo.id)) {
@@ -5094,7 +5156,7 @@ class TodosNotifier
                 mergedTodos[localTodo.id] = localTodo;
                 localOnlyCount++;
                 AppLogger.debug(
-                  '🔒 Group task protected: "${localTodo.title}" (${localTodo.id.substring(0, 8)}...)',
+                  '🔒 Group task protected: "${localTodo.title}" (${_shortId(localTodo.id)})',
                 );
                 continue; // 以降の個人タスク用ロジックをスキップ
               }
@@ -5112,28 +5174,44 @@ class TodosNotifier
             mergedTodos[localTodo.id] = localTodo;
             localOnlyCount++;
             AppLogger.debug(
-              ' Local only (new): "${localTodo.title}" (${localTodo.id.substring(0, 8)}...) - will sync',
+              ' Local only (new): "${localTodo.title}" (${_shortId(localTodo.id)}) - will sync',
             );
           } else {
-            // ケース2: needsSyncがfalse → 他のデバイスで削除された可能性
-            // ただし、ローカルが最近更新されている場合は保持する
-            final now = DateTime.now();
-            final hoursSinceUpdate = now
-                .difference(localTodo.updatedAt)
-                .inHours;
+            // Case 2: needsSync is false, so the task was on the relays at
+            // some point. Decide from the fetched list's created_at, not
+            // from the wall clock (decision 2 of the task-loss plan).
+            final listKey = listKeyForCausalCompare(localTodo.customListId);
+            final resolution = resolveAbsentTodo(
+              listCreatedAt: listCreatedAt[listKey],
+              localUpdatedAt: localTodo.updatedAt,
+            );
 
-            if (hoursSinceUpdate < 24) {
-              // 24時間以内の更新 → ローカルを保持（削除ではなく、同期のタイミング差の可能性）
+            if (resolution == AbsentTodoResolution.keepNoEvidence) {
+              // The task's list was not in this fetch: nothing to compare,
+              // keep the task as it is (not resynced either - the relays
+              // were never seen to disagree).
+              mergedTodos[localTodo.id] = localTodo;
+              localOnlyCount++;
+              keptNoEvidenceCount++;
+              AppLogger.debug(
+                ' Local only (list "$listKey" not fetched): '
+                '"${localTodo.title}" - keeping',
+              );
+            } else if (resolution == AbsentTodoResolution.keepAndResync) {
+              // The fetched list predates the local edit: the relays hold an
+              // older version, so keep the task and publish it again.
               mergedTodos[localTodo.id] = localTodo.copyWith(needsSync: true);
               localOnlyCount++;
               AppLogger.debug(
-                ' Local only (recent update): "${localTodo.title}" - will resync (updated ${hoursSinceUpdate}h ago)',
+                ' Local only (list "$listKey" older than local edit): '
+                '"${localTodo.title}" - will resync',
               );
             } else {
-              // 24時間以上前の更新 → 他のデバイスで削除されたと判断
+              // The fetched list is newer than the local edit and omits the
+              // task: it was deleted on another device.
               deletedByRemoteCount++;
               AppLogger.debug(
-                '  Deleted by remote: "${localTodo.title}" (${localTodo.id.substring(0, 8)}...) - removing locally',
+                '  Deleted by remote: "${localTodo.title}" (${_shortId(localTodo.id)}) - removing locally',
               );
               // mergedTodosに追加しない = ローカルから削除
             }
@@ -5148,6 +5226,7 @@ class TodosNotifier
       AppLogger.debug('   Local wins: $localWinsCount');
       AppLogger.debug('   Remote wins: $remoteWinsCount');
       AppLogger.debug('   Local only: $localOnlyCount');
+      AppLogger.debug('   Kept (list not fetched): $keptNoEvidenceCount');
       AppLogger.debug('   Deleted by remote: $deletedByRemoteCount');
 
       // ステップ3: 日付ごとにグループ化

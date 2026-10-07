@@ -102,6 +102,28 @@ pub struct TodoData {
     pub image_url: Option<String>,
 }
 
+/// One decrypted kind:30001 list together with the metadata of the event it
+/// was read from.
+///
+/// `created_at` comes from the same event as `todos`, so the Dart merge can use
+/// it as causal evidence: a local task that is missing from a list whose
+/// `created_at` is newer than the task's local `updated_at` was deleted on
+/// another device. A list whose payload is empty is still returned (with
+/// `todos` empty) so that "delete the last task" propagates too; flattening to
+/// `Vec<TodoData>` would make an emptied list indistinguishable from a list
+/// that never arrived.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecryptedTodoList {
+    /// `d` tag of the source event (`meiso-todos` or `meiso-list-<id>`)
+    pub list_id: String,
+    /// id of the source event (hex)
+    pub event_id: String,
+    /// `created_at` of the source event, unix seconds
+    pub created_at: i64,
+    /// Decrypted, normalised tasks of this list
+    pub todos: Vec<TodoData>,
+}
+
 fn normalize_todo_date_string(raw: &str) -> Option<String> {
     if let Ok(parsed) = ChronoDateTime::parse_from_rfc3339(raw) {
         return Some(parsed.date_naive().format("%Y-%m-%dT00:00:00").to_string());
@@ -996,7 +1018,20 @@ impl MeisoNostrClient {
 
     /// TodoリストをNostrから同期（Kind 30001）
     /// すべてのリスト（デフォルト + カスタムリスト）から取得
+    ///
+    /// Flattened view of [`Self::sync_todo_lists`]; it loses the per-list
+    /// event metadata, so callers that infer deletions must use the
+    /// list-shaped variant.
     pub async fn sync_todo_list(&self) -> Result<Vec<TodoData>> {
+        let lists = self.sync_todo_lists().await?;
+        Ok(lists.into_iter().flat_map(|list| list.todos).collect())
+    }
+
+    /// TodoリストをNostrから同期（Kind 30001）、リスト単位で返す
+    ///
+    /// Each entry carries the `created_at` of the event it was decrypted from;
+    /// see [`DecryptedTodoList`].
+    pub async fn sync_todo_lists(&self) -> Result<Vec<DecryptedTodoList>> {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!(
                 "Cannot sync TODO list in Amber mode. Use fetch_encrypted_todo_list_for_pubkey + Amber decryption instead."
@@ -1092,7 +1127,7 @@ impl MeisoNostrClient {
             latest_events.len()
         );
 
-        let mut all_todos = Vec::new();
+        let mut lists = Vec::new();
 
         // 各リストイベントを復号化してTodoを取得
         for (d_tag, event) in latest_events {
@@ -1115,7 +1150,12 @@ impl MeisoNostrClient {
                                 todos.len(),
                                 d_tag
                             );
-                            all_todos.extend(todos);
+                            lists.push(DecryptedTodoList {
+                                list_id: d_tag.clone(),
+                                event_id: event.id.to_hex(),
+                                created_at: event.created_at.as_u64() as i64,
+                                todos,
+                            });
                         }
                         Err(e) => {
                             dev_eprintln!(
@@ -1134,11 +1174,28 @@ impl MeisoNostrClient {
             }
         }
 
-        dev_println!("✅ Total todos synced from all lists: {}", all_todos.len());
-        Ok(all_todos)
+        dev_println!(
+            "✅ Total lists synced: {} ({} todos)",
+            lists.len(),
+            lists.iter().map(|l| l.todos.len()).sum::<usize>()
+        );
+        Ok(lists)
     }
 
     /// TodoリストをNostrから差分同期（Kind 30001）
+    ///
+    /// Flattened view of [`Self::sync_todo_lists_since`]; see
+    /// [`Self::sync_todo_list`] for the caveat.
+    pub async fn sync_todo_list_since(
+        &self,
+        since: i64,
+        timeout_secs: u64,
+    ) -> Result<Vec<TodoData>> {
+        let lists = self.sync_todo_lists_since(since, timeout_secs).await?;
+        Ok(lists.into_iter().flat_map(|list| list.todos).collect())
+    }
+
+    /// TodoリストをNostrから差分同期（Kind 30001）、リスト単位で返す
     ///
     /// - `since` が 0 より大きい場合、そのUNIX秒以降のイベントのみ取得
     /// - 同じ d tag の中で最新（created_at最大）のイベントのみ処理
@@ -1146,11 +1203,11 @@ impl MeisoNostrClient {
     /// Note:
     /// - replaceable event の特性上、差分でも「変更のあったリストの全内容」は取得される。
     /// - `since` 以降にイベントが無い場合は空Vecを返す（= 変更なし）。
-    pub async fn sync_todo_list_since(
+    pub async fn sync_todo_lists_since(
         &self,
         since: i64,
         timeout_secs: u64,
-    ) -> Result<Vec<TodoData>> {
+    ) -> Result<Vec<DecryptedTodoList>> {
         if let ClientMode::Amber { .. } = self.mode {
             return Err(anyhow::anyhow!(
                 "Cannot sync TODO list in Amber mode. Use fetch_all_encrypted_todo_lists_for_pubkey_since + Amber decryption instead."
@@ -1211,14 +1268,19 @@ impl MeisoNostrClient {
             }
         }
 
-        let mut all_todos = Vec::new();
+        let mut lists = Vec::new();
         for (d_tag, event) in latest_events {
             match nip44::decrypt(keys.secret_key(), &keys.public_key(), &event.content) {
                 Ok(decrypted) => {
                     if let Ok(todos) = serde_json::from_str::<Vec<TodoData>>(&decrypted) {
                         let list_key = list_key_from_d_tag(&d_tag);
                         let todos = normalize_synced_todos(todos, list_key.as_deref());
-                        all_todos.extend(todos);
+                        lists.push(DecryptedTodoList {
+                            list_id: d_tag.clone(),
+                            event_id: event.id.to_hex(),
+                            created_at: event.created_at.as_u64() as i64,
+                            todos,
+                        });
                     }
                 }
                 Err(_) => {
@@ -1227,7 +1289,7 @@ impl MeisoNostrClient {
             }
         }
 
-        Ok(all_todos)
+        Ok(lists)
     }
 
     // ========================================
@@ -2127,6 +2189,44 @@ pub fn sync_todo_list_since_with_client_id(
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.sync_todo_list_since(since, timeout_secs).await
+    })
+}
+
+/// 全Todoリストを同期（Kind 30001）、リスト単位の結果
+///
+/// Same fetch as [`sync_todo_list`], but keeps each list together with the
+/// `created_at` of the event it was decrypted from. The Dart merge uses that
+/// timestamp as causal evidence for deletions (see [`DecryptedTodoList`]).
+pub fn sync_todo_lists() -> Result<Vec<DecryptedTodoList>> {
+    sync_todo_lists_with_client_id(None)
+}
+
+/// 全Todoリストを同期（client_id指定可能）、リスト単位の結果
+pub fn sync_todo_lists_with_client_id(
+    client_id: Option<String>,
+) -> Result<Vec<DecryptedTodoList>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.sync_todo_lists().await
+    })
+}
+
+/// 全Todoリストを差分同期（Kind 30001）、リスト単位の結果
+///
+/// Same fetch as [`sync_todo_list_since`]; an emptied list is returned with
+/// zero todos so the caller can replace it instead of leaving stale tasks.
+pub fn sync_todo_lists_since(since: i64, timeout_secs: u64) -> Result<Vec<DecryptedTodoList>> {
+    sync_todo_lists_since_with_client_id(since, timeout_secs, None)
+}
+
+pub fn sync_todo_lists_since_with_client_id(
+    since: i64,
+    timeout_secs: u64,
+    client_id: Option<String>,
+) -> Result<Vec<DecryptedTodoList>> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.sync_todo_lists_since(since, timeout_secs).await
     })
 }
 

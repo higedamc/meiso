@@ -26,13 +26,24 @@ import 'package:meiso/services/local_storage_service.dart';
 class _FakeNostrService implements NostrService {
   bool sendSucceeds = true;
 
-  /// When set, `syncTodoListFromNostr` throws it instead of returning.
+  /// When set, `syncTodoListsFromNostr` throws it instead of returning.
   Object? fetchError;
 
-  /// When set, `syncTodoListFromNostr` waits for it before returning.
+  /// When set, `syncTodoListsFromNostr` waits for it before returning.
   Completer<void>? fetchGate;
 
+  /// Tasks the relays hold. They are grouped by list for the fetch, each
+  /// list stamped with [remoteListCreatedAt]. An empty list here means the
+  /// relays returned no list event at all.
   List<Todo> remoteTodos = const [];
+
+  /// `created_at` (unix seconds) given to every list built from
+  /// [remoteTodos]. Defaults to "now", i.e. newer than any seeded edit.
+  int? remoteListCreatedAt;
+
+  /// Lists returned as-is, in addition to those built from [remoteTodos].
+  /// Lets a test return an emptied list or a list for another key.
+  List<SyncedTodoList> remoteLists = const [];
 
   int createTodoListCalls = 0;
   int fetchCalls = 0;
@@ -55,13 +66,29 @@ class _FakeNostrService implements NostrService {
   }
 
   @override
-  Future<List<Todo>> syncTodoListFromNostr() async {
+  Future<List<SyncedTodoList>> syncTodoListsFromNostr() async {
     fetchCalls += 1;
     final gate = fetchGate;
     if (gate != null) await gate.future;
     final error = fetchError;
     if (error != null) throw error;
-    return List<Todo>.from(remoteTodos);
+
+    final createdAt =
+        remoteListCreatedAt ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final byList = <String?, List<Todo>>{};
+    for (final todo in remoteTodos) {
+      byList.putIfAbsent(todo.customListId, () => []).add(todo);
+    }
+    return [
+      for (final entry in byList.entries)
+        (
+          listId: entry.key == null ? 'meiso-todos' : 'meiso-list-${entry.key}',
+          eventId: 'list-event-${entry.key ?? 'default'}',
+          createdAt: createdAt,
+          todos: List<Todo>.from(entry.value),
+        ),
+      ...remoteLists,
+    ];
   }
 
   // The custom-list and app-settings phases of a full sync ask for the
@@ -84,13 +111,14 @@ Todo _todo(
   bool needsSync = false,
   String? customListId,
   String? parentRecurringId,
+  DateTime? updatedAt,
 }) {
   final now = DateTime(2026, 1, 1, 12);
   return Todo(
     id: id,
     title: id,
     createdAt: now,
-    updatedAt: now,
+    updatedAt: updatedAt ?? now,
     needsSync: needsSync,
     customListId: customListId,
     parentRecurringId: parentRecurringId,
@@ -144,6 +172,15 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
   }
+
+  /// Background work started by the container keeps reading providers
+  /// after a sync resolved: the group sync scheduled by `syncFromNostr` and
+  /// `AppSettingsNotifier._backgroundSync`, which fires 1 s after the
+  /// container was created. A test that ends before they finish lets their
+  /// error escape into whichever test runs next. Call this before returning
+  /// from any test that does not already wait longer than that.
+  Future<void> settle() =>
+      Future<void>.delayed(const Duration(milliseconds: 1200));
 
   /// Initialises local storage and seeds it with already-synced todos.
   Future<void> seedLocal(List<Todo> todos) async {
@@ -492,6 +529,154 @@ void main() {
       await Future.wait([first, second]);
 
       expect(service.fetchCalls, 1);
+      await settle();
+    });
+  });
+
+  group('causal deletion inference (decision 2)', () {
+    // Local edits happened at this instant; every seeded task is well over
+    // 24 hours old by the time the test runs, which is the input the old
+    // wall-clock rule deleted on.
+    final editedAt = DateTime.utc(2026, 1, 1, 12);
+    final editedAtSec = editedAt.millisecondsSinceEpoch ~/ 1000;
+
+    test('a list that was not fetched keeps its tasks, however old', () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      // The relays return only another list, newer than the local edits.
+      // The default list never arrives, so there is nothing to compare.
+      // Negative control: the 24-hour rule deleted a and b here (absent
+      // from the fetch and older than a day).
+      final service = _FakeNostrService()
+        ..remoteLists = [
+          (
+            listId: 'meiso-list-other',
+            eventId: 'other-event',
+            createdAt: editedAtSec + 86400,
+            todos: [_todo('task-xray', customListId: 'other')],
+          ),
+        ];
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      final a = findTodo(started.container, 'task-alpha');
+      final b = findTodo(started.container, 'task-bravo');
+      expect(a, isNotNull, reason: 'a must survive: its list was not fetched');
+      expect(b, isNotNull, reason: 'b must survive: its list was not fetched');
+      expect(
+        a!.needsSync,
+        isFalse,
+        reason: 'no evidence the relays disagree, so no resync either',
+      );
+      expect(findTodo(started.container, 'task-xray'), isNotNull);
+    });
+
+    test('a list older than the local edit keeps the task and resyncs',
+        () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      // The relays hold a version of the default list from before the
+      // edit, and it does not contain b. That is not evidence of deletion:
+      // b must be kept and published again.
+      // Negative control: with the comparison removed (or inverted) b is
+      // dropped here exactly as under the 24-hour rule.
+      final service = _FakeNostrService()
+        ..remoteTodos = [_todo('task-alpha', updatedAt: editedAt)]
+        ..remoteListCreatedAt = editedAtSec - 3600;
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(findTodo(started.container, 'task-bravo'), isNotNull);
+      // The fetch succeeded, so the gate is open and the resync goes out.
+      await pumpUntil(
+        () => service.createTodoListCalls >= 1,
+        reason: 'the kept task was not re-published',
+      );
+      expect(
+        service.sentBatches.last.map((t) => t.title),
+        containsAll(['task-alpha', 'task-bravo']),
+      );
+    });
+
+    test('a list newer than the local edit drops the absent task', () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      // The default list was rewritten after the edit and omits b: it was
+      // deleted on another device. Negative control: without deletion
+      // inference b resurrects on every device.
+      final service = _FakeNostrService()
+        ..remoteTodos = [_todo('task-alpha', updatedAt: editedAt)]
+        ..remoteListCreatedAt = editedAtSec + 3600;
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(findTodo(started.container, 'task-alpha'), isNotNull);
+      expect(findTodo(started.container, 'task-bravo'), isNull);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(
+        service.createTodoListCalls,
+        0,
+        reason: 'a deletion applied locally must not trigger a publish',
+      );
+    });
+
+    test('an emptied list drops its tasks', () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-bravo', updatedAt: editedAt),
+      ]);
+      // Deleting the last task on another device publishes an empty list.
+      // Negative control: a fetch flattened to tasks (or a guard on the
+      // task count) cannot see this list at all and keeps both forever.
+      final service = _FakeNostrService()
+        ..remoteLists = [
+          (
+            listId: 'meiso-todos',
+            eventId: 'default-event',
+            createdAt: editedAtSec + 3600,
+            todos: const [],
+          ),
+        ];
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(findTodo(started.container, 'task-alpha'), isNull);
+      expect(findTodo(started.container, 'task-bravo'), isNull);
+    });
+
+    test('a newer snapshot of another list does not touch this one',
+        () async {
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-charlie', customListId: 'other', updatedAt: editedAt),
+      ]);
+      // Only the default list is fetched, newer and without c. c belongs
+      // to 'other', which was not fetched, so c is kept; a is in the
+      // snapshot and stays as well.
+      final service = _FakeNostrService()
+        ..remoteTodos = [_todo('task-alpha', updatedAt: editedAt)]
+        ..remoteListCreatedAt = editedAtSec + 3600;
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(findTodo(started.container, 'task-alpha'), isNotNull);
+      expect(findTodo(started.container, 'task-charlie'), isNotNull);
     });
   });
 }

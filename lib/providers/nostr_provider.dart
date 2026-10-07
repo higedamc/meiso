@@ -118,6 +118,18 @@ class RelaySendResult {
 @Deprecated('Use RelaySendResult instead')
 typedef LocalFirstSendResult = RelaySendResult;
 
+/// One kind 30001 list as fetched from the relays.
+///
+/// `createdAt` is the `created_at` (unix seconds) of the event the todos were
+/// decrypted from, so it is the timestamp of exactly this content. `listId`
+/// is the event's `d` tag (`meiso-todos` or `meiso-list-<id>`).
+typedef SyncedTodoList = ({
+  String listId,
+  String eventId,
+  int createdAt,
+  List<Todo> todos,
+});
+
 class NostrService {
   NostrService(this._ref);
 
@@ -518,6 +530,47 @@ class NostrService {
       return _todoDataToTodo(todoData);
     }).toList();
   }
+
+  /// Full sync of every kind 30001 list, one entry per list.
+  ///
+  /// Same fetch as [syncTodoListFromNostr], but each list keeps the
+  /// `created_at` of the event it was decrypted from. The merge uses that as
+  /// causal evidence for deletions, so callers that infer deletions must use
+  /// this instead of the flattened variant. An emptied list is returned with
+  /// zero todos.
+  Future<List<SyncedTodoList>> syncTodoListsFromNostr() async {
+    AppLogger.debug(' NostrProvider: syncTodoListsFromNostr called');
+    final lists = await rust_api.syncTodoLists();
+    AppLogger.debug(
+      ' Received ${lists.length} decrypted list(s) from Rust',
+    );
+    return lists.map(_syncedTodoListFromRust).toList();
+  }
+
+  /// Delta sync of the kind 30001 lists changed since [since], one entry per
+  /// list. See [syncTodoListsFromNostr].
+  Future<List<SyncedTodoList>> syncTodoListsFromNostrSince({
+    required DateTime since,
+    int timeoutSeconds = 3,
+  }) async {
+    AppLogger.debug(' NostrProvider: syncTodoListsFromNostrSince called');
+
+    final sinceUnix = since.millisecondsSinceEpoch ~/ 1000;
+    final timeout = timeoutSeconds <= 0 ? 1 : timeoutSeconds;
+
+    final lists = await rust_api.syncTodoListsSince(
+      since: sinceUnix,
+      timeoutSecs: BigInt.from(timeout),
+    );
+    return lists.map(_syncedTodoListFromRust).toList();
+  }
+
+  SyncedTodoList _syncedTodoListFromRust(rust_api.DecryptedTodoList list) => (
+    listId: list.listId,
+    eventId: list.eventId,
+    createdAt: list.createdAt,
+    todos: list.todos.map(_todoDataToTodo).toList(),
+  );
 
   /// TodoData → Todo 変換（Nostr受信時の共通ロジック）
   Todo _todoDataToTodo(rust_api.TodoData todoData) {
