@@ -3790,6 +3790,23 @@ class TodosNotifier
     ];
   }
 
+  /// [_countTodosPerList] plus an explicit 0 for every fetched list that has
+  /// no todos. A list the relays returned empty is confirmed empty, and the
+  /// baseline must say so: otherwise this device would still believe the
+  /// list "exists with todos" and publish it empty itself on its next
+  /// publish run, which would wipe a list another device has refilled in
+  /// the meantime (see `_emptiedListKeys`).
+  Map<String, int> _countTodosPerListWithFetched(
+    Iterable<Todo> todos,
+    Iterable<String?> fetchedListKeys,
+  ) {
+    final counts = _countTodosPerList(todos);
+    for (final key in fetchedListKeys) {
+      counts.putIfAbsent(key ?? 'default', () => 0);
+    }
+    return counts;
+  }
+
   /// Per-list counts of [todos], keyed the way the normal-mode publish groups
   /// them (`customListId`, `default` for none).
   Map<String, int> _countTodosPerList(Iterable<Todo> todos) {
@@ -4781,6 +4798,8 @@ class TodosNotifier
 
       final localFlat = await localStorageService.loadTodos();
       final updatedFlat = List<Todo>.from(localFlat);
+      // Lists this delta replaced, including ones that came back empty.
+      final fetchedListKeys = <String?>{};
 
       if (isAmberMode) {
         final encryptedEvents = await nostrService
@@ -4822,6 +4841,7 @@ class TodosNotifier
         for (final event in encryptedEvents) {
           final dTag = event.listId;
           final listKey = _customListIdFromDTag(dTag); // null=default
+          fetchedListKeys.add(listKey);
 
           try {
             String decryptedJson;
@@ -4909,6 +4929,7 @@ class TodosNotifier
         for (final list in deltaLists) {
           affectedListKeys.add(_customListIdFromDTag(list.listId));
         }
+        fetchedListKeys.addAll(affectedListKeys);
         for (final todo in deltaTodos) {
           affectedListKeys.add(
             CustomListHelpers.normalizeListIdFromNostr(todo.customListId),
@@ -4954,7 +4975,9 @@ class TodosNotifier
       _ref.read(syncStatusProvider.notifier).syncSuccess();
 
       // Shrink baseline: the list sizes after the delta merge.
-      await _recordKnownListTodoCounts(_countTodosPerList(mergedFlat));
+      await _recordKnownListTodoCounts(
+        _countTodosPerListWithFetched(mergedFlat, fetchedListKeys),
+      );
       // Fetch succeeded: open the publish gate and send pending changes.
       _onRemoteFetchSucceeded();
 
@@ -5053,7 +5076,9 @@ class TodosNotifier
       );
 
       // Shrink baseline: the per-list counts actually held on the relays.
-      await _recordKnownListTodoCounts(_countTodosPerList(syncedTodos));
+      await _recordKnownListTodoCounts(
+        _countTodosPerListWithFetched(syncedTodos, listCreatedAt.keys),
+      );
 
       // 防御的コーディング: stateから現在のTodoを取得
       final Map<DateTime?, List<Todo>> localTodos;

@@ -579,6 +579,43 @@ void main() {
       await settle();
     });
 
+    test('a list fetched empty is not published empty again', () async {
+      // The relays already hold the default list empty (another device
+      // emptied it). This device has no default-list task either, but its
+      // persisted baseline still says 1. After the fetch the baseline must
+      // read 0, or the next publish run sends an empty default list of its
+      // own, which would wipe the list if another device refilled it in
+      // between. Negative control: without the zero baseline the manual
+      // sync below publishes [null].
+      await localStorageService.initialize();
+      await localStorageService.setKnownListTodoCounts({'default': 1});
+      await localStorageService.saveTodos([
+        _todo('task-work', customListId: 'work'),
+      ]);
+      final service = _FakeNostrService()
+        ..remoteTodos = [_todo('task-work', customListId: 'work')]
+        ..remoteLists = [
+          (
+            listId: 'meiso-todos',
+            eventId: 'default-empty',
+            createdAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            todos: const [],
+          ),
+        ];
+      final started = await startNotifier(service);
+      await started.notifier.syncFromNostr();
+      expect(localStorageService.getKnownListTodoCounts()['default'], 0);
+
+      await started.notifier.manualSyncToNostr();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(
+        service.emptyListPublishes,
+        isEmpty,
+        reason: 'a list the relays returned empty is not re-published empty',
+      );
+      await settle();
+    });
+
     test('no empty publish before a relay fetch succeeded this session',
         () async {
       // The persisted baseline says the default list has one task on the
