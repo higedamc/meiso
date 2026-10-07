@@ -674,7 +674,7 @@ class NostrService {
     final localRelays = relaySplit.$1;
     final globalRelays = relaySplit.$2;
 
-    // _resolveRelaySplit already applies the defaults when no settings were
+    // _resolveRelaySplit already applies the defaults when no relay was
     // ever saved; a saved list with no global relay is respected as it is
     // rather than silently sending to the public defaults (issue #193).
     final primaryRelays = globalRelays;
@@ -857,8 +857,8 @@ class NostrService {
 
   Future<(List<String>, List<String>)> _resolveRelaySplit() async {
     final settings = await localStorageService.loadAppSettings();
-    // Defaults only when settings were never saved (first start); a saved
-    // list is respected even when it is empty (issue #193).
+    // Defaults only when no relay was ever saved (first start writes an
+    // empty list); a saved non-empty list is respected (issue #193).
     final relays = startupRelaysFromSaved(settings) ?? defaultRelays;
     final roleMap = localStorageService.loadRelayRoles();
 

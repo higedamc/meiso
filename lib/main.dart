@@ -214,7 +214,7 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
           // Read the persisted settings directly: the provider may still be
           // loading here (value null), and the old `isNotEmpty ? : null`
           // also turned a saved list into the defaults. Null only when no
-          // settings were ever saved (issue #193).
+          // relay was ever saved (issue #193).
           final relays = startupRelaysFromSaved(
             await localStorageService.loadAppSettings(),
           );

@@ -22,13 +22,14 @@ void main() {
       expect(startupRelaysFromSaved(null), isNull);
     });
 
-    test('a saved empty list is respected, not turned into defaults', () {
-      // AppSettings.relays defaults to [], so "deliberately none" is only
-      // distinguishable from "never configured" by the settings existing.
-      // Negative control: `relays.isNotEmpty ? relays : defaults` sends the
-      // user to the public relays here.
+    test('a saved empty list means never configured, so defaults apply', () {
+      // The first start persists AppSettings.defaultSettings() with
+      // relays: [] before any login, so an empty saved list cannot mean
+      // "deliberately none". Negative control: treating it as a configured
+      // list initialised the client with no relay at all after a fresh
+      // install ("no relays specified" on the Amber login path).
       final settings = AppSettings.defaultSettings().copyWith(relays: const []);
-      expect(startupRelaysFromSaved(settings), isEmpty);
+      expect(startupRelaysFromSaved(settings), isNull);
     });
   });
 

@@ -393,7 +393,8 @@ class _LoginScreenState extends State<LoginScreen> {
             // リレー接続は非同期でバックグラウンド実行
             // Relays come from the persisted settings when they exist (e.g.
             // a re-login after a reinstall that kept the data); null means
-            // first start and the service applies the defaults (issue #193).
+            // no relay was ever saved and the service applies the defaults
+            // (issue #193).
             await nostrService.initializeNostrWithPubkey(
               publicKeyHex: publicKeyHex,
               relays: startupRelaysFromSaved(
@@ -663,7 +664,8 @@ class _LoginScreenState extends State<LoginScreen> {
       
       // Nostrクライアントを初期化（リレー接続は非同期でバックグラウンド実行）
       // Relays come from the persisted settings when they exist; null means
-      // first start and the service applies the defaults (issue #193).
+      // no relay was ever saved and the service applies the defaults
+      // (issue #193).
       final publicKeyHex = await nostrService.initializeNostr(
         secretKey: keypair.privateKeyNsec,
         relays: startupRelaysFromSaved(

@@ -575,7 +575,7 @@ class _SecretKeyManagementScreenState
       // Initialise from the persisted settings, not from the in-memory relay
       // status map: that map is empty on a cold start, and falling back to
       // the public defaults here is how a user's own relay got replaced
-      // (issue #193). Null means settings were never saved: first start.
+      // (issue #193). Null means no relay was ever saved: first start.
       final relayList = startupRelaysFromSaved(
         await localStorageService.loadAppSettings(),
       );
@@ -591,7 +591,7 @@ class _SecretKeyManagementScreenState
       );
 
       if (relayList == null) {
-        // 初回起動（設定未保存）: デフォルトリレーを使用
+        // 初回起動（リレー未保存）: デフォルトリレーを使用
         await nostrService.initializeNostr(
           secretKey: secretKey,
           proxyUrl: proxyUrl,

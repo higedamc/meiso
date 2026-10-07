@@ -43,13 +43,15 @@ List<String> resolveSyncedRelays({
 ///
 /// The client used to be initialised from the in-memory relay status map,
 /// which is empty on a cold start, so it fell back to the public defaults
-/// even though the user had saved their own relay. Returns `null` only when
-/// no [AppSettings] were ever saved (first start, the caller applies the
-/// defaults); a saved list is respected as it is, including an empty one.
-/// `AppSettings.relays` defaults to `[]`, so "never configured" and
-/// "deliberately none" can only be told apart by whether settings exist.
+/// even though the user had saved their own relay. Returns the saved list
+/// whenever it names at least one relay. Returns `null` when no
+/// [AppSettings] were ever saved or the saved list is empty, and the caller
+/// applies the defaults: the first start persists
+/// `AppSettings.defaultSettings()` with `relays: []` before any login, so an
+/// empty saved list is the "never configured" state, not a deliberate
+/// "no relays".
 List<String>? startupRelaysFromSaved(AppSettings? saved) {
-  if (saved == null) {
+  if (saved == null || saved.relays.isEmpty) {
     return null;
   }
   return List<String>.from(saved.relays);
