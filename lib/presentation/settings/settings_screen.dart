@@ -213,25 +213,6 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: 24),
 
-          // Amberモード情報
-          if (isAmberMode)
-            _infoCard(
-              context,
-              icon: Icons.security,
-              title: l10n.amberModeTitle,
-              body: l10n.amberModeInfo,
-            ),
-          if (isAmberMode) const SizedBox(height: 16),
-
-          // 注意事項
-          _infoCard(
-            context,
-            icon: Icons.info_outline,
-            title: l10n.autoSyncInfoTitle,
-            body: l10n.autoSyncInfo,
-          ),
-          const SizedBox(height: 24),
-
           // Advanced セクション（MLS機能を格納）
           if (isNostrInitialized) ...[
             _sectionHeader(context, l10n.advancedSectionTitle),
@@ -429,54 +410,6 @@ class SettingsScreen extends ConsumerWidget {
       indent: 16,
       endIndent: 16,
       color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-    );
-  }
-
-  Widget _infoCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String body,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.sectionCardColor(context),
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 20, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              body,
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

@@ -22,6 +22,7 @@ import '../../providers/todos_provider.dart';
 
 import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
+import 'widgets/settings_info_card.dart';
 
 class SecretKeyManagementScreen extends ConsumerStatefulWidget {
   const SecretKeyManagementScreen({super.key});
@@ -196,7 +197,7 @@ class _SecretKeyManagementScreenState
                   '• 安全な場所にバックアップしてください',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade700,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     height: 1.5,
                   ),
                 ),
@@ -213,9 +214,11 @@ class _SecretKeyManagementScreenState
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: AppTheme.sectionCardColor(context),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                   child: SelectableText(
                     nsec,
@@ -845,10 +848,10 @@ class _SecretKeyManagementScreenState
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: AppTheme.darkPurple,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
@@ -930,7 +933,9 @@ class _SecretKeyManagementScreenState
                                               .textTheme
                                               .bodySmall
                                               ?.copyWith(
-                                                color: Colors.grey,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
                                               ),
                                         ),
                                         Row(
@@ -1092,40 +1097,10 @@ class _SecretKeyManagementScreenState
 
                   // Amberモード情報
                   if (isAmberMode)
-                    Card(
-                      color: AppTheme.primaryPurple.withOpacity(0.1),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.security,
-                                  color: AppTheme.primaryPurple,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  l10n.amberMode,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.darkPurple,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.amberModeInfo,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.darkPurple,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    SettingsInfoCard(
+                      icon: Icons.security,
+                      title: l10n.amberModeTitle,
+                      body: l10n.amberModeInfo,
                     ),
                   if (isAmberMode) const SizedBox(height: 16),
 
@@ -1147,51 +1122,25 @@ class _SecretKeyManagementScreenState
 
                   // 注意事項（Amberモードでは非表示）
                   if (!isAmberMode) ...[
-                    Card(
-                      color: AppTheme.primaryPurple.withOpacity(0.1),
-                      child: const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.info, color: AppTheme.primaryPurple),
-                                SizedBox(width: 8),
-                                Text(
-                                  '重要',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.darkPurple,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '• 秘密鍵はパスワードで暗号化されて保存されます\n'
-                              '• パスワードと秘密鍵は安全に保管してください\n'
-                              '• パスワードを忘れると秘密鍵を復元できません\n'
-                              '• 秘密鍵を保存すると自動的にリレーに接続します\n'
-                              '• タスクの変更は自動的にリレーに同期されます\n\n'
-                              '対応形式:\n'
-                              '  • nsec形式: nsec1... (Bech32エンコード)\n'
-                              '  • hex形式: 64文字の16進数',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.darkPurple,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    const SettingsInfoCard(
+                      icon: Icons.info,
+                      title: '重要',
+                      body:
+                          '• 秘密鍵はパスワードで暗号化されて保存されます\n'
+                          '• パスワードと秘密鍵は安全に保管してください\n'
+                          '• パスワードを忘れると秘密鍵を復元できません\n'
+                          '• 秘密鍵を保存すると自動的にリレーに接続します\n'
+                          '• タスクの変更は自動的にリレーに同期されます\n\n'
+                          '対応形式:\n'
+                          '  • nsec形式: nsec1... (Bech32エンコード)\n'
+                          '  • hex形式: 64文字の16進数',
                     ),
                     const SizedBox(height: 16),
                   ],
 
                   // 使用している暗号技術
                   Card(
-                    color: Colors.white,
+                    color: AppTheme.sectionCardColor(context),
                     elevation: 2,
                     child: InkWell(
                       onTap: () =>
@@ -1222,17 +1171,17 @@ class _SecretKeyManagementScreenState
                                 Expanded(
                                   child: Text(
                                     l10n.cryptographyInUse,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
-                                      color: AppTheme.darkPurple,
+                                      color: Theme.of(context).colorScheme.primary,
                                     ),
                                   ),
                                 ),
                                 Icon(
                                   Icons.arrow_forward_ios,
                                   size: 16,
-                                  color: Colors.grey.shade600,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
                               ],
                             ),
@@ -1241,7 +1190,7 @@ class _SecretKeyManagementScreenState
                               l10n.cryptographyDetailsDescription,
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Colors.grey.shade700,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 height: 1.4,
                               ),
                             ),
