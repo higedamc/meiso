@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/bridge_generated.dart/api.dart' show RelayListSyncStatus;
+import 'package:meiso/models/app_settings.dart';
 import 'package:meiso/utils/relay_list_sync_guard.dart';
 
 /// Issue #193: a user's own relay must not be replaced by the public
@@ -7,6 +8,29 @@ import 'package:meiso/utils/relay_list_sync_guard.dart';
 /// with the same input.
 void main() {
   const saved = ['ws://10.0.2.2:10547'];
+
+  group('startupRelaysFromSaved (cold start)', () {
+    test('a saved single relay is used, not the defaults', () {
+      // Negative control: the old code read the in-memory relay status map,
+      // which is empty on a cold start, and initialised the client with the
+      // public defaults.
+      final settings = AppSettings.defaultSettings().copyWith(relays: saved);
+      expect(startupRelaysFromSaved(settings), saved);
+    });
+
+    test('no saved settings at all means defaults (first start)', () {
+      expect(startupRelaysFromSaved(null), isNull);
+    });
+
+    test('a saved empty list is respected, not turned into defaults', () {
+      // AppSettings.relays defaults to [], so "deliberately none" is only
+      // distinguishable from "never configured" by the settings existing.
+      // Negative control: `relays.isNotEmpty ? relays : defaults` sends the
+      // user to the public relays here.
+      final settings = AppSettings.defaultSettings().copyWith(relays: const []);
+      expect(startupRelaysFromSaved(settings), isEmpty);
+    });
+  });
 
   group('resolveSyncedRelays (kind 10002 applied to the saved list)', () {
     test('an unreachable relay keeps the saved list', () {

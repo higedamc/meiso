@@ -22,6 +22,7 @@ import 'sync_status_provider.dart';
 import 'relay_status_provider.dart';
 import '../utils/error_handler.dart';
 import '../utils/nostr_relay_user_agent.dart';
+import '../utils/relay_list_sync_guard.dart';
 
 /// デフォルトのNostrリレーリスト
 const List<String> defaultRelays = [
@@ -673,9 +674,10 @@ class NostrService {
     final localRelays = relaySplit.$1;
     final globalRelays = relaySplit.$2;
 
-    final primaryRelays = globalRelays.isNotEmpty
-        ? globalRelays
-        : defaultRelays;
+    // _resolveRelaySplit already applies the defaults when no settings were
+    // ever saved; a saved list with no global relay is respected as it is
+    // rather than silently sending to the public defaults (issue #193).
+    final primaryRelays = globalRelays;
 
     final globalSend = await rust_api.sendSignedEventToRelays(
       eventJson: signedEventJson,
@@ -855,9 +857,9 @@ class NostrService {
 
   Future<(List<String>, List<String>)> _resolveRelaySplit() async {
     final settings = await localStorageService.loadAppSettings();
-    final relays = settings?.relays.isNotEmpty == true
-        ? settings!.relays
-        : defaultRelays;
+    // Defaults only when settings were never saved (first start); a saved
+    // list is respected even when it is empty (issue #193).
+    final relays = startupRelaysFromSaved(settings) ?? defaultRelays;
     final roleMap = localStorageService.loadRelayRoles();
 
     final local = <String>[];

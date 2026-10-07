@@ -22,6 +22,7 @@ import '../../providers/todos_provider.dart';
 
 import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
+import '../../utils/relay_list_sync_guard.dart';
 import 'widgets/settings_info_card.dart';
 
 /// Auto-detected format of the text in the secret key input field.
@@ -571,7 +572,13 @@ class _SecretKeyManagementScreenState
 
     try {
       final nostrService = ref.read(nostrServiceProvider);
-      final relayList = ref.read(relayStatusProvider).keys.toList();
+      // Initialise from the persisted settings, not from the in-memory relay
+      // status map: that map is empty on a cold start, and falling back to
+      // the public defaults here is how a user's own relay got replaced
+      // (issue #193). Null means settings were never saved: first start.
+      final relayList = startupRelaysFromSaved(
+        await localStorageService.loadAppSettings(),
+      );
 
       // アプリ設定からTor/プロキシ設定を取得
       final appSettingsAsync = ref.read(appSettingsProvider);
@@ -583,8 +590,8 @@ class _SecretKeyManagementScreenState
         orElse: () => null,
       );
 
-      if (relayList.isEmpty) {
-        // デフォルトリレーを使用
+      if (relayList == null) {
+        // 初回起動（設定未保存）: デフォルトリレーを使用
         await nostrService.initializeNostr(
           secretKey: secretKey,
           proxyUrl: proxyUrl,
