@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use flutter_rust_bridge::frb;
 use chrono::{DateTime as ChronoDateTime, NaiveDate, NaiveDateTime};
 use nostr_sdk::nips::nip44; // NIP-44暗号化を明示的にインポート
 use nostr_sdk::prelude::*;
@@ -1731,6 +1732,11 @@ static SESSION_STATE_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
 /// `receive_subscription_events` がポーリング毎に drain する。
 /// Dart 側は subscription_id でディスパッチ + event_id で dedupe するため、
 /// 複数クライアントのイベントが混在しても問題ない。
+///
+/// `#[frb(ignore)]` is required: flutter_rust_bridge otherwise picks up the
+/// `Default` impl of this private type and emits a `SubscriptionEventQueue_default`
+/// binding that does not compile (the type is not `pub`).
+#[frb(ignore)]
 struct SubscriptionEventQueue {
     events: std::collections::VecDeque<ReceivedEvent>,
     total_bytes: usize,
