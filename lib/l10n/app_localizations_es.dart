@@ -1144,20 +1144,20 @@ class AppLocalizationsEs extends AppLocalizations {
       '• Actualmente conectado a través de Tor (usando proxy Orbot)';
 
   @override
-  String get localRelayCitrine => 'Local Relay (Citrine)';
+  String get localRelayCitrine => 'Relay Local (Citrine)';
 
   @override
   String get localRelayDescription =>
-      'A local relay running on your device for fast caching and offline support. Events are mirrored here after successful global sync.';
+      'Un relay local que se ejecuta en tu dispositivo para almacenamiento en caché rápido y soporte sin conexión. Los eventos se reflejan aquí después de una sincronización global exitosa.';
 
   @override
-  String get localRelayEnabled => 'Enabled';
+  String get localRelayEnabled => 'Habilitado';
 
   @override
-  String get localRelayUrl => 'Local relay URL';
+  String get localRelayUrl => 'URL del relay local';
 
   @override
-  String get globalRelays => 'Global Relays';
+  String get globalRelays => 'Relays Globales';
 
   @override
   String get cryptoArchPara1 =>

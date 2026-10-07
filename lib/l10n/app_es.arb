@@ -661,7 +661,17 @@
   "aboutRelaysDescription": "• Los relays son servidores en la red Nostr\n• Conectarse a múltiples relays mejora la redundancia\n• Las URLs de relay deben comenzar con wss:// o ws://\n• Agregar/eliminar relays se guarda inmediatamente en Nostr (Kind 10002)\n• Los cambios de relay toman efecto inmediatamente (no requiere reinicio)\n• Use el botón \"Sincronizar desde Nostr\" para obtener configuraciones de otros dispositivos\n• Durante la sincronización, solo actualiza si remoto y local difieren",
   
   "currentlyConnectedViaTor": "• Actualmente conectado a través de Tor (usando proxy Orbot)",
-  
+
+  "localRelayCitrine": "Relay Local (Citrine)",
+
+  "localRelayDescription": "Un relay local que se ejecuta en tu dispositivo para almacenamiento en caché rápido y soporte sin conexión. Los eventos se reflejan aquí después de una sincronización global exitosa.",
+
+  "localRelayEnabled": "Habilitado",
+
+  "localRelayUrl": "URL del relay local",
+
+  "globalRelays": "Relays Globales",
+
   "cryptoArchPara1": "Meiso adopta una \"Arquitectura de Conocimiento Cero\" y nunca envía sus claves secretas o datos de tareas a servidores. Todo el procesamiento de cifrado se realiza en su dispositivo.",
   
   "cryptoArchSecurityModel": "Modelo de Seguridad:\n• Cifrado de Extremo a Extremo (E2EE)\n• Cifrado del lado del cliente\n• El servidor almacena solo datos cifrados\n• Solo usted posee las claves secretas",
