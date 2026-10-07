@@ -1660,6 +1660,150 @@ abstract class AppLocalizations {
   /// **'Secret Key (nsec)'**
   String get secretKeyNsecLabel;
 
+  /// Generic label for the secret key, used as a TextField label and as a clipboard-copy item name
+  ///
+  /// In en, this message translates to:
+  /// **'Secret Key'**
+  String get secretKeyLabel;
+
+  /// Field label with trailing colon in the nsec reveal dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Secret Key:'**
+  String get secretKeyColonLabel;
+
+  /// Title of the warning box in the nsec reveal dialog
+  ///
+  /// In en, this message translates to:
+  /// **'⚠️ Important Notes'**
+  String get secretKeyNsecWarningTitle;
+
+  /// Body of the warning box in the nsec reveal dialog
+  ///
+  /// In en, this message translates to:
+  /// **'• Never show your secret key to anyone else\n• Screenshots are not recommended\n• You cannot recover your account if you lose your secret key\n• Please back it up in a safe place'**
+  String get secretKeyNsecWarningBody;
+
+  /// Detected-format label for a well-formed nsec key
+  ///
+  /// In en, this message translates to:
+  /// **'nsec (Bech32)'**
+  String get secretKeyFormatNsecValid;
+
+  /// Detected-format label for a too-short nsec key
+  ///
+  /// In en, this message translates to:
+  /// **'nsec (incomplete)'**
+  String get secretKeyFormatNsecIncomplete;
+
+  /// Detected-format label for a well-formed 64-char hex key
+  ///
+  /// In en, this message translates to:
+  /// **'hex (64 chars)'**
+  String get secretKeyFormatHexComplete;
+
+  /// Detected-format label for an in-progress hex key
+  ///
+  /// In en, this message translates to:
+  /// **'hex ({count}/64 chars)'**
+  String secretKeyFormatHexProgress(int count);
+
+  /// Validation error when the secret key field is empty
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a secret key'**
+  String get secretKeyValidatorEmpty;
+
+  /// Validation error for a too-short nsec key
+  ///
+  /// In en, this message translates to:
+  /// **'nsec format requires at least 63 characters'**
+  String get secretKeyValidatorNsecLength;
+
+  /// Validation error for a hex key with the wrong length
+  ///
+  /// In en, this message translates to:
+  /// **'hex format must be 64 characters (currently {count} characters)'**
+  String secretKeyValidatorHexLength(int count);
+
+  /// Validation error when the key matches neither nsec nor hex format
+  ///
+  /// In en, this message translates to:
+  /// **'Secret key must be in nsec format (nsec1...) or hex format (64 hex characters)'**
+  String get secretKeyValidatorFormat;
+
+  /// Message of the dialog asking the user to set a password for a new secret key
+  ///
+  /// In en, this message translates to:
+  /// **'Please set a password to encrypt your new secret key.\n(8+ characters recommended)'**
+  String get secretKeySetPasswordMessage;
+
+  /// Success message after generating and saving a new secret key
+  ///
+  /// In en, this message translates to:
+  /// **'Generated and saved new secret key with encryption'**
+  String get secretKeyGenerateSuccess;
+
+  /// Truncated public key display, hex is already truncated by the caller
+  ///
+  /// In en, this message translates to:
+  /// **'Public key: {hex}...'**
+  String publicKeyHexPrefix(String hex);
+
+  /// Hint text for the secret key input field
+  ///
+  /// In en, this message translates to:
+  /// **'nsec1... or 64-char hex'**
+  String get secretKeyHint;
+
+  /// Helper text showing the auto-detected key format
+  ///
+  /// In en, this message translates to:
+  /// **'Detected: {format}'**
+  String secretKeyDetectedFormat(String format);
+
+  /// Helper text shown when the field holds the encrypted placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the eye icon to show secret key'**
+  String get secretKeyTapEyeToShow;
+
+  /// Default helper text for the secret key input field
+  ///
+  /// In en, this message translates to:
+  /// **'Enter secret key in nsec or hex format'**
+  String get secretKeyEnterFormat;
+
+  /// Tooltip for the visibility toggle when the field holds the encrypted placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Decrypt and show secret key'**
+  String get secretKeyDecryptToShow;
+
+  /// Tooltip for the visibility toggle when the key is currently hidden
+  ///
+  /// In en, this message translates to:
+  /// **'Show secret key'**
+  String get secretKeyShow;
+
+  /// Tooltip for the visibility toggle when the key is currently shown
+  ///
+  /// In en, this message translates to:
+  /// **'Hide secret key'**
+  String get secretKeyHide;
+
+  /// Generic title for an important-notice card
+  ///
+  /// In en, this message translates to:
+  /// **'Important'**
+  String get importantTitle;
+
+  /// Body of the Important info card on the Secret Key Management screen
+  ///
+  /// In en, this message translates to:
+  /// **'• Secret key is encrypted with your password before being saved\n• Keep your password and secret key safe\n• If you forget your password, your secret key cannot be recovered\n• Saving the secret key automatically connects to the relay\n• Task changes are automatically synced to the relay\n\nSupported formats:\n  • nsec format: nsec1... (Bech32-encoded)\n  • hex format: 64-character hex'**
+  String get secretKeyImportantInfo;
+
   /// Message when text is copied
   ///
   /// In en, this message translates to:

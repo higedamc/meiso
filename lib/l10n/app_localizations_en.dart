@@ -874,6 +874,92 @@ class AppLocalizationsEn extends AppLocalizations {
   String get secretKeyNsecLabel => 'Secret Key (nsec)';
 
   @override
+  String get secretKeyLabel => 'Secret Key';
+
+  @override
+  String get secretKeyColonLabel => 'Secret Key:';
+
+  @override
+  String get secretKeyNsecWarningTitle => '⚠️ Important Notes';
+
+  @override
+  String get secretKeyNsecWarningBody =>
+      '• Never show your secret key to anyone else\n• Screenshots are not recommended\n• You cannot recover your account if you lose your secret key\n• Please back it up in a safe place';
+
+  @override
+  String get secretKeyFormatNsecValid => 'nsec (Bech32)';
+
+  @override
+  String get secretKeyFormatNsecIncomplete => 'nsec (incomplete)';
+
+  @override
+  String get secretKeyFormatHexComplete => 'hex (64 chars)';
+
+  @override
+  String secretKeyFormatHexProgress(int count) {
+    return 'hex ($count/64 chars)';
+  }
+
+  @override
+  String get secretKeyValidatorEmpty => 'Please enter a secret key';
+
+  @override
+  String get secretKeyValidatorNsecLength =>
+      'nsec format requires at least 63 characters';
+
+  @override
+  String secretKeyValidatorHexLength(int count) {
+    return 'hex format must be 64 characters (currently $count characters)';
+  }
+
+  @override
+  String get secretKeyValidatorFormat =>
+      'Secret key must be in nsec format (nsec1...) or hex format (64 hex characters)';
+
+  @override
+  String get secretKeySetPasswordMessage =>
+      'Please set a password to encrypt your new secret key.\n(8+ characters recommended)';
+
+  @override
+  String get secretKeyGenerateSuccess =>
+      'Generated and saved new secret key with encryption';
+
+  @override
+  String publicKeyHexPrefix(String hex) {
+    return 'Public key: $hex...';
+  }
+
+  @override
+  String get secretKeyHint => 'nsec1... or 64-char hex';
+
+  @override
+  String secretKeyDetectedFormat(String format) {
+    return 'Detected: $format';
+  }
+
+  @override
+  String get secretKeyTapEyeToShow => 'Tap the eye icon to show secret key';
+
+  @override
+  String get secretKeyEnterFormat => 'Enter secret key in nsec or hex format';
+
+  @override
+  String get secretKeyDecryptToShow => 'Decrypt and show secret key';
+
+  @override
+  String get secretKeyShow => 'Show secret key';
+
+  @override
+  String get secretKeyHide => 'Hide secret key';
+
+  @override
+  String get importantTitle => 'Important';
+
+  @override
+  String get secretKeyImportantInfo =>
+      '• Secret key is encrypted with your password before being saved\n• Keep your password and secret key safe\n• If you forget your password, your secret key cannot be recovered\n• Saving the secret key automatically connects to the relay\n• Task changes are automatically synced to the relay\n\nSupported formats:\n  • nsec format: nsec1... (Bech32-encoded)\n  • hex format: 64-character hex';
+
+  @override
   String copiedToClipboard(String label) {
     return '$label copied to clipboard';
   }

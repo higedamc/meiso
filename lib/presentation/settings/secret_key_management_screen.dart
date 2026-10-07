@@ -24,6 +24,33 @@ import '../../services/local_storage_service.dart';
 import '../../services/logger_service.dart';
 import 'widgets/settings_info_card.dart';
 
+/// Auto-detected format of the text in the secret key input field.
+///
+/// The display label and the "is this a usable key" color cue must both be
+/// derived from this enum rather than from the localized label text itself —
+/// otherwise translating the label breaks the color logic in non-English
+/// locales.
+enum _KeyFormat { nsecValid, nsecIncomplete, hexValid, hexPartial, unknown }
+
+String _keyFormatLabel(
+  AppLocalizations l10n,
+  _KeyFormat format, {
+  int hexLength = 0,
+}) {
+  switch (format) {
+    case _KeyFormat.nsecValid:
+      return l10n.secretKeyFormatNsecValid;
+    case _KeyFormat.nsecIncomplete:
+      return l10n.secretKeyFormatNsecIncomplete;
+    case _KeyFormat.hexValid:
+      return l10n.secretKeyFormatHexComplete;
+    case _KeyFormat.hexPartial:
+      return l10n.secretKeyFormatHexProgress(hexLength);
+    case _KeyFormat.unknown:
+      return l10n.formatUnknown;
+  }
+}
+
 class SecretKeyManagementScreen extends ConsumerStatefulWidget {
   const SecretKeyManagementScreen({super.key});
 
@@ -39,7 +66,8 @@ class _SecretKeyManagementScreenState
   bool _obscureSecretKey = true;
   String? _errorMessage;
   String? _successMessage;
-  String? _detectedKeyFormat; // 検出されたフォーマット (nsec/hex)
+  _KeyFormat? _detectedKeyFormatKind; // 検出されたフォーマット (nsec/hex)
+  int _detectedHexLength = 0; // _detectedKeyFormatKind == hexPartial の場合のみ有効
   bool _hasEncryptedKey = false; // 暗号化された秘密鍵が存在するか
   late final String _encryptedPlaceholder;
 
@@ -179,7 +207,7 @@ class _SecretKeyManagementScreenState
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '⚠️ 重要な注意事項',
+                          l10n.secretKeyNsecWarningTitle,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.orange.shade900,
@@ -191,10 +219,7 @@ class _SecretKeyManagementScreenState
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '• 秘密鍵は絶対に他人に見せないでください\n'
-                  '• スクリーンショットは推奨しません\n'
-                  '• 秘密鍵を失うとアカウントを復元できません\n'
-                  '• 安全な場所にバックアップしてください',
+                  l10n.secretKeyNsecWarningBody,
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -202,9 +227,9 @@ class _SecretKeyManagementScreenState
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '秘密鍵:',
-                  style: TextStyle(
+                Text(
+                  l10n.secretKeyColonLabel,
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -234,7 +259,7 @@ class _SecretKeyManagementScreenState
           actions: [
             TextButton.icon(
               onPressed: () {
-                _copyToClipboard(nsec, '秘密鍵');
+                _copyToClipboard(nsec, l10n.secretKeyLabel);
               },
               icon: const Icon(Icons.copy),
               label: Text(l10n.copyButton),
@@ -312,68 +337,71 @@ class _SecretKeyManagementScreenState
 
     // 暗号化プレースホルダーの場合はスキップ
     if (key == _encryptedPlaceholder) {
-      if (_detectedKeyFormat != null) {
+      if (_detectedKeyFormatKind != null) {
         setState(() {
-          _detectedKeyFormat = null;
+          _detectedKeyFormatKind = null;
         });
       }
       return;
     }
 
     if (key.isEmpty) {
-      if (_detectedKeyFormat != null) {
+      if (_detectedKeyFormatKind != null) {
         setState(() {
-          _detectedKeyFormat = null;
+          _detectedKeyFormatKind = null;
         });
       }
       return;
     }
 
-    String? newFormat;
+    _KeyFormat newFormat;
+    var newHexLength = 0;
 
     if (key.startsWith('nsec1')) {
       // Bech32形式 (nsec)
-      if (key.length >= 63) {
-        newFormat = 'nsec (Bech32)';
-      } else {
-        newFormat = 'nsec (不完全)';
-      }
+      newFormat = key.length >= 63
+          ? _KeyFormat.nsecValid
+          : _KeyFormat.nsecIncomplete;
     } else if (RegExp(r'^[0-9a-fA-F]+$').hasMatch(key)) {
       // Hex形式
       if (key.length == 64) {
-        newFormat = 'hex (64文字)';
+        newFormat = _KeyFormat.hexValid;
       } else {
-        newFormat = 'hex (${key.length}/64文字)';
+        newFormat = _KeyFormat.hexPartial;
+        newHexLength = key.length;
       }
     } else {
-      newFormat = '不明な形式';
+      newFormat = _KeyFormat.unknown;
     }
 
-    if (_detectedKeyFormat != newFormat) {
+    if (_detectedKeyFormatKind != newFormat ||
+        _detectedHexLength != newHexLength) {
       setState(() {
-        _detectedKeyFormat = newFormat;
+        _detectedKeyFormatKind = newFormat;
+        _detectedHexLength = newHexLength;
       });
     }
   }
 
   /// 秘密鍵のバリデーション
   String? _validateSecretKey(String key) {
+    final l10n = AppLocalizations.of(context);
     if (key.isEmpty) {
-      return '秘密鍵を入力してください';
+      return l10n.secretKeyValidatorEmpty;
     }
 
     if (key.startsWith('nsec1')) {
       if (key.length < 63) {
-        return 'nsec形式は63文字以上必要です';
+        return l10n.secretKeyValidatorNsecLength;
       }
       return null;
     } else if (RegExp(r'^[0-9a-fA-F]+$').hasMatch(key)) {
       if (key.length != 64) {
-        return 'hex形式は64文字である必要があります（現在${key.length}文字）';
+        return l10n.secretKeyValidatorHexLength(key.length);
       }
       return null;
     } else {
-      return '秘密鍵はnsec形式（nsec1...）またはhex形式（64文字の16進数）である必要があります';
+      return l10n.secretKeyValidatorFormat;
     }
   }
 
@@ -382,8 +410,8 @@ class _SecretKeyManagementScreenState
 
     // パスワード入力
     final password = await _showPasswordDialog(
-      'パスワードを設定',
-      '新しい秘密鍵を暗号化するためのパスワードを設定してください。\n（8文字以上推奨）',
+      l10n.setPassword,
+      l10n.secretKeySetPasswordMessage,
     );
 
     if (password == null || password.isEmpty) return;
@@ -406,7 +434,7 @@ class _SecretKeyManagementScreenState
         _hasEncryptedKey = true;
         _secretKeyController.text = _encryptedPlaceholder;
         _obscureSecretKey = true;
-        _successMessage = '新しい秘密鍵を生成して暗号化保存しました';
+        _successMessage = l10n.secretKeyGenerateSuccess;
       });
 
       // 自動的にリレーに接続（newKeyを使用）
@@ -512,7 +540,13 @@ class _SecretKeyManagementScreenState
         _secretKeyController.text = _encryptedPlaceholder;
         _obscureSecretKey = true;
         _successMessage = l10n.secretKeyEncrypted(
-          _detectedKeyFormat ?? l10n.formatUnknown,
+          _detectedKeyFormatKind != null
+              ? _keyFormatLabel(
+                  l10n,
+                  _detectedKeyFormatKind!,
+                  hexLength: _detectedHexLength,
+                )
+              : l10n.formatUnknown,
         );
       });
 
@@ -933,9 +967,9 @@ class _SecretKeyManagementScreenState
                                               .textTheme
                                               .bodySmall
                                               ?.copyWith(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
                                               ),
                                         ),
                                         Row(
@@ -969,7 +1003,9 @@ class _SecretKeyManagementScreenState
                                       ],
                                     )
                                   : Text(
-                                      '公開鍵: ${publicKeyHex.substring(0, 16)}...',
+                                      l10n.publicKeyHexPrefix(
+                                        publicKeyHex.substring(0, 16),
+                                      ),
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodySmall,
@@ -982,7 +1018,9 @@ class _SecretKeyManagementScreenState
                                 ),
                               ),
                               error: (_, __) => Text(
-                                '公開鍵: ${publicKeyHex.substring(0, 16)}...',
+                                l10n.publicKeyHexPrefix(
+                                  publicKeyHex.substring(0, 16),
+                                ),
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ),
@@ -1020,7 +1058,7 @@ class _SecretKeyManagementScreenState
                   // 秘密鍵入力（Amberモードでは非表示）
                   if (!isAmberMode) ...[
                     Text(
-                      '秘密鍵',
+                      l10n.secretKeyLabel,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
@@ -1031,18 +1069,25 @@ class _SecretKeyManagementScreenState
                           _hasEncryptedKey &&
                           _secretKeyController.text == _encryptedPlaceholder,
                       decoration: InputDecoration(
-                        hintText: 'nsec1... または 64文字のhex',
-                        helperText: _detectedKeyFormat != null
-                            ? '検出: $_detectedKeyFormat'
+                        hintText: l10n.secretKeyHint,
+                        helperText: _detectedKeyFormatKind != null
+                            ? l10n.secretKeyDetectedFormat(
+                                _keyFormatLabel(
+                                  l10n,
+                                  _detectedKeyFormatKind!,
+                                  hexLength: _detectedHexLength,
+                                ),
+                              )
                             : (_hasEncryptedKey &&
                                       _secretKeyController.text ==
                                           _encryptedPlaceholder
-                                  ? '目のアイコンをタップして秘密鍵を表示'
-                                  : 'nsecまたはhex形式の秘密鍵を入力'),
+                                  ? l10n.secretKeyTapEyeToShow
+                                  : l10n.secretKeyEnterFormat),
                         helperStyle: TextStyle(
                           color:
-                              _detectedKeyFormat?.contains('不完全') == true ||
-                                  _detectedKeyFormat?.contains('不明') == true
+                              _detectedKeyFormatKind ==
+                                      _KeyFormat.nsecIncomplete ||
+                                  _detectedKeyFormatKind == _KeyFormat.unknown
                               ? Colors.orange.shade700
                               : Colors.green.shade700,
                           fontWeight: FontWeight.bold,
@@ -1059,8 +1104,10 @@ class _SecretKeyManagementScreenState
                               _hasEncryptedKey &&
                                   _secretKeyController.text ==
                                       _encryptedPlaceholder
-                              ? '秘密鍵を復号して表示'
-                              : (_obscureSecretKey ? '秘密鍵を表示' : '秘密鍵を非表示'),
+                              ? l10n.secretKeyDecryptToShow
+                              : (_obscureSecretKey
+                                    ? l10n.secretKeyShow
+                                    : l10n.secretKeyHide),
                         ),
                       ),
                       obscureText: _obscureSecretKey,
@@ -1122,18 +1169,10 @@ class _SecretKeyManagementScreenState
 
                   // 注意事項（Amberモードでは非表示）
                   if (!isAmberMode) ...[
-                    const SettingsInfoCard(
+                    SettingsInfoCard(
                       icon: Icons.info,
-                      title: '重要',
-                      body:
-                          '• 秘密鍵はパスワードで暗号化されて保存されます\n'
-                          '• パスワードと秘密鍵は安全に保管してください\n'
-                          '• パスワードを忘れると秘密鍵を復元できません\n'
-                          '• 秘密鍵を保存すると自動的にリレーに接続します\n'
-                          '• タスクの変更は自動的にリレーに同期されます\n\n'
-                          '対応形式:\n'
-                          '  • nsec形式: nsec1... (Bech32エンコード)\n'
-                          '  • hex形式: 64文字の16進数',
+                      title: l10n.importantTitle,
+                      body: l10n.secretKeyImportantInfo,
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -1174,14 +1213,18 @@ class _SecretKeyManagementScreenState
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
-                                      color: Theme.of(context).colorScheme.primary,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                     ),
                                   ),
                                 ),
                                 Icon(
                                   Icons.arrow_forward_ios,
                                   size: 16,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ],
                             ),
@@ -1190,7 +1233,9 @@ class _SecretKeyManagementScreenState
                               l10n.cryptographyDetailsDescription,
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 height: 1.4,
                               ),
                             ),

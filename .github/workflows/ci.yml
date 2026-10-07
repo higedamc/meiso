@@ -38,6 +38,26 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Check for untranslated l10n messages
+        # flutter pub get regenerates lib/l10n/app_localizations*.dart (generate: true
+        # in pubspec.yaml) and, per l10n.yaml's untranslated-messages-file, writes a
+        # map of locale -> untranslated keys. A translation gap in ja/es is otherwise
+        # silent: gen-l10n falls back to the template (en) string with no error and no
+        # runtime failure, so it can only be caught by reading this file.
+        run: |
+          FILE=build/untranslated_messages.json
+          if [ ! -f "$FILE" ]; then
+            echo "::error::$FILE was not generated; check l10n.yaml's untranslated-messages-file setting"
+            exit 1
+          fi
+          count=$(jq '[.[] | length] | add // 0' "$FILE")
+          echo "untranslated message count: $count"
+          if [ "$count" -ne 0 ]; then
+            echo "::error::$count untranslated l10n message(s) found, see below"
+            cat "$FILE"
+            exit 1
+          fi
+
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
