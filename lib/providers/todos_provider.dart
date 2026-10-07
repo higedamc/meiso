@@ -3255,6 +3255,16 @@ class TodosNotifier
             groupedTodos[listKey]!.add(todo);
           }
 
+          // Lists emptied by deleting their last task have no entry above;
+          // add them with an empty payload so the deletion is published.
+          for (final key in _emptiedListKeys(
+            presentKeys: groupedTodos.keys.toSet(),
+            groupListIds: groupListIds,
+          )) {
+            groupedTodos[key] = [];
+            AppLogger.info(' List "$key" was emptied locally - publishing it empty');
+          }
+
           AppLogger.debug(' Grouped todos into ${groupedTodos.length} lists');
           for (final entry in groupedTodos.entries) {
             final todoTitles = entry.value
@@ -3556,6 +3566,11 @@ class TodosNotifier
             final key = todo.customListId ?? 'default';
             groupedNonGroup.putIfAbsent(key, () => []).add(todo);
           }
+          // Lists emptied by deleting their last task have no entry above.
+          final emptiedKeys = _emptiedListKeys(
+            presentKeys: groupedNonGroup.keys.toSet(),
+            groupListIds: groupListIds,
+          );
 
           final changedTodos = <Todo>[];
           final pendingSignatures = <String, String>{};
@@ -3578,6 +3593,9 @@ class TodosNotifier
           for (final entry in groupedNonGroup.entries) {
             if (!pendingSignatures.containsKey('nsec:${entry.key}')) continue;
             publishCounts[entry.key] = entry.value.length;
+          }
+          for (final key in emptiedKeys) {
+            publishCounts[key] = 0;
           }
           _assertNoSuspiciousShrink(publishCounts, allowShrink: allowShrink);
 
@@ -3637,6 +3655,31 @@ class TodosNotifier
               AppLogger.error('❌❌ createTodoListOnNostr failed: $e');
               rethrow;
             }
+          }
+
+          // Emptied lists go out one event each. The baseline is set to 0
+          // only after the relay accepted the event, so a failed send is
+          // retried next time and a successful one is sent exactly once.
+          for (final key in emptiedKeys) {
+            AppLogger.info(' List "$key" was emptied locally - publishing it empty');
+            final result = await nostrService.publishEmptyTodoList(
+              listKey: key == 'default' ? null : key,
+            );
+            if (!result.success) {
+              AppLogger.warning(
+                ' Relay send of the emptied list "$key" did not succeed '
+                '(error: ${result.errorMessage}); it will be resent.',
+              );
+              throw Exception(
+                result.errorMessage ??
+                    'Relay send failed: no relay accepted the emptied list',
+              );
+            }
+            _publishedListSignatures['nsec:$key'] = _listContentSignature(
+              const [],
+              key,
+            );
+            await _recordKnownListTodoCounts({key: 0});
           }
         }
       } catch (e, stackTrace) {
@@ -3707,6 +3750,44 @@ class TodosNotifier
     } catch (e) {
       AppLogger.warning(' Failed to record known list todo counts: $e');
     }
+  }
+
+  /// Lists that were confirmed on the relays *with* todos but have no todos
+  /// now, i.e. lists whose last task was deleted locally. Publishing them
+  /// empty is what makes "delete the last task" reach other devices.
+  ///
+  /// An empty kind 30001 event wipes the relay copy of that list, so the
+  /// decision is deliberately narrow:
+  /// - the only source of "this list exists" is the persisted shrink
+  ///   baseline (`getKnownListTodoCounts`, written after a successful
+  ///   publish or fetch); keys are never synthesised from UI state or from
+  ///   the remote result, and a key with a recorded count of 0 was already
+  ///   published empty once;
+  /// - nothing is returned before a remote fetch succeeded this session
+  ///   (the same `_remoteFetchSucceeded` gate as the publish gate, not a
+  ///   second flag): until then the local state may simply be incomplete;
+  /// - group lists are never included, they publish elsewhere.
+  /// The caller records a count of 0 only after the send succeeded, so a
+  /// failed send is retried and a successful one is not repeated.
+  List<String> _emptiedListKeys({
+    required Set<String> presentKeys,
+    required Set<String> groupListIds,
+  }) {
+    if (!_remoteFetchSucceeded) return const [];
+    final Map<String, int> knownCounts;
+    try {
+      knownCounts = localStorageService.getKnownListTodoCounts();
+    } on Object catch (e) {
+      AppLogger.warning(' [Guard] Known list counts unavailable: $e');
+      return const [];
+    }
+    return [
+      for (final entry in knownCounts.entries)
+        if (entry.value > 0 &&
+            !presentKeys.contains(entry.key) &&
+            !groupListIds.contains(entry.key))
+          entry.key,
+    ];
   }
 
   /// Per-list counts of [todos], keyed the way the normal-mode publish groups

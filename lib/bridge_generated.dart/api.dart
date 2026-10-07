@@ -184,6 +184,15 @@ Future<List<DecryptedTodoList>> syncTodoListsSinceWithClientId({
   clientId: clientId,
 );
 
+/// Publish an emptied Todo list (Kind 30001 with an empty payload).
+///
+/// See `MeisoNostrClient::create_empty_todo_list` for the contract.
+Future<EventSendResult> createEmptyTodoList({String? listId}) =>
+    RustLib.instance.api.crateApiCreateEmptyTodoList(listId: listId);
+
+Future<EventSendResult> createEmptyTodoListWithClientId({String? listId, String? clientId}) =>
+    RustLib.instance.api.crateApiCreateEmptyTodoListWithClientId(listId: listId, clientId: clientId);
+
 /// Todoリストを作成（Kind 30001）
 Future<EventSendResult> createTodoList({required List<TodoData> todos}) =>
     RustLib.instance.api.crateApiCreateTodoList(todos: todos);
@@ -1284,6 +1293,18 @@ Future<String> createUnsignedNip98AuthEvent({
 abstract class MeisoNostrClient implements RustOpaqueInterface {
   /// アプリ設定をNostrイベントとして作成（Kind 30078 - NIP-78）
   Future<EventSendResult> createAppSettings({required AppSettings settings});
+
+  /// Publish one kind 30001 list event whose payload is an empty array.
+  ///
+  /// `create_todo_list` groups the todos it is given, so a list that has no
+  /// todos left never produces an event and "delete the last task" never
+  /// reaches other devices. The Dart side decides *which* emptied lists
+  /// may be published (only lists that were confirmed on the relays with
+  /// todos, only after a successful fetch this session); this function just
+  /// builds and sends the event. `list_id` is the normalised list key
+  /// (`None` = default list), the same value `TodoData::custom_list_id`
+  /// carries.
+  Future<EventSendResult> createEmptyTodoList({String? listId});
 
   /// TodoリストをNostrイベントとして作成（Kind 30001 - NIP-51 Bookmark List）
   /// リストごとに個別のイベントを作成

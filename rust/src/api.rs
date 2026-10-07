@@ -992,6 +992,66 @@ impl MeisoNostrClient {
         last_result.ok_or_else(|| anyhow::anyhow!("No lists to send"))
     }
 
+    /// Publish one kind 30001 list event whose payload is an empty array.
+    ///
+    /// `create_todo_list` groups the todos it is given, so a list that has no
+    /// todos left never produces an event and "delete the last task" never
+    /// reaches other devices. The Dart side decides *which* emptied lists
+    /// may be published (only lists that were confirmed on the relays with
+    /// todos, only after a successful fetch this session); this function just
+    /// builds and sends the event. `list_id` is the normalised list key
+    /// (`None` = default list), the same value `TodoData::custom_list_id`
+    /// carries.
+    pub async fn create_empty_todo_list(
+        &self,
+        list_id: Option<String>,
+    ) -> Result<EventSendResult> {
+        if let ClientMode::Amber { .. } = self.mode {
+            return Err(anyhow::anyhow!(
+                "Cannot create TODO list in Amber mode. Use create_unsigned_encrypted_todo_list_event + Amber signing instead."
+            ));
+        }
+
+        let keys = self
+            .keys
+            .as_ref()
+            .context("Secret key required for TODO list creation")?;
+
+        let list_id = list_id.unwrap_or_else(|| "default".to_string());
+        let public_key = keys.public_key();
+        let encrypted_content =
+            nip44::encrypt(keys.secret_key(), &public_key, "[]", nip44::Version::V2)?;
+
+        let d_tag_value = if list_id == "default" {
+            "meiso-todos".to_string()
+        } else {
+            format!("meiso-list-{}", list_id)
+        };
+        let title_value = if list_id == "default" {
+            "My TODO List".to_string()
+        } else {
+            format!("Custom List {}", list_id)
+        };
+        let d_tag = Tag::custom(
+            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::D)),
+            vec![d_tag_value.clone()],
+        );
+        let title_tag = Tag::custom(
+            TagKind::Custom(std::borrow::Cow::Borrowed("title")),
+            vec![title_value],
+        );
+
+        let event = EventBuilder::new(Kind::Custom(30001), encrypted_content)
+            .tags(crate::nostr_client_meta::merge_nip89_into_tags(vec![
+                d_tag, title_tag,
+            ]))
+            .sign(keys)
+            .await?;
+
+        dev_println!("📤 Sending empty TODO list event (d='{}')", d_tag_value);
+        self.send_event_with_result(event).await
+    }
+
     /// Todoをリストごとにグループ化
     fn group_todos_by_list(
         &self,
@@ -2227,6 +2287,23 @@ pub fn sync_todo_lists_since_with_client_id(
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.sync_todo_lists_since(since, timeout_secs).await
+    })
+}
+
+/// Publish an emptied Todo list (Kind 30001 with an empty payload).
+///
+/// See `MeisoNostrClient::create_empty_todo_list` for the contract.
+pub fn create_empty_todo_list(list_id: Option<String>) -> Result<EventSendResult> {
+    create_empty_todo_list_with_client_id(list_id, None)
+}
+
+pub fn create_empty_todo_list_with_client_id(
+    list_id: Option<String>,
+    client_id: Option<String>,
+) -> Result<EventSendResult> {
+    TOKIO_RUNTIME.block_on(async {
+        let client = get_client(client_id).await?;
+        client.create_empty_todo_list(list_id).await
     })
 }
 

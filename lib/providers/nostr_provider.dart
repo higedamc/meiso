@@ -479,6 +479,19 @@ class NostrService {
     return result;
   }
 
+  /// Publishes a kind 30001 event with an empty payload for one list
+  /// (normal mode). [listKey] is the normalised list id, null for the
+  /// default list. The caller is responsible for deciding that the list
+  /// really was emptied; this only builds and sends the event.
+  Future<rust_api.EventSendResult> publishEmptyTodoList({
+    String? listKey,
+  }) {
+    AppLogger.debug(
+      ' NostrProvider: publishEmptyTodoList called for ${listKey ?? 'default'}',
+    );
+    return rust_api.createEmptyTodoList(listId: listKey);
+  }
+
   /// NostrからTodoリストを同期（Kind 30001 - 新実装）
   Future<List<Todo>> syncTodoListFromNostr() async {
     AppLogger.debug(' NostrProvider: syncTodoListFromNostr called');

@@ -49,6 +49,9 @@ class _FakeNostrService implements NostrService {
   int fetchCalls = 0;
   final List<List<Todo>> sentBatches = [];
 
+  /// Lists published empty (normalised key, null = default list).
+  final List<String?> emptyListPublishes = [];
+
   @override
   Future<rust_api.EventSendResult> createTodoListOnNostr(
     List<Todo> todos,
@@ -57,6 +60,21 @@ class _FakeNostrService implements NostrService {
     sentBatches.add(List<Todo>.from(todos));
     return rust_api.EventSendResult(
       eventId: 'event-$createTodoListCalls',
+      success: sendSucceeds,
+      successfulRelays: BigInt.from(sendSucceeds ? 1 : 0),
+      failedRelays: BigInt.from(sendSucceeds ? 0 : 2),
+      timedOut: false,
+      errorMessage: sendSucceeds ? null : 'Send failed: all relays failed',
+    );
+  }
+
+  @override
+  Future<rust_api.EventSendResult> publishEmptyTodoList({
+    String? listKey,
+  }) async {
+    emptyListPublishes.add(listKey);
+    return rust_api.EventSendResult(
+      eventId: 'empty-${emptyListPublishes.length}',
       success: sendSucceeds,
       successfulRelays: BigInt.from(sendSucceeds ? 1 : 0),
       failedRelays: BigInt.from(sendSucceeds ? 0 : 2),
@@ -529,6 +547,69 @@ void main() {
       await Future.wait([first, second]);
 
       expect(service.fetchCalls, 1);
+      await settle();
+    });
+  });
+
+  group('emptied list publish', () {
+    test('deleting the last task publishes the list empty exactly once',
+        () async {
+      // The relays confirmed the default list with one task (fetch), then
+      // that task is deleted locally. The publish path has no todo left to
+      // group, so without this guard nothing is sent and the relay keeps
+      // the task forever (seen on device). Negative control: without the
+      // emptied-list step emptyListPublishes stays empty.
+      await seedLocal([_todo('task-alpha')]);
+      final service = _FakeNostrService()..remoteTodos = [_todo('task-alpha')];
+      final started = await startNotifier(service);
+      await started.notifier.syncFromNostr();
+
+      final alpha = findTodo(started.container, 'task-alpha')!;
+      await started.notifier.deleteTodo(alpha.id, alpha.date);
+      await pumpUntil(
+        () => service.emptyListPublishes.length == 1,
+        reason: 'the emptied default list was not published',
+      );
+      expect(service.emptyListPublishes.single, isNull);
+
+      // A later sync must not send it again: the baseline now says 0.
+      await started.notifier.manualSyncToNostr();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(service.emptyListPublishes.length, 1);
+      await settle();
+    });
+
+    test('no empty publish before a relay fetch succeeded this session',
+        () async {
+      // The persisted baseline says the default list has one task on the
+      // relays, the local store has no default-list task, and no fetch has
+      // succeeded yet: the local state may simply be incomplete. A manual
+      // sync bypasses the publish gate for the lists it has todos for, but
+      // must not publish the default list empty. Negative control: with
+      // the `_remoteFetchSucceeded` check removed from the emptied-list
+      // step this manual sync sends the empty list and wipes the relay.
+      await localStorageService.initialize();
+      await localStorageService.setKnownListTodoCounts({'default': 1});
+      await localStorageService.saveTodos([
+        _todo('task-work', customListId: 'work'),
+      ]);
+      final service = _FakeNostrService()
+        ..fetchError = Exception('relay unreachable');
+      final started = await startNotifier(service);
+
+      await started.notifier.manualSyncToNostr();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(
+        service.emptyListPublishes,
+        isEmpty,
+        reason: 'no fetch succeeded, so the emptied list must not be sent',
+      );
+      expect(
+        service.createTodoListCalls,
+        1,
+        reason: 'the manual sync itself still publishes the list it has',
+      );
       await settle();
     });
   });
