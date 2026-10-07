@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The settings screen is tidier.** The Amber-mode and auto-sync explanations have moved from the top-level settings list into the screens they describe. (#183)
 
-- **Secret Key Management is translated.** 38 strings that were hard-coded in Japanese now follow the selected language, in English, Japanese and Spanish. A missing translation now fails the build rather than silently falling back to English. (#189)
+- **Secret Key Management is translated.** Every user-facing string on the screen was hard-coded in Japanese and now follows the selected language, in English, Japanese and Spanish. A missing translation now fails the build rather than silently falling back to English. (#189)
 
 ## [1.4.1] - 2026-10-06
 
