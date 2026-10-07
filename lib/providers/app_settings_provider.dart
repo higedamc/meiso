@@ -8,6 +8,7 @@ import '../services/amber_service.dart';
 import '../services/logger_service.dart';
 import 'nostr_provider.dart';
 import '../bridge_generated.dart/api.dart' as bridge;
+import '../utils/relay_list_sync_guard.dart';
 
 /// TorMode をパースするヘルパー関数（Flutter AppSettings 用）
 TorMode _parseTorMode(dynamic value) {
@@ -654,15 +655,25 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           syncedRelays = List<String>.from(settingsMap['relays'] as List);
         }
         
-        // Kind 10002からリレーリストを同期（利用可能な場合）
+        // Kind 10002からリレーリストを同期（利用可能な場合）。
+        // The saved list is replaced only when the account's own kind 10002
+        // was actually read (issue #193): an unreachable relay or a missing
+        // event must not turn a user's own relay into the public defaults.
         try {
-          final kind10002Relays = await bridge.syncRelayList();
-          if (kind10002Relays.isNotEmpty) {
-            syncedRelays = kind10002Relays;
-            AppLogger.info(' Kind 10002からリレーリスト同期: ${syncedRelays.length}件');
-          }
+          final relaySync = await bridge.syncRelayListStatus();
+          syncedRelays = resolveSyncedRelays(
+            status: relaySync.status,
+            remoteRelays: relaySync.relays,
+            savedRelays: state.valueOrNull?.relays ?? syncedRelays,
+          );
+          AppLogger.info(
+            ' Kind 10002 relay list: ${relaySync.status.name} '
+            '(${relaySync.relays.length} remote) '
+            '-> keeping ${syncedRelays.length}',
+          );
         } catch (e) {
           AppLogger.warning(' Kind 10002同期失敗、設定内のリレーを使用: $e');
+          syncedRelays = state.valueOrNull?.relays ?? syncedRelays;
         }
         
         final syncedSettings = AppSettings(
@@ -715,15 +726,27 @@ class AppSettingsNotifier extends StateNotifier<AsyncValue<AppSettings>> {
           return;
         }
         
-        // リレーリストを別途同期（NIP-65 Kind 10002）
-        var syncedRelays = <String>[];
+        // リレーリストを別途同期（NIP-65 Kind 10002）。
+        // The saved list is replaced only when the account's own kind 10002
+        // was actually read (issue #193): an unreachable relay or a missing
+        // event must not turn a user's own relay into the public defaults.
+        final savedRelays = state.valueOrNull?.relays ?? bridgeSettings.relays;
+        var syncedRelays = savedRelays;
         try {
-          syncedRelays = await bridge.syncRelayList();
-          AppLogger.info(' リレーリスト同期完了: ${syncedRelays.length}件');
+          final relaySync = await bridge.syncRelayListStatus();
+          syncedRelays = resolveSyncedRelays(
+            status: relaySync.status,
+            remoteRelays: relaySync.relays,
+            savedRelays: savedRelays,
+          );
+          AppLogger.info(
+            ' リレーリスト同期完了: ${relaySync.status.name} '
+            '(${relaySync.relays.length} remote) '
+            '-> keeping ${syncedRelays.length}',
+          );
         } catch (e) {
           AppLogger.warning(' リレーリスト同期失敗: $e');
           // 既存のリレーリストを維持
-          syncedRelays = bridgeSettings.relays;
         }
         
         final syncedSettings = AppSettings(
