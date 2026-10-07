@@ -29,10 +29,13 @@ enum AbsentTodoResolution {
   drop,
 }
 
-/// Key of the list a task belongs to, as used in the per-list maps
-/// (`null` custom list id is the default list).
-String listKeyForCausalCompare(String? customListId) =>
-    customListId ?? 'default';
+/// The per-list `created_at` map is keyed by the task's `customListId` as
+/// is, with `null` for the built-in default list. The key type is `String?`
+/// on purpose: a custom list can carry the id `'default'` (the slug of a list
+/// named "Default", or any `d` tag another client publishes), so collapsing
+/// `null` into a string sentinel would let two different lists share one
+/// `created_at` and drop tasks against the wrong list.
+typedef ListCreatedAtMap = Map<String?, int>;
 
 /// Resolves a task absent from the snapshot.
 ///

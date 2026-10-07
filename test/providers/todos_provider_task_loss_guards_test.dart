@@ -658,6 +658,44 @@ void main() {
       expect(findTodo(started.container, 'task-bravo'), isNull);
     });
 
+    test('a custom list with the id "default" is not the built-in list',
+        () async {
+      // A list named "Default" slugs to the id 'default'; another client can
+      // publish any d tag at all. Both are distinct from the built-in list
+      // (customListId null). Only the custom list is fetched here, newer and
+      // without its task. Negative control: with the map keyed by
+      // `customListId ?? 'default'` the built-in list's task compares
+      // against the custom list's created_at and is dropped.
+      await seedLocal([
+        _todo('task-alpha', updatedAt: editedAt),
+        _todo('task-delta', customListId: 'default', updatedAt: editedAt),
+      ]);
+      final service = _FakeNostrService()
+        ..remoteLists = [
+          (
+            listId: 'meiso-list-default',
+            eventId: 'custom-default-event',
+            createdAt: editedAtSec + 3600,
+            todos: const [],
+          ),
+        ];
+      final started = await startNotifier(service);
+
+      await started.notifier.syncFromNostr();
+      await settle();
+
+      expect(
+        findTodo(started.container, 'task-alpha'),
+        isNotNull,
+        reason: 'the built-in list was not fetched, so its task is kept',
+      );
+      expect(
+        findTodo(started.container, 'task-delta'),
+        isNull,
+        reason: 'the custom list "default" is newer and omits its task',
+      );
+    });
+
     test('a newer snapshot of another list does not touch this one',
         () async {
       await seedLocal([

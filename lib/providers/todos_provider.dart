@@ -4351,12 +4351,12 @@ class TodosNotifier
 
           // すべてのリストを復号化してマージ
           final allSyncedTodos = <Todo>[];
-          // created_at of each list we could actually read, keyed as in
-          // listKeyForCausalCompare. A list that failed to decrypt is left
-          // out on purpose: its tasks are absent from allSyncedTodos, and
-          // without an entry here the merge keeps them instead of treating
-          // the absence as a deletion.
-          final listCreatedAt = <String, int>{};
+          // created_at of each list we could actually read, keyed by the
+          // list's customListId (null = built-in default list). A list that
+          // failed to decrypt is left out on purpose: its tasks are absent
+          // from allSyncedTodos, and without an entry here the merge keeps
+          // them instead of treating the absence as a deletion.
+          final listCreatedAt = ListCreatedAtMap();
 
           for (final encryptedEvent in encryptedEvents) {
             try {
@@ -4437,10 +4437,8 @@ class TodosNotifier
                 ' リスト復号化完了: ${syncedTodos.length}件のTodo (List: ${encryptedEvent.listId})',
               );
               allSyncedTodos.addAll(syncedTodos);
-              final listKey = listKeyForCausalCompare(
-                _customListIdFromDTag(encryptedEvent.listId),
-              );
-              listCreatedAt[listKey] = encryptedEvent.createdAt;
+              listCreatedAt[_customListIdFromDTag(encryptedEvent.listId)] =
+                  encryptedEvent.createdAt;
             } catch (e, stackTrace) {
               // 復号化・パースエラー：このリストをスキップして次へ
               AppLogger.error(
@@ -4570,11 +4568,10 @@ class TodosNotifier
           // created_at per fetched list, from the same event as its content.
           // An emptied list is present here with zero todos, so deleting the
           // last task of a list propagates like any other deletion.
-          final listCreatedAt = <String, int>{
+          final listCreatedAt = ListCreatedAtMap.fromEntries([
             for (final list in syncedLists)
-              listKeyForCausalCompare(_customListIdFromDTag(list.listId)):
-                  list.createdAt,
-          };
+              MapEntry(_customListIdFromDTag(list.listId), list.createdAt),
+          ]);
           AppLogger.debug(
             ' ${syncedTodosRaw.length}件のTodoを取得しました '
             '(${syncedLists.length} lists)',
@@ -4997,16 +4994,16 @@ class TodosNotifier
   /// 3. ローカルのみに存在 → ローカルを保持
   /// 4. リモートのみに存在 → リモートを採用
   ///
-  /// [listCreatedAt] maps each fetched list (key as in
-  /// [listKeyForCausalCompare]) to the `created_at` of the kind 30001 event
-  /// the list was read from, taken from the same event as its content. A
-  /// local task absent from [syncedTodos] is dropped only when its own list
-  /// is in the map with a `created_at` newer than the task's `updatedAt`
-  /// (see `resolveAbsentTodo`). A list that is not in the map was not
-  /// fetched, and its tasks are kept.
+  /// [listCreatedAt] maps each fetched list (keyed by `customListId`,
+  /// `null` for the built-in default list, see [ListCreatedAtMap]) to the
+  /// `created_at` of the kind 30001 event the list was read from, taken from
+  /// the same event as its content. A local task absent from [syncedTodos]
+  /// is dropped only when its own list is in the map with a `created_at`
+  /// newer than the task's `updatedAt` (see `resolveAbsentTodo`). A list
+  /// that is not in the map was not fetched, and its tasks are kept.
   Future<void> _updateStateWithSyncedTodos(
     List<Todo> syncedTodos, {
-    required Map<String, int> listCreatedAt,
+    required ListCreatedAtMap listCreatedAt,
   }) async {
     try {
       AppLogger.warning(
@@ -5180,7 +5177,10 @@ class TodosNotifier
             // Case 2: needsSync is false, so the task was on the relays at
             // some point. Decide from the fetched list's created_at, not
             // from the wall clock (decision 2 of the task-loss plan).
-            final listKey = listKeyForCausalCompare(localTodo.customListId);
+            // Keyed by customListId as is: null is the built-in default list
+            // and must not be folded into the custom list id 'default'.
+            final listKey = localTodo.customListId;
+            final listLabel = listKey ?? 'default';
             final resolution = resolveAbsentTodo(
               listCreatedAt: listCreatedAt[listKey],
               localUpdatedAt: localTodo.updatedAt,
@@ -5194,7 +5194,7 @@ class TodosNotifier
               localOnlyCount++;
               keptNoEvidenceCount++;
               AppLogger.debug(
-                ' Local only (list "$listKey" not fetched): '
+                ' Local only (list "$listLabel" not fetched): '
                 '"${localTodo.title}" - keeping',
               );
             } else if (resolution == AbsentTodoResolution.keepAndResync) {
@@ -5203,7 +5203,7 @@ class TodosNotifier
               mergedTodos[localTodo.id] = localTodo.copyWith(needsSync: true);
               localOnlyCount++;
               AppLogger.debug(
-                ' Local only (list "$listKey" older than local edit): '
+                ' Local only (list "$listLabel" older than local edit): '
                 '"${localTodo.title}" - will resync',
               );
             } else {

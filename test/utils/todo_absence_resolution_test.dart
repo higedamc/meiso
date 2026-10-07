@@ -92,10 +92,4 @@ void main() {
     });
   });
 
-  group('listKeyForCausalCompare', () {
-    test('null custom list id is the default list', () {
-      expect(listKeyForCausalCompare(null), 'default');
-      expect(listKeyForCausalCompare('abc'), 'abc');
-    });
-  });
 }
