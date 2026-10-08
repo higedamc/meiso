@@ -111,6 +111,13 @@ fn spawn_connect(relay: Relay, wait: Duration) -> tokio::task::JoinHandle<()> {
 }
 
 /// Replace `url` in the pool with a fresh `Relay` and return the new handle.
+///
+/// Invariant: the remove happens before the add, so if `add_relay` ever returned `Err` the
+/// relay would be gone from the pool entirely (worse than #188). Today that cannot happen
+/// only because `RelayPoolOptions::max_relays` defaults to `None` and meiso never sets it;
+/// `TooManyRelays` is the sole error path in `RelayPool::add_relay` for an already-valid
+/// URL. If a `max_relays` limit is ever introduced, this function must re-add (or reserve
+/// the slot) before removing.
 async fn replace_relay(client: &Client, url: &RelayUrl) -> anyhow::Result<Relay> {
     client.remove_relay(url.clone()).await?;
     // `remove_relay` keeps a GOSSIP-flagged relay (only strips its flags); then `add_relay`
