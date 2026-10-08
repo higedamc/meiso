@@ -5,12 +5,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/core/common/failure.dart';
+import 'package:meiso/features/send_outbox/domain/outbox_entry.dart';
+import 'package:meiso/features/send_outbox/infrastructure/outbox_local_datasource.dart';
+import 'package:meiso/features/send_outbox/presentation/providers/outbox_providers.dart';
 import 'package:meiso/features/task_comments/domain/entities/task_comment.dart';
 import 'package:meiso/features/task_comments/domain/repositories/task_comment_repository.dart';
 import 'package:meiso/features/task_comments/infrastructure/providers/repository_providers.dart';
+import 'package:meiso/features/task_comments/presentation/providers/author_profile_providers.dart';
 import 'package:meiso/features/task_comments/presentation/widgets/task_comment_section.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 import 'package:meiso/providers/nostr_provider.dart';
+
+/// Rust FFI(`hexToNpub`)に触れない fake。other-author バブルを描画する
+/// テストはこれが無いと `author_profile_providers.dart` 経由で FFI を
+/// 叩いてクラッシュする(この widget テストファイルではこれまで誰の
+/// バブルも他人作者にしていなかったため、既存テストでは踏んでいなかった)。
+class _NoopAuthorLabelsNotifier extends AuthorLabelsNotifier {
+  @override
+  Map<String, AuthorLabel> build() => const {};
+
+  @override
+  void ensureLoaded(List<String> pubkeyHexes) {}
+}
+
+/// Hive に触れない fake。このテストではアウトボックスの中身は
+/// [pendingCommentOutboxProvider] の直接オーバーライドで制御するので、
+/// ここは [sendOutboxTriggerProvider] の依存解決が通るだけでよい。
+class _FakeOutboxLocalDataSource implements OutboxLocalDataSource {
+  @override
+  Future<Map<String, OutboxEntry>> loadAll() async => const {};
+
+  @override
+  Future<void> put(OutboxEntry entry) async {}
+
+  @override
+  Future<void> remove(String eventId) async {}
+
+  @override
+  Stream<Map<String, OutboxEntry>> watchAll() => Stream.value(const {});
+
+  @override
+  Future<void> wipe() async {}
+}
 
 const _myPubkey =
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -85,12 +121,20 @@ Widget _wrap(
   Widget child, {
   required _FakeTaskCommentRepository repository,
   bool amberMode = false,
+  Map<String, OutboxEntry> pendingOutbox = const {},
 }) {
   return ProviderScope(
     overrides: [
       taskCommentRepositoryProvider.overrideWithValue(repository),
       publicKeyProvider.overrideWith((ref) => _myPubkey),
       isAmberModeProvider.overrideWithValue(amberMode),
+      outboxLocalDataSourceProvider.overrideWithValue(
+        _FakeOutboxLocalDataSource(),
+      ),
+      pendingCommentOutboxProvider.overrideWith(
+        (ref) => Stream.value(pendingOutbox),
+      ),
+      authorLabelsProvider.overrideWith(_NoopAuthorLabelsNotifier.new),
     ],
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -233,5 +277,107 @@ void main() {
 
     expect(repository.addCalls, hasLength(1));
     expect(repository.addCalls.single.groupId, isNull);
+  });
+
+  group('send outbox status marker', () {
+    OutboxEntry entry(String addressableId, {int attempts = 0}) =>
+        OutboxEntry(
+          eventId: 'ev-$addressableId',
+          eventJson: '{}',
+          kind: 35002,
+          queuedAt: 0,
+          addressableId: addressableId,
+          attempts: attempts,
+        );
+
+    testWidgets(
+      'own comment still queued (attempts below threshold) shows "Sending…"',
+      (tester) async {
+        final repository = _FakeTaskCommentRepository([_comment('c1')]);
+
+        await tester.pumpWidget(
+          _wrap(
+            const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
+            repository: repository,
+            pendingOutbox: {'c1': entry('c1', attempts: 1)},
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Sending…'), findsOneWidget);
+        expect(find.textContaining('Unsent'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'own comment already delivered (not in outbox) shows no marker',
+      (tester) async {
+        final repository = _FakeTaskCommentRepository([_comment('c1')]);
+
+        await tester.pumpWidget(
+          _wrap(
+            const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
+            repository: repository,
+            // Negative control: empty outbox map, same comment as above.
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Sending…'), findsNothing);
+        expect(find.textContaining('Unsent'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'own comment stuck for 5+ attempts shows "Unsent · tap to retry"',
+      (tester) async {
+        final repository = _FakeTaskCommentRepository([_comment('c1')]);
+
+        await tester.pumpWidget(
+          _wrap(
+            const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
+            repository: repository,
+            pendingOutbox: {'c1': entry('c1', attempts: 5)},
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Unsent · tap to retry'), findsOneWidget);
+        // Tapping the marker must not throw, even though this test's fake
+        // outbox datasource is decoupled from pendingCommentOutboxProvider.
+        await tester.tap(find.text('Unsent · tap to retry'));
+        await tester.pump();
+      },
+    );
+
+    testWidgets("other member's comment never shows a send marker", (
+      tester,
+    ) async {
+      const otherPubkey =
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+      final repository = _FakeTaskCommentRepository([
+        TaskComment(
+          commentId: 'c1',
+          taskId: 'task-1',
+          authorPubkey: otherPubkey,
+          body: 'from someone else',
+          createdAt: 1756800000,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        _wrap(
+          const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
+          repository: repository,
+          // Even if the id coincidentally matched an outbox entry, other
+          // members' bubbles must stay unmarked.
+          pendingOutbox: {'c1': entry('c1', attempts: 5)},
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Unsent · tap to retry'), findsNothing);
+      expect(find.text('Sending…'), findsNothing);
+    });
   });
 }

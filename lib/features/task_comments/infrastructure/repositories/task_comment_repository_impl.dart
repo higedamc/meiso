@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/common/failure.dart';
 import '../../../../providers/nostr_provider.dart';
 import '../../../../services/logger_service.dart';
+import '../../../send_outbox/application/send_outbox_service.dart';
 import '../../../shared_list/infrastructure/datasources/shared_group_key_local_datasource.dart';
 import '../../domain/entities/task_comment.dart';
 import '../../domain/repositories/task_comment_repository.dart';
@@ -33,17 +34,20 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
     required TaskCommentLocalDataSource localDataSource,
     required SharedGroupKeyLocalDataSource keyDataSource,
     required NostrService nostrService,
+    required SendOutboxService outboxService,
     Uuid uuid = const Uuid(),
   }) : _cryptoDataSource = cryptoDataSource,
        _localDataSource = localDataSource,
        _keyDataSource = keyDataSource,
        _nostrService = nostrService,
+       _outbox = outboxService,
        _uuid = uuid;
 
   final TaskCommentCryptoDataSource _cryptoDataSource;
   final TaskCommentLocalDataSource _localDataSource;
   final SharedGroupKeyLocalDataSource _keyDataSource;
   final NostrService _nostrService;
+  final SendOutboxService _outbox;
   final Uuid _uuid;
 
   @override
@@ -226,6 +230,17 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
           'failedRelays=${sendResult.failedRelays}'
           '${sendError != null ? ", err=$sendError" : ""}',
         );
+        if (!sendResult.success) {
+          // ローカルには保存済みなので Right は変えない。「送ったが未達」は
+          // 失敗ではなく状態であり、アウトボックスが引き継いで再送する
+          // (`PLANS/MEISO_SEND_OUTBOX_LEAF.md` §7)。
+          await _outbox.enqueue(
+            eventId: eventId,
+            eventJson: signed,
+            kind: taskCommentKind,
+            addressableId: comment.commentId,
+          );
+        }
         return Right(comment);
       });
     } on Object catch (e, st) {

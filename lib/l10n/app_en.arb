@@ -2852,6 +2852,16 @@
     "description": "Marker appended to a comment's timestamp after it was edited"
   },
 
+  "commentSendingLabel": "Sending…",
+  "@commentSendingLabel": {
+    "description": "Status shown under a comment bubble while it is still queued in the send outbox and has been retried fewer than 5 times"
+  },
+
+  "commentUnsentLabel": "Unsent · tap to retry",
+  "@commentUnsentLabel": {
+    "description": "Status shown under a comment bubble once the send outbox has retried it 5 or more times without success; tapping it retries immediately"
+  },
+
   "notificationSettingsTitle": "Notifications",
   "@notificationSettingsTitle": {
     "description": "Title of the notification settings screen and of its entry in Settings"

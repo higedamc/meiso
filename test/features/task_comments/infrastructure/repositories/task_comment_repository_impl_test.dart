@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:meiso/bridge_generated.dart/api.dart' show EventSendResult;
 import 'package:meiso/core/common/failure.dart';
+import 'package:meiso/features/send_outbox/application/send_outbox_service.dart';
 import 'package:meiso/features/shared_list/domain/entities/shared_group_credentials.dart';
 import 'package:meiso/features/shared_list/infrastructure/datasources/shared_group_key_local_datasource.dart';
 import 'package:meiso/features/task_comments/domain/entities/task_comment.dart';
@@ -81,6 +83,8 @@ class MockNostrService extends Mock implements NostrService {}
 class MockSharedGroupKeyLocalDataSource extends Mock
     implements SharedGroupKeyLocalDataSource {}
 
+class MockSendOutboxService extends Mock implements SendOutboxService {}
+
 const String kAuthorPubkey =
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -93,6 +97,15 @@ EventSendResult _sendOk() => EventSendResult(
   successfulRelays: BigInt.one,
   failedRelays: BigInt.zero,
   timedOut: false,
+);
+
+EventSendResult _sendFail() => EventSendResult(
+  eventId: '',
+  success: false,
+  successfulRelays: BigInt.zero,
+  failedRelays: BigInt.zero,
+  timedOut: true,
+  errorMessage: 'Timeout after 3 seconds',
 );
 
 /// リレー受信イベント JSON を組み立てるヘルパー
@@ -119,6 +132,7 @@ void main() {
   late FakeTaskCommentCryptoDataSource cryptoDataSource;
   late MockNostrService nostrService;
   late MockSharedGroupKeyLocalDataSource keyDataSource;
+  late MockSendOutboxService outboxService;
   late TaskCommentRepositoryImpl repository;
   var boxSeq = 0;
 
@@ -131,6 +145,7 @@ void main() {
     cryptoDataSource = FakeTaskCommentCryptoDataSource();
     nostrService = MockNostrService();
     keyDataSource = MockSharedGroupKeyLocalDataSource();
+    outboxService = MockSendOutboxService();
 
     when(
       () => nostrService.getPublicKey(),
@@ -145,12 +160,21 @@ void main() {
         groupNpubHex: 'e' * 64,
       ),
     );
+    when(
+      () => outboxService.enqueue(
+        eventId: any(named: 'eventId'),
+        eventJson: any(named: 'eventJson'),
+        kind: any(named: 'kind'),
+        addressableId: any(named: 'addressableId'),
+      ),
+    ).thenAnswer((_) async => const Right(unit));
 
     repository = TaskCommentRepositoryImpl(
       cryptoDataSource: cryptoDataSource,
       localDataSource: localDataSource,
       keyDataSource: keyDataSource,
       nostrService: nostrService,
+      outboxService: outboxService,
     );
   });
 
@@ -227,6 +251,60 @@ void main() {
       // fail-closed: ローカルにも保存されない
       final stored = await localDataSource.loadComments('task-1');
       expect(stored, isEmpty);
+    });
+  });
+
+  group('送信アウトボックスへの引き継ぎ', () {
+    test('publish 失敗時はコメント id を addressableId にしてアウトボックスへ積む', () async {
+      when(
+        () => nostrService.sendSignedEvent(any()),
+      ).thenAnswer((_) async => _sendFail());
+
+      final result = await repository.addComment(
+        taskId: 'task-1',
+        body: 'will be queued',
+        groupId: kGroupId,
+      );
+
+      // ローカルには保存できているので Right のまま(「送ったが未達」は
+      // 失敗ではなく状態)。
+      expect(result.isRight(), true);
+      final comment = result.getOrElse(() => fail('should be Right'));
+
+      final captured = verify(
+        () => outboxService.enqueue(
+          eventId: any(named: 'eventId'),
+          eventJson: any(named: 'eventJson'),
+          kind: captureAny(named: 'kind'),
+          addressableId: captureAny(named: 'addressableId'),
+        ),
+      ).captured;
+      expect(captured, [35002, comment.commentId]);
+
+      final stored = await localDataSource.loadComments('task-1');
+      expect(stored, hasLength(1));
+      expect(stored.first.body, 'will be queued');
+    });
+
+    test('publish 成功時はアウトボックスに積まない(否定対照)', () async {
+      // 既定の setUp は _sendOk() を返すので、enqueue が一度も呼ばれない
+      // ことを確認する。先の成功テストで送信失敗にすると enqueue が
+      // 呼ばれるようになる(= このアサーションが効いている証拠)。
+      final result = await repository.addComment(
+        taskId: 'task-1',
+        body: 'delivered on first try',
+        groupId: kGroupId,
+      );
+
+      expect(result.isRight(), true);
+      verifyNever(
+        () => outboxService.enqueue(
+          eventId: any(named: 'eventId'),
+          eventJson: any(named: 'eventJson'),
+          kind: any(named: 'kind'),
+          addressableId: any(named: 'addressableId'),
+        ),
+      );
     });
   });
 
