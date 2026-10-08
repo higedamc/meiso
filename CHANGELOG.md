@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-08
+
+### Fixed
+
+- **Deleting the last task in a list now reaches your other devices.** Emptying a list was never sent: the sync built its list of changes from the tasks that still existed, so a list that had just become empty had nothing to send. Going from three tasks to one synced correctly; going from one to zero did not, in both Amber and secret-key mode, and the last task stayed on every other device. (#182)
+
+- **Tasks are no longer deleted because a sync was incomplete.** A task missing from a fetched list is now treated as deleted only when that list's own published timestamp is newer than your local edit. Previously anything absent and older than a day was removed, so an interrupted or partial fetch deleted real tasks. A list that did not arrive at all is left alone. (#182)
+
+- **A device that holds an older copy of a list now gets the newer one.** When a sync found the relay holding an outdated list, the re-publish was skipped as "unchanged since last publish" and the pending flag was cleared anyway, so the relay never caught up until the list changed again for an unrelated reason. (#182)
+
+- **Amber mode no longer misses lists during a full sync.** The fetch ignored events the live subscription had already seen, so a full sync could come back without lists that plainly existed — and the missing lists were then treated as "nothing to compare against". (#182)
+
+- **Your relay settings are used at startup.** When the app started it initialised its connection from an in-memory list that is empty on a cold start, and fell back to the built-in public relays even though your own relay was saved. It then read the relay list published under your key from those public relays and overwrote your settings with it. Reinstalling the app was the easiest way to trigger this, which is why data could look missing afterwards: the app was asking the wrong relays. (#197)
+
+- **A relay list is only replaced when it was actually read.** The settings sync now distinguishes "no relay could be reached" and "no list published" from "your list was read", and keeps your saved settings in the first two cases. (#197)
+
+- **A list named "Default" no longer puts other tasks at risk.** Such a list shared an internal key with the built-in default list, so tasks in one could be judged against the other's timestamp. (#182)
+
+- **Settings screens are readable in dark mode.** Secret Key Management, Relay Server Management and Cryptography Details used fixed light-mode colours that did not follow the theme. (#183)
+
+### Changed
+
+- **The settings screen is tidier.** The Amber-mode and auto-sync explanations have moved from the top-level settings list into the screens they describe. (#183)
+
+- **Secret Key Management is translated.** Every user-facing string on the screen was hard-coded in Japanese and now follows the selected language, in English, Japanese and Spanish. A missing translation now fails the build rather than silently falling back to English. (#189)
+
 ## [1.4.1] - 2026-10-06
 
 ### Fixed
