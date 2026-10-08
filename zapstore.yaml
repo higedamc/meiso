@@ -29,6 +29,7 @@ description: |
   - Three-column task layout (Today/Tomorrow/Someday)
   - Shared collaborative lists: invite people and edit a list together in real time, end-to-end encrypted so relays only ever see ciphertext
   - Collaborator attribution: see who added or edited each shared task
+  - Comments on tasks: discuss a task with the people you share a list with, or keep notes on your own tasks that sync across devices, end-to-end encrypted
   - Recurring tasks (daily, weekly, monthly, yearly)
   - Personal custom lists for organization
   - Multi-device synchronization via Nostr relays
