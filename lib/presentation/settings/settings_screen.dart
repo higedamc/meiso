@@ -177,20 +177,28 @@ class SettingsScreen extends ConsumerWidget {
                   subtitle: l10n.appSettingsSubtitle,
                   onTap: () => context.push('/settings/app'),
                 ),
-                _insetDivider(context),
-                _buildSettingTile(
-                  context,
-                  icon: Icons.notifications_outlined,
-                  title: l10n.notificationSettingsTitle,
-                  subtitle: l10n.notificationSettingsSubtitle,
-                  // Pushed directly rather than through a GoRouter path so this
-                  // leaf stays out of main.dart (routes live there).
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const NotificationSettingsScreen(),
+                // Debug builds only (#201): the Notifications screen is Phase 3
+                // UI with no Phase 4 service behind it yet, so in a release
+                // build its switches would do nothing. It comes back once #198
+                // (background isolate ignores the user's relay list and
+                // subscribes to the public defaults) is fixed and Phase 4 lands.
+                // The screen, provider, isolate and l10n strings stay in place.
+                if (kDebugMode) ...[
+                  _insetDivider(context),
+                  _buildSettingTile(
+                    context,
+                    icon: Icons.notifications_outlined,
+                    title: l10n.notificationSettingsTitle,
+                    subtitle: l10n.notificationSettingsSubtitle,
+                    // Pushed directly rather than through a GoRouter path so
+                    // this leaf stays out of main.dart (routes live there).
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const NotificationSettingsScreen(),
+                      ),
                     ),
                   ),
-                ),
+                ],
                 if (kDebugMode) ...[
                   _insetDivider(context),
                   _buildSettingTile(
