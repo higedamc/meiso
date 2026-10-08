@@ -1843,43 +1843,25 @@ impl MeisoNostrClient {
         }
     }
 
-    /// リレーに再接続
-    pub(crate) async fn reconnect(&self) -> Result<()> {
-        dev_println!("🔄 Reconnecting to relays...");
-
-        // 一度切断
-        self.client.disconnect().await?;
-
-        // 再接続（タイムアウト付き）
-        match tokio::time::timeout(Duration::from_secs(10), self.client.connect()).await {
-            Ok(_) => {
-                dev_println!("✅ Reconnected to relays");
-                Ok(())
-            }
-            Err(_) => {
-                dev_eprintln!("⚠️ Reconnection timeout");
-                Err(anyhow::anyhow!("Reconnection timeout"))
-            }
-        }
+    /// Reconnect relays, waiting up to 10 s. Returns how many relays are connected afterwards.
+    pub(crate) async fn reconnect(&self) -> Result<u32> {
+        self.reconnect_with_timeout(10).await
     }
 
-    /// リレーに再接続（タイムアウト秒を指定）
-    pub(crate) async fn reconnect_with_timeout(&self, timeout_secs: u64) -> Result<()> {
+    /// Reconnect relays, waiting up to `timeout_secs` (clamped to 1..=30 s). Returns how many
+    /// relays are connected afterwards. Never fails: a relay that cannot be reached is left to
+    /// the SDK's own retry loop instead of being torn down (issue #188, see `relay_reconnect`).
+    pub(crate) async fn reconnect_with_timeout(&self, timeout_secs: u64) -> Result<u32> {
+        let wait = Duration::from_secs(timeout_secs.max(1));
+        dev_println!("🔄 Reconnecting to relays (waiting up to {:?})...", wait);
+        let report = crate::relay_reconnect::reconnect_relays(&self.client, wait).await;
         dev_println!(
-            "🔄 Reconnecting to relays with timeout: {}s...",
-            timeout_secs
+            "🔌 Reconnect result: {}/{} connected, {} relay(s) rebuilt",
+            report.connected,
+            report.total,
+            report.replaced
         );
-
-        self.client.disconnect().await?;
-
-        let timeout = Duration::from_secs(timeout_secs.max(1));
-        match tokio::time::timeout(timeout, self.client.connect()).await {
-            Ok(_) => {
-                dev_println!("✅ Reconnected to relays");
-                Ok(())
-            }
-            Err(_) => Err(anyhow::anyhow!("Reconnection timeout")),
-        }
+        Ok(report.connected)
     }
 }
 
@@ -4720,28 +4702,29 @@ pub fn ensure_client_for_relays(
     })
 }
 
-/// リレーに再接続
-pub fn reconnect_to_relays() -> Result<()> {
+/// Reconnect relays (default client). Returns the number of connected relays afterwards.
+pub fn reconnect_to_relays() -> Result<u32> {
     reconnect_to_relays_with_client_id(None)
 }
 
-/// リレーに再接続（client_id指定可能）
-pub fn reconnect_to_relays_with_client_id(client_id: Option<String>) -> Result<()> {
+/// Reconnect relays for `client_id`. Returns the number of connected relays afterwards.
+pub fn reconnect_to_relays_with_client_id(client_id: Option<String>) -> Result<u32> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.reconnect().await
     })
 }
 
-/// リレーに再接続（タイムアウト秒を指定）
-pub fn reconnect_to_relays_with_timeout(timeout_secs: u64) -> Result<()> {
+/// Reconnect relays (default client), waiting up to `timeout_secs`. Returns the number of
+/// connected relays afterwards; 0 means nothing is reachable right now.
+pub fn reconnect_to_relays_with_timeout(timeout_secs: u64) -> Result<u32> {
     reconnect_to_relays_with_timeout_and_client_id(timeout_secs, None)
 }
 
 pub fn reconnect_to_relays_with_timeout_and_client_id(
     timeout_secs: u64,
     client_id: Option<String>,
-) -> Result<()> {
+) -> Result<u32> {
     TOKIO_RUNTIME.block_on(async {
         let client = get_client(client_id).await?;
         client.reconnect_with_timeout(timeout_secs).await

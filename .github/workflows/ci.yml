@@ -104,9 +104,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-test-
 
+      - name: Install nak (in-memory Nostr relay for the reconnect tests)
+        # rust/src/relay_reconnect.rs spawns `nak serve` on a free port to reproduce a
+        # relay outage. Pinned release + sha256 so the test relay cannot change under us.
+        # Digest taken from the GitHub release API for v0.20.7 and re-verified by download.
+        run: |
+          set -euo pipefail
+          url=https://github.com/fiatjaf/nak/releases/download/v0.20.7/nak-v0.20.7-linux-amd64
+          sha=ba918fafd1b030bc50958a5b218c6386f4c3a57c1e469562d3947e858e0ba56e
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/nak" "$url"
+          echo "$sha  $RUNNER_TEMP/nak" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/nak"
+          "$RUNNER_TEMP/nak" --version
+          echo "MEISO_NAK_BIN=$RUNNER_TEMP/nak" >> "$GITHUB_ENV"
+
       - name: Run Rust unit tests
         # --locked: Cargo.lock is committed; refuse to resolve a different dependency set
         # than the one the APK is built from.
+        # MEISO_RELAY_TESTS_REQUIRED: the nak-backed reconnect tests skip locally when nak
+        # is missing; here a skip is a failure, so a missing relay can never pass as green.
+        env:
+          MEISO_RELAY_TESTS_REQUIRED: '1'
         run: cargo test --lib --locked --manifest-path rust/Cargo.toml
 
   golden:

@@ -575,13 +575,13 @@ abstract class RustLibApi extends BaseApi {
     String? clientId,
   });
 
-  Future<void> crateApiReconnectToRelays();
+  Future<int> crateApiReconnectToRelays();
 
-  Future<void> crateApiReconnectToRelaysWithClientId({String? clientId});
+  Future<int> crateApiReconnectToRelaysWithClientId({String? clientId});
 
-  Future<void> crateApiReconnectToRelaysWithTimeout({required BigInt timeoutSecs});
+  Future<int> crateApiReconnectToRelaysWithTimeout({required BigInt timeoutSecs});
 
-  Future<void> crateApiReconnectToRelaysWithTimeoutAndClientId({required BigInt timeoutSecs, String? clientId});
+  Future<int> crateApiReconnectToRelaysWithTimeoutAndClientId({required BigInt timeoutSecs, String? clientId});
 
   Future<GroupTodoList> crateApiRemoveMemberFromGroupTaskList({
     required GroupTodoList groupList,
@@ -4366,23 +4366,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReceiveSubscriptionEventsWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "receive_subscription_events_with_client_id",
-    argNames: ["timeoutMs", "clientId"],
-  );
+  TaskConstMeta get kCrateApiReceiveSubscriptionEventsWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "receive_subscription_events_with_client_id", argNames: ["timeoutMs", "clientId"]);
 
   @override
-  Future<void> crateApiReconnectToRelays() {
+  Future<int> crateApiReconnectToRelays() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 128, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_u_32, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReconnectToRelaysConstMeta,
         argValues: [],
         apiImpl: this,
@@ -4390,13 +4385,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReconnectToRelaysConstMeta => const TaskConstMeta(
-    debugName: "reconnect_to_relays",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiReconnectToRelaysConstMeta =>
+      const TaskConstMeta(debugName: "reconnect_to_relays", argNames: []);
 
   @override
-  Future<void> crateApiReconnectToRelaysWithClientId({String? clientId}) {
+  Future<int> crateApiReconnectToRelaysWithClientId({String? clientId}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -4404,10 +4397,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 129, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_u_32, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReconnectToRelaysWithClientIdConstMeta,
         argValues: [clientId],
         apiImpl: this,
@@ -4415,13 +4405,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReconnectToRelaysWithClientIdConstMeta => const TaskConstMeta(
-    debugName: "reconnect_to_relays_with_client_id",
-    argNames: ["clientId"],
-  );
+  TaskConstMeta get kCrateApiReconnectToRelaysWithClientIdConstMeta =>
+      const TaskConstMeta(debugName: "reconnect_to_relays_with_client_id", argNames: ["clientId"]);
 
   @override
-  Future<void> crateApiReconnectToRelaysWithTimeout({required BigInt timeoutSecs}) {
+  Future<int> crateApiReconnectToRelaysWithTimeout({required BigInt timeoutSecs}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -4429,10 +4417,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_64(timeoutSecs, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 130, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_u_32, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReconnectToRelaysWithTimeoutConstMeta,
         argValues: [timeoutSecs],
         apiImpl: this,
@@ -4440,13 +4425,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiReconnectToRelaysWithTimeoutConstMeta => const TaskConstMeta(
-    debugName: "reconnect_to_relays_with_timeout",
-    argNames: ["timeoutSecs"],
-  );
+  TaskConstMeta get kCrateApiReconnectToRelaysWithTimeoutConstMeta =>
+      const TaskConstMeta(debugName: "reconnect_to_relays_with_timeout", argNames: ["timeoutSecs"]);
 
   @override
-  Future<void> crateApiReconnectToRelaysWithTimeoutAndClientId({required BigInt timeoutSecs, String? clientId}) {
+  Future<int> crateApiReconnectToRelaysWithTimeoutAndClientId({required BigInt timeoutSecs, String? clientId}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -4455,10 +4438,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(clientId, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 131, port: port_);
         },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
+        codec: SseCodec(decodeSuccessData: sse_decode_u_32, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiReconnectToRelaysWithTimeoutAndClientIdConstMeta,
         argValues: [timeoutSecs, clientId],
         apiImpl: this,
@@ -6638,6 +6618,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int dco_decode_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
   BigInt dco_decode_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeU64(raw);
@@ -7441,6 +7427,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int sse_decode_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint32();
+  }
+
+  @protected
   BigInt sse_decode_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getBigUint64();
@@ -8049,6 +8041,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_tor_mode(TorMode self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint32(self);
   }
 
   @protected
