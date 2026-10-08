@@ -1,7 +1,8 @@
 name: CI
 
-# Fast PR feedback: static analysis + unit tests on host (no Android/Rust build).
-# The full APK build + tests live in build-apk.yml (tags / openclaw branches).
+# Fast PR feedback: static analysis + unit tests on host (no Android build).
+# Dart runs in `analyze-test`, the Rust crate's unit tests in `rust-test` (host target,
+# no NDK). The full APK build + tests live in build-apk.yml (tags / openclaw branches).
 on:
   pull_request:
     branches: ['main', 'release/**']
@@ -19,6 +20,10 @@ on:
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+# Nothing in this workflow writes to the repository; artifacts upload with the runtime token.
+permissions:
+  contents: read
 
 env:
   FLUTTER_VERSION: '3.38.5'
@@ -69,6 +74,40 @@ jobs:
       - name: Run tests
         # Screenshot goldens run in the separate, non-blocking `golden` job below.
         run: flutter test --no-pub --exclude-tags golden
+
+  rust-test:
+    # Unit tests of rust/ (NIP-44 wrapping, signature checks, key store, AES helpers) on
+    # the host target. No Android NDK or Flutter is needed: `cargo test --lib` builds the
+    # crate's test harness for ubuntu-latest and ignores the android linker entries in
+    # rust/.cargo/config.toml. Blocking: a failure here fails the PR. Tests that are
+    # known-broken are parked with `#[ignore]` and show up as `N ignored` in the summary,
+    # never hidden with continue-on-error (see #205, #206).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Report toolchain
+        run: |
+          rustup show active-toolchain
+          cargo --version
+
+      - name: Cache cargo registry and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
+
+      - name: Run Rust unit tests
+        # --locked: Cargo.lock is committed; refuse to resolve a different dependency set
+        # than the one the APK is built from.
+        run: cargo test --lib --locked --manifest-path rust/Cargo.toml
 
   golden:
     # Screenshot regression via Flutter golden tests (test/golden/). Non-blocking while
