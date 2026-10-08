@@ -1,8 +1,8 @@
-/// 送信アウトボックスの 1 エントリ(署名済みイベント)
+/// One entry in the send outbox (a signed event).
 ///
-/// キューには署名済みイベントの JSON そのものを持つ。再送に鍵が要らない
-/// (Amber / 秘密鍵どちらの経路で署名したかがここに漏れない)ための設計。
-/// 仕様: `PLANS/MEISO_SEND_OUTBOX_LEAF.md`。
+/// The queue holds the signed event JSON itself, by design: retrying needs
+/// no key material (which signing path produced it — Amber or secret-key —
+/// never leaks in here). Spec: `PLANS/MEISO_SEND_OUTBOX_LEAF.md`.
 class OutboxEntry {
   const OutboxEntry({
     required this.eventId,
@@ -28,36 +28,37 @@ class OutboxEntry {
     );
   }
 
-  /// 署名済みイベントの id(64 桁小文字 hex)。box のキーでもある主キー。
+  /// The signed event's id (64-char lowercase hex). Also the box's primary key.
   final String eventId;
 
-  /// `sendSignedEvent` にそのまま渡せる署名済み JSON。
+  /// Signed JSON, passable as-is to `sendSignedEvent`.
   final String eventJson;
 
-  /// 監視・デバッグ用のイベント種別。
+  /// Event kind, for monitoring/debugging only.
   final int kind;
 
-  /// 最初にキューへ入れた unix 秒。
+  /// Unix seconds when this entry first entered the queue.
   final int queuedAt;
 
-  /// addressable event の `d` タグ値(タスクコメントでは commentId)。
-  /// UI が `TaskComment` にスキーマ変更を加えずに「未送信」を結合するための
-  /// キー。event id ではなくこちらで結合する。
+  /// The addressable event's `d` tag value (for task comments, the
+  /// commentId). Lets the UI join "unsent" status onto `TaskComment` without
+  /// a schema change — join on this, not on the event id.
   final String? addressableId;
 
-  /// 送信試行回数。
+  /// Number of send attempts so far.
   final int attempts;
 
-  /// 最後に試行した unix 秒。
+  /// Unix seconds of the last attempt.
   final int? lastAttemptAt;
 
-  /// 最後の `errorMessage`。本文(イベント content)は含めない。
+  /// The last `errorMessage`. Never the event content (comment body).
   final String? lastError;
 
   OutboxEntry copyWith({
     int? attempts,
     int? lastAttemptAt,
     String? lastError,
+    bool clearLastError = false,
   }) {
     return OutboxEntry(
       eventId: eventId,
@@ -67,7 +68,9 @@ class OutboxEntry {
       addressableId: addressableId,
       attempts: attempts ?? this.attempts,
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
-      lastError: lastError ?? this.lastError,
+      // `lastError: null` alone is indistinguishable from "leave unchanged"
+      // under `??`, so clearing it needs its own flag.
+      lastError: clearLastError ? null : (lastError ?? this.lastError),
     );
   }
 
@@ -82,15 +85,21 @@ class OutboxEntry {
     'last_error': lastError,
   };
 
-  /// キューの最大件数。件数だけ縛っても 1 件あたりが無制限なら結局無制限
-  /// なので [maxEventJsonBytes] と両方で縛る。上限到達時は新規投入をエラー
-  /// にする(古いエントリを黙って捨てない)。
+  /// Max queue size. Capping only the count still allows unbounded growth if
+  /// a single entry can be arbitrarily large, so this is paired with
+  /// [maxEventJsonBytes]. New entries are rejected once this is hit (old
+  /// entries are never silently evicted).
   static const int maxEntries = 200;
 
-  /// 1 件あたりの `eventJson` の最大バイト数。超過分はキューに入れずに
-  /// 即エラーを返す(入れてから捨てると「入れたのに消えた」になる)。
+  /// Max `eventJson` bytes per entry. Oversized payloads are rejected before
+  /// entering the queue — rejecting after admission would mean "it was
+  /// queued, then vanished", which is the exact silent loss this exists to
+  /// prevent.
   static const int maxEventJsonBytes = 64 * 1024;
 
-  /// この試行回数に達したエントリは UI 上「未送信」を明示する。
-  static const int maxAttemptsBeforeVisible = 5;
+  /// Wall-clock age after which a still-queued entry shows "Unsent" instead
+  /// of "Sending…" in the UI. Based on how long the user has been waiting,
+  /// not on [attempts] — that counter is a function of the retry service's
+  /// backoff tuning, not of elapsed wait time.
+  static const Duration visibleAfter = Duration(seconds: 30);
 }

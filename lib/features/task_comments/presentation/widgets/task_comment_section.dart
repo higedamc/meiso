@@ -281,9 +281,12 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
   }
 
   /// Per-bubble send status, driven entirely by whether [entry] is still in
-  /// the outbox (no separate flag to drift from reality): below
-  /// [OutboxEntry.maxAttemptsBeforeVisible] attempts it reads "Sending…";
-  /// at or past it, "Unsent · tap to retry" and the text becomes tappable.
+  /// the outbox (no separate flag to drift from reality). The label flips
+  /// from "Sending…" to "Unsent" once [OutboxEntry.visibleAfter] wall-clock
+  /// time has passed since it was queued — not once a number of attempts
+  /// has elapsed, since that counts backoff tuning, not user wait time. Tap
+  /// to retry works the whole time it is queued, in either state: the user
+  /// should never be stuck watching "Sending…" with no way to force a retry.
   Widget _buildOutboxStatus(
     OutboxEntry entry,
     AppLocalizations l10n,
@@ -292,22 +295,22 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
     final color = isDark
         ? AppTheme.darkTextSecondary.withOpacity(0.7)
         : AppTheme.lightTextSecondary.withOpacity(0.7);
+    final nowEpochSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final age = Duration(seconds: nowEpochSeconds - entry.queuedAt);
+    final isStale = age >= OutboxEntry.visibleAfter;
     final style = TextStyle(
       fontSize: 11,
       fontStyle: FontStyle.italic,
-      color: entry.attempts >= OutboxEntry.maxAttemptsBeforeVisible
-          ? Colors.red.shade400
-          : color,
+      color: isStale ? Colors.red.shade400 : color,
     );
-
-    if (entry.attempts < OutboxEntry.maxAttemptsBeforeVisible) {
-      return Text(l10n.commentSendingLabel, style: style);
-    }
 
     return GestureDetector(
       onTap: () =>
           ref.read(sendOutboxServiceProvider).retryNow(entry.eventId),
-      child: Text(l10n.commentUnsentLabel, style: style),
+      child: Text(
+        isStale ? l10n.commentUnsentLabel : l10n.commentSendingLabel,
+        style: style,
+      ),
     );
   }
 

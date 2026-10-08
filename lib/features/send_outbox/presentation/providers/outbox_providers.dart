@@ -31,14 +31,13 @@ final sendOutboxServiceProvider = Provider<SendOutboxService>((ref) {
   return service;
 });
 
-/// 既存のアプリ復帰(`appLifecycleProvider`)・リレー接続
-/// (`relayStatusProvider`、30 秒ごとの `relayConnectivityMonitorProvider` が
-/// 実接続状態を反映する)イベントに相乗りして [SendOutboxService.flush] を
-/// 呼ぶだけの購読者。新規のリレー購読は作らない
-/// (`PLANS/MEISO_SEND_OUTBOX_LEAF.md` §6 のトリガ 1・2)。
+/// Rides the existing app-resume (`appLifecycleProvider`) and relay-connect
+/// (`relayStatusProvider`, kept honest by the 30s `relayConnectivityMonitorProvider`)
+/// events to call [SendOutboxService.flush] — no new relay subscription of
+/// its own (`PLANS/MEISO_SEND_OUTBOX_LEAF.md` §6, triggers 1 and 2).
 ///
-/// `TaskCommentSection` が初回ビルドで一度 watch すれば、以降は通常の
-/// (autoDispose でない) Provider としてアプリ終了までこの購読を維持する。
+/// A plain (non-autoDispose) Provider: once something watches it once, it
+/// keeps this subscription alive for the rest of the app's lifetime.
 final sendOutboxTriggerProvider = Provider<SendOutboxService>((ref) {
   final service = ref.watch(sendOutboxServiceProvider);
   var wasAnyRelayConnected = ref
@@ -65,11 +64,10 @@ final sendOutboxTriggerProvider = Provider<SendOutboxService>((ref) {
   return service;
 });
 
-/// commentId -> キュー中のエントリ。[OutboxEntry.addressableId] で結合する
-/// (event id ではない)。`TaskCommentSection` がこれで
-/// 「送信中」(`attempts < maxAttemptsBeforeVisible`) /
-/// 「未送信」(`attempts >= maxAttemptsBeforeVisible`) を判定する
-/// (別フラグを増やすと実体とずれる)。
+/// commentId -> queued entry, joined on [OutboxEntry.addressableId] (not the
+/// event id). `TaskCommentSection` uses this, plus how long the entry has
+/// been queued, to decide "Sending…" vs "Unsent" — no separate flag, so the
+/// label can never drift from what is actually still queued.
 final pendingCommentOutboxProvider =
     StreamProvider<Map<String, OutboxEntry>>((ref) {
       final repository = ref.watch(sendOutboxRepositoryProvider);

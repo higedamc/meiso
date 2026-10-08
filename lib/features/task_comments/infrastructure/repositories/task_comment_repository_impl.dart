@@ -64,7 +64,7 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
   }) async {
     final trimmed = body.trim();
     if (trimmed.isEmpty) {
-      return const Left(ValidationFailure('コメント本文が空です'));
+      return const Left(ValidationFailure('Comment body is empty'));
     }
     final authorPubkey = await _nostrService.getPublicKey();
     if (authorPubkey == null) {
@@ -89,7 +89,7 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
   }) async {
     final trimmed = newBody.trim();
     if (trimmed.isEmpty) {
-      return const Left(ValidationFailure('コメント本文が空です'));
+      return const Left(ValidationFailure('Comment body is empty'));
     }
     final updated = comment.copyWith(
       body: _clampBody(trimmed),
@@ -231,15 +231,25 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
           '${sendError != null ? ", err=$sendError" : ""}',
         );
         if (!sendResult.success) {
-          // ローカルには保存済みなので Right は変えない。「送ったが未達」は
-          // 失敗ではなく状態であり、アウトボックスが引き継いで再送する
-          // (`PLANS/MEISO_SEND_OUTBOX_LEAF.md` §7)。
-          await _outbox.enqueue(
+          // Already stored locally, so this does not change the Right below
+          // on its own: "sent but not yet delivered" is a state, not a
+          // failure, and the outbox takes over the retry from here
+          // (`PLANS/MEISO_SEND_OUTBOX_LEAF.md` §7). But failing to even
+          // queue it — cap full, or oversized — is itself a failure with no
+          // other backstop, so that case alone propagates as Left.
+          final enqueueResult = await _outbox.enqueue(
             eventId: eventId,
             eventJson: signed,
             kind: taskCommentKind,
             addressableId: comment.commentId,
           );
+          return enqueueResult.fold((enqueueFailure) {
+            AppLogger.error(
+              '[task-chat] outbox enqueue failed after publish failure: '
+              '${enqueueFailure.message}',
+            );
+            return Left(enqueueFailure);
+          }, (_) => Right(comment));
         }
         return Right(comment);
       });
