@@ -64,7 +64,7 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
   }) async {
     final trimmed = body.trim();
     if (trimmed.isEmpty) {
-      return const Left(ValidationFailure('Comment body is empty'));
+      return const Left(ValidationFailure('コメント本文が空です'));
     }
     final authorPubkey = await _nostrService.getPublicKey();
     if (authorPubkey == null) {
@@ -89,7 +89,7 @@ class TaskCommentRepositoryImpl implements TaskCommentRepository {
   }) async {
     final trimmed = newBody.trim();
     if (trimmed.isEmpty) {
-      return const Left(ValidationFailure('Comment body is empty'));
+      return const Left(ValidationFailure('コメント本文が空です'));
     }
     final updated = comment.copyWith(
       body: _clampBody(trimmed),

@@ -725,6 +725,13 @@ class _SecretKeyManagementScreenState
           .wipe();
       AppLogger.debug('✅ Send outbox box deleted (send_outbox)');
 
+      // Re-arm the trigger now, bound to the fresh service STEP 1 just
+      // invalidated. Without this read, `sendOutboxTriggerProvider` stays
+      // dormant on its stale (disposed) service until something next
+      // watches it — e.g. a comment screen — so resume/relay-connect edges
+      // between now and then would silently no-op.
+      ref.read(send_outbox_providers.sendOutboxTriggerProvider);
+
       // STEP 5: Nostr イベントキャッシュをクリア。
       await _clearNostrEventCache();
 

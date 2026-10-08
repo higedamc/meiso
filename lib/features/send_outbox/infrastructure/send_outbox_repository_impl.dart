@@ -23,7 +23,7 @@ class SendOutboxRepositoryImpl implements SendOutboxRepository {
     final bytes = utf8.encode(eventJson).length;
     if (bytes > OutboxEntry.maxEventJsonBytes) {
       return Left(
-        ValidationFailure('Send outbox: event is too large ($bytes bytes)'),
+        ValidationFailure('送信キュー: イベントが大きすぎます（${bytes}バイト）'),
       );
     }
 
@@ -50,7 +50,7 @@ class SendOutboxRepositoryImpl implements SendOutboxRepository {
     if (remaining >= OutboxEntry.maxEntries) {
       return Left(
         ValidationFailure(
-          'Send outbox: queue is full (${OutboxEntry.maxEntries} entries)',
+          '送信キュー: キューが満杯です（${OutboxEntry.maxEntries}件）',
         ),
       );
     }

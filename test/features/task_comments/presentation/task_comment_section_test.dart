@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/core/common/failure.dart';
+import 'package:meiso/features/send_outbox/application/send_outbox_service.dart';
 import 'package:meiso/features/send_outbox/domain/outbox_entry.dart';
 import 'package:meiso/features/send_outbox/infrastructure/outbox_local_datasource.dart';
 import 'package:meiso/features/send_outbox/presentation/providers/outbox_providers.dart';
@@ -15,6 +16,7 @@ import 'package:meiso/features/task_comments/presentation/providers/author_profi
 import 'package:meiso/features/task_comments/presentation/widgets/task_comment_section.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 import 'package:meiso/providers/nostr_provider.dart';
+import 'package:mocktail/mocktail.dart';
 
 /// Fake that never touches Rust FFI (`hexToNpub`). Tests that render an
 /// other-author bubble need this, or `author_profile_providers.dart` hits
@@ -47,6 +49,12 @@ class _FakeOutboxLocalDataSource implements OutboxLocalDataSource {
   @override
   Future<void> wipe() async {}
 }
+
+/// Spy for [sendOutboxServiceProvider] so tests can assert `retryNow` was
+/// actually invoked by the tap handler, instead of only that tapping the
+/// marker's `Text` doesn't throw (which it wouldn't even without a
+/// `GestureDetector` around it).
+class MockSendOutboxService extends Mock implements SendOutboxService {}
 
 const _myPubkey =
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -122,6 +130,7 @@ Widget _wrap(
   required _FakeTaskCommentRepository repository,
   bool amberMode = false,
   Map<String, OutboxEntry> pendingOutbox = const {},
+  SendOutboxService? outboxService,
 }) {
   return ProviderScope(
     overrides: [
@@ -135,6 +144,8 @@ Widget _wrap(
         (ref) => Stream.value(pendingOutbox),
       ),
       authorLabelsProvider.overrideWith(_NoopAuthorLabelsNotifier.new),
+      if (outboxService != null)
+        sendOutboxServiceProvider.overrideWithValue(outboxService),
     ],
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -296,15 +307,21 @@ void main() {
 
     testWidgets(
       'own comment just queued (below visibleAfter) shows "Sending…", and '
-      'is already tappable',
+      'tapping it calls retryNow with its eventId',
       (tester) async {
         final repository = _FakeTaskCommentRepository([_comment('c1')]);
+        final outboxService = MockSendOutboxService();
+        when(
+          () => outboxService.retryNow(any()),
+        ).thenAnswer((_) async {});
+        when(() => outboxService.flush()).thenAnswer((_) async {});
 
         await tester.pumpWidget(
           _wrap(
             const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
             repository: repository,
             pendingOutbox: {'c1': entry('c1', queuedAt: nowEpochSeconds())},
+            outboxService: outboxService,
           ),
         );
         await tester.pump();
@@ -314,6 +331,8 @@ void main() {
         // Tappable from the moment it is queued, not only once stale.
         await tester.tap(find.text('Sending…'));
         await tester.pump();
+
+        verify(() => outboxService.retryNow('ev-c1')).called(1);
       },
     );
 
@@ -337,26 +356,33 @@ void main() {
     );
 
     testWidgets(
-      'own comment queued past visibleAfter shows "Unsent · tap to retry"',
+      'own comment queued past visibleAfter shows "Unsent · tap to retry", '
+      'and tapping it calls retryNow with its eventId',
       (tester) async {
         final repository = _FakeTaskCommentRepository([_comment('c1')]);
         final staleQueuedAt =
             nowEpochSeconds() - OutboxEntry.visibleAfter.inSeconds - 5;
+        final outboxService = MockSendOutboxService();
+        when(
+          () => outboxService.retryNow(any()),
+        ).thenAnswer((_) async {});
+        when(() => outboxService.flush()).thenAnswer((_) async {});
 
         await tester.pumpWidget(
           _wrap(
             const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
             repository: repository,
             pendingOutbox: {'c1': entry('c1', queuedAt: staleQueuedAt)},
+            outboxService: outboxService,
           ),
         );
         await tester.pump();
 
         expect(find.text('Unsent · tap to retry'), findsOneWidget);
-        // Tapping the marker must not throw, even though this test's fake
-        // outbox datasource is decoupled from pendingCommentOutboxProvider.
         await tester.tap(find.text('Unsent · tap to retry'));
         await tester.pump();
+
+        verify(() => outboxService.retryNow('ev-c1')).called(1);
       },
     );
 
