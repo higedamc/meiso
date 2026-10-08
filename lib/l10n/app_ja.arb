@@ -1058,6 +1058,10 @@
 
   "commentEditedLabel": "編集済み",
 
+  "commentSendingLabel": "送信中…",
+
+  "commentUnsentLabel": "未送信・タップで再試行",
+
   "notificationSettingsTitle": "通知",
 
   "notificationSettingsSubtitle": "共有タスクへのコメントを、アプリを閉じていても受け取る",

@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../../app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../providers/nostr_provider.dart';
+import '../../../send_outbox/domain/outbox_entry.dart';
+import '../../../send_outbox/presentation/providers/outbox_providers.dart';
 import '../../domain/entities/task_comment.dart';
 import '../../infrastructure/providers/repository_providers.dart';
 import '../../infrastructure/repositories/task_comment_repository_impl.dart'
@@ -59,6 +61,15 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
     if (_isPersonalTask) {
       ref.watch(personalTaskCommentSubscriptionProvider);
     }
+
+    // First build anywhere in the app activates the send-outbox retry
+    // trigger (app-resume / relay-connect listeners); it is a plain
+    // Provider, so it then keeps running for the app's lifetime rather than
+    // being torn down when this widget unmounts.
+    ref.watch(sendOutboxTriggerProvider);
+    final pendingOutbox =
+        ref.watch(pendingCommentOutboxProvider).valueOrNull ??
+        const <String, OutboxEntry>{};
 
     // The availability provider is synchronous, so there is no loading state.
     final canComment =
@@ -136,17 +147,19 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
           const SizedBox(height: 8),
 
           // Comment bubbles
-          ...visibleComments.map(
-            (comment) => _buildCommentBubble(
+          ...visibleComments.map((comment) {
+            final isMine = myPubkey != null && comment.authorPubkey == myPubkey;
+            return _buildCommentBubble(
               context,
               comment,
-              isMine: myPubkey != null && comment.authorPubkey == myPubkey,
+              isMine: isMine,
               canModify: canComment,
               isDark: isDark,
               theme: theme,
               l10n: l10n,
-            ),
-          ),
+              outboxEntry: isMine ? pendingOutbox[comment.commentId] : null,
+            );
+          }),
 
           if (visibleComments.isEmpty)
             Padding(
@@ -212,6 +225,7 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
     required bool isDark,
     required ThemeData theme,
     required AppLocalizations l10n,
+    OutboxEntry? outboxEntry,
   }) {
     final bubbleColor = isMine
         ? AppTheme.primaryPurple.withOpacity(isDark ? 0.28 : 0.12)
@@ -257,10 +271,43 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
                       : AppTheme.lightTextSecondary.withOpacity(0.7),
                 ),
               ),
+              if (outboxEntry != null)
+                _buildOutboxStatus(outboxEntry, l10n, isDark),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// Per-bubble send status, driven entirely by whether [entry] is still in
+  /// the outbox (no separate flag to drift from reality): below
+  /// [OutboxEntry.maxAttemptsBeforeVisible] attempts it reads "Sending…";
+  /// at or past it, "Unsent · tap to retry" and the text becomes tappable.
+  Widget _buildOutboxStatus(
+    OutboxEntry entry,
+    AppLocalizations l10n,
+    bool isDark,
+  ) {
+    final color = isDark
+        ? AppTheme.darkTextSecondary.withOpacity(0.7)
+        : AppTheme.lightTextSecondary.withOpacity(0.7);
+    final style = TextStyle(
+      fontSize: 11,
+      fontStyle: FontStyle.italic,
+      color: entry.attempts >= OutboxEntry.maxAttemptsBeforeVisible
+          ? Colors.red.shade400
+          : color,
+    );
+
+    if (entry.attempts < OutboxEntry.maxAttemptsBeforeVisible) {
+      return Text(l10n.commentSendingLabel, style: style);
+    }
+
+    return GestureDetector(
+      onTap: () =>
+          ref.read(sendOutboxServiceProvider).retryNow(entry.eventId),
+      child: Text(l10n.commentUnsentLabel, style: style),
     );
   }
 

@@ -1072,6 +1072,10 @@
 
   "commentEditedLabel": "editado",
 
+  "commentSendingLabel": "Enviando…",
+
+  "commentUnsentLabel": "No enviado · toca para reintentar",
+
   "notificationSettingsTitle": "Notificaciones",
 
   "notificationSettingsSubtitle": "Comentarios en tareas compartidas, incluso con la app cerrada",
