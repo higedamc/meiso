@@ -16,10 +16,10 @@ import 'package:meiso/features/task_comments/presentation/widgets/task_comment_s
 import 'package:meiso/l10n/app_localizations.dart';
 import 'package:meiso/providers/nostr_provider.dart';
 
-/// Rust FFI(`hexToNpub`)に触れない fake。other-author バブルを描画する
-/// テストはこれが無いと `author_profile_providers.dart` 経由で FFI を
-/// 叩いてクラッシュする(この widget テストファイルではこれまで誰の
-/// バブルも他人作者にしていなかったため、既存テストでは踏んでいなかった)。
+/// Fake that never touches Rust FFI (`hexToNpub`). Tests that render an
+/// other-author bubble need this, or `author_profile_providers.dart` hits
+/// the FFI and crashes (no existing test in this widget test file had put a
+/// bubble under another author's pubkey before, so this gap went unhit).
 class _NoopAuthorLabelsNotifier extends AuthorLabelsNotifier {
   @override
   Map<String, AuthorLabel> build() => const {};
@@ -28,9 +28,9 @@ class _NoopAuthorLabelsNotifier extends AuthorLabelsNotifier {
   void ensureLoaded(List<String> pubkeyHexes) {}
 }
 
-/// Hive に触れない fake。このテストではアウトボックスの中身は
-/// [pendingCommentOutboxProvider] の直接オーバーライドで制御するので、
-/// ここは [sendOutboxTriggerProvider] の依存解決が通るだけでよい。
+/// Fake that never touches Hive. This test controls the outbox's contents
+/// via a direct override of [pendingCommentOutboxProvider], so this only
+/// needs to satisfy [sendOutboxTriggerProvider]'s dependency resolution.
 class _FakeOutboxLocalDataSource implements OutboxLocalDataSource {
   @override
   Future<Map<String, OutboxEntry>> loadAll() async => const {};
@@ -280,18 +280,23 @@ void main() {
   });
 
   group('send outbox status marker', () {
-    OutboxEntry entry(String addressableId, {int attempts = 0}) =>
+    int nowEpochSeconds() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    // The label is driven by wall-clock age since queuedAt (how long the
+    // user has waited), not by attempts — attempts is a function of the
+    // retry service's backoff tuning, not of elapsed wait time.
+    OutboxEntry entry(String addressableId, {required int queuedAt}) =>
         OutboxEntry(
           eventId: 'ev-$addressableId',
           eventJson: '{}',
           kind: 35002,
-          queuedAt: 0,
+          queuedAt: queuedAt,
           addressableId: addressableId,
-          attempts: attempts,
         );
 
     testWidgets(
-      'own comment still queued (attempts below threshold) shows "Sending…"',
+      'own comment just queued (below visibleAfter) shows "Sending…", and '
+      'is already tappable',
       (tester) async {
         final repository = _FakeTaskCommentRepository([_comment('c1')]);
 
@@ -299,13 +304,16 @@ void main() {
           _wrap(
             const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
             repository: repository,
-            pendingOutbox: {'c1': entry('c1', attempts: 1)},
+            pendingOutbox: {'c1': entry('c1', queuedAt: nowEpochSeconds())},
           ),
         );
         await tester.pump();
 
         expect(find.text('Sending…'), findsOneWidget);
         expect(find.textContaining('Unsent'), findsNothing);
+        // Tappable from the moment it is queued, not only once stale.
+        await tester.tap(find.text('Sending…'));
+        await tester.pump();
       },
     );
 
@@ -329,15 +337,17 @@ void main() {
     );
 
     testWidgets(
-      'own comment stuck for 5+ attempts shows "Unsent · tap to retry"',
+      'own comment queued past visibleAfter shows "Unsent · tap to retry"',
       (tester) async {
         final repository = _FakeTaskCommentRepository([_comment('c1')]);
+        final staleQueuedAt =
+            nowEpochSeconds() - OutboxEntry.visibleAfter.inSeconds - 5;
 
         await tester.pumpWidget(
           _wrap(
             const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
             repository: repository,
-            pendingOutbox: {'c1': entry('c1', attempts: 5)},
+            pendingOutbox: {'c1': entry('c1', queuedAt: staleQueuedAt)},
           ),
         );
         await tester.pump();
@@ -364,6 +374,8 @@ void main() {
           createdAt: 1756800000,
         ),
       ]);
+      final staleQueuedAt =
+          nowEpochSeconds() - OutboxEntry.visibleAfter.inSeconds - 5;
 
       await tester.pumpWidget(
         _wrap(
@@ -371,7 +383,7 @@ void main() {
           repository: repository,
           // Even if the id coincidentally matched an outbox entry, other
           // members' bubbles must stay unmarked.
-          pendingOutbox: {'c1': entry('c1', attempts: 5)},
+          pendingOutbox: {'c1': entry('c1', queuedAt: staleQueuedAt)},
         ),
       );
       await tester.pump();

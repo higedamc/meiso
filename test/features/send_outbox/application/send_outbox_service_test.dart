@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meiso/bridge_generated.dart/api.dart' show EventSendResult;
@@ -8,7 +10,7 @@ import 'package:meiso/features/send_outbox/domain/send_outbox_repository.dart';
 import 'package:meiso/providers/nostr_provider.dart';
 import 'package:mocktail/mocktail.dart';
 
-/// Hive を使わないインメモリ fake。キューの状態遷移だけを見る。
+/// In-memory fake, no Hive — observes only the queue's state transitions.
 class FakeSendOutboxRepository implements SendOutboxRepository {
   final Map<String, OutboxEntry> _entries = {};
 
@@ -102,7 +104,7 @@ void main() {
     service.dispose();
   });
 
-  test('送信成功なら flush でキューから消える', () async {
+  test('a successful send is removed from the queue by flush', () async {
     when(
       () => nostrService.sendSignedEvent(any()),
     ).thenAnswer((_) async => _sendOk());
@@ -114,7 +116,8 @@ void main() {
   });
 
   test(
-    '送信失敗なら flush 後もキューに残り、attempts が増え lastError が入る',
+    'a failed send stays queued after flush, with attempts incremented and '
+    'lastError set',
     () async {
       when(
         () => nostrService.sendSignedEvent(any()),
@@ -130,25 +133,29 @@ void main() {
     },
   );
 
-  test('flush は直列: 1件失敗しても残りのエントリも試行される', () async {
-    final attempted = <String>[];
-    when(() => nostrService.sendSignedEvent(any())).thenAnswer((invocation) async {
-      final json = invocation.positionalArguments.single as String;
-      attempted.add(json);
-      return json == 'fail' ? _sendFail() : _sendOk();
-    });
-    await repository.enqueue(eventId: 'ev-1', eventJson: 'fail', kind: 35002);
-    await repository.enqueue(eventId: 'ev-2', eventJson: 'ok', kind: 35002);
+  test(
+    'flush is serial: one failing entry does not stop the rest from being '
+    'attempted',
+    () async {
+      final attempted = <String>[];
+      when(() => nostrService.sendSignedEvent(any())).thenAnswer((invocation) async {
+        final json = invocation.positionalArguments.single as String;
+        attempted.add(json);
+        return json == 'fail' ? _sendFail() : _sendOk();
+      });
+      await repository.enqueue(eventId: 'ev-1', eventJson: 'fail', kind: 35002);
+      await repository.enqueue(eventId: 'ev-2', eventJson: 'ok', kind: 35002);
 
-    await service.flush();
+      await service.flush();
 
-    expect(attempted, ['fail', 'ok']);
-    final all = await repository.loadAll();
-    expect(all, hasLength(1));
-    expect(all.single.eventId, 'ev-1');
-  });
+      expect(attempted, ['fail', 'ok']);
+      final all = await repository.loadAll();
+      expect(all, hasLength(1));
+      expect(all.single.eventId, 'ev-1');
+    },
+  );
 
-  test('retryNow は指定した eventId だけ即時再試行する', () async {
+  test('retryNow retries only the given eventId, immediately', () async {
     when(
       () => nostrService.sendSignedEvent(any()),
     ).thenAnswer((_) async => _sendOk());
@@ -162,53 +169,115 @@ void main() {
     expect(all.single.eventId, 'ev-2');
   });
 
-  group('nextBackoff', () {
-    OutboxEntry entryWithAttempts(int attempts) => OutboxEntry(
-      eventId: 'ev',
-      eventJson: '{}',
-      kind: 35002,
-      queuedAt: 0,
-      attempts: attempts,
-    );
+  test(
+    'retryNow no-ops while a flush is already in flight, instead of sending '
+    'the same entry a second time over the wire',
+    () async {
+      final gate = Completer<void>();
+      final attemptedJson = <String>[];
+      when(() => nostrService.sendSignedEvent(any())).thenAnswer((
+        invocation,
+      ) async {
+        attemptedJson.add(invocation.positionalArguments.single as String);
+        await gate.future;
+        return _sendOk();
+      });
+      await repository.enqueue(eventId: 'ev-1', eventJson: 'slow', kind: 35002);
 
-    test('attempts<=1 は下限の30秒', () {
+      final flushFuture = service.flush();
+      // Give flush() a turn to start and reach the (now gated) send call.
+      await Future<void>.delayed(Duration.zero);
+
+      await service.retryNow('ev-1');
+      expect(attemptedJson, ['slow']); // no second concurrent send
+
+      gate.complete();
+      await flushFuture;
+    },
+  );
+
+  group('nextBackoff', () {
+    // All entries share queuedAt/lastAttemptAt = 0, and nowEpochSeconds is
+    // pinned to 0 too, so the returned Duration is exactly each entry's own
+    // backoff-from-last-attempt — deterministic, independent of the real
+    // wall clock.
+    OutboxEntry entryWithAttempts(int attempts, {int lastAttemptAt = 0}) =>
+        OutboxEntry(
+          eventId: 'ev',
+          eventJson: '{}',
+          kind: 35002,
+          queuedAt: 0,
+          attempts: attempts,
+          lastAttemptAt: attempts > 0 ? lastAttemptAt : null,
+        );
+
+    test('attempts<=1 is the 30s floor', () {
       expect(
-        SendOutboxService.nextBackoff([entryWithAttempts(0)]),
+        SendOutboxService.nextBackoff([
+          entryWithAttempts(0),
+        ], nowEpochSeconds: 0),
         const Duration(seconds: 30),
       );
       expect(
-        SendOutboxService.nextBackoff([entryWithAttempts(1)]),
+        SendOutboxService.nextBackoff([
+          entryWithAttempts(1),
+        ], nowEpochSeconds: 0),
         const Duration(seconds: 30),
       );
     });
 
-    test('attempts が増えるほど指数的に伸びる', () {
+    test('grows exponentially with attempts', () {
       expect(
-        SendOutboxService.nextBackoff([entryWithAttempts(2)]),
+        SendOutboxService.nextBackoff([
+          entryWithAttempts(2),
+        ], nowEpochSeconds: 0),
         const Duration(seconds: 60),
       );
       expect(
-        SendOutboxService.nextBackoff([entryWithAttempts(5)]),
+        SendOutboxService.nextBackoff([
+          entryWithAttempts(5),
+        ], nowEpochSeconds: 0),
         const Duration(seconds: 30 * 16),
       );
     });
 
-    test('上限の15分で頭打ちになる(ここを外すと無限に伸びる回帰になる)', () {
-      final uncapped = SendOutboxService.nextBackoff([entryWithAttempts(10)]);
+    test('caps at the 15-minute ceiling (removing the cap is the regression)', () {
+      final uncapped = SendOutboxService.nextBackoff([
+        entryWithAttempts(10),
+      ], nowEpochSeconds: 0);
       expect(uncapped, const Duration(minutes: 15));
 
-      // 回帰防止の否定チェック: 上限を外すと 30*2^9=15360秒 になり 15分を超える。
+      // Negative control: without the cap, 30*2^9 = 15360s, which exceeds
+      // 15 minutes — so this assertion only holds because the cap is applied.
       expect(const Duration(minutes: 15) < const Duration(seconds: 15360), true);
     });
 
-    test('キューが複数件なら最大の attempts を基準にする', () {
-      expect(
-        SendOutboxService.nextBackoff([
-          entryWithAttempts(1),
-          entryWithAttempts(4),
-        ]),
-        SendOutboxService.nextBackoff([entryWithAttempts(4)]),
-      );
-    });
+    test(
+      'a queue with multiple entries uses the earliest deadline, not the '
+      'largest attempt count (one poisoned entry must not hold back a '
+      'freshly queued one)',
+      () {
+        final freshlyQueued = entryWithAttempts(0);
+        final poisonedAtCeiling = entryWithAttempts(10);
+
+        final combined = SendOutboxService.nextBackoff([
+          freshlyQueued,
+          poisonedAtCeiling,
+        ], nowEpochSeconds: 0);
+
+        expect(
+          combined,
+          SendOutboxService.nextBackoff([freshlyQueued], nowEpochSeconds: 0),
+        );
+        expect(
+          combined,
+          isNot(
+            SendOutboxService.nextBackoff([
+              poisonedAtCeiling,
+            ], nowEpochSeconds: 0),
+          ),
+        );
+      },
+    );
   });
 }

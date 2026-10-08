@@ -23,21 +23,34 @@ class SendOutboxRepositoryImpl implements SendOutboxRepository {
     final bytes = utf8.encode(eventJson).length;
     if (bytes > OutboxEntry.maxEventJsonBytes) {
       return Left(
-        ValidationFailure(
-          '送信アウトボックス: イベントが大きすぎます ($bytes bytes)',
-        ),
+        ValidationFailure('Send outbox: event is too large ($bytes bytes)'),
       );
     }
 
     final existing = await _localDataSource.loadAll();
     if (existing.containsKey(eventId)) {
-      // 主キーによる二重投入防止: 既にキュー済みなら何もしない。
+      // Primary-key dedup: already queued under this exact eventId.
       return const Right(unit);
     }
-    if (existing.length >= OutboxEntry.maxEntries) {
+
+    // A newer edit of the same addressable event (same `d` tag) replaces any
+    // stale entry still queued under its previous eventId. Without this, two
+    // entries for one comment would both retry, and the UI's commentId ->
+    // entry map would have to arbitrarily pick one to show.
+    var remaining = existing.length;
+    if (addressableId != null) {
+      for (final staleEntry in existing.values) {
+        if (staleEntry.addressableId == addressableId) {
+          await _localDataSource.remove(staleEntry.eventId);
+          remaining--;
+        }
+      }
+    }
+
+    if (remaining >= OutboxEntry.maxEntries) {
       return Left(
         ValidationFailure(
-          '送信アウトボックス: 上限(${OutboxEntry.maxEntries}件)に達しています',
+          'Send outbox: queue is full (${OutboxEntry.maxEntries} entries)',
         ),
       );
     }
@@ -75,7 +88,7 @@ class SendOutboxRepositoryImpl implements SendOutboxRepository {
   }) async {
     final existing = (await _localDataSource.loadAll())[eventId];
     if (existing == null) {
-      // 送信中に別経路(手動再試行など)で既に外れていた。
+      // Already removed through another path (e.g. manual retry) mid-send.
       return;
     }
     await _localDataSource.put(

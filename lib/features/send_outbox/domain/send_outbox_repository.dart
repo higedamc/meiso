@@ -3,16 +3,16 @@ import 'package:dartz/dartz.dart';
 import '../../../core/common/failure.dart';
 import 'outbox_entry.dart';
 
-/// 送信アウトボックスの CRUD 契約。再送のトリガ・タイミング(アプリ復帰/
-/// リレー接続/バックオフタイマー)はここでは扱わない
-/// (`application/send_outbox_service.dart` の責務)。
+/// CRUD contract for the send outbox. Retry triggers/timing (app resume /
+/// relay connect / backoff timer) are not this layer's concern — that is
+/// `application/send_outbox_service.dart`.
 abstract class SendOutboxRepository {
-  /// [eventJson](署名済み)をキューに追加する。
+  /// Adds the (signed) [eventJson] to the queue.
   ///
-  /// `eventId` が既にキューにあれば成功扱いで何もしない(主キーによる
-  /// 二重投入防止)。[OutboxEntry.maxEventJsonBytes] を超える、または
-  /// キューが既に [OutboxEntry.maxEntries] に達している場合は
-  /// [ValidationFailure] を返し、キューには入れない。
+  /// If `eventId` is already queued, this is a no-op success (primary-key
+  /// dedup against double-enqueue). Returns [ValidationFailure] without
+  /// queuing anything if [eventJson] exceeds [OutboxEntry.maxEventJsonBytes],
+  /// or if the queue is already at [OutboxEntry.maxEntries].
   Future<Either<Failure, Unit>> enqueue({
     required String eventId,
     required String eventJson,
@@ -20,16 +20,16 @@ abstract class SendOutboxRepository {
     String? addressableId,
   });
 
-  /// キュー全件(`queuedAt` 昇順)。
+  /// All queued entries, `queuedAt` ascending.
   Future<List<OutboxEntry>> loadAll();
 
-  /// キューの変化を監視する(`queuedAt` 昇順)。
+  /// Watches the queue for changes, `queuedAt` ascending.
   Stream<List<OutboxEntry>> watchAll();
 
-  /// 送信に成功したエントリをキューから外す。
+  /// Removes an entry that sent successfully.
   Future<void> markSent(String eventId);
 
-  /// 送信に失敗したエントリの試行回数・最終エラーを更新する。
-  /// [errorMessage] に本文(イベント content)を混ぜないこと。
+  /// Updates the attempt count and last error for an entry that failed to
+  /// send. [errorMessage] must never include the event content (comment body).
   Future<void> markFailed({required String eventId, required String errorMessage});
 }

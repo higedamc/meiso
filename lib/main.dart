@@ -21,6 +21,7 @@ import 'providers/app_settings_provider.dart';
 import 'providers/bootstrap_sync_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/relay_connectivity_monitor_provider.dart';
+import 'features/send_outbox/presentation/providers/outbox_providers.dart';
 import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/locale_provider.dart';
 import 'utils/relay_list_sync_guard.dart';
@@ -108,7 +109,12 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
     ref.read(bootstrapSyncProvider.notifier);
     // リレー接続性の定期監視を起動（実 WebSocket 状態を UI へ反映）
     ref.read(relayConnectivityMonitorProvider);
-    
+    // Arm the send-outbox retry trigger from cold start, not only once a
+    // comment screen first opens — a relay that is already connected at
+    // launch never fires the "just reconnected" edge the trigger listens
+    // for, so a queue populated before this restart needs this to run too.
+    ref.read(sendOutboxTriggerProvider);
+
     // アプリ起動時にNostr接続を復元
     _restoreNostrConnection();
     

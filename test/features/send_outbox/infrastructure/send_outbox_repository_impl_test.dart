@@ -31,7 +31,7 @@ void main() {
     tempDir.deleteSync(recursive: true);
   });
 
-  test('enqueue でキューに1件入る', () async {
+  test('enqueue adds one entry to the queue', () async {
     final result = await repository.enqueue(
       eventId: 'ev-1',
       eventJson: '{"id":"ev-1"}',
@@ -47,28 +47,64 @@ void main() {
     expect(all.single.attempts, 0);
   });
 
-  test('同じ eventId を2回 enqueue しても1件のまま(主キーによる二重投入防止)', (
-  ) async {
-    await repository.enqueue(
-      eventId: 'ev-1',
-      eventJson: '{"id":"ev-1","v":1}',
-      kind: 35002,
-    );
-    final second = await repository.enqueue(
-      eventId: 'ev-1',
-      eventJson: '{"id":"ev-1","v":2}',
-      kind: 35002,
-    );
+  test(
+    'enqueuing the same eventId twice stays at one entry (primary-key dedup '
+    'against double-enqueue)',
+    () async {
+      await repository.enqueue(
+        eventId: 'ev-1',
+        eventJson: '{"id":"ev-1","v":1}',
+        kind: 35002,
+      );
+      final second = await repository.enqueue(
+        eventId: 'ev-1',
+        eventJson: '{"id":"ev-1","v":2}',
+        kind: 35002,
+      );
 
-    expect(second.isRight(), true);
-    final all = await repository.loadAll();
-    expect(all, hasLength(1));
-    // 2回目の投入内容で上書きされていない(最初の投入がそのまま残る)
-    expect(all.single.eventJson, '{"id":"ev-1","v":1}');
-  });
+      expect(second.isRight(), true);
+      final all = await repository.loadAll();
+      expect(all, hasLength(1));
+      // Not overwritten by the second enqueue's content — first one stands.
+      expect(all.single.eventJson, '{"id":"ev-1","v":1}');
+    },
+  );
 
-  test('maxEventJsonBytes を超えるイベントはキューに入らずエラーになる', (
-  ) async {
+  test(
+    'a second enqueue for the same addressableId (a comment edited before '
+    'the first copy sent) replaces the stale entry instead of queuing both',
+    () async {
+      await repository.enqueue(
+        eventId: 'ev-1',
+        eventJson: '{"id":"ev-1","body":"first draft"}',
+        kind: 35002,
+        addressableId: 'comment-1',
+      );
+      final result = await repository.enqueue(
+        eventId: 'ev-2',
+        eventJson: '{"id":"ev-2","body":"edited"}',
+        kind: 35002,
+        addressableId: 'comment-1',
+      );
+
+      expect(result.isRight(), true);
+      final all = await repository.loadAll();
+      expect(all, hasLength(1));
+      expect(all.single.eventId, 'ev-2');
+      expect(all.single.eventJson, '{"id":"ev-2","body":"edited"}');
+
+      // Negative control: a different addressableId must not collide.
+      await repository.enqueue(
+        eventId: 'ev-3',
+        eventJson: '{"id":"ev-3"}',
+        kind: 35002,
+        addressableId: 'comment-2',
+      );
+      expect(await repository.loadAll(), hasLength(2));
+    },
+  );
+
+  test('an event over maxEventJsonBytes is rejected and never queued', () async {
     final hostile = 'x' * (OutboxEntry.maxEventJsonBytes + 1);
 
     final result = await repository.enqueue(
@@ -87,7 +123,8 @@ void main() {
   });
 
   test(
-    'maxEntries に達すると新規投入はエラーになり、既存の古いエントリは消えない',
+    'hitting maxEntries rejects new entries without evicting the existing '
+    'ones',
     () async {
       for (var i = 0; i < OutboxEntry.maxEntries; i++) {
         final result = await repository.enqueue(
@@ -117,7 +154,7 @@ void main() {
     },
   );
 
-  test('markSent で box から消える', () async {
+  test('markSent removes the entry from the box', () async {
     await repository.enqueue(
       eventId: 'ev-1',
       eventJson: '{"id":"ev-1"}',
@@ -131,7 +168,8 @@ void main() {
   });
 
   test(
-    'markFailed で attempts が増え lastError が入る。lastError に本文は混ざらない',
+    'markFailed increments attempts and sets lastError, without mixing in '
+    'the event body',
     () async {
       await repository.enqueue(
         eventId: 'ev-1',
@@ -162,7 +200,7 @@ void main() {
     },
   );
 
-  test('アプリ再起動(box を開き直す)をまたいで残る', () async {
+  test('survives an app restart (reopening the box)', () async {
     await repository.enqueue(
       eventId: 'ev-1',
       eventJson: '{"id":"ev-1"}',

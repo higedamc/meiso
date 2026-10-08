@@ -8,19 +8,26 @@ import '../../../services/logger_service.dart';
 import '../domain/outbox_entry.dart';
 import '../domain/send_outbox_repository.dart';
 
-/// 送信アウトボックスの再送エンジン。
+/// Retry engine for the send outbox.
 ///
-/// トリガは 1 経路だけに頼らない(`PLANS/MEISO_SEND_OUTBOX_LEAF.md` §6):
-/// アプリ復帰・リレー接続確立(`presentation/providers/outbox_providers.dart`
-/// から [flush] を呼ぶ)に加えて、ここ自身が指数バックオフの定期タイマーを
-/// 持つ。再送は直列(同時に投げない)。1 件成功するたびにキューから削除し、
-/// 失敗したら試行回数・最終エラーを更新して次へ進む。
+/// Does not rely on a single trigger path (`PLANS/MEISO_SEND_OUTBOX_LEAF.md`
+/// §6): app resume and relay-connect (`presentation/providers/
+/// outbox_providers.dart` calls [flush]) both feed in, and this class also
+/// keeps its own exponential-backoff timer. Retries are serial (never more
+/// than one send in flight). Each success removes the entry from the queue;
+/// each failure updates its attempt count and last error, then moves on.
 class SendOutboxService {
   SendOutboxService({
     required SendOutboxRepository repository,
     required NostrService nostrService,
   }) : _repository = repository,
-       _nostrService = nostrService;
+       _nostrService = nostrService {
+    // Arm immediately so a queue populated before this instance existed (an
+    // app restart with entries already on disk) is not left waiting for the
+    // next app-resume or relay-reconnect edge — which may never fire if the
+    // relay was already connected at launch.
+    unawaited(_rearm());
+  }
 
   final SendOutboxRepository _repository;
   final NostrService _nostrService;
@@ -32,7 +39,7 @@ class SendOutboxService {
   static const Duration minBackoff = Duration(seconds: 30);
   static const Duration maxBackoff = Duration(minutes: 15);
 
-  /// [eventJson](署名済み)をキューへ追加し、再送タイマーを起動する。
+  /// Adds the (signed) [eventJson] to the queue and arms the retry timer.
   Future<Either<Failure, Unit>> enqueue({
     required String eventId,
     required String eventJson,
@@ -51,8 +58,14 @@ class SendOutboxService {
     return result;
   }
 
-  /// 1 件だけ即時に再試行する(未送信バブルの「タップで再試行」用)。
+  /// Retries a single entry immediately (for the unsent bubble's "tap to
+  /// retry"). No-ops while a [flush] is already in flight — that pass will
+  /// reach this entry on its own, and sending it twice concurrently is a
+  /// wasted duplicate wire send rather than a new attempt.
   Future<void> retryNow(String eventId) async {
+    if (_flushing) {
+      return;
+    }
     final entries = await _repository.loadAll();
     OutboxEntry? target;
     for (final entry in entries) {
@@ -68,10 +81,10 @@ class SendOutboxService {
     unawaited(_rearm());
   }
 
-  /// キュー全件を直列で 1 回ずつ試行する。
+  /// Tries every queued entry once, serially.
   ///
-  /// 同時に複数の [flush] が走らないよう、進行中なら即 return する
-  /// (アプリ復帰・リレー接続・定期タイマーが短時間に重なっても安全)。
+  /// Returns immediately if one is already running, so overlapping triggers
+  /// (app resume, relay connect, the backoff timer) never run concurrently.
   Future<void> flush() async {
     if (_flushing || _disposed) {
       return;
@@ -99,7 +112,7 @@ class SendOutboxService {
         errorMessage: result.errorMessage ?? 'send failed (no error message)',
       );
     } on Object catch (e) {
-      AppLogger.warning('[send-outbox] 送信試行エラー: $e');
+      AppLogger.warning('[send-outbox] Send attempt error: $e');
       await _repository.markFailed(
         eventId: entry.eventId,
         errorMessage: e.toString(),
@@ -107,8 +120,9 @@ class SendOutboxService {
     }
   }
 
-  /// タイマーを再評価する。キューが空なら止めて待機(次のトリガで再開)、
-  /// 空でなければ現在の最大 `attempts` から次のバックオフを計算して張る。
+  /// Re-evaluates the timer. Stops and waits for the next trigger if the
+  /// queue is empty; otherwise arms it for the earliest entry's own backoff
+  /// deadline (see [nextBackoff] — never the slowest entry's).
   Future<void> _rearm() async {
     _timer?.cancel();
     _timer = null;
@@ -122,20 +136,47 @@ class SendOutboxService {
     _timer = Timer(nextBackoff(remaining), () => unawaited(flush()));
   }
 
-  /// `min(30s * 2^(attempts-1), 15分)`。`attempts` はキュー内の最大値を使う。
-  /// タイマーに依存せず単体でテストできるよう static にしている。
-  static Duration nextBackoff(List<OutboxEntry> entries) {
-    var maxAttempts = 0;
+  /// Delay until the *earliest* queued entry is due for retry — each entry's
+  /// own `lastAttemptAt ?? queuedAt` plus `min(30s * 2^(attempts-1), 15min)`.
+  /// Per-entry, not queue-wide: a single poisoned entry stuck at the
+  /// 15-minute ceiling must never hold back a comment typed moments ago by
+  /// forcing it onto the same shared deadline.
+  ///
+  /// `nowEpochSeconds` defaults to the wall clock; tests inject a fixed value
+  /// so the math stays deterministic. Static so it is testable standalone,
+  /// independent of the timer.
+  static Duration nextBackoff(
+    List<OutboxEntry> entries, {
+    int? nowEpochSeconds,
+  }) {
+    if (entries.isEmpty) {
+      return minBackoff;
+    }
+    final now = nowEpochSeconds ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    var earliestDelay = maxBackoff.inSeconds;
     for (final entry in entries) {
-      if (entry.attempts > maxAttempts) {
-        maxAttempts = entry.attempts;
+      final delay = (_dueAtSeconds(entry) - now).clamp(0, maxBackoff.inSeconds);
+      if (delay < earliestDelay) {
+        earliestDelay = delay;
       }
     }
-    final exponent = maxAttempts <= 1 ? 0 : (maxAttempts - 1).clamp(0, 10);
-    final seconds = minBackoff.inSeconds * (1 << exponent);
-    return Duration(
-      seconds: seconds.clamp(minBackoff.inSeconds, maxBackoff.inSeconds),
+    return Duration(seconds: earliestDelay);
+  }
+
+  /// Unix-second deadline for a single entry: `min(30s * 2^(attempts-1),
+  /// 15min)` after its last attempt (or after it was queued, for an entry
+  /// that has never been retried from this queue — `attempts` starts at 0
+  /// here even though the live send that preceded enqueueing already failed
+  /// once, so the 30s floor still applies).
+  static int _dueAtSeconds(OutboxEntry entry) {
+    final base = entry.lastAttemptAt ?? entry.queuedAt;
+    final effectiveAttempts = entry.attempts <= 1 ? 1 : entry.attempts;
+    final exponent = (effectiveAttempts - 1).clamp(0, 10);
+    final backoffSeconds = (minBackoff.inSeconds * (1 << exponent)).clamp(
+      minBackoff.inSeconds,
+      maxBackoff.inSeconds,
     );
+    return base + backoffSeconds;
   }
 
   void dispose() {

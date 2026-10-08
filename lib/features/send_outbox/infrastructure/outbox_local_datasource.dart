@@ -3,33 +3,33 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../../services/logger_service.dart';
 import '../domain/outbox_entry.dart';
 
-/// 送信アウトボックスのローカル永続化データソース契約
+/// Local persistence contract for the send outbox.
 abstract class OutboxLocalDataSource {
-  /// 全エントリ(`eventId` 主キー)。
+  /// All entries, keyed by `eventId`.
   Future<Map<String, OutboxEntry>> loadAll();
 
-  /// エントリを追加/更新する(`eventId` が既存ならその行を置き換える)。
+  /// Adds/updates an entry (replaces the row if `eventId` already exists).
   Future<void> put(OutboxEntry entry);
 
-  /// エントリを削除する。
+  /// Removes an entry.
   Future<void> remove(String eventId);
 
-  /// 変化を監視する。
+  /// Watches the queue for changes.
   Stream<Map<String, OutboxEntry>> watchAll();
 
-  /// Box を閉じて物理ファイルごと削除する(ログアウト用)。
+  /// Closes the box and deletes its backing file (for logout).
   Future<void> wipe();
 }
 
-/// Hive 実装
+/// Hive implementation.
 ///
-/// Box 構造: `send_outbox` Box に `eventId` をキーとして
-/// [OutboxEntry.toJson] をそのまま保存する。この box は UI isolate 専用
-/// (Phase 3 の背景 isolate から開かないこと)。
+/// Box layout: the `send_outbox` box stores [OutboxEntry.toJson] keyed by
+/// `eventId`. This box is UI-isolate only (never open it from the Phase 3
+/// background isolate).
 class OutboxLocalDataSourceHive implements OutboxLocalDataSource {
   OutboxLocalDataSourceHive({Box<Map<dynamic, dynamic>>? box}) : _box = box;
 
-  /// Hive Box 名
+  /// Hive box name.
   static const String boxName = 'send_outbox';
 
   Box<Map<dynamic, dynamic>>? _box;
@@ -65,7 +65,7 @@ class OutboxLocalDataSourceHive implements OutboxLocalDataSource {
     }
   }
 
-  /// Box を閉じる(テスト用)
+  /// Closes the box (test use).
   Future<void> close() async {
     await _box?.close();
     _box = null;
@@ -97,14 +97,14 @@ class OutboxLocalDataSourceHive implements OutboxLocalDataSource {
       try {
         result[key.toString()] = OutboxEntry.fromJson(_deepCastMap(raw));
       } on Object catch (e) {
-        AppLogger.warning('[send-outbox] エントリ復元エラー: $e');
+        AppLogger.warning('[send-outbox] Failed to restore entry: $e');
       }
     }
     return result;
   }
 
-  /// Map を deep copy で `Map<String, dynamic>` に変換
-  /// (LocalStorageService._deepCastMap と同じ方式)
+  /// Deep-copies a raw Hive map into `Map<String, dynamic>` (same approach
+  /// as `LocalStorageService._deepCastMap`).
   Map<String, dynamic> _deepCastMap(dynamic value) {
     if (value is Map) {
       return value.map((key, value) {
