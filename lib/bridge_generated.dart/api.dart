@@ -701,18 +701,19 @@ Future<EventSendResult> sendSignedEventToRelays({required String eventJson, requ
 Future<void> ensureClientForRelays({required String clientId, required List<String> relays, String? publicKeyHex}) =>
     RustLib.instance.api.crateApiEnsureClientForRelays(clientId: clientId, relays: relays, publicKeyHex: publicKeyHex);
 
-/// リレーに再接続
-Future<void> reconnectToRelays() => RustLib.instance.api.crateApiReconnectToRelays();
+/// Reconnect relays (default client). Returns the number of connected relays afterwards.
+Future<int> reconnectToRelays() => RustLib.instance.api.crateApiReconnectToRelays();
 
-/// リレーに再接続（client_id指定可能）
-Future<void> reconnectToRelaysWithClientId({String? clientId}) =>
+/// Reconnect relays for `client_id`. Returns the number of connected relays afterwards.
+Future<int> reconnectToRelaysWithClientId({String? clientId}) =>
     RustLib.instance.api.crateApiReconnectToRelaysWithClientId(clientId: clientId);
 
-/// リレーに再接続（タイムアウト秒を指定）
-Future<void> reconnectToRelaysWithTimeout({required BigInt timeoutSecs}) =>
+/// Reconnect relays (default client), waiting up to `timeout_secs`. Returns the number of
+/// connected relays afterwards; 0 means nothing is reachable right now.
+Future<int> reconnectToRelaysWithTimeout({required BigInt timeoutSecs}) =>
     RustLib.instance.api.crateApiReconnectToRelaysWithTimeout(timeoutSecs: timeoutSecs);
 
-Future<void> reconnectToRelaysWithTimeoutAndClientId({required BigInt timeoutSecs, String? clientId}) =>
+Future<int> reconnectToRelaysWithTimeoutAndClientId({required BigInt timeoutSecs, String? clientId}) =>
     RustLib.instance.api.crateApiReconnectToRelaysWithTimeoutAndClientId(timeoutSecs: timeoutSecs, clientId: clientId);
 
 /// イベントJSONからキャッシュ情報を作成（Event型を使わずに）
