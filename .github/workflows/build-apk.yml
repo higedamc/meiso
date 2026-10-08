@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+# Read-only by default: nothing in this workflow may write to the repository
+# or its releases. Releases are published by hand from locally signed APKs.
+permissions:
+  contents: read
+
 env:
   FLUTTER_VERSION: '3.38.5'
   JAVA_VERSION: '17'
@@ -73,22 +78,14 @@ jobs:
           path: build/app/outputs/flutter-apk/app-beta-release.apk
           retention-days: 30
 
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download APK artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: meiso-beta-apk-${{ github.sha }}
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app-beta-release.apk
+  # No release job: GitHub Releases are published by hand from locally built,
+  # locally signed APKs. This workflow's beta APK is signed with the runner's
+  # throwaway debug keystore, so attaching it to a release served an artifact
+  # under a certificate that changed from release to release and could not be
+  # installed over the previous beta. It also raced the manual publish: on
+  # v1.4.2 it replaced the verified local asset at 10:14:12Z, about eight
+  # minutes after that asset had been re-downloaded and checked.
+  # The beta APK remains available as the 30-day workflow artifact above.
 
   notify:
     needs: build
