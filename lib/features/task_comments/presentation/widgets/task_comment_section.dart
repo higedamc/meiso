@@ -305,8 +305,7 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
     );
 
     return GestureDetector(
-      onTap: () =>
-          ref.read(sendOutboxServiceProvider).retryNow(entry.eventId),
+      onTap: () => ref.read(sendOutboxServiceProvider).retryNow(entry.eventId),
       child: Text(
         isStale ? l10n.commentUnsentLabel : l10n.commentSendingLabel,
         style: style,

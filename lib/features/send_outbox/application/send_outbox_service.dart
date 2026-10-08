@@ -20,8 +20,10 @@ class SendOutboxService {
   SendOutboxService({
     required SendOutboxRepository repository,
     required NostrService nostrService,
+    int Function()? nowEpochSeconds,
   }) : _repository = repository,
-       _nostrService = nostrService {
+       _nostrService = nostrService,
+       _nowEpochSeconds = nowEpochSeconds ?? _defaultNowEpochSeconds {
     // Arm immediately so a queue populated before this instance existed (an
     // app restart with entries already on disk) is not left waiting for the
     // next app-resume or relay-reconnect edge — which may never fire if the
@@ -29,8 +31,17 @@ class SendOutboxService {
     unawaited(_rearm());
   }
 
+  static int _defaultNowEpochSeconds() =>
+      DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
   final SendOutboxRepository _repository;
   final NostrService _nostrService;
+
+  /// Clock seam for [_rearm]'s call into [nextBackoff]. Defaults to the real
+  /// wall clock; tests inject a fixed value so a fake repository's
+  /// `markFailed` (which cannot write the real "now") doesn't race the real
+  /// clock into computing a near-zero delay and re-firing in a tight loop.
+  final int Function() _nowEpochSeconds;
 
   bool _flushing = false;
   Timer? _timer;
@@ -133,7 +144,10 @@ class SendOutboxService {
     if (remaining.isEmpty) {
       return;
     }
-    _timer = Timer(nextBackoff(remaining), () => unawaited(flush()));
+    _timer = Timer(
+      nextBackoff(remaining, nowEpochSeconds: _nowEpochSeconds()),
+      () => unawaited(flush()),
+    );
   }
 
   /// Delay until the *earliest* queued entry is due for retry — each entry's
@@ -152,7 +166,8 @@ class SendOutboxService {
     if (entries.isEmpty) {
       return minBackoff;
     }
-    final now = nowEpochSeconds ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final now =
+        nowEpochSeconds ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
     var earliestDelay = maxBackoff.inSeconds;
     for (final entry in entries) {
       final delay = (_dueAtSeconds(entry) - now).clamp(0, maxBackoff.inSeconds);

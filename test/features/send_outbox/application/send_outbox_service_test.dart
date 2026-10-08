@@ -94,9 +94,15 @@ void main() {
   setUp(() {
     repository = FakeSendOutboxRepository();
     nostrService = MockNostrService();
+    // Pinned clock: the fake's markFailed always writes lastAttemptAt: 0
+    // (it cannot know the real "now"), so without this seam _rearm() would
+    // race the real wall clock into a near-zero delay and re-fire in a
+    // tight loop until tearDown. Pinning both to 0 makes the post-failure
+    // backoff a real, inert 30s+ delay instead.
     service = SendOutboxService(
       repository: repository,
       nostrService: nostrService,
+      nowEpochSeconds: () => 0,
     );
   });
 
@@ -138,7 +144,9 @@ void main() {
     'attempted',
     () async {
       final attempted = <String>[];
-      when(() => nostrService.sendSignedEvent(any())).thenAnswer((invocation) async {
+      when(() => nostrService.sendSignedEvent(any())).thenAnswer((
+        invocation,
+      ) async {
         final json = invocation.positionalArguments.single as String;
         attempted.add(json);
         return json == 'fail' ? _sendFail() : _sendOk();
@@ -196,6 +204,40 @@ void main() {
     },
   );
 
+  test(
+    'constructing the service over a non-empty queue (cold start) arms the '
+    'retry timer on its own — no enqueue/flush/retryNow call, no listener '
+    'edge',
+    () async {
+      final coldRepository = FakeSendOutboxRepository();
+      await coldRepository.enqueue(
+        eventId: 'ev-cold',
+        eventJson: '{}',
+        kind: 35002,
+      );
+      final coldNostrService = MockNostrService();
+      when(
+        () => coldNostrService.sendSignedEvent(any()),
+      ).thenAnswer((_) async => _sendOk());
+
+      // Entry's queuedAt/lastAttemptAt are 0; a clock far in the future
+      // makes nextBackoff's delay clamp to 0, so the constructor's own
+      // timer fires almost immediately if (and only if) it was armed.
+      final coldService = SendOutboxService(
+        repository: coldRepository,
+        nostrService: coldNostrService,
+        nowEpochSeconds: () => 1000000,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      verify(() => coldNostrService.sendSignedEvent(any())).called(1);
+      expect(await coldRepository.loadAll(), isEmpty);
+
+      coldService.dispose();
+    },
+  );
+
   group('nextBackoff', () {
     // All entries share queuedAt/lastAttemptAt = 0, and nowEpochSeconds is
     // pinned to 0 too, so the returned Duration is exactly each entry's own
@@ -241,16 +283,22 @@ void main() {
       );
     });
 
-    test('caps at the 15-minute ceiling (removing the cap is the regression)', () {
-      final uncapped = SendOutboxService.nextBackoff([
-        entryWithAttempts(10),
-      ], nowEpochSeconds: 0);
-      expect(uncapped, const Duration(minutes: 15));
+    test(
+      'caps at the 15-minute ceiling (removing the cap is the regression)',
+      () {
+        final uncapped = SendOutboxService.nextBackoff([
+          entryWithAttempts(10),
+        ], nowEpochSeconds: 0);
+        expect(uncapped, const Duration(minutes: 15));
 
-      // Negative control: without the cap, 30*2^9 = 15360s, which exceeds
-      // 15 minutes — so this assertion only holds because the cap is applied.
-      expect(const Duration(minutes: 15) < const Duration(seconds: 15360), true);
-    });
+        // Negative control: without the cap, 30*2^9 = 15360s, which exceeds
+        // 15 minutes — so this assertion only holds because the cap is applied.
+        expect(
+          const Duration(minutes: 15) < const Duration(seconds: 15360),
+          true,
+        );
+      },
+    );
 
     test(
       'a queue with multiple entries uses the earliest deadline, not the '
