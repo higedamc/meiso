@@ -1846,6 +1846,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get commentEditedLabel => 'editado';
 
   @override
+  String get commentSendingLabel => 'Enviando…';
+
+  @override
+  String get commentUnsentLabel => 'No enviado · toca para reintentar';
+
+  @override
   String get notificationSettingsTitle => 'Notificaciones';
 
   @override

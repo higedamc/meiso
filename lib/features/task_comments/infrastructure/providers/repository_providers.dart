@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../providers/nostr_provider.dart';
 import '../../../../services/amber_service.dart';
 import '../../../../services/logger_service.dart';
+import '../../../send_outbox/presentation/providers/outbox_providers.dart';
 import '../../../shared_list/infrastructure/providers/repository_providers.dart';
 import '../../domain/repositories/task_comment_repository.dart';
 import '../datasources/task_comment_crypto_datasource.dart';
@@ -40,6 +41,7 @@ final taskCommentRepositoryProvider = Provider<TaskCommentRepository>((ref) {
     localDataSource: ref.watch(taskCommentLocalDataSourceProvider),
     keyDataSource: ref.watch(sharedGroupKeyLocalDataSourceProvider),
     nostrService: ref.watch(nostrServiceProvider),
+    outboxService: ref.watch(sendOutboxServiceProvider),
   );
 });
 

@@ -3316,6 +3316,18 @@ abstract class AppLocalizations {
   /// **'edited'**
   String get commentEditedLabel;
 
+  /// Status shown under a comment bubble while it is still queued in the send outbox and has been queued for less than 30 seconds
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get commentSendingLabel;
+
+  /// Status shown under a comment bubble once it has been queued in the send outbox for 30 seconds or more without success; tapping it retries immediately
+  ///
+  /// In en, this message translates to:
+  /// **'Unsent · tap to retry'**
+  String get commentUnsentLabel;
+
   /// Title of the notification settings screen and of its entry in Settings
   ///
   /// In en, this message translates to:

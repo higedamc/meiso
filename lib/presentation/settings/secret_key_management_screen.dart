@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import '../../app_theme.dart';
 import '../../bridge_generated.dart/api.dart' as rust_api;
 import '../../features/media/application/providers/media_providers.dart';
+import '../../features/send_outbox/presentation/providers/outbox_providers.dart'
+    as send_outbox_providers;
 import '../../features/task_comments/infrastructure/providers/repository_providers.dart'
     as task_comment_providers;
 import '../../models/app_settings.dart';
@@ -715,6 +717,21 @@ class _SecretKeyManagementScreenState
           .wipe();
       AppLogger.debug('✅ Task comment box deleted (task_comments)');
 
+      // STEP 4.6: Also physically delete the send-outbox box (send_outbox).
+      // If this retry queue survived logout, the first flush after the next
+      // login would republish events signed by the previous user's key.
+      await ref
+          .read(send_outbox_providers.outboxLocalDataSourceProvider)
+          .wipe();
+      AppLogger.debug('✅ Send outbox box deleted (send_outbox)');
+
+      // Re-arm the trigger now, bound to the fresh service STEP 1 just
+      // invalidated. Without this read, `sendOutboxTriggerProvider` stays
+      // dormant on its stale (disposed) service until something next
+      // watches it — e.g. a comment screen — so resume/relay-connect edges
+      // between now and then would silently no-op.
+      ref.read(send_outbox_providers.sendOutboxTriggerProvider);
+
       // STEP 5: Nostr イベントキャッシュをクリア。
       await _clearNostrEventCache();
 
@@ -861,6 +878,9 @@ class _SecretKeyManagementScreenState
     ref.invalidate(syncStatusProvider);
     ref.invalidate(relayStatusProvider);
     ref.invalidate(mediaServersProvider);
+    // Cancels the retry timer bound to the about-to-be-wiped queue, before
+    // STEP 4.6 deletes its box out from under it.
+    ref.invalidate(send_outbox_providers.sendOutboxServiceProvider);
 
     // 認証/接続状態
     ref.read(nostrInitializedProvider.notifier).state = false;

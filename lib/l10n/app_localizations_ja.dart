@@ -1766,6 +1766,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commentEditedLabel => '編集済み';
 
   @override
+  String get commentSendingLabel => '送信中…';
+
+  @override
+  String get commentUnsentLabel => '未送信・タップで再試行';
+
+  @override
   String get notificationSettingsTitle => '通知';
 
   @override

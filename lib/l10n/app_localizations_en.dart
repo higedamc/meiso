@@ -1822,6 +1822,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commentEditedLabel => 'edited';
 
   @override
+  String get commentSendingLabel => 'Sending…';
+
+  @override
+  String get commentUnsentLabel => 'Unsent · tap to retry';
+
+  @override
   String get notificationSettingsTitle => 'Notifications';
 
   @override

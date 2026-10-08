@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:meiso/bridge_generated.dart/api.dart' show EventSendResult;
 import 'package:meiso/core/common/failure.dart';
+import 'package:meiso/features/send_outbox/application/send_outbox_service.dart';
 import 'package:meiso/features/shared_list/domain/entities/shared_group_credentials.dart';
 import 'package:meiso/features/shared_list/infrastructure/datasources/shared_group_key_local_datasource.dart';
 import 'package:meiso/features/task_comments/domain/entities/task_comment.dart';
@@ -14,16 +16,18 @@ import 'package:meiso/features/task_comments/infrastructure/repositories/task_co
 import 'package:meiso/providers/nostr_provider.dart';
 import 'package:mocktail/mocktail.dart';
 
-/// Rust FFI を使わない fake: 「暗号化」は content に平文をそのまま
-/// 入れる恒等写像。イベント id / created_at は呼び出しごとに単調増加。
+/// Fake that never touches Rust FFI: "encryption" is the identity map,
+/// putting plaintext straight into content. Event id / created_at increase
+/// monotonically per call.
 class FakeTaskCommentCryptoDataSource implements TaskCommentCryptoDataSource {
   FakeTaskCommentCryptoDataSource({this.baseCreatedAt = 1787900000});
 
   final int baseCreatedAt;
   int _counter = 0;
 
-  /// false にすると個人経路の署名不能(セッションに鍵なし / Amber 拒否)を
-  /// シミュレートし、個人経路メソッドが実装と同様に例外を投げる。
+  /// Set to false to simulate the personal path being unable to sign (no
+  /// session key / Amber rejected); the personal-path methods then throw,
+  /// same as the real implementation.
   bool personalSigningAvailable = true;
 
   @override
@@ -57,7 +61,7 @@ class FakeTaskCommentCryptoDataSource implements TaskCommentCryptoDataSource {
     required String commentJson,
   }) async {
     if (!personalSigningAvailable) {
-      throw Exception('個人コメントに署名できません（鍵なし / Amber 拒否）');
+      throw Exception('Cannot sign personal comment (no key / Amber rejected)');
     }
     return buildSignedCommentEvent(
       nsecHex: 'personal',
@@ -70,7 +74,7 @@ class FakeTaskCommentCryptoDataSource implements TaskCommentCryptoDataSource {
     required String eventJson,
   }) async {
     if (!personalSigningAvailable) {
-      throw Exception('個人コメントを復号できません（鍵なし / Amber 拒否）');
+      throw Exception('Cannot decrypt personal comment (no key / Amber rejected)');
     }
     return decryptCommentEvent(nsecHex: 'personal', eventJson: eventJson);
   }
@@ -80,6 +84,8 @@ class MockNostrService extends Mock implements NostrService {}
 
 class MockSharedGroupKeyLocalDataSource extends Mock
     implements SharedGroupKeyLocalDataSource {}
+
+class MockSendOutboxService extends Mock implements SendOutboxService {}
 
 const String kAuthorPubkey =
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -95,7 +101,16 @@ EventSendResult _sendOk() => EventSendResult(
   timedOut: false,
 );
 
-/// リレー受信イベント JSON を組み立てるヘルパー
+EventSendResult _sendFail() => EventSendResult(
+  eventId: '',
+  success: false,
+  successfulRelays: BigInt.zero,
+  failedRelays: BigInt.zero,
+  timedOut: true,
+  errorMessage: 'Timeout after 3 seconds',
+);
+
+/// Builds a relay-received event JSON.
 String _remoteEventJson({
   required String eventId,
   required int eventCreatedAt,
@@ -119,6 +134,7 @@ void main() {
   late FakeTaskCommentCryptoDataSource cryptoDataSource;
   late MockNostrService nostrService;
   late MockSharedGroupKeyLocalDataSource keyDataSource;
+  late MockSendOutboxService outboxService;
   late TaskCommentRepositoryImpl repository;
   var boxSeq = 0;
 
@@ -131,6 +147,7 @@ void main() {
     cryptoDataSource = FakeTaskCommentCryptoDataSource();
     nostrService = MockNostrService();
     keyDataSource = MockSharedGroupKeyLocalDataSource();
+    outboxService = MockSendOutboxService();
 
     when(
       () => nostrService.getPublicKey(),
@@ -145,12 +162,21 @@ void main() {
         groupNpubHex: 'e' * 64,
       ),
     );
+    when(
+      () => outboxService.enqueue(
+        eventId: any(named: 'eventId'),
+        eventJson: any(named: 'eventJson'),
+        kind: any(named: 'kind'),
+        addressableId: any(named: 'addressableId'),
+      ),
+    ).thenAnswer((_) async => const Right(unit));
 
     repository = TaskCommentRepositoryImpl(
       cryptoDataSource: cryptoDataSource,
       localDataSource: localDataSource,
       keyDataSource: keyDataSource,
       nostrService: nostrService,
+      outboxService: outboxService,
     );
   });
 
@@ -161,7 +187,7 @@ void main() {
   });
 
   group('addComment', () {
-    test('共有リスト経路: 署名→ローカル保存→publish される', () async {
+    test('shared-list path: signs, stores locally, then publishes', () async {
       final result = await repository.addComment(
         taskId: 'task-1',
         body: 'hello bees',
@@ -178,7 +204,7 @@ void main() {
       expect(stored.first.deleted, false);
     });
 
-    test('本文が空なら ValidationFailure', () async {
+    test('empty body yields ValidationFailure', () async {
       final result = await repository.addComment(
         taskId: 'task-1',
         body: '   ',
@@ -193,7 +219,7 @@ void main() {
       verifyNever(() => nostrService.sendSignedEvent(any()));
     });
 
-    test('個人タスク: 個人経路で署名→ローカル保存→publish される', () async {
+    test('personal task: signs via the personal path, stores, publishes', () async {
       final result = await repository.addComment(
         taskId: 'task-1',
         body: 'personal comment',
@@ -201,7 +227,7 @@ void main() {
 
       expect(result.isRight(), true);
       verify(() => nostrService.sendSignedEvent(any())).called(1);
-      // グループ鍵経路は使われない(個人経路で完結)
+      // The group-key path is never touched (personal path is self-contained).
       verifyNever(() => keyDataSource.load(any()));
 
       final stored = await localDataSource.loadComments('task-1');
@@ -210,24 +236,124 @@ void main() {
       expect(stored.first.authorPubkey, kAuthorPubkey);
     });
 
-    test('個人タスク: 署名できない(鍵なし / Amber 拒否)なら AuthFailure', () async {
-      cryptoDataSource.personalSigningAvailable = false;
+    test(
+      'personal task: unable to sign (no key / Amber rejected) yields '
+      'AuthFailure',
+      () async {
+        cryptoDataSource.personalSigningAvailable = false;
 
+        final result = await repository.addComment(
+          taskId: 'task-1',
+          body: 'personal comment',
+        );
+
+        expect(result.isLeft(), true);
+        result.fold(
+          (failure) => expect(failure, isA<AuthFailure>()),
+          (_) => fail('should be Left'),
+        );
+        verifyNever(() => nostrService.sendSignedEvent(any()));
+        // Fail-closed: nothing is stored locally either.
+        final stored = await localDataSource.loadComments('task-1');
+        expect(stored, isEmpty);
+      },
+    );
+  });
+
+  group('send-outbox handoff', () {
+    test(
+      'publish failure enqueues to the outbox with the comment id as '
+      'addressableId',
+      () async {
+        when(
+          () => nostrService.sendSignedEvent(any()),
+        ).thenAnswer((_) async => _sendFail());
+
+        final result = await repository.addComment(
+          taskId: 'task-1',
+          body: 'will be queued',
+          groupId: kGroupId,
+        );
+
+        // Already stored locally, so still Right ("sent but not delivered"
+        // is a state, not a failure).
+        expect(result.isRight(), true);
+        final comment = result.getOrElse(() => fail('should be Right'));
+
+        final captured = verify(
+          () => outboxService.enqueue(
+            eventId: any(named: 'eventId'),
+            eventJson: any(named: 'eventJson'),
+            kind: captureAny(named: 'kind'),
+            addressableId: captureAny(named: 'addressableId'),
+          ),
+        ).captured;
+        expect(captured, [35002, comment.commentId]);
+
+        final stored = await localDataSource.loadComments('task-1');
+        expect(stored, hasLength(1));
+        expect(stored.first.body, 'will be queued');
+      },
+    );
+
+    test('publish success never enqueues to the outbox (negative control)', () async {
+      // The default setUp answers _sendOk(), so enqueue must never be
+      // called. The preceding failure test flips send to failing and shows
+      // enqueue getting called — proof this assertion has teeth.
       final result = await repository.addComment(
         taskId: 'task-1',
-        body: 'personal comment',
+        body: 'delivered on first try',
+        groupId: kGroupId,
       );
 
-      expect(result.isLeft(), true);
-      result.fold(
-        (failure) => expect(failure, isA<AuthFailure>()),
-        (_) => fail('should be Left'),
+      expect(result.isRight(), true);
+      verifyNever(
+        () => outboxService.enqueue(
+          eventId: any(named: 'eventId'),
+          eventJson: any(named: 'eventJson'),
+          kind: any(named: 'kind'),
+          addressableId: any(named: 'addressableId'),
+        ),
       );
-      verifyNever(() => nostrService.sendSignedEvent(any()));
-      // fail-closed: ローカルにも保存されない
-      final stored = await localDataSource.loadComments('task-1');
-      expect(stored, isEmpty);
     });
+
+    test(
+      'publish failure AND a full outbox propagates the outbox failure as '
+      'Left, instead of silently losing the comment a second way',
+      () async {
+        when(
+          () => nostrService.sendSignedEvent(any()),
+        ).thenAnswer((_) async => _sendFail());
+        when(
+          () => outboxService.enqueue(
+            eventId: any(named: 'eventId'),
+            eventJson: any(named: 'eventJson'),
+            kind: any(named: 'kind'),
+            addressableId: any(named: 'addressableId'),
+          ),
+        ).thenAnswer(
+          (_) async =>
+              const Left(ValidationFailure('Send outbox: queue is full')),
+        );
+
+        final result = await repository.addComment(
+          taskId: 'task-1',
+          body: 'cannot even be queued',
+          groupId: kGroupId,
+        );
+
+        expect(result.isLeft(), true);
+        result.fold(
+          (failure) => expect(failure, isA<ValidationFailure>()),
+          (_) => fail('should be Left'),
+        );
+        // Negative control: still stored locally — the Left reports the
+        // retry-tracking failure, not a rollback of the local write.
+        final stored = await localDataSource.loadComments('task-1');
+        expect(stored, hasLength(1));
+        expect(stored.first.body, 'cannot even be queued');
+      },
+    );
   });
 
   group('applyRemoteCommentEvent (LWW)', () {
@@ -239,7 +365,7 @@ void main() {
       createdAt: 1787900000,
     );
 
-    test('新しいイベントが古い保存内容を上書きする(created_at 昇順)', () async {
+    test('a newer event overwrites older stored content (created_at ascending)', () async {
       final first = await repository.applyRemoteCommentEvent(
         eventJson: _remoteEventJson(
           eventId: 'ev-a',
@@ -266,7 +392,7 @@ void main() {
       expect(stored.first.editedAt, 1787900200);
     });
 
-    test('古いイベントは新しい保存内容を上書きしない', () async {
+    test('an older event does not overwrite newer stored content', () async {
       await repository.applyRemoteCommentEvent(
         eventJson: _remoteEventJson(
           eventId: 'ev-b',
@@ -284,14 +410,14 @@ void main() {
         ),
         groupId: kGroupId,
       );
-      expect(stale.isRight(), true); // 適用スキップでも成功扱い
+      expect(stale.isRight(), true); // Skipping the apply still counts as success
 
       final stored = await localDataSource.loadComments('task-1');
       expect(stored, hasLength(1));
       expect(stored.first.body, 'newest');
     });
 
-    test('同秒イベントは event_id 辞書順で後勝ち', () async {
+    test('same-second events break ties by event_id lexical order (higher wins)', () async {
       await repository.applyRemoteCommentEvent(
         eventJson: _remoteEventJson(
           eventId: 'ev-b',
@@ -301,7 +427,7 @@ void main() {
         groupId: kGroupId,
       );
 
-      // 同秒だが event id が辞書順で小さい → 適用されない
+      // Same second, but lexically smaller event id -> not applied
       await repository.applyRemoteCommentEvent(
         eventJson: _remoteEventJson(
           eventId: 'ev-a',
@@ -315,7 +441,7 @@ void main() {
       expect(stored.first.body, 'from ev-b');
     });
 
-    test('kind:35002 以外は ValidationFailure', () async {
+    test('anything other than kind:35002 yields ValidationFailure', () async {
       final result = await repository.applyRemoteCommentEvent(
         eventJson: jsonEncode({
           'id': 'ev-x',
@@ -333,7 +459,7 @@ void main() {
       );
     });
 
-    test('過大な本文は読み取り側で 2000 文字にクランプされる', () async {
+    test('an oversized body is clamped to 2000 chars on the read side', () async {
       final hostile = comment.copyWith(body: 'x' * 5000);
       await repository.applyRemoteCommentEvent(
         eventJson: _remoteEventJson(
@@ -348,9 +474,9 @@ void main() {
       expect(stored.first.body.length, maxCommentBodyChars);
     });
 
-    test('クランプはサロゲートペア(絵文字)を分断しない', () async {
-      // 2000 コードポイント目が絵文字(UTF-16 では 2 code unit)になる本文。
-      // UTF-16 substring だと lone surrogate が残り JSON 化が壊れる。
+    test('clamping does not split a surrogate pair (emoji)', () async {
+      // A body whose 2000th code point is an emoji (2 UTF-16 code units).
+      // A UTF-16 substring would leave a lone surrogate and break JSON encoding.
       final hostile = comment.copyWith(body: '🐝' * 3000);
       await repository.applyRemoteCommentEvent(
         eventJson: _remoteEventJson(
@@ -364,14 +490,14 @@ void main() {
       final stored = await localDataSource.loadComments('task-1');
       final body = stored.first.body;
       expect(body.runes.length, maxCommentBodyChars);
-      // lone surrogate が無い = そのまま JSON round-trip できる
+      // No lone surrogate -> round-trips through JSON unchanged.
       expect(jsonDecode(jsonEncode(body)), body);
       expect(body.runes.every((r) => r == 0x1F41D), true);
     });
   });
 
   group('deleteComment (tombstone)', () {
-    test('tombstone は保存されたまま deleted=true / body 空になる', () async {
+    test('tombstone stays stored, with deleted=true and an empty body', () async {
       final added = await repository.addComment(
         taskId: 'task-1',
         body: 'to be deleted',
@@ -386,7 +512,7 @@ void main() {
       expect(deleted.isRight(), true);
 
       final stored = await localDataSource.loadComments('task-1');
-      expect(stored, hasLength(1)); // tombstone として残る
+      expect(stored, hasLength(1)); // remains as a tombstone
       expect(stored.first.deleted, true);
       expect(stored.first.body, '');
       expect(stored.first.commentId, comment.commentId);
@@ -394,7 +520,7 @@ void main() {
   });
 
   group('watchComments', () {
-    test('created_at 昇順で流れる', () async {
+    test('streams in created_at ascending order', () async {
       const older = TaskComment(
         commentId: 'c-old',
         taskId: 'task-1',
@@ -433,7 +559,7 @@ void main() {
   });
 
   group('TaskCommentLocalDataSourceHive.wipe', () {
-    test('box を閉じて物理ファイルごと削除する(ログアウト用)', () async {
+    test('closes the box and deletes its backing file (for logout)', () async {
       final wipeBox = await Hive.openBox<Map<dynamic, dynamic>>(
         'task_comments_wipe',
       );
