@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.4.2] - 2026-10-08
 
+### Added
+
+- **Comments on tasks.** Every task now has a COMMENTS thread below SUBTASKS: write a comment, long-press your own to edit or delete it, with an "edited" marker and the author's display name next to their npub. On a shared list it is a conversation with the people you share the list with; on your own tasks it is a notes field that syncs across your devices. Works in secret-key mode and with Amber. Each comment is a separate NIP-44-encrypted addressable event (`kind:35002`) signed by the list's group key or by your own key, and carries no tag referencing the task, so relays cannot see which task a comment belongs to or how many comments a task has. Deleting a comment republishes an empty tombstone, which replaces the text on the relays. Logging out erases the local comment store. (#157, #159, #160, #161, #163, #164, #165)
+
+  These landed in the 1.4.1 tree but were omitted from the 1.4.1 notes.
+
 ### Fixed
 
 - **Deleting the last task in a list now reaches your other devices.** Emptying a list was never sent: the sync built its list of changes from the tasks that still existed, so a list that had just become empty had nothing to send. Going from three tasks to one synced correctly; going from one to zero did not, in both Amber and secret-key mode, and the last task stayed on every other device. (#182)
