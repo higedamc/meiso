@@ -144,7 +144,9 @@ stamped is unread). While the own pubkey is still unknown nothing is unread.
 app-wide; `TaskCommentReadMarker.markRead(taskId)` advances the watermark to
 the latest `received_at` the store holds for that task, and the detail
 screen calls it on open and on every change while the thread stays open.
-Both boxes are wiped on logout next to `task_comments`.
+`markAllRead()` does the same for every stored thread in one write, for the
+catch-up list's "mark all as read". Both boxes are wiped on logout next to
+`task_comments`.
 
 The indicator is only as live as the fetch behind it: the personal
 `kind:35002` subscription has to outlive the detail screen (see

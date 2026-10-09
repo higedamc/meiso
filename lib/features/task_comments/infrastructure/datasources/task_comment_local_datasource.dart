@@ -24,6 +24,10 @@ abstract class TaskCommentLocalDataSource {
   /// One thread with receipt stamps (same order as [loadComments]).
   Future<List<TaskCommentRecord>> loadRecords(String taskId);
 
+  /// Every stored thread with receipt stamps, keyed by task id (one-shot
+  /// form of [watchAllRecords]).
+  Future<Map<String, List<TaskCommentRecord>>> loadAllRecords();
+
   /// LWW upsert。イベントの created_at 昇順(同秒は event_id 辞書順)で
   /// 「後勝ち」となるよう、保存済みエントリより新しい場合のみ適用する
   /// (shared-v1 todos の issue #138 R1/R2 と同じ規則)。
@@ -98,6 +102,12 @@ class TaskCommentLocalDataSourceHive implements TaskCommentLocalDataSource {
   Future<List<TaskCommentRecord>> loadRecords(String taskId) async {
     final box = await _openBox();
     return _readRecords(box, taskId);
+  }
+
+  @override
+  Future<Map<String, List<TaskCommentRecord>>> loadAllRecords() async {
+    final box = await _openBox();
+    return _readAllRecords(box);
   }
 
   @override

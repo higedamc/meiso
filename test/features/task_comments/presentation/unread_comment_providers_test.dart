@@ -59,6 +59,10 @@ class _FakeLocalDataSource implements TaskCommentLocalDataSource {
       current[taskId] ?? const [];
 
   @override
+  Future<Map<String, List<TaskCommentRecord>>> loadAllRecords() async =>
+      Map.of(current);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -87,6 +91,24 @@ class _FakeReadState implements TaskCommentReadStateDataSource {
     watermarks[taskId] = receivedAtMillis;
     _controller.add(Map.of(watermarks));
   }
+
+  @override
+  Future<void> markReadAll(Map<String, int> watermarks) async {
+    markReadAllCalls++;
+    var changed = false;
+    watermarks.forEach((taskId, receivedAtMillis) {
+      final current = this.watermarks[taskId];
+      if (current == null || current < receivedAtMillis) {
+        this.watermarks[taskId] = receivedAtMillis;
+        changed = true;
+      }
+    });
+    if (changed) {
+      _controller.add(Map.of(this.watermarks));
+    }
+  }
+
+  int markReadAllCalls = 0;
 
   @override
   Future<void> wipe() async {}
@@ -343,6 +365,56 @@ void main() {
         ],
       });
       expect((await _summaries(s.container))['task-1']!.unreadCount, 1);
+    });
+
+    test('markAllRead clears every thread in one write', () async {
+      final s = _setUp();
+      s.read.watermarks['task-1'] = 5;
+      s.local.emit({
+        'task-1': [
+          _record(taskId: 'task-1', commentId: 'a', receivedAt: 10),
+          _record(taskId: 'task-1', commentId: 'b', receivedAt: 25),
+        ],
+        'task-2': [_record(taskId: 'task-2', commentId: 'c', receivedAt: 40)],
+        'old': [_record(taskId: 'old', commentId: 'd')], // no stamp
+      });
+      await pumpEventQueue();
+      expect(s.container.read(unreadCommentCountsProvider), {
+        'task-1': 2,
+        'task-2': 1,
+      });
+
+      await s.container.read(taskCommentReadMarkerProvider).markAllRead();
+
+      expect(s.read.markReadAllCalls, 1);
+      expect(s.read.watermarks, {'task-1': 25, 'task-2': 40});
+      expect(s.container.read(unreadCommentCountsProvider), isEmpty);
+    });
+
+    test('markAllRead never moves a watermark backwards', () async {
+      final s = _setUp();
+      s.read.watermarks['task-1'] = 100;
+      s.local.emit({
+        'task-1': [_record(taskId: 'task-1', commentId: 'a', receivedAt: 10)],
+      });
+      await pumpEventQueue();
+
+      await s.container.read(taskCommentReadMarkerProvider).markAllRead();
+
+      expect(s.read.watermarks, {'task-1': 100});
+    });
+
+    test('markAllRead with no stamped entries writes nothing', () async {
+      final s = _setUp();
+      s.local.emit({
+        'old': [_record(taskId: 'old', commentId: 'a')],
+      });
+      await pumpEventQueue();
+
+      await s.container.read(taskCommentReadMarkerProvider).markAllRead();
+
+      expect(s.read.markReadAllCalls, 0);
+      expect(s.read.watermarks, isEmpty);
     });
   });
 }

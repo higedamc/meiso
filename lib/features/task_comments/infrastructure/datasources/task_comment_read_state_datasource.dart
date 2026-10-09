@@ -30,6 +30,11 @@ abstract class TaskCommentReadStateDataSource {
     required int receivedAtMillis,
   });
 
+  /// [markRead] for many threads in one write: `task_id -> received_at`.
+  /// Entries that would move a watermark backwards are dropped, so this has
+  /// the same forward-only guarantee as the single-thread call.
+  Future<void> markReadAll(Map<String, int> watermarks);
+
   /// Closes the box and deletes its file (logout). Mirrors
   /// `TaskCommentLocalDataSourceHive.wipe`.
   Future<void> wipe();
@@ -71,6 +76,22 @@ class TaskCommentReadStateDataSourceHive
       return;
     }
     await box.put(taskId, receivedAtMillis);
+  }
+
+  @override
+  Future<void> markReadAll(Map<String, int> watermarks) async {
+    final box = await _openBox();
+    final forward = <String, int>{};
+    watermarks.forEach((taskId, receivedAtMillis) {
+      final current = box.get(taskId);
+      if (current == null || current < receivedAtMillis) {
+        forward[taskId] = receivedAtMillis;
+      }
+    });
+    if (forward.isEmpty) {
+      return;
+    }
+    await box.putAll(forward);
   }
 
   /// Box を閉じる(テスト用)

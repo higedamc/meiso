@@ -116,11 +116,14 @@ bool isUnreadCommentRecord(
   return watermark == null || receivedAt > watermark;
 }
 
-/// Marks a thread read. L3 calls [TaskCommentReadMarker.markRead] when the
-/// thread opens and again whenever its comment list changes while open.
+/// Marks threads read. L3 calls [TaskCommentReadMarker.markRead] when the
+/// thread opens and again whenever its comment list changes while open; the
+/// catch-up list (L5) calls [TaskCommentReadMarker.markAllRead].
 final taskCommentReadMarkerProvider = Provider<TaskCommentReadMarker>((ref) {
+  final local = ref.watch(taskCommentLocalDataSourceProvider);
   return TaskCommentReadMarker(
-    loadRecords: ref.watch(taskCommentLocalDataSourceProvider).loadRecords,
+    loadRecords: local.loadRecords,
+    loadAllRecords: local.loadAllRecords,
     readState: ref.watch(taskCommentReadStateDataSourceProvider),
   );
 });
@@ -129,11 +132,15 @@ class TaskCommentReadMarker {
   TaskCommentReadMarker({
     required Future<List<TaskCommentRecord>> Function(String taskId)
     loadRecords,
+    required Future<Map<String, List<TaskCommentRecord>>> Function()
+    loadAllRecords,
     required TaskCommentReadStateDataSource readState,
   }) : _loadRecords = loadRecords,
+       _loadAllRecords = loadAllRecords,
        _readState = readState;
 
   final Future<List<TaskCommentRecord>> Function(String taskId) _loadRecords;
+  final Future<Map<String, List<TaskCommentRecord>>> Function() _loadAllRecords;
   final TaskCommentReadStateDataSource _readState;
 
   /// Advances the watermark of [taskId] to the latest `received_at` the
@@ -143,7 +150,32 @@ class TaskCommentReadMarker {
   /// read cannot leave a comment stranded on either side. No-op when the
   /// thread has no stamped entries.
   Future<void> markRead(String taskId) async {
-    final records = await _loadRecords(taskId);
+    final latest = _latestStamp(await _loadRecords(taskId));
+    if (latest == null) {
+      return;
+    }
+    await _readState.markRead(taskId: taskId, receivedAtMillis: latest);
+  }
+
+  /// [markRead] for every thread the store holds, in one write. Same
+  /// semantics per thread: the watermark lands on the latest `received_at`
+  /// stored for it, threads without a stamped entry are left alone.
+  Future<void> markAllRead() async {
+    final records = await _loadAllRecords();
+    final watermarks = <String, int>{};
+    records.forEach((taskId, thread) {
+      final latest = _latestStamp(thread);
+      if (latest != null) {
+        watermarks[taskId] = latest;
+      }
+    });
+    if (watermarks.isEmpty) {
+      return;
+    }
+    await _readState.markReadAll(watermarks);
+  }
+
+  static int? _latestStamp(List<TaskCommentRecord> records) {
     int? latest;
     for (final record in records) {
       final stamp = record.receivedAtMillis;
@@ -151,9 +183,6 @@ class TaskCommentReadMarker {
         latest = stamp;
       }
     }
-    if (latest == null) {
-      return;
-    }
-    await _readState.markRead(taskId: taskId, receivedAtMillis: latest);
+    return latest;
   }
 }

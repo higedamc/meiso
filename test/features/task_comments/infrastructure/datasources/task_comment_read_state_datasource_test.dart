@@ -43,6 +43,18 @@ void main() {
     expect(await dataSource.loadWatermarks(), {'t1': 700});
   });
 
+  test('markReadAll writes many threads and only moves forward', () async {
+    await dataSource.markRead(taskId: 't1', receivedAtMillis: 500);
+
+    await dataSource.markReadAll({'t1': 300, 't2': 200, 't3': 900});
+
+    expect(await dataSource.loadWatermarks(), {
+      't1': 500,
+      't2': 200,
+      't3': 900,
+    });
+  });
+
   test('watchWatermarks emits the current map and then every change', () async {
     await dataSource.markRead(taskId: 't1', receivedAtMillis: 1);
 
