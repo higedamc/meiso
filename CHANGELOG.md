@@ -9,9 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.4.3] - 2026-10-09
 
+### Added
+
+- **Comments on tasks.** Every task now has a COMMENTS thread below SUBTASKS: write a comment, long-press your own to edit or delete it, with an "edited" marker and the author's display name next to their npub. On a shared list it is a conversation with the people you share the list with; on your own tasks it is a notes field that syncs across your devices. Works in secret-key mode and with Amber. Each comment is a separate NIP-44-encrypted addressable event (`kind:35002`) signed by the list's group key or by your own key, and carries no tag referencing the task, so relays cannot see which task a comment belongs to or how many comments a task has. Deleting a comment republishes an empty tombstone, which replaces the text on the relays. Logging out erases the local comment store. (#157, #159, #160, #161, #163, #164, #165)
+
+  Comments were built in the 1.4.1 and 1.4.2 trees. Neither was published to Zapstore, so 1.4.3 is the release that actually brings them to you.
+
+### Also new since 1.4.0
+
+Everything from 1.4.1 and 1.4.2 is in this build. If you are updating from the Zapstore listing, these are new to you as well:
+
+- **Task-loss protection for synced lists.** Publishing waits for at least one successful relay fetch in the session, refuses to publish a list that shrank below half of its last relay-confirmed size unless you run a manual sync, and keeps a change queued rather than reporting success when a send reaches no relay. (1.4.1)
+- **Emptying a list reaches your other devices.** Deleting the last task in a list was never sent, so the task stayed on every other device. (1.4.2, #182)
+- **Tasks are no longer deleted because a sync was incomplete.** An interrupted or partial fetch used to remove real tasks. A list that did not arrive at all is now left alone. (1.4.2, #182)
+- **Your relay settings are used at startup.** A cold start fell back to the built-in public relays even though your own relay was saved, then overwrote your settings with the list it read from those public relays. This is why data could look missing after a reinstall: the app was asking the wrong relays. (1.4.2, #197)
+- **Settings screens are readable in dark mode**, Secret Key Management is fully translated, and a missing translation now fails the build instead of silently falling back to English. (1.4.2, #183, #189)
+
+Full lists: [v1.4.1](https://github.com/higedamc/meiso/releases/tag/v1.4.1), [v1.4.2](https://github.com/higedamc/meiso/releases/tag/v1.4.2).
+
 ### Fixed
 
-- **Comments and task edits are no longer lost after a brief network problem.** When the app reconnected to a relay it closed the old connection and immediately opened a new one. The underlying library treats that as a shutdown, so the relay stayed dead for the rest of the session. Anything written afterwards, comments in particular, was accepted by the UI, reached no relay at all, and was gone on the next start. The reconnect now waits for the connection to actually come back, and reports how many relays it reached. (#188, #214)
+- **Comments reach the relays even after a brief network problem.** When the app reconnected to a relay it closed the old connection and immediately opened a new one. The library underneath treats that as a shutdown, so the relay stayed dead for the rest of the session. Anything written afterwards, comments in particular, was accepted by the screen, reached no relay at all, and was gone on the next start. The reconnect now waits for the connection to actually come back, and reports how many relays it reached. (#188, #214)
 
 - **A comment that reaches no relay is retried instead of being dropped.** Sends that fail are queued locally and flushed on the next connection, so a comment written while offline survives. The queue is erased on logout. (#201, #212)
 
