@@ -3531,6 +3531,9 @@ class TodosNotifier
                     return todo;
                   }).toList();
                 }
+                // Re-check before the write: the encrypt/sign/send awaits
+                // above may have outlived this notifier (issue #229).
+                if (!mounted) return;
                 state = AsyncValue.data(updated);
               }
             }
