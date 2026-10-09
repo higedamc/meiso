@@ -364,6 +364,52 @@ void main() {
       );
     });
 
+    test(
+      'a retry scheduled before dispose does not touch providers after '
+      'dispose (issue #229)',
+      () async {
+        await seedLocal([_todo('a')]);
+        final service = _FakeNostrService();
+        final started = await startNotifier(service);
+        // Let the container's own startup background work (AppSettings'
+        // one-shot sync 1 s after creation, among others — see settle()'s
+        // doc comment) finish before we start orchestrating our own
+        // dispose-mid-retry below, so the only thing racing dispose is the
+        // retry loop under test.
+        await settle();
+
+        // Open the gate first so the publish itself is what fails below,
+        // not the gate's own fetch-and-retry.
+        await started.notifier.syncFromNostr();
+        await settle();
+
+        // Attempt 1 will fail at the relay send, which schedules a 3 s
+        // delayed retry inside _syncToNostrBackground's microtask.
+        service.sendSucceeds = false;
+        await started.notifier.addTodo('b', null);
+        await pumpUntil(
+          () => service.createTodoListCalls >= 1,
+          reason: 'attempt 1 did not try to publish',
+        );
+
+        // Dispose while the retry delay is still pending, the same shape as
+        // a logout, account switch, or widget teardown racing a background
+        // sync. Negative control: without the mounted guard at the top of
+        // _syncToNostrBackground's retry loop, attempt 2 resumes on this
+        // disposed container ~3 s from now and throws "Bad state: Tried to
+        // read a provider from a ProviderContainer that was already
+        // disposed" from inside the un-awaited microtask — uncaught, and
+        // reported by the test runner as this test having "failed after
+        // test completion" rather than as a clean assertion failure here.
+        started.container.dispose();
+
+        // Outlive the 3 s retry delay inside this test, so that if the
+        // guard is missing, the resulting uncaught error is attributed to
+        // this test rather than leaking into whichever test runs next.
+        await Future<void>.delayed(const Duration(seconds: 4));
+      },
+    );
+
     test('logout closes the gate again', () async {
       await seedLocal([_todo('a'), _todo('b')]);
       final service = _FakeNostrService();

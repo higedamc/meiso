@@ -2759,6 +2759,12 @@ class TodosNotifier
     Future.microtask(() async {
       const maxAttempts = 2;
       for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Guards the resume after the delayed retry below just as much as
+        // this first pass: if the notifier was disposed while we were
+        // awaiting (relay send or the 3s backoff), _ref belongs to a
+        // ProviderContainer that is gone, and every read past this point
+        // throws "Bad state: ... already disposed" (issue #229).
+        if (!mounted) return;
         try {
           AppLogger.info(' Background sync attempt $attempt/$maxAttempts');
           // needsSync is cleared per todo by _markTodosSyncedWithEventId
@@ -2766,10 +2772,12 @@ class TodosNotifier
           // their flags, so a skipped send never looks like a delivered one.
           await _syncAllTodosToNostr();
 
+          if (!mounted) return;
           AppLogger.info(' Background sync completed successfully');
           _ref.read(syncStatusProvider.notifier).syncSuccess();
           return;
         } catch (e, stackTrace) {
+          if (!mounted) return;
           if (attempt < maxAttempts) {
             AppLogger.warning(
               ' Background sync attempt $attempt failed, retrying in 3s: $e',
@@ -3198,6 +3206,10 @@ class TodosNotifier
         }
       }
 
+      // This callback runs after the outer syncFromNostr() gate retry and
+      // after state.whenData() itself resumed, both async gaps where the
+      // caller's dispose could have landed (issue #229).
+      if (!mounted) return;
       final isAmberMode = _ref.read(isAmberModeProvider);
       final nostrService = _ref.read(nostrServiceProvider);
 
@@ -3276,6 +3288,10 @@ class TodosNotifier
             );
           }
 
+          // The customListsAsync.whenData() above awaited; re-check before
+          // touching providers past that gap (issue #229).
+          if (!mounted) return;
+
           // 2. 公開鍵取得
           var publicKey = _ref.read(publicKeyProvider);
           var npub = _ref.read(nostrPublicKeyProvider);
@@ -3287,6 +3303,9 @@ class TodosNotifier
             );
             try {
               publicKey = await nostrService.getPublicKey();
+              // getPublicKey() above awaited; re-check before writing
+              // providers past that gap (issue #229).
+              if (!mounted) return;
               if (publicKey != null) {
                 AppLogger.info(
                   ' Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...',
@@ -3296,6 +3315,7 @@ class TodosNotifier
                 // npub形式にも変換して設定
                 try {
                   npub = await nostrService.hexToNpub(publicKey);
+                  if (!mounted) return;
                   _ref.read(nostrPublicKeyProvider.notifier).state = npub;
                   AppLogger.info(
                     ' Public key (npub) also restored: ${npub.substring(0, 16)}...',
@@ -3325,6 +3345,9 @@ class TodosNotifier
             throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
           }
 
+          // Re-check before amberServiceProvider: npub resolution above
+          // may have awaited hasPublicKey() (issue #229).
+          if (!mounted) return;
           final amberService = _ref.read(amberServiceProvider);
 
           // Shrink guard: inspect every list that is about to be sent before
