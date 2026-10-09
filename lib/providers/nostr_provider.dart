@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -656,10 +657,18 @@ class NostrService {
   /// trigger), so a generous pre-send wait would be charged to the user's total
   /// wait on top of that. When the state is unknown (never observed yet) we do
   /// not guess and do not reconnect.
+  ///
+  /// Rate-limited by [preSendReconnectCooldown]: the send outbox drains its
+  /// queue serially through this same seam, so without a cooldown a drain
+  /// against a dead pool would pay one reconnect per entry. The status map is
+  /// not a substitute for the cooldown — a successful reconnect does not write
+  /// it, and `RelayConnectivityMonitor` only refreshes it every 30 s while the
+  /// app is in the foreground.
   Future<rust_api.EventSendResult> sendSignedEvent(
     String signedEventJson,
   ) async {
-    if (_isKnownFullyDisconnected()) {
+    if (_isKnownFullyDisconnected() && _preSendReconnectIsDue()) {
+      _lastPreSendReconnectAt = DateTime.now();
       try {
         await reconnectRelaysWithTimeout(timeoutSeconds: 1);
       } catch (e) {
@@ -667,6 +676,19 @@ class NostrService {
       }
     }
     return rust_api.sendSignedEvent(eventJson: signedEventJson);
+  }
+
+  /// Minimum spacing between two pre-send reconnects. Mutable for tests only;
+  /// production never changes it.
+  @visibleForTesting
+  Duration preSendReconnectCooldown = const Duration(seconds: 10);
+
+  DateTime? _lastPreSendReconnectAt;
+
+  bool _preSendReconnectIsDue() {
+    final last = _lastPreSendReconnectAt;
+    if (last == null) return true;
+    return DateTime.now().difference(last) >= preSendReconnectCooldown;
   }
 
   /// True when `relayStatusProvider` holds at least one registered relay and

@@ -82,4 +82,42 @@ void main() {
       expect(service.reconnectCalls, 0);
     },
   );
+
+  test(
+    'a queue drain pays one reconnect, not one per entry',
+    () async {
+      container.read(relayStatusProvider.notifier).initializeWithRelays(
+            ['wss://relay.example'],
+            initialState: RelayConnectionState.disconnected,
+          );
+
+      // SendOutboxService.flush() walks its entries serially through this same
+      // seam, and the status map stays "disconnected" throughout: a successful
+      // reconnect does not write it and the connectivity monitor only
+      // refreshes every 30s. Without the cooldown each entry reconnects.
+      for (var i = 0; i < 5; i++) {
+        await expectLater(service.sendSignedEvent('{}'), throwsA(anything));
+      }
+
+      expect(service.reconnectCalls, 1);
+    },
+  );
+
+  test(
+    'once the cooldown has elapsed the next send reconnects again',
+    () async {
+      container.read(relayStatusProvider.notifier).initializeWithRelays(
+            ['wss://relay.example'],
+            initialState: RelayConnectionState.disconnected,
+          );
+      service.preSendReconnectCooldown = Duration.zero;
+
+      await expectLater(service.sendSignedEvent('{}'), throwsA(anything));
+      await expectLater(service.sendSignedEvent('{}'), throwsA(anything));
+
+      // Guards the other direction: the cooldown must rate-limit, not latch
+      // the reconnect off after the first attempt.
+      expect(service.reconnectCalls, 2);
+    },
+  );
 }
