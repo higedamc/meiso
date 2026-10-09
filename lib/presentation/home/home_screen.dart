@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 
+import '../../features/task_comments/infrastructure/datasources/task_comment_author_scan.dart';
 import '../../models/custom_list.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/bootstrap_sync_provider.dart';
 import '../../providers/calendar_provider.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/date_provider.dart';
+import '../../providers/nostr_provider.dart';
+import '../../services/local_storage_service.dart';
 import '../../widgets/add_list_chooser.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/comment_intro_card.dart';
 import '../../widgets/list_settings_sheet.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
@@ -47,6 +51,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   bool get _hasDetail => _activeCustomList != null || _activePlanning != null;
 
+  // コメント機能の初回案内カード(issue #219 §6)。表示要否が確定するまで
+  // false のままにし、確定後に setState で切り替える。
+  bool _showCommentIntroCard = false;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +72,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           });
         }
       });
+    _maybeShowCommentIntroCard();
+  }
+
+  /// 初回案内カードを出すべきか判定する。既に表示済み、または既にコメント
+  /// を書いたことがある利用者(他端末で書いた分がこの端末に同期済みの
+  /// 場合を含む)には出さない。
+  Future<void> _maybeShowCommentIntroCard() async {
+    if (localStorageService.hasSeenCommentIntroCard()) {
+      return;
+    }
+    final myPubkey = ref.read(publicKeyProvider);
+    final alreadyCommented =
+        myPubkey != null && await hasAuthoredAnyComment(myPubkey);
+    if (alreadyCommented) {
+      await localStorageService.markCommentIntroCardAsSeen();
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _showCommentIntroCard = true;
+    });
+  }
+
+  void _dismissCommentIntroCard() {
+    setState(() {
+      _showCommentIntroCard = false;
+    });
+    localStorageService.markCommentIntroCardAsSeen();
   }
 
   @override
@@ -360,6 +398,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Column(
       key: const ValueKey('view-today'),
       children: [
+        if (_showCommentIntroCard)
+          CommentIntroCard(onDismiss: _dismissCommentIntroCard),
         Expanded(
           child: PageView.builder(
             controller: _pageController,

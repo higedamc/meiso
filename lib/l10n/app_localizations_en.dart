@@ -1828,6 +1828,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commentUnsentLabel => 'Unsent · tap to retry';
 
   @override
+  String get commentIntroCardMessage =>
+      'Tasks can now have comments.\nRelays never learn which task a comment belongs to.';
+
+  @override
   String get notificationSettingsTitle => 'Notifications';
 
   @override

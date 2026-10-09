@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A one-time dismissible card on the home screen, shown once after updating from a build without task comments, explaining that tasks can now have comments and that relays never learn which task a comment belongs to. Not shown to anyone who has already authored a comment (including one synced in from another device). (#219 §6)
+
 ## [1.4.3] - 2026-10-09
 
 ### Added
