@@ -6,16 +6,25 @@ import 'package:meiso/l10n/app_localizations.dart';
 import 'package:meiso/presentation/comment_catchup/comment_catchup_screen.dart';
 import 'package:meiso/widgets/comment_catchup_strip.dart';
 
-/// Lets a test change the strip's count after the first pump, to prove the
-/// widget watches the provider in `build` rather than snapshotting it once
-/// (the same cold-start-value-arrives-later bug this lane keeps hitting).
-final _testCount = StateProvider<int>((ref) => 1);
+/// Test double for the real [CommentCatchupArmedCountNotifier]: a fixed,
+/// settable count with none of the arm/re-arm bookkeeping, since the widget
+/// only needs to prove it renders whatever the provider currently holds.
+class _FakeArmedCountNotifier extends CommentCatchupArmedCountNotifier {
+  _FakeArmedCountNotifier([this._initial = 1]);
+
+  final int? _initial;
+
+  @override
+  int? build() => _initial;
+
+  void set(int? value) => state = value;
+}
 
 Widget _wrap(Widget child, {List<Override> overrides = const []}) {
   return ProviderScope(
     overrides: [
-      totalUnreadCommentCountProvider.overrideWith(
-        (ref) => ref.watch(_testCount),
+      commentCatchupArmedCountProvider.overrideWith(
+        _FakeArmedCountNotifier.new,
       ),
       commentCatchupEntriesProvider.overrideWithValue(const []),
       ...overrides,
@@ -36,13 +45,14 @@ void main() {
       expect(find.textContaining('1 new comments'), findsOneWidget);
     });
 
-    testWidgets('updates when the unread count changes after the first build', (
+    testWidgets('re-renders when the armed count changes (e.g. on resume), '
+        'not when it merely holds a new value at build time', (
       tester,
     ) async {
       final container = ProviderContainer(
         overrides: [
-          totalUnreadCommentCountProvider.overrideWith(
-            (ref) => ref.watch(_testCount),
+          commentCatchupArmedCountProvider.overrideWith(
+            _FakeArmedCountNotifier.new,
           ),
           commentCatchupEntriesProvider.overrideWithValue(const []),
         ],
@@ -61,7 +71,12 @@ void main() {
       );
       expect(find.textContaining('1 new comments'), findsOneWidget);
 
-      container.read(_testCount.notifier).state = 5;
+      // Simulates a re-arm (e.g. app resume), the only event that is
+      // supposed to move this provider's value once built.
+      final notifier =
+          container.read(commentCatchupArmedCountProvider.notifier)
+              as _FakeArmedCountNotifier;
+      notifier.set(5);
       await tester.pump();
 
       expect(find.textContaining('5 new comments'), findsOneWidget);
@@ -73,7 +88,9 @@ void main() {
     ) async {
       final container = ProviderContainer(
         overrides: [
-          totalUnreadCommentCountProvider.overrideWithValue(3),
+          commentCatchupArmedCountProvider.overrideWith(
+            () => _FakeArmedCountNotifier(3),
+          ),
           commentCatchupEntriesProvider.overrideWithValue(const []),
         ],
       );

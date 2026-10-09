@@ -130,12 +130,74 @@ final commentCatchupDismissedProvider =
       CommentCatchupDismissalNotifier.new,
     );
 
+/// The catch-up strip's count for this session (issue #219 §2: "don't
+/// interrupt while the user is working — only show at launch and resume").
+///
+/// Unlike badges/dots, the strip must not pop up or grow mid-session just
+/// because a comment arrived while the app is in use — that shifts the task
+/// list under a finger mid-tap. So this is not a live watch of
+/// [totalUnreadCommentCountProvider]: it latches the total the first moment
+/// unread is actually readable (own pubkey known, comment records loaded)
+/// after launch or resume, and ignores everything that arrives after, until
+/// the next resume re-arms it.
+///
+/// "Readable" has the same two preconditions as the cold-start fail-closed
+/// rule everywhere else in this feature: capturing before either is true
+/// would always latch onto 0 and the strip would never show.
+class CommentCatchupArmedCountNotifier extends Notifier<int?> {
+  bool _armed = false;
+
+  @override
+  int? build() {
+    ref.listen<AppLifecycleState>(appLifecycleProvider, (previous, next) {
+      if (next == AppLifecycleState.resumed) {
+        _armed = false;
+        state = null;
+        _tryArm();
+      }
+    });
+    ref.listen<String?>(publicKeyProvider, (previous, next) => _tryArm());
+    ref.listen(taskCommentRecordsProvider, (previous, next) => _tryArm());
+
+    return _readyTotal();
+  }
+
+  void _tryArm() {
+    if (_armed) {
+      return;
+    }
+    final total = _readyTotal();
+    if (total == null) {
+      return;
+    }
+    state = total;
+  }
+
+  /// The current total, or null when unread is not yet readable. Marks
+  /// [_armed] as a side effect once readable, so a later call — from [build]
+  /// returning this directly, or from [_tryArm] — latches at most once per
+  /// arm cycle.
+  int? _readyTotal() {
+    final myPubkey = ref.read(publicKeyProvider);
+    final records = ref.read(taskCommentRecordsProvider).valueOrNull;
+    if (myPubkey == null || records == null) {
+      return null;
+    }
+    _armed = true;
+    return ref.read(totalUnreadCommentCountProvider);
+  }
+}
+
+final commentCatchupArmedCountProvider =
+    NotifierProvider<CommentCatchupArmedCountNotifier, int?>(
+      CommentCatchupArmedCountNotifier.new,
+    );
+
 /// Whether the catch-up strip should be visible right now. Watches
-/// [totalUnreadCommentCountProvider] (never a one-shot read) so the strip
-/// still appears once the own pubkey resolves after a cold start, the same
-/// shape as every other unread-driven indicator in this feature.
+/// [commentCatchupArmedCountProvider] rather than the live
+/// [totalUnreadCommentCountProvider] — see that provider's doc for why.
 final shouldShowCommentCatchupStripProvider = Provider<bool>((ref) {
-  final total = ref.watch(totalUnreadCommentCountProvider);
+  final armed = ref.watch(commentCatchupArmedCountProvider) ?? 0;
   final dismissed = ref.watch(commentCatchupDismissedProvider);
-  return total > 0 && !dismissed;
+  return armed > 0 && !dismissed;
 });

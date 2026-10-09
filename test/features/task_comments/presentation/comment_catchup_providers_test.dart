@@ -338,5 +338,36 @@ void main() {
       s.container.read(commentCatchupDismissedProvider.notifier).dismiss();
       expect(s.container.read(shouldShowCommentCatchupStripProvider), isFalse);
     });
+
+    test(
+      'a comment arriving after the strip has already armed does not make '
+      'it appear',
+      () async {
+        final s = _setUp();
+        // Nothing unread yet, but pubkey and records are both readable, so
+        // this read latches the session's strip count at 0.
+        s.local.emit({});
+        await pumpEventQueue();
+        expect(
+          s.container.read(shouldShowCommentCatchupStripProvider),
+          isFalse,
+        );
+
+        // A comment arrives while the strip is hidden and the app is in
+        // use. This must not pop the strip open mid-session — that is the
+        // badge/dot's job, not the strip's (issue #219 §2).
+        s.local.emit({
+          'task-1': [
+            _record(taskId: 'task-1', commentId: 'a', receivedAt: 10),
+          ],
+        });
+        await pumpEventQueue();
+
+        expect(
+          s.container.read(shouldShowCommentCatchupStripProvider),
+          isFalse,
+        );
+      },
+    );
   });
 }

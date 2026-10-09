@@ -18,7 +18,7 @@ class CommentCatchupStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final count = ref.watch(totalUnreadCommentCountProvider);
+    final count = ref.watch(commentCatchupArmedCountProvider) ?? 0;
 
     return Material(
       color: Colors.transparent,
