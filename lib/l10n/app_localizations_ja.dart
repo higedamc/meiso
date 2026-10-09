@@ -1838,4 +1838,12 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get notificationSettingsSaveError =>
       '変更を保存できませんでした。最後に保存された値を表示しています。';
+
+  @override
+  String reconnectAttemptSucceeded(int count, int total) {
+    return '再接続しました（$count/$total 接続中）';
+  }
+
+  @override
+  String get reconnectAttemptFailed => '再接続を試みましたが、リレーに接続できませんでした';
 }

@@ -1063,11 +1063,16 @@ class NostrService {
 
   /// リレーサーバーへ再接続
   /// バックグラウンドから復帰時などに使用
-  Future<void> reconnectRelays() async {
+  ///
+  /// Returns the number of relays actually connected afterwards, as measured by
+  /// Rust. The catch/rethrow arm is kept because `get_client` can still fail
+  /// (e.g. client not initialised) even though the reconnect itself fails open.
+  Future<int> reconnectRelays() async {
     AppLogger.info(' Reconnecting to relays...');
     try {
-      await rust_api.reconnectToRelays();
-      AppLogger.info(' Successfully reconnected to relays');
+      final connected = await rust_api.reconnectToRelays();
+      AppLogger.info(' Successfully reconnected to relays ($connected connected)');
+      return connected;
     } catch (e) {
       // 実状態の取得が期待できないため、悲観的にマークしてから補正を試みる
       _ref.read(relayStatusProvider.notifier).markAllDisconnected();
@@ -1082,14 +1087,17 @@ class NostrService {
   /// リレーサーバーへ再接続（タイムアウト秒を指定）
   ///
   /// 背景復帰時の「最大10秒待ち」を避けるために使用する。
-  Future<void> reconnectRelaysWithTimeout({int timeoutSeconds = 3}) async {
+  /// Returns the number of relays actually connected afterwards, as measured by
+  /// Rust.
+  Future<int> reconnectRelaysWithTimeout({int timeoutSeconds = 3}) async {
     final timeout = timeoutSeconds <= 0 ? 1 : timeoutSeconds;
     AppLogger.info(' Reconnecting to relays with timeout=${timeout}s...');
     try {
-      await rust_api.reconnectToRelaysWithTimeout(
+      final connected = await rust_api.reconnectToRelaysWithTimeout(
         timeoutSecs: BigInt.from(timeout),
       );
-      AppLogger.info(' Successfully reconnected to relays');
+      AppLogger.info(' Successfully reconnected to relays ($connected connected)');
+      return connected;
     } catch (e) {
       _ref.read(relayStatusProvider.notifier).markAllDisconnected();
       AppLogger.error(' Failed to reconnect to relays: $e');

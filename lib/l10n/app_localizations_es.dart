@@ -1924,4 +1924,13 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get notificationSettingsSaveError =>
       'No se pudo guardar el cambio. Se muestran los últimos valores guardados.';
+
+  @override
+  String reconnectAttemptSucceeded(int count, int total) {
+    return 'Reconectado ($count/$total conectados)';
+  }
+
+  @override
+  String get reconnectAttemptFailed =>
+      'Se intentó reconectar, pero no se pudo contactar ningún relay';
 }

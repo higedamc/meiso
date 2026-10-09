@@ -704,14 +704,31 @@ class _StatusBadgeState extends ConsumerState<_StatusBadge>
   }
 
   /// 赤バッジタップ時: リレー再接続＋同期を実行し、実状態を再取得する。
+  ///
+  /// Report the outcome only after reading [ReconnectOutcome.attempted], so a
+  /// tap that reached nothing is distinguishable from a tap that did nothing.
+  /// When `attempted` is false no reconnect ran at all (already connected, or
+  /// one was already in flight), so the badge alone already tells the truth and
+  /// we stay quiet rather than claiming a failure we never attempted.
   Future<void> _retryConnection() async {
     if (_reconnecting) return;
     setState(() => _reconnecting = true);
     try {
       // フォアグラウンド復帰時と同じ導線（再接続＋差分同期）を再利用
-      await ref.read(appLifecycleProvider.notifier).manualReconnectAndSync();
+      final outcome =
+          await ref.read(appLifecycleProvider.notifier).manualReconnectAndSync();
       // markAll* は楽観的なので、Rust の実接続状態で上書きする
       await ref.read(nostrServiceProvider).refreshRelayStatus();
+      if (mounted && outcome.attempted) {
+        final l10n = AppLocalizations.of(context);
+        final total = ref.read(relayStatusProvider).length;
+        final message = outcome.connectedCount > 0
+            ? l10n.reconnectAttemptSucceeded(outcome.connectedCount, total)
+            : l10n.reconnectAttemptFailed;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
     } finally {
       if (mounted) setState(() => _reconnecting = false);
     }

@@ -2965,5 +2965,23 @@
   "notificationSettingsSaveError": "The change could not be saved. Showing the last saved values.",
   "@notificationSettingsSaveError": {
     "description": "Shown when a toggle could not be persisted"
+  },
+
+  "reconnectAttemptSucceeded": "Reconnected ({count}/{total} connected)",
+  "@reconnectAttemptSucceeded": {
+    "description": "Shown after a manual reconnect tap actually ran and reached at least one relay",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+
+  "reconnectAttemptFailed": "Reconnect attempted, but no relay could be reached",
+  "@reconnectAttemptFailed": {
+    "description": "Shown after a manual reconnect tap actually ran and reached zero relays, so the user can tell it from a tap that did nothing"
   }
 }

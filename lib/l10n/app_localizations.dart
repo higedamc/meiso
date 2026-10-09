@@ -3453,6 +3453,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The change could not be saved. Showing the last saved values.'**
   String get notificationSettingsSaveError;
+
+  /// Shown after a manual reconnect tap actually ran and reached at least one relay
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnected ({count}/{total} connected)'**
+  String reconnectAttemptSucceeded(int count, int total);
+
+  /// Shown after a manual reconnect tap actually ran and reached zero relays, so the user can tell it from a tap that did nothing
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect attempted, but no relay could be reached'**
+  String get reconnectAttemptFailed;
 }
 
 class _AppLocalizationsDelegate

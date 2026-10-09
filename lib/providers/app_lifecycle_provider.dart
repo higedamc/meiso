@@ -12,6 +12,25 @@ final appLifecycleProvider = StateNotifierProvider<AppLifecycleNotifier, AppLife
   return AppLifecycleNotifier(ref);
 });
 
+/// Outcome of a reconnect attempt, so a caller can tell "nothing reached"
+/// apart from "didn't try" instead of reading both as the same red badge.
+class ReconnectOutcome {
+  const ReconnectOutcome.skipped()
+      : attempted = false,
+        connectedCount = 0;
+  const ReconnectOutcome.attempted(this.connectedCount) : attempted = true;
+
+  /// False when no reconnect ran at all — already connected, or one was
+  /// already in flight for another caller. True when a reconnect actually
+  /// executed, whether or not it ended up connecting anything.
+  final bool attempted;
+
+  /// Connected-relay count after the attempt. Only meaningful when
+  /// [attempted] is true; 0 on error too, since `markAllDisconnected()`
+  /// already reflects "nothing known to be connected" in that case.
+  final int connectedCount;
+}
+
 class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with WidgetsBindingObserver {
   AppLifecycleNotifier(this._ref) : super(AppLifecycleState.resumed) {
     // WidgetsBindingにオブザーバーを登録
@@ -84,13 +103,8 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
       }
     }
 
-    // 既に再接続中の場合はスキップ
-    if (_isReconnecting) {
-      AppLogger.debug('📱 Already reconnecting, skipping');
-      return;
-    }
-
-    // リレー再接続と同期を実行
+    // Reconnect relays and sync; the concurrency guard now lives inside
+    // _reconnectAndSync so both entry points share one.
     await _reconnectAndSync();
   }
 
@@ -144,12 +158,21 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
   }
 
   /// リレー再接続と同期を実行
-  Future<void> _reconnectAndSync() async {
+  ///
+  /// Both `_onAppResumed` and `manualReconnectAndSync` funnel through here, so
+  /// the concurrency guard is held in this one place and never in the callers.
+  Future<ReconnectOutcome> _reconnectAndSync() async {
+    // Skip when a reconnect is already running (a resume racing a manual tap).
+    if (_isReconnecting) {
+      AppLogger.debug('📱 Already reconnecting, skipping');
+      return const ReconnectOutcome.skipped();
+    }
     _isReconnecting = true;
-    
+
+    var outcome = const ReconnectOutcome.skipped();
     try {
       final nostrService = _ref.read(nostrServiceProvider);
-      
+
       // まず接続状態を確認し、必要なときだけ短時間reconnectする
       final connected = await nostrService.checkConnectionStatus();
       if (!connected) {
@@ -157,9 +180,11 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
               _ref.read(syncStatusProvider.notifier).updateMessageKey('syncReconnectingRelays');
         try {
           // 復帰時は長時間待たない（最大3秒）
-          await nostrService.reconnectRelaysWithTimeout();
+          final connectedCount = await nostrService.reconnectRelaysWithTimeout();
+          outcome = ReconnectOutcome.attempted(connectedCount);
           AppLogger.info(' Relay reconnection completed');
         } catch (e) {
+          outcome = const ReconnectOutcome.attempted(0);
           AppLogger.warning(' Relay reconnection failed: $e');
           // 再接続失敗でも、差分同期は試行する（ローカルデータで継続可能）
           _ref.read(syncStatusProvider.notifier).syncError(
@@ -168,16 +193,16 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
           );
         }
       }
-      
+
       // 再接続成功後、データ同期を実行
       AppLogger.info(' Starting sync after reconnect...');
       _ref.read(syncStatusProvider.notifier).updateMessage('__l10n__:syncSyncingData');
-      
+
       // TodosProviderの同期メソッドを呼び出し
       final todosNotifier = _ref.read(todosProvider.notifier);
       await todosNotifier.syncFromNostr(trigger: TodoSyncTrigger.appResume);
       await nostrService.processGlobalBackfillQueue();
-      
+
       // Phase 8.1.2: グループ招待の同期
       try {
         final customListsNotifier = _ref.read(customListsProvider.notifier);
@@ -187,14 +212,14 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
         AppLogger.warning(' Group invitation sync failed: $e');
         // エラーは無視（次回の同期で再試行）
       }
-      
+
       AppLogger.info(' Sync after reconnect completed');
       _ref.read(syncStatusProvider.notifier).clearMessage();
-      
+
     } catch (e, stackTrace) {
       AppLogger.error(' Reconnect and sync failed: $e');
       AppLogger.error('Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
-      
+
       _ref.read(syncStatusProvider.notifier).syncError(
         'フォアグラウンド復帰時の同期エラー: ${e}',
         shouldRetry: false,
@@ -202,12 +227,13 @@ class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> with Widgets
     } finally {
       _isReconnecting = false;
     }
+    return outcome;
   }
 
-  /// 手動でリレー再接続と同期を実行（デバッグ用）
-  Future<void> manualReconnectAndSync() async {
+  /// Manual reconnect + sync, driven by the status badge tap in Settings.
+  Future<ReconnectOutcome> manualReconnectAndSync() async {
     AppLogger.debug('📱 Manual reconnect triggered');
-    await _reconnectAndSync();
+    return _reconnectAndSync();
   }
 }
 
