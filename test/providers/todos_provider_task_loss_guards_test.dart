@@ -410,6 +410,55 @@ void main() {
       },
     );
 
+    test(
+      'a retry is actually scheduled when dispose does not race it '
+      '(issue #229)',
+      () async {
+        // Companion to the test above: that one proves a scheduled retry
+        // does not touch a disposed container, but says nothing about
+        // whether a retry happens at all. If _syncToNostrBackground's
+        // maxAttempts loop were ever removed, that test would stay green
+        // for the wrong reason (nothing left to guard). This test never
+        // disposes, so it is the one that would catch that: it needs
+        // attempt 2 to actually run.
+        await seedLocal([_todo('a')]);
+        final service = _FakeNostrService();
+        final started = await startNotifier(service);
+        await settle();
+
+        await started.notifier.syncFromNostr();
+        await settle();
+
+        // The notifier also arms a one-shot batch-sync timer at creation
+        // (5 s, independent of this test's own addTodo call below) that
+        // would itself call _syncToNostrBackground and confound the count
+        // this test is about to take. Todo 'a' was seeded already-synced,
+        // so that timer finds nothing to send and no-ops — but only if it
+        // has already fired by the time 'b' goes unsynced. Let it pass
+        // first.
+        await Future<void>.delayed(const Duration(seconds: 4));
+
+        // Both attempts fail at the relay send; only their count matters
+        // here, not success.
+        service.sendSucceeds = false;
+        await started.notifier.addTodo('b', null);
+        await pumpUntil(
+          () => service.createTodoListCalls >= 1,
+          reason: 'attempt 1 did not try to publish',
+        );
+
+        // Outlive the 3 s retry delay without disposing, so attempt 2 gets
+        // to run.
+        await pumpUntil(
+          () => service.createTodoListCalls >= 2,
+          timeout: const Duration(seconds: 6),
+          reason: 'attempt 2 was never scheduled',
+        );
+
+        expect(service.createTodoListCalls, 2);
+      },
+    );
+
     test('logout closes the gate again', () async {
       await seedLocal([_todo('a'), _todo('b')]);
       final service = _FakeNostrService();
