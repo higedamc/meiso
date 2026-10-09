@@ -9,7 +9,7 @@
 - Flutter + Rust (flutter_rust_bridge). Rust is cross-compiled for three Android ABIs by cargokit during the build; the first build is very heavy.
 - After changing any public `#[frb]` API, regenerate the bridge with `./generate.sh` (takes minutes). Not needed if you did not touch the public API.
 - `cui/` is a Go CLI (module `github.com/higedamc/meiso/cui`, go 1.24.1) that speaks the same Nostr protocol as the app.
-- **Flutter version: the repository pins nothing** — there is no `.fvmrc` and no `.fvm/`. CI uses **3.38.5** (`.github/workflows/ci.yml`); 3.41.6 is known to work locally. Bare `flutter` may not be on `PATH`; if you use fvm, name the version explicitly rather than relying on `fvm flutter` picking up a project pin that does not exist.
+- **Flutter version: pinned to 3.41.6** in `.fvmrc` and in `FLUTTER_VERSION` of both workflows under `.github/workflows/`. The three must stay equal: `pubspec.lock` is written by this SDK and the release APK is built with it (v1.4.3's `libflutter.so` carries engine `425cfb54d0` / Dart 3.11.4). Bare `flutter` may not be on `PATH`; use `fvm flutter`, which reads `.fvmrc`.
 
 ## CI gates a pull request has to pass
 
