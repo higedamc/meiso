@@ -498,6 +498,74 @@ class CryptographyDetailScreen extends StatelessWidget {
 
                   const SizedBox(height: 40),
 
+                  // セクション9: 共有リスト暗号化
+                  _buildSection(
+                    context,
+                    id: 'collab-lists',
+                    icon: Icons.group_outlined,
+                    title: AppLocalizations.of(context).cryptoCollabListsTitle,
+                    content: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildParagraph(
+                          context,
+                          AppLocalizations.of(context).cryptoCollabListsIntro,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildSubheading(
+                            context,
+                            AppLocalizations.of(context)
+                                .cryptoCollabHybridTitle),
+                        _buildParagraph(
+                          context,
+                          AppLocalizations.of(context).cryptoCollabHybridDesc,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildCodeBlock(
+                          context,
+                          AppLocalizations.of(context)
+                              .cryptoCollabEncryptionFlow,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildSubheading(
+                            context,
+                            AppLocalizations.of(context)
+                                .cryptoCollabMembershipTitle),
+                        _buildBulletPoint(
+                          context,
+                          AppLocalizations.of(context).cryptoCollabAddMember,
+                          AppLocalizations.of(context)
+                              .cryptoCollabAddMemberDesc,
+                        ),
+                        _buildBulletPoint(
+                          context,
+                          AppLocalizations.of(context)
+                              .cryptoCollabRemoveMember,
+                          AppLocalizations.of(context)
+                              .cryptoCollabRemoveMemberDesc,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildSubheading(
+                            context,
+                            AppLocalizations.of(context)
+                                .cryptoCollabPrimitivesTitle),
+                        _buildCodeBlock(
+                          context,
+                          AppLocalizations.of(context)
+                              .cryptoCollabPrimitivesTable,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildLinkText(
+                          context,
+                          AppLocalizations.of(context).cryptoCollabReference,
+                          'https://github.com/higedamc/meiso/blob/main/docs/COLLABORATIVE_LISTS_ENCRYPTION.md',
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 40),
+
                   // フッター
                   _buildFooter(context),
 
@@ -564,6 +632,7 @@ class CryptographyDetailScreen extends StatelessWidget {
           _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem6),
           _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem7),
           _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem8),
+          _buildTocItem(context, AppLocalizations.of(context).cryptoTocItem9),
         ],
       ),
     );
