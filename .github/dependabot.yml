@@ -9,6 +9,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Do not adopt a release in its first week. tj-actions/changed-files was
+    # the lesson: the malicious tag was live for hours, not weeks.
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns: ["*"]

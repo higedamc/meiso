@@ -225,6 +225,10 @@ jobs:
 
       - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
+          # Only this repository's own CI config. Vendored trees (cargokit/,
+          # rust/vendor/) carry their upstreams' workflows, which GitHub never
+          # runs here, and auditing them fails the job on code we do not own.
+          inputs: .github
           version: '1.30.1'
           persona: regular
           # Plain CLI output + annotations instead of a SARIF upload, so the result is
