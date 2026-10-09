@@ -34,6 +34,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+test_cache/
 
 # Flutter Rust Bridge generated files (tracked for CI builds)
 # NOTE: bridge_generated.dart/ and bridge_generated.h are now tracked

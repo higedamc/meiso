@@ -1062,6 +1062,8 @@
 
   "commentUnsentLabel": "未送信・タップで再試行",
 
+  "commentIntroCardMessage": "タスクにコメントを付けられるようになりました。\nどのタスクへのコメントかはリレーには見えません。",
+
   "notificationSettingsTitle": "通知",
 
   "notificationSettingsSubtitle": "共有タスクへのコメントを、アプリを閉じていても受け取る",

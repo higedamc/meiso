@@ -3328,6 +3328,12 @@ abstract class AppLocalizations {
   /// **'Unsent · tap to retry'**
   String get commentUnsentLabel;
 
+  /// Body text of the one-time dismissible card shown on the home screen the first time someone opens the app after updating to the version that introduces task comments. Tap anywhere on the card or its close button to dismiss it permanently.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks can now have comments.\nRelays never learn which task a comment belongs to.'**
+  String get commentIntroCardMessage;
+
   /// Title of the notification settings screen and of its entry in Settings
   ///
   /// In en, this message translates to:

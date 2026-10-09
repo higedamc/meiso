@@ -15,6 +15,8 @@ class LocalStorageService {
   static const String _appSettingsKey = 'app_settings';
   static const String _recurringTasksTipsDismissedKey =
       'recurring_tasks_tips_dismissed';
+  static const String _commentIntroCardDismissedKey =
+      'comment_intro_card_dismissed'; // Issue #219 §6
   static const String _languageKey = 'language';
   static const String _lastKeyPackagePublishTimeKey =
       'last_key_package_publish_time'; // Phase 8.1
@@ -360,6 +362,28 @@ class LocalStorageService {
       throw Exception('LocalStorageService not initialized');
     }
     await _settingsBox!.put(_recurringTasksTipsDismissedKey, true);
+  }
+
+  // === Comment feature intro card (Issue #219 §6) ===
+
+  /// Checks whether the comment feature intro card has already been seen.
+  bool hasSeenCommentIntroCard() {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    return _settingsBox!.get(
+          _commentIntroCardDismissedKey,
+          defaultValue: false,
+        )
+        as bool;
+  }
+
+  /// Marks the comment feature intro card as seen.
+  Future<void> markCommentIntroCardAsSeen() async {
+    if (_settingsBox == null) {
+      throw Exception('LocalStorageService not initialized');
+    }
+    await _settingsBox!.put(_commentIntroCardDismissedKey, true);
   }
 
   // === 言語設定関連 ===
