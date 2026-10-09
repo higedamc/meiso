@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-10-09
+
+### Fixed
+
+- **Comments and task edits are no longer lost after a brief network problem.** When the app reconnected to a relay it closed the old connection and immediately opened a new one. The underlying library treats that as a shutdown, so the relay stayed dead for the rest of the session. Anything written afterwards, comments in particular, was accepted by the UI, reached no relay at all, and was gone on the next start. The reconnect now waits for the connection to actually come back, and reports how many relays it reached. (#188, #214)
+
+- **A comment that reaches no relay is retried instead of being dropped.** Sends that fail are queued locally and flushed on the next connection, so a comment written while offline survives. The queue is erased on logout. (#201, #212)
+
+- **Sending reconnects first when the connection is known to be down**, rate-limited so that flushing a backlog pays for one reconnect rather than one per message. (#215)
+
+### Changed
+
+- **The relay status row says what actually happened.** Tapping reconnect used to look identical whether every relay came back, none of them did, or nothing was attempted. It now reports the number of relays reconnected, says so plainly when none could be reached, and stays silent when there was nothing to do. (#215)
+
+- **The Notifications settings entry no longer appears in release builds.** The screen is unfinished UI with no service behind it, so its switches did nothing. It stays available in debug builds and will return together with the notification service. (#201, #210)
+
 ## [1.4.2] - 2026-10-08
 
 ### Added
