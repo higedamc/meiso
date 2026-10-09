@@ -22,6 +22,8 @@ import 'providers/bootstrap_sync_provider.dart';
 import 'providers/app_lifecycle_provider.dart';
 import 'providers/relay_connectivity_monitor_provider.dart';
 import 'features/send_outbox/presentation/providers/outbox_providers.dart';
+import 'features/task_comments/infrastructure/providers/repository_providers.dart'
+    as task_comment_providers;
 import 'providers/nostr_provider.dart' as nostrProvider;
 import 'providers/locale_provider.dart';
 import 'utils/relay_list_sync_guard.dart';
@@ -114,6 +116,10 @@ class _MeisoAppState extends ConsumerState<MeisoApp> {
     // launch never fires the "just reconnected" edge the trigger listens
     // for, so a queue populated before this restart needs this to run too.
     ref.read(sendOutboxTriggerProvider);
+    // Personal kind:35002 comments are fetched for the whole session, not
+    // only while a task's thread is open (#218 L2); the unread indicator is
+    // computed from what this subscription stores.
+    ref.read(task_comment_providers.personalTaskCommentSessionProvider);
 
     // アプリ起動時にNostr接続を復元
     _restoreNostrConnection();
