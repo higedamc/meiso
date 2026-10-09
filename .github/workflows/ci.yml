@@ -33,9 +33,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -85,7 +87,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Report toolchain
         run: |
@@ -93,7 +97,11 @@ jobs:
           cargo --version
 
       - name: Cache cargo registry and build output
-        uses: actions/cache@v4
+        # zizmor flags every cache save as cache-poisoning (low confidence). Caches are
+        # scoped by GitHub to the creating ref: pull_request runs save under
+        # refs/pull/N/merge, and a run only restores from its own ref, its PR base, or
+        # main. Poisoning what main restores therefore requires push access to main.
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0 # zizmor: ignore[cache-poisoning]
         with:
           path: |
             ~/.cargo/registry/index
@@ -136,9 +144,11 @@ jobs:
     timeout-minutes: 20
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -174,7 +184,7 @@ jobs:
 
       - name: Upload golden failure diffs
         if: ${{ failure() && inputs.update_goldens != true }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: golden-failures
           path: test/golden/failures/
@@ -195,8 +205,33 @@ jobs:
 
       - name: Upload recorded goldens
         if: ${{ inputs.update_goldens == true }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: goldens
           path: test/golden/goldens/*.png
           if-no-files-found: error
+
+  workflow-audit:
+    # Static audit of the workflows themselves (zizmor): unpinned actions, credential
+    # persistence, template injection, cache poisoning. Blocking by design: a check that
+    # cannot fail is not a check. Pinned action + pinned zizmor version so the auditor
+    # is itself not a floating dependency.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          # Only this repository's own CI config. Vendored trees (cargokit/,
+          # rust/vendor/) carry their upstreams' workflows, which GitHub never
+          # runs here, and auditing them fails the job on code we do not own.
+          inputs: .github
+          version: '1.30.1'
+          persona: regular
+          # Plain CLI output + annotations instead of a SARIF upload, so the result is
+          # the job status (no Advanced Security dependency, no silent pass).
+          advanced-security: false
+          annotations: true

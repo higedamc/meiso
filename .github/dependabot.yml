@@ -1,0 +1,21 @@
+# Keeps the SHA-pinned actions in .github/workflows from going stale.
+# github-actions only, on purpose: measured on 2026-10-09, pub has 73 in-constraint
+# upgrades and cargo 213 compatible updates pending, so those ecosystems would
+# generate a weekly wall of PRs rather than signal. Rust is pinned by Cargo.lock
+# (--locked in CI), Dart by pubspec.lock (CI enforcement follows once the CI
+# Flutter SDK matches the lockfile; see PR #225).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Do not adopt a release in its first week. tj-actions/changed-files was
+    # the lesson: the malicious tag was live for hours, not weeks.
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
