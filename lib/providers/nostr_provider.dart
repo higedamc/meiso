@@ -649,10 +649,35 @@ class NostrService {
   // ========================================
 
   /// Amberモード: 署名済みイベントをリレーに送信
+  ///
+  /// Reconnect before sending, but only when the pool is *known* to be fully
+  /// disconnected, and only on a short 1 s budget. The Rust send itself gives
+  /// up at 3 s (`send_event_with_result`, which is also the outbox enqueue
+  /// trigger), so a generous pre-send wait would be charged to the user's total
+  /// wait on top of that. When the state is unknown (never observed yet) we do
+  /// not guess and do not reconnect.
   Future<rust_api.EventSendResult> sendSignedEvent(
     String signedEventJson,
   ) async {
+    if (_isKnownFullyDisconnected()) {
+      try {
+        await reconnectRelaysWithTimeout(timeoutSeconds: 1);
+      } catch (e) {
+        AppLogger.warning(' Pre-send reconnect failed: $e');
+      }
+    }
     return rust_api.sendSignedEvent(eventJson: signedEventJson);
+  }
+
+  /// True when `relayStatusProvider` holds at least one registered relay and
+  /// none of them is connected. An empty map means "not known yet" rather than
+  /// "disconnected", so it returns false and no reconnect is attempted.
+  bool _isKnownFullyDisconnected() {
+    final statuses = _ref.read(relayStatusProvider).values;
+    if (statuses.isEmpty) return false;
+    return statuses.every(
+      (status) => status.state != RelayConnectionState.connected,
+    );
   }
 
   void setGlobalBackfillResultHandler(
