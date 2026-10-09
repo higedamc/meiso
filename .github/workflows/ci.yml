@@ -43,7 +43,7 @@ jobs:
           channel: stable
           cache: true
 
-      - run: flutter pub get --enforce-lockfile
+      - run: flutter pub get
 
       - name: Check for untranslated l10n messages
         # flutter pub get regenerates lib/l10n/app_localizations*.dart (generate: true
@@ -154,7 +154,7 @@ jobs:
           channel: stable
           cache: true
 
-      - run: flutter pub get --enforce-lockfile
+      - run: flutter pub get
 
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs

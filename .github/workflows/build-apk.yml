@@ -67,7 +67,7 @@ jobs:
           linker = "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
           EOF
 
-      - run: flutter pub get --enforce-lockfile
+      - run: flutter pub get
 
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs

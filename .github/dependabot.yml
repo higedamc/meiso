@@ -2,7 +2,8 @@
 # github-actions only, on purpose: measured on 2026-10-09, pub has 73 in-constraint
 # upgrades and cargo 213 compatible updates pending, so those ecosystems would
 # generate a weekly wall of PRs rather than signal. Rust is pinned by Cargo.lock
-# (--locked in CI), Dart by pubspec.lock (--enforce-lockfile in CI).
+# (--locked in CI), Dart by pubspec.lock (CI enforcement follows once the CI
+# Flutter SDK matches the lockfile; see PR #225).
 version: 2
 updates:
   - package-ecosystem: "github-actions"
