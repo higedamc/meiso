@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -649,10 +650,56 @@ class NostrService {
   // ========================================
 
   /// Amberモード: 署名済みイベントをリレーに送信
+  ///
+  /// Reconnect before sending, but only when the pool is *known* to be fully
+  /// disconnected, and only on a short 1 s budget. The Rust send itself gives
+  /// up at 3 s (`send_event_with_result`, which is also the outbox enqueue
+  /// trigger), so a generous pre-send wait would be charged to the user's total
+  /// wait on top of that. When the state is unknown (never observed yet) we do
+  /// not guess and do not reconnect.
+  ///
+  /// Rate-limited by [preSendReconnectCooldown]: the send outbox drains its
+  /// queue serially through this same seam, so without a cooldown a drain
+  /// against a dead pool would pay one reconnect per entry. The status map is
+  /// not a substitute for the cooldown — a successful reconnect does not write
+  /// it, and `RelayConnectivityMonitor` only refreshes it every 30 s while the
+  /// app is in the foreground.
   Future<rust_api.EventSendResult> sendSignedEvent(
     String signedEventJson,
   ) async {
+    if (_isKnownFullyDisconnected() && _preSendReconnectIsDue()) {
+      _lastPreSendReconnectAt = DateTime.now();
+      try {
+        await reconnectRelaysWithTimeout(timeoutSeconds: 1);
+      } catch (e) {
+        AppLogger.warning(' Pre-send reconnect failed: $e');
+      }
+    }
     return rust_api.sendSignedEvent(eventJson: signedEventJson);
+  }
+
+  /// Minimum spacing between two pre-send reconnects. Mutable for tests only;
+  /// production never changes it.
+  @visibleForTesting
+  Duration preSendReconnectCooldown = const Duration(seconds: 10);
+
+  DateTime? _lastPreSendReconnectAt;
+
+  bool _preSendReconnectIsDue() {
+    final last = _lastPreSendReconnectAt;
+    if (last == null) return true;
+    return DateTime.now().difference(last) >= preSendReconnectCooldown;
+  }
+
+  /// True when `relayStatusProvider` holds at least one registered relay and
+  /// none of them is connected. An empty map means "not known yet" rather than
+  /// "disconnected", so it returns false and no reconnect is attempted.
+  bool _isKnownFullyDisconnected() {
+    final statuses = _ref.read(relayStatusProvider).values;
+    if (statuses.isEmpty) return false;
+    return statuses.every(
+      (status) => status.state != RelayConnectionState.connected,
+    );
   }
 
   void setGlobalBackfillResultHandler(
@@ -1063,11 +1110,16 @@ class NostrService {
 
   /// リレーサーバーへ再接続
   /// バックグラウンドから復帰時などに使用
-  Future<void> reconnectRelays() async {
+  ///
+  /// Returns the number of relays actually connected afterwards, as measured by
+  /// Rust. The catch/rethrow arm is kept because `get_client` can still fail
+  /// (e.g. client not initialised) even though the reconnect itself fails open.
+  Future<int> reconnectRelays() async {
     AppLogger.info(' Reconnecting to relays...');
     try {
-      await rust_api.reconnectToRelays();
-      AppLogger.info(' Successfully reconnected to relays');
+      final connected = await rust_api.reconnectToRelays();
+      AppLogger.info(' Successfully reconnected to relays ($connected connected)');
+      return connected;
     } catch (e) {
       // 実状態の取得が期待できないため、悲観的にマークしてから補正を試みる
       _ref.read(relayStatusProvider.notifier).markAllDisconnected();
@@ -1082,14 +1134,17 @@ class NostrService {
   /// リレーサーバーへ再接続（タイムアウト秒を指定）
   ///
   /// 背景復帰時の「最大10秒待ち」を避けるために使用する。
-  Future<void> reconnectRelaysWithTimeout({int timeoutSeconds = 3}) async {
+  /// Returns the number of relays actually connected afterwards, as measured by
+  /// Rust.
+  Future<int> reconnectRelaysWithTimeout({int timeoutSeconds = 3}) async {
     final timeout = timeoutSeconds <= 0 ? 1 : timeoutSeconds;
     AppLogger.info(' Reconnecting to relays with timeout=${timeout}s...');
     try {
-      await rust_api.reconnectToRelaysWithTimeout(
+      final connected = await rust_api.reconnectToRelaysWithTimeout(
         timeoutSecs: BigInt.from(timeout),
       );
-      AppLogger.info(' Successfully reconnected to relays');
+      AppLogger.info(' Successfully reconnected to relays ($connected connected)');
+      return connected;
     } catch (e) {
       _ref.read(relayStatusProvider.notifier).markAllDisconnected();
       AppLogger.error(' Failed to reconnect to relays: $e');

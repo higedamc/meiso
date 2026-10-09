@@ -1116,5 +1116,9 @@
 
   "notificationSettingsLoadError": "No se pudieron cargar los ajustes de notificaciones.",
 
-  "notificationSettingsSaveError": "No se pudo guardar el cambio. Se muestran los últimos valores guardados."
+  "notificationSettingsSaveError": "No se pudo guardar el cambio. Se muestran los últimos valores guardados.",
+
+  "reconnectAttemptSucceeded": "Reconectado ({count}/{total} conectados)",
+
+  "reconnectAttemptFailed": "Se intentó reconectar, pero no se pudo contactar ningún relay"
 }
