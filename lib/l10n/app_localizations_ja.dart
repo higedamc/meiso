@@ -1772,6 +1772,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commentUnsentLabel => '未送信・タップで再試行';
 
   @override
+  String get commentIntroCardMessage =>
+      'タスクにコメントを付けられるようになりました。\nどのタスクへのコメントかはリレーには見えません。';
+
+  @override
   String get notificationSettingsTitle => '通知';
 
   @override

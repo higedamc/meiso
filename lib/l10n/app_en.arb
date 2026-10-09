@@ -2862,6 +2862,11 @@
     "description": "Status shown under a comment bubble once it has been queued in the send outbox for 30 seconds or more without success; tapping it retries immediately"
   },
 
+  "commentIntroCardMessage": "Tasks can now have comments.\nRelays never learn which task a comment belongs to.",
+  "@commentIntroCardMessage": {
+    "description": "Body text of the one-time dismissible card shown on the home screen the first time someone opens the app after updating to the version that introduces task comments. Tap anywhere on the card or its close button to dismiss it permanently."
+  },
+
   "notificationSettingsTitle": "Notifications",
   "@notificationSettingsTitle": {
     "description": "Title of the notification settings screen and of its entry in Settings"

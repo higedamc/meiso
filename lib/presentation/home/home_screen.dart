@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 
+import '../../features/task_comments/infrastructure/datasources/task_comment_author_scan.dart';
 import '../../models/custom_list.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/bootstrap_sync_provider.dart';
 import '../../providers/calendar_provider.dart';
 import '../../providers/custom_lists_provider.dart';
 import '../../providers/date_provider.dart';
+import '../../providers/nostr_provider.dart';
+import '../../services/local_storage_service.dart';
 import '../../widgets/add_list_chooser.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/comment_intro_card.dart';
 import '../../widgets/list_settings_sheet.dart';
 import '../../widgets/date_tab_bar.dart';
 import '../../widgets/day_page.dart';
@@ -47,6 +51,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   bool get _hasDetail => _activeCustomList != null || _activePlanning != null;
 
+  // One-time comment feature intro card (issue #219 §6). Stays false until
+  // the visibility check resolves, then flips via setState.
+  bool _showCommentIntroCard = false;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +72,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           });
         }
       });
+    _maybeShowCommentIntroCard();
+  }
+
+  /// Decides whether the intro card should show. Skips anyone who has
+  /// already dismissed it, or who has already authored a comment
+  /// (including one synced in from another device).
+  Future<void> _maybeShowCommentIntroCard() async {
+    if (localStorageService.hasSeenCommentIntroCard()) {
+      return;
+    }
+    // `publicKeyProvider` is only populated once Nostr client init
+    // finishes, which has not happened yet at `initState` time on a cold
+    // start. `NostrService.getPublicKey()` falls back to the persisted
+    // key, so it resolves even before init completes.
+    final myPubkey = await ref.read(nostrServiceProvider).getPublicKey();
+    final alreadyCommented =
+        myPubkey != null && await hasAuthoredAnyComment(myPubkey);
+    if (alreadyCommented) {
+      await localStorageService.markCommentIntroCardAsSeen();
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _showCommentIntroCard = true;
+    });
+  }
+
+  void _dismissCommentIntroCard() {
+    setState(() {
+      _showCommentIntroCard = false;
+    });
+    localStorageService.markCommentIntroCardAsSeen();
   }
 
   @override
@@ -360,6 +402,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Column(
       key: const ValueKey('view-today'),
       children: [
+        if (_showCommentIntroCard)
+          CommentIntroCard(onDismiss: _dismissCommentIntroCard),
         Expanded(
           child: PageView.builder(
             controller: _pageController,

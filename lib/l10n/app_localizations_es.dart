@@ -1852,6 +1852,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get commentUnsentLabel => 'No enviado · toca para reintentar';
 
   @override
+  String get commentIntroCardMessage =>
+      'Las tareas ahora pueden tener comentarios.\nLos relés nunca saben a qué tarea pertenece un comentario.';
+
+  @override
   String get notificationSettingsTitle => 'Notificaciones';
 
   @override

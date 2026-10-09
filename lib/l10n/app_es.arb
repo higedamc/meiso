@@ -1076,6 +1076,8 @@
 
   "commentUnsentLabel": "No enviado · toca para reintentar",
 
+  "commentIntroCardMessage": "Las tareas ahora pueden tener comentarios.\nLos relés nunca saben a qué tarea pertenece un comentario.",
+
   "notificationSettingsTitle": "Notificaciones",
 
   "notificationSettingsSubtitle": "Comentarios en tareas compartidas, incluso con la app cerrada",
