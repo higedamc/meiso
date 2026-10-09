@@ -113,3 +113,44 @@ read history — contradicts the shared-key decision documented in
   verify-only helper so receive-side signature/d-tag checks keep parity
   with the secret-key path. Planned as its own leaf before Phase 4;
   shared-list comments already work in Amber mode because they use `G`.
+
+## Read state and the unread indicator (issue #218)
+
+Comments shipped in 1.4.3 with no way for the recipient to learn that one
+arrived. The in-app signal is a per-task indicator fed by two device-local
+stores; this section fixes the two decisions behind it.
+
+- **Read state is device-local and is never published.** Box
+  `task_comment_read_state` holds `task_id -> watermark`. A read receipt on
+  relays would hand them exactly the per-task metadata the protocol above
+  withholds (which task a comment belongs to, how active a thread is, who
+  is reading it). Documented consequence: clearing the mark on one device
+  does not clear it on another.
+- **Unread is decided on a device-local `received_at`, not the author's
+  `created_at`.** `TaskCommentLocalDataSourceHive.upsert` stamps every
+  applied event with this device's clock (unix ms); the watermark is a value
+  from the same clock. `created_at` is self-reported, so a skewed or hostile
+  author clock would either pin a badge on forever or, once read, push the
+  watermark into the future so later genuine comments count as read. The
+  notification contract guards the same shape (`notification_payload.dart`
+  forward-skew check). Entries written before the stamp existed have no
+  `received_at` and are treated as read, so upgrading does not light up
+  every old thread.
+
+Unread = a non-deleted comment with `author_pubkey != self` whose
+`received_at` is later than the task's watermark (no watermark = everything
+stamped is unread). While the own pubkey is still unknown nothing is unread.
+`commentThreadSummariesProvider` / `unreadCommentCountsProvider` expose this
+app-wide; `TaskCommentReadMarker.markRead(taskId)` advances the watermark to
+the latest `received_at` the store holds for that task, and the detail
+screen calls it on open and on every change while the thread stays open.
+`markAllRead()` does the same for every stored thread in one write, for the
+catch-up list's "mark all as read". Both boxes are wiped on logout next to
+`task_comments`.
+
+The indicator is only as live as the fetch behind it: the personal
+`kind:35002` subscription has to outlive the detail screen (see
+`personalTaskCommentSessionProvider`), and shared-list comments reach the
+device through the shared-v1 full fetch (`kinds 35000/35002` by author `G`)
+at bootstrap and after every sync, plus the realtime group subscription
+while a list is on screen.

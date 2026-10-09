@@ -13,6 +13,8 @@ import '../../features/send_outbox/presentation/providers/outbox_providers.dart'
     as send_outbox_providers;
 import '../../features/task_comments/infrastructure/providers/repository_providers.dart'
     as task_comment_providers;
+import '../../features/task_comments/infrastructure/providers/read_state_providers.dart'
+    as task_comment_read_state_providers;
 import '../../models/app_settings.dart';
 import '../../providers/app_settings_provider.dart' hide amberServiceProvider;
 import '../../providers/bootstrap_sync_provider.dart';
@@ -716,6 +718,19 @@ class _SecretKeyManagementScreenState
           .read(task_comment_providers.taskCommentLocalDataSourceProvider)
           .wipe();
       AppLogger.debug('✅ Task comment box deleted (task_comments)');
+
+      // STEP 4.5b: the per-thread read watermarks (task_comment_read_state)
+      // live in their own box and would otherwise survive logout and
+      // pre-mark the next user's threads as read.
+      await ref
+          .read(
+            task_comment_read_state_providers
+                .taskCommentReadStateDataSourceProvider,
+          )
+          .wipe();
+      AppLogger.debug(
+        '✅ Task comment read-state box deleted (task_comment_read_state)',
+      );
 
       // STEP 4.6: Also physically delete the send-outbox box (send_outbox).
       // If this retry queue survived logout, the first flush after the next
