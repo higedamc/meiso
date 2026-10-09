@@ -1776,6 +1776,41 @@ class AppLocalizationsJa extends AppLocalizations {
       'タスクにコメントを付けられるようになりました。\nどのタスクへのコメントかはリレーには見えません。';
 
   @override
+  String commentCatchupStripMessage(int count) {
+    return '$count 件の新しいコメント';
+  }
+
+  @override
+  String get commentCatchupScreenTitle => '新しいコメント';
+
+  @override
+  String get commentCatchupMarkAllReadButton => 'すべて既読にする';
+
+  @override
+  String get commentCatchupAllCaughtUp => '新着はありません';
+
+  @override
+  String get commentCatchupUntitledTask => '(削除されたタスク)';
+
+  @override
+  String get commentCatchupJustNow => 'たった今';
+
+  @override
+  String commentCatchupMinutesAgo(int minutes) {
+    return '$minutes分前';
+  }
+
+  @override
+  String commentCatchupHoursAgo(int hours) {
+    return '$hours時間前';
+  }
+
+  @override
+  String commentCatchupDaysAgo(int days) {
+    return '$days日前';
+  }
+
+  @override
   String get notificationSettingsTitle => '通知';
 
   @override

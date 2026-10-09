@@ -1856,6 +1856,41 @@ class AppLocalizationsEs extends AppLocalizations {
       'Las tareas ahora pueden tener comentarios.\nLos relés nunca saben a qué tarea pertenece un comentario.';
 
   @override
+  String commentCatchupStripMessage(int count) {
+    return '$count comentarios nuevos';
+  }
+
+  @override
+  String get commentCatchupScreenTitle => 'Comentarios nuevos';
+
+  @override
+  String get commentCatchupMarkAllReadButton => 'Marcar todo como leído';
+
+  @override
+  String get commentCatchupAllCaughtUp => 'Ya estás al día';
+
+  @override
+  String get commentCatchupUntitledTask => '(tarea eliminada)';
+
+  @override
+  String get commentCatchupJustNow => 'ahora mismo';
+
+  @override
+  String commentCatchupMinutesAgo(int minutes) {
+    return 'Hace $minutes min';
+  }
+
+  @override
+  String commentCatchupHoursAgo(int hours) {
+    return 'Hace $hours h';
+  }
+
+  @override
+  String commentCatchupDaysAgo(int days) {
+    return 'Hace $days d';
+  }
+
+  @override
   String get notificationSettingsTitle => 'Notificaciones';
 
   @override

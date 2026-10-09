@@ -1064,6 +1064,24 @@
 
   "commentIntroCardMessage": "タスクにコメントを付けられるようになりました。\nどのタスクへのコメントかはリレーには見えません。",
 
+  "commentCatchupStripMessage": "{count} 件の新しいコメント",
+
+  "commentCatchupScreenTitle": "新しいコメント",
+
+  "commentCatchupMarkAllReadButton": "すべて既読にする",
+
+  "commentCatchupAllCaughtUp": "新着はありません",
+
+  "commentCatchupUntitledTask": "(削除されたタスク)",
+
+  "commentCatchupJustNow": "たった今",
+
+  "commentCatchupMinutesAgo": "{minutes}分前",
+
+  "commentCatchupHoursAgo": "{hours}時間前",
+
+  "commentCatchupDaysAgo": "{days}日前",
+
   "notificationSettingsTitle": "通知",
 
   "notificationSettingsSubtitle": "共有タスクへのコメントを、アプリを閉じていても受け取る",

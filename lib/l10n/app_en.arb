@@ -2867,6 +2867,71 @@
     "description": "Body text of the one-time dismissible card shown on the home screen the first time someone opens the app after updating to the version that introduces task comments. Tap anywhere on the card or its close button to dismiss it permanently."
   },
 
+  "commentCatchupStripMessage": "{count} new comments",
+  "@commentCatchupStripMessage": {
+    "description": "Message in the non-modal strip shown at the top of the date page when unread task comments exist (issue #219 §2). Tapping the strip opens the catch-up list; its close button only hides the strip for this session and never marks anything read.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+
+  "commentCatchupScreenTitle": "New comments",
+  "@commentCatchupScreenTitle": {
+    "description": "App bar title of the catch-up list opened from the comment catch-up strip"
+  },
+
+  "commentCatchupMarkAllReadButton": "Mark all read",
+  "@commentCatchupMarkAllReadButton": {
+    "description": "Button on the catch-up list that marks every unread comment thread read in one action"
+  },
+
+  "commentCatchupAllCaughtUp": "You're all caught up",
+  "@commentCatchupAllCaughtUp": {
+    "description": "Empty state shown on the catch-up list once every thread on it has been marked read while the screen was open"
+  },
+
+  "commentCatchupUntitledTask": "(deleted task)",
+  "@commentCatchupUntitledTask": {
+    "description": "Row title on the catch-up list when the task a comment belongs to was deleted locally after the comment arrived"
+  },
+
+  "commentCatchupJustNow": "just now",
+  "@commentCatchupJustNow": {
+    "description": "Relative time on a catch-up list row for a comment that arrived less than a minute ago"
+  },
+
+  "commentCatchupMinutesAgo": "{minutes}m ago",
+  "@commentCatchupMinutesAgo": {
+    "description": "Relative time on a catch-up list row for a comment that arrived less than an hour ago",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+
+  "commentCatchupHoursAgo": "{hours}h ago",
+  "@commentCatchupHoursAgo": {
+    "description": "Relative time on a catch-up list row for a comment that arrived less than a day ago",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+
+  "commentCatchupDaysAgo": "{days}d ago",
+  "@commentCatchupDaysAgo": {
+    "description": "Relative time on a catch-up list row for a comment that arrived a day or more ago",
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+
   "notificationSettingsTitle": "Notifications",
   "@notificationSettingsTitle": {
     "description": "Title of the notification settings screen and of its entry in Settings"
