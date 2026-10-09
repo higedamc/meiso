@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../providers/nostr_provider.dart';
 import '../../../../services/amber_service.dart';
-import '../../../../services/logger_service.dart';
 import '../../../send_outbox/presentation/providers/outbox_providers.dart';
 import '../../../shared_list/infrastructure/providers/repository_providers.dart';
 import '../../domain/repositories/task_comment_repository.dart';
@@ -13,6 +12,7 @@ import '../datasources/task_comment_crypto_datasource_amber.dart';
 import '../datasources/task_comment_crypto_datasource_contract.dart';
 import '../datasources/task_comment_local_datasource.dart';
 import '../repositories/task_comment_repository_impl.dart';
+import 'personal_task_comment_session.dart';
 
 /// Mode-dependent crypto datasource: the repository stays mode-agnostic and
 /// this provider picks the personal-path implementation (Rust session key in
@@ -45,83 +45,48 @@ final taskCommentRepositoryProvider = Provider<TaskCommentRepository>((ref) {
   );
 });
 
-/// 個人タスクコメント(kind:35002, author=self)のリアルタイム購読
+/// Session-scoped realtime subscription for personal task comments
+/// (`kind:35002`, author = self). Issue #218 L2.
 ///
-/// watch している間だけ購読が張られる(dispose で解除)。Phase 2 の
-/// UI(タスク詳細画面など)がこの provider を watch して有効化する。
-/// 共有リスト側の kind:35002 は todos_provider の既存 shared-v1
-/// 購読ハンドラ経由でルーティングされる。
-final personalTaskCommentSubscriptionProvider = FutureProvider.autoDispose<
-  String?
->((ref) async {
-  final initialized = ref.watch(nostrInitializedProvider);
-  if (!initialized) {
-    return null;
-  }
-
-  final nostrService = ref.read(nostrServiceProvider);
-  final repository = ref.read(taskCommentRepositoryProvider);
-
-  // onDispose must be registered before any await: with autoDispose the
-  // element can be disposed while the relay round-trip below is in flight,
-  // and ref.onDispose throws on a disposed element — registering it late
-  // would both crash and orphan the just-created subscription.
-  String? subscriptionId;
-  var disposed = false;
-  ref.onDispose(() {
-    disposed = true;
-    final id = subscriptionId;
-    if (id != null) {
-      unawaited(nostrService.stopSubscription(id));
-    }
-  });
-
-  final publicKeyHex = await nostrService.getPublicKey();
-  if (publicKeyHex == null || disposed) {
-    return null;
-  }
-
-  final seenEventIds = <String>{};
-
-  subscriptionId = await nostrService.subscribePersonalTaskComments(
-    publicKeyHex: publicKeyHex,
-    onEventsReceived: (events) {
-      unawaited(() async {
-        // LWW 決定論化: created_at 昇順(同秒は event id 辞書順)で適用
-        // (shared-v1 todos の issue #138 R1/R2 と同じ規則)
-        final ordered = events.toList()
-          ..sort((a, b) {
-            if (a.createdAt != b.createdAt) {
-              return a.createdAt.compareTo(b.createdAt);
-            }
-            return a.eventId.compareTo(b.eventId);
-          });
-        for (final event in ordered) {
-          if (seenEventIds.contains(event.eventId)) {
-            continue;
-          }
-          seenEventIds.add(event.eventId);
-          final result = await repository.applyRemoteCommentEvent(
-            eventJson: event.eventJson,
-          );
-          result.fold(
-            (failure) => AppLogger.warning(
-              '[task-chat] personal comment apply failed: '
-              '${failure.message}',
-            ),
-            (_) {},
-          );
+/// Armed once from the app root (`_MeisoAppState.initState`) with a plain
+/// `ref.read` and kept for the app's lifetime; it is not autoDispose, so it
+/// does not depend on any screen being open. Without this the unread
+/// indicator would be dead UI: a comment written on another device never
+/// reached this one until that exact task's thread was opened.
+///
+/// `nostrInitializedProvider` drives it: login (true) starts the
+/// subscription, logout (false) stops it, so a subscription never outlives
+/// the session that opened it. Shared-list `kind:35002` events still route
+/// through the shared-v1 group subscription and full fetch in
+/// `todos_provider`.
+final personalTaskCommentSessionProvider = Provider<PersonalTaskCommentSession>(
+  (ref) {
+    final session = PersonalTaskCommentSession(
+      nostrService: ref.watch(nostrServiceProvider),
+      repository: ref.watch(taskCommentRepositoryProvider),
+    );
+    // ref.listen (not ref.watch): the root reads this provider while the
+    // session is still uninitialised and never listens to it, and a
+    // dependency change does not recompute a watched provider that has no
+    // listener. An active listener fires regardless.
+    ref
+      ..onDispose(session.stop)
+      ..listen<bool>(nostrInitializedProvider, (_, initialized) {
+        if (initialized) {
+          unawaited(session.start());
+        } else {
+          session.stop();
         }
-      }());
-    },
-  );
+      }, fireImmediately: true);
+    return session;
+  },
+);
 
-  // Disposed while subscribePersonalTaskComments was in flight: the
-  // onDispose callback saw a null id, so stop the orphan here instead.
-  if (disposed) {
-    unawaited(nostrService.stopSubscription(subscriptionId));
-    return null;
-  }
-
-  return subscriptionId;
+/// Kept for `TaskCommentSection`, which watches it while a personal thread is
+/// on screen. It delegates to [personalTaskCommentSessionProvider] so the
+/// detail screen never opens a second REQ for the same filter, and closing
+/// the screen never stops the session-scoped subscription.
+final AutoDisposeProvider<PersonalTaskCommentSession>
+personalTaskCommentSubscriptionProvider = Provider.autoDispose((ref) {
+  return ref.watch(personalTaskCommentSessionProvider);
 });
