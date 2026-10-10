@@ -980,4 +980,86 @@ void main() {
       expect(findTodo(started.container, 'task-charlie'), isNotNull);
     });
   });
+
+  group('syncFromNostr dispose guards (issue #229/#232)', () {
+    test(
+      'a container disposed mid-fetch does not throw from the post-fetch '
+      'merge',
+      () async {
+        await seedLocal([_todo('a')]);
+        final service = _FakeNostrService();
+        final started = await startNotifier(service);
+        await settle();
+
+        // Let the container's own startup background work (AppSettings'
+        // one-shot sync 1 s after creation, among others - see settle()'s
+        // doc comment) finish before gating the fetch below, so the only
+        // thing racing dispose is the fetch under test.
+        await started.notifier.syncFromNostr();
+        await settle();
+
+        final fetchCallsBefore = service.fetchCalls;
+        service
+          ..fetchGate = Completer<void>()
+          ..remoteTodos = [_todo('a'), _todo('b')];
+        final syncFuture = started.notifier.syncFromNostr();
+        await pumpUntil(
+          () => service.fetchCalls > fetchCallsBefore,
+          reason: 'syncTodoListsFromNostr was not called',
+        );
+
+        // Dispose while syncTodoListsFromNostr is still pending, the same
+        // shape as a logout, account switch, or widget teardown racing a
+        // foreground sync.
+        started.container.dispose();
+        service.fetchGate!.complete();
+
+        await expectLater(syncFuture, completes);
+      },
+    );
+
+    test(
+      'a container disposed while the relay fetch fails does not throw a '
+      'second time from the catch handler',
+      () async {
+        await seedLocal([_todo('a')]);
+        final service = _FakeNostrService();
+        final started = await startNotifier(service);
+        await settle();
+
+        // Let the container's own startup background work finish first,
+        // same reasoning as the test above.
+        await started.notifier.syncFromNostr();
+        await settle();
+
+        final fetchCallsBefore = service.fetchCalls;
+        service
+          ..fetchGate = Completer<void>()
+          ..fetchError = Exception('relay unreachable');
+        final syncFuture = started.notifier.syncFromNostr();
+        await pumpUntil(
+          () => service.fetchCalls > fetchCallsBefore,
+          reason: 'syncTodoListsFromNostr was not called',
+        );
+
+        // Dispose before the gated fetch rejects. The rejection is not
+        // caught anywhere inside the Future(() async {...}) closure, so it
+        // reaches syncFromNostr's own catch block exactly as it would for
+        // any other relay failure - the only difference here is that the
+        // container is already disposed by the time it gets there.
+        //
+        // Negative control: without the guard added at the top of that
+        // catch block, `_ref.read(syncStatusProvider.notifier).syncError(...)`
+        // throws a second time - "Bad state: Tried to read a provider from
+        // a ProviderContainer that was already disposed" - and nothing
+        // catches that second throw, so it becomes the rejection reason for
+        // this test's `syncFuture` instead of the original relay error
+        // (issue #229/#232).
+        started.container.dispose();
+        service.fetchGate!.complete();
+
+        await expectLater(syncFuture, completes);
+      },
+    );
+  });
 }
