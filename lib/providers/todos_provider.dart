@@ -109,6 +109,14 @@ class TodosNotifier
   // initial sync, pull-to-refresh) await it instead of starting another.
   Future<void>? _activeFullSync;
 
+  /// Test-only hook: when set, `_updateStateWithSyncedTodos` awaits this
+  /// completer right after `_recordKnownListTodoCounts` and before its own
+  /// `mounted` re-check, so a test can dispose the container in that exact
+  /// window instead of racing real local-storage I/O. Production never
+  /// sets this (issue #229/#232).
+  @visibleForTesting
+  Completer<void>? debugMergeGate;
+
   // Deliberate bulk deletes (all recurring instances, whole list) set this so
   // the shrink guard lets the next publish through exactly once.
   bool _allowShrinkOnce = false;
@@ -3116,6 +3124,75 @@ class TodosNotifier
     return jsonEncode(items);
   }
 
+  /// Restores the hex public key and npub from storage via [nostrService]
+  /// when either [publicKeyProvider] or [nostrPublicKeyProvider] is unset,
+  /// writing the restored values back to those providers. Shared by
+  /// _syncAllTodosToNostr and syncFromNostr so the container-disposed
+  /// guards (issue #229) live in one place instead of two near-identical
+  /// copies.
+  ///
+  /// Returns null if the container was disposed while awaiting the
+  /// restore — callers must return immediately in that case, the same as
+  /// a bare `if (!mounted) return;` would. Throws if no public key can be
+  /// found anywhere.
+  Future<({String publicKey, String npub})?> _resolvePublicKeyAndNpub(
+    NostrService nostrService,
+  ) async {
+    var publicKey = _ref.read(publicKeyProvider);
+    var npub = _ref.read(nostrPublicKeyProvider);
+
+    // 公開鍵がnullの場合、Rust側から復元を試みる
+    if (publicKey == null) {
+      AppLogger.warning(
+        ' Public key (hex) is null, attempting to restore from storage...',
+      );
+      try {
+        publicKey = await nostrService.getPublicKey();
+        // getPublicKey() above awaited; re-check before writing
+        // providers past that gap (issue #229).
+        if (!mounted) return null;
+        if (publicKey != null) {
+          AppLogger.info(
+            ' Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...',
+          );
+          _ref.read(publicKeyProvider.notifier).state = publicKey;
+
+          // npub形式にも変換して設定
+          try {
+            npub = await nostrService.hexToNpub(publicKey);
+            if (!mounted) return null;
+            _ref.read(nostrPublicKeyProvider.notifier).state = npub;
+            AppLogger.info(
+              ' Public key (npub) also restored: ${npub.substring(0, 16)}...',
+            );
+          } catch (e) {
+            AppLogger.error(' Failed to convert hex to npub: $e');
+          }
+        } else {
+          AppLogger.error(
+            ' Failed to restore public key - no key found in storage',
+          );
+          throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
+        }
+      } catch (e) {
+        AppLogger.error(' Failed to restore public key: $e');
+        throw Exception('公開鍵が設定されていません: $e');
+      }
+    }
+
+    if (npub == null) {
+      final hasPublicKey = await nostrService.hasPublicKey();
+      final isUsingAmber = localStorageService.isUsingAmber();
+      AppLogger.error(' npub形式の公開鍵がnullです');
+      AppLogger.debug('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
+      AppLogger.debug('   - Amberモード: $isUsingAmber');
+      AppLogger.debug('   - 公開鍵ファイル存在: $hasPublicKey');
+      throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
+    }
+
+    return (publicKey: publicKey, npub: npub);
+  }
+
   /// 全TODOリストをNostrに同期（新実装 - Kind 30001）
   /// すべてのTodo操作後に呼び出される
   ///
@@ -3292,58 +3369,13 @@ class TodosNotifier
           // touching providers past that gap (issue #229).
           if (!mounted) return;
 
-          // 2. 公開鍵取得
-          var publicKey = _ref.read(publicKeyProvider);
-          var npub = _ref.read(nostrPublicKeyProvider);
-
-          // 公開鍵がnullの場合、Rust側から復元を試みる
-          if (publicKey == null) {
-            AppLogger.warning(
-              ' Public key (hex) is null, attempting to restore from storage...',
-            );
-            try {
-              publicKey = await nostrService.getPublicKey();
-              // getPublicKey() above awaited; re-check before writing
-              // providers past that gap (issue #229).
-              if (!mounted) return;
-              if (publicKey != null) {
-                AppLogger.info(
-                  ' Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...',
-                );
-                _ref.read(publicKeyProvider.notifier).state = publicKey;
-
-                // npub形式にも変換して設定
-                try {
-                  npub = await nostrService.hexToNpub(publicKey);
-                  if (!mounted) return;
-                  _ref.read(nostrPublicKeyProvider.notifier).state = npub;
-                  AppLogger.info(
-                    ' Public key (npub) also restored: ${npub.substring(0, 16)}...',
-                  );
-                } catch (e) {
-                  AppLogger.error(' Failed to convert hex to npub: $e');
-                }
-              } else {
-                AppLogger.error(
-                  ' Failed to restore public key - no key found in storage',
-                );
-                throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
-              }
-            } catch (e) {
-              AppLogger.error(' Failed to restore public key: $e');
-              throw Exception('公開鍵が設定されていません: $e');
-            }
-          }
-
-          if (npub == null) {
-            final hasPublicKey = await nostrService.hasPublicKey();
-            final isUsingAmber = localStorageService.isUsingAmber();
-            AppLogger.error(' npub形式の公開鍵がnullです');
-            AppLogger.debug('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
-            AppLogger.debug('   - Amberモード: $isUsingAmber');
-            AppLogger.debug('   - 公開鍵ファイル存在: $hasPublicKey');
-            throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
-          }
+          // 2. Resolve the public key/npub. The dispose-after-await guard
+          // for the provider writes lives inside _resolvePublicKeyAndNpub
+          // itself (issue #229/#232).
+          final resolvedKeys = await _resolvePublicKeyAndNpub(nostrService);
+          if (resolvedKeys == null) return;
+          final publicKey = resolvedKeys.publicKey;
+          final npub = resolvedKeys.npub;
 
           // Re-check before amberServiceProvider: npub resolution above
           // may have awaited hasPublicKey() (issue #229).
@@ -4214,6 +4246,10 @@ class TodosNotifier
 
       AppLogger.info('✅ [Sync] Phase 1完了（${const Duration()})');
 
+      // Future.wait above awaited; re-check before touching providers
+      // past that gap (issue #229/#232).
+      if (!mounted) return;
+
       // Phase 8.5.1: Phase 1完了（33%）
       _ref
           .read(syncStatusProvider.notifier)
@@ -4233,6 +4269,10 @@ class TodosNotifier
       } catch (e) {
         AppLogger.warning('⚠️ [Sync] カスタムリスト同期エラー: $e');
       }
+
+      // syncListsFromNostr above awaited; re-check before touching
+      // providers past that gap (issue #229/#232).
+      if (!mounted) return;
 
       // Phase 8.5.1: Phase 2完了（66%）
       _ref
@@ -4254,6 +4294,10 @@ class TodosNotifier
 
           final encryptedEvents = await nostrService
               .fetchAllEncryptedTodoLists();
+
+          // fetchAllEncryptedTodoLists above awaited; re-check before
+          // touching providers past that gap (issue #229/#232).
+          if (!mounted) return;
 
           if (encryptedEvents.isEmpty) {
             AppLogger.warning(' Todoリストイベントが見つかりません（Kind 30001）');
@@ -4383,53 +4427,13 @@ class TodosNotifier
           );
 
           final amberService = _ref.read(amberServiceProvider);
-          var publicKey = _ref.read(publicKeyProvider);
-          var npub = _ref.read(nostrPublicKeyProvider);
-
-          // 公開鍵がnullの場合、Rust側から復元を試みる
-          if (publicKey == null) {
-            AppLogger.warning(
-              ' Public key (hex) is null, attempting to restore from storage...',
-            );
-            try {
-              publicKey = await nostrService.getPublicKey();
-              if (publicKey != null) {
-                AppLogger.info(
-                  ' Public key (hex) restored from storage: ${publicKey.substring(0, 16)}...',
-                );
-                _ref.read(publicKeyProvider.notifier).state = publicKey;
-
-                // npub形式にも変換して設定
-                try {
-                  npub = await nostrService.hexToNpub(publicKey);
-                  _ref.read(nostrPublicKeyProvider.notifier).state = npub;
-                  AppLogger.info(
-                    ' Public key (npub) also restored: ${npub.substring(0, 16)}...',
-                  );
-                } catch (e) {
-                  AppLogger.error(' Failed to convert hex to npub: $e');
-                }
-              } else {
-                AppLogger.error(
-                  ' Failed to restore public key - no key found in storage',
-                );
-                throw Exception('公開鍵が設定されていません（ストレージにも見つかりませんでした）');
-              }
-            } catch (e) {
-              AppLogger.error(' Failed to restore public key: $e');
-              throw Exception('公開鍵が設定されていません: $e');
-            }
-          }
-
-          if (npub == null) {
-            final hasPublicKey = await nostrService.hasPublicKey();
-            final isUsingAmber = localStorageService.isUsingAmber();
-            AppLogger.error(' npub形式の公開鍵がnullです');
-            AppLogger.debug('   - hex公開鍵: ${publicKey.substring(0, 16)}...');
-            AppLogger.debug('   - Amberモード: $isUsingAmber');
-            AppLogger.debug('   - 公開鍵ファイル存在: $hasPublicKey');
-            throw Exception('公開鍵が設定されていません（npub形式が取得できません）');
-          }
+          // Resolve the public key/npub. The dispose-after-await guard for
+          // the provider writes lives inside _resolvePublicKeyAndNpub
+          // itself (issue #229/#232).
+          final resolvedKeys = await _resolvePublicKeyAndNpub(nostrService);
+          if (resolvedKeys == null) return;
+          final publicKey = resolvedKeys.publicKey;
+          final npub = resolvedKeys.npub;
 
           AppLogger.debug(' 公開鍵: ${publicKey.substring(0, 16)}...');
 
@@ -4534,6 +4538,10 @@ class TodosNotifier
             }
           }
 
+          // The decrypt loop above awaited per event; re-check before
+          // touching providers past that gap (issue #229/#232).
+          if (!mounted) return;
+
           AppLogger.info(
             '🎉 [DEBUG] For loop completed! About to log sync status...',
           );
@@ -4634,6 +4642,10 @@ class TodosNotifier
             ' [Sync] 📊 Fetched ${customListMetadata.length} custom list metadata',
           );
 
+          // fetchCustomListMetadataFromNostr above awaited; re-check
+          // before touching providers past that gap (issue #229/#232).
+          if (!mounted) return;
+
           // カスタムリストを同期（LWW対応）
           // metadataが空の場合でも呼び出し、デフォルトリストを作成
           AppLogger.info(' [Sync] 2/3: カスタムリストを同期中 (LWW)...');
@@ -4642,10 +4654,19 @@ class TodosNotifier
               .syncListsFromNostr(customListMetadata);
           AppLogger.info(' [Sync] カスタムリスト同期完了 (LWW)');
 
+          // syncListsFromNostr above awaited; re-check before touching
+          // providers past that gap (issue #229/#232).
+          if (!mounted) return;
+
           // ステップ2: Todoデータを取得
           AppLogger.info(' [Sync] 3/3: Todoを同期中...');
           AppLogger.debug(' ステップ2: Todoデータを取得します');
           final syncedLists = await nostrService.syncTodoListsFromNostr();
+
+          // syncTodoListsFromNostr above awaited; re-check before
+          // touching providers past that gap (issue #229/#232).
+          if (!mounted) return;
+
           final syncedTodosRaw = syncedLists
               .expand((list) => list.todos)
               .toList();
@@ -4739,6 +4760,11 @@ class TodosNotifier
           );
         }
 
+        // Both branches above awaited (_updateStateWithSyncedTodos or the
+        // early returns); re-check before touching providers past that
+        // gap (issue #229/#232).
+        if (!mounted) return;
+
         // Phase 8.5.1: Phase 3完了（100%）
         _ref
             .read(syncStatusProvider.notifier)
@@ -4775,6 +4801,10 @@ class TodosNotifier
         },
       );
     } catch (e, stackTrace) {
+      // The try block above may have thrown from past a disposed
+      // container (issue #229/#232) - a second _ref.read here would
+      // throw again, uncaught this time.
+      if (!mounted) return;
       _ref
           .read(syncStatusProvider.notifier)
           .syncError(
@@ -4827,11 +4857,20 @@ class TodosNotifier
       // Lists this delta replaced, including ones that came back empty.
       final fetchedListKeys = <String?>{};
 
+      // fetchCustomListMetadataFromNostr/syncListsFromNostr/loadTodos
+      // above awaited; re-check before touching providers past that gap
+      // (issue #229/#232).
+      if (!mounted) return;
+
       if (isAmberMode) {
         final encryptedEvents = await nostrService
             .fetchAllEncryptedTodoListsSince(
               since: effectiveSince,
             );
+
+        // fetchAllEncryptedTodoListsSince above awaited; re-check before
+        // touching providers past that gap (issue #229/#232).
+        if (!mounted) return;
 
         if (encryptedEvents.isEmpty) {
           await localStorageService.setLastTodoListSyncTime(now);
@@ -4850,10 +4889,14 @@ class TodosNotifier
 
         if (publicKey == null) {
           publicKey = await nostrService.getPublicKey();
+          // getPublicKey() above awaited; re-check before writing
+          // providers past that gap (issue #229/#232).
+          if (!mounted) return;
           if (publicKey != null) {
             _ref.read(publicKeyProvider.notifier).state = publicKey;
             try {
               npub = await nostrService.hexToNpub(publicKey);
+              if (!mounted) return;
               _ref.read(nostrPublicKeyProvider.notifier).state = npub;
             } catch (_) {}
           }
@@ -4937,6 +4980,10 @@ class TodosNotifier
         );
         final deltaTodos = deltaLists.expand((list) => list.todos).toList();
 
+        // syncTodoListsFromNostrSince above awaited; re-check before
+        // touching providers past that gap (issue #229/#232).
+        if (!mounted) return;
+
         if (deltaLists.isEmpty) {
           await localStorageService.setLastTodoListSyncTime(now);
           _ref.read(syncStatusProvider.notifier).syncSuccess();
@@ -4995,6 +5042,10 @@ class TodosNotifier
       }
 
       await localStorageService.saveTodos(mergedFlat);
+
+      // saveTodos above awaited; re-check before writing state past
+      // that gap (issue #229/#232).
+      if (!mounted) return;
       state = AsyncValue.data(_groupTodosByDate(mergedFlat));
 
       await localStorageService.setLastTodoListSyncTime(now);
@@ -5015,6 +5066,10 @@ class TodosNotifier
         error: e,
         stackTrace: stackTrace,
       );
+      // The try block above may have thrown from past a disposed
+      // container (issue #229/#232) - a second _ref.read here would
+      // throw again, uncaught this time.
+      if (!mounted) return;
       _ref
           .read(syncStatusProvider.notifier)
           .syncError(
@@ -5022,9 +5077,13 @@ class TodosNotifier
             shouldRetry: false,
           );
     } finally {
-      // 同期完了後、進捗をリセット
-      _ref.read(syncStatusProvider.notifier).resetProgress();
-      AppLogger.debug(' [Todos] Delta同期の進捗をリセットしました');
+      // This finally always runs, including right after the try block's
+      // own awaits above completed - re-check before touching providers
+      // one more time (issue #229/#232).
+      if (mounted) {
+        _ref.read(syncStatusProvider.notifier).resetProgress();
+        AppLogger.debug(' [Todos] Delta同期の進捗をリセットしました');
+      }
     }
   }
 
@@ -5105,6 +5164,16 @@ class TodosNotifier
       await _recordKnownListTodoCounts(
         _countTodosPerListWithFetched(syncedTodos, listCreatedAt.keys),
       );
+
+      // Test-only: let a test dispose the container in exactly this
+      // window instead of racing the real local-storage write above
+      // (issue #229/#232).
+      final mergeGate = debugMergeGate;
+      if (mergeGate != null) await mergeGate.future;
+
+      // _recordKnownListTodoCounts above awaited; re-check before
+      // touching providers/state past that gap (issue #229/#232).
+      if (!mounted) return;
 
       // 防御的コーディング: stateから現在のTodoを取得
       final Map<DateTime?, List<Todo>> localTodos;
@@ -5354,6 +5423,11 @@ class TodosNotifier
       state = AsyncValue.data(grouped);
       await _saveAllTodosToLocal();
       await _updateWidget();
+
+      // _saveAllTodosToLocal/_updateWidget above awaited; re-check before
+      // _updateUnsyncedCount writes to syncStatusProvider past that gap
+      // (issue #229/#232).
+      if (!mounted) return;
 
       // ローカルが新しいタスクがある場合、自動的に再同期
       if (localWinsCount > 0 || localOnlyCount > 0) {
