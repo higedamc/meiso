@@ -983,8 +983,8 @@ void main() {
 
   group('syncFromNostr dispose guards (issue #229/#232)', () {
     test(
-      'a container disposed mid-fetch does not throw from the post-fetch '
-      'merge',
+      'a container disposed right after the merge-counts write does not '
+      'throw from the normal-path state write',
       () async {
         await seedLocal([_todo('a')]);
         final service = _FakeNostrService();
@@ -993,26 +993,44 @@ void main() {
 
         // Let the container's own startup background work (AppSettings'
         // one-shot sync 1 s after creation, among others - see settle()'s
-        // doc comment) finish before gating the fetch below, so the only
-        // thing racing dispose is the fetch under test.
+        // doc comment) finish before gating the merge below, so the only
+        // thing racing dispose is the merge gate under test.
         await started.notifier.syncFromNostr();
         await settle();
 
-        final fetchCallsBefore = service.fetchCalls;
-        service
-          ..fetchGate = Completer<void>()
-          ..remoteTodos = [_todo('a'), _todo('b')];
+        service.remoteTodos = [_todo('a'), _todo('b')];
+        started.notifier.debugMergeGate = Completer<void>();
         final syncFuture = started.notifier.syncFromNostr();
-        await pumpUntil(
-          () => service.fetchCalls > fetchCallsBefore,
-          reason: 'syncTodoListsFromNostr was not called',
-        );
 
-        // Dispose while syncTodoListsFromNostr is still pending, the same
-        // shape as a logout, account switch, or widget teardown racing a
-        // foreground sync.
+        // Everything before the gate - Future.wait phase 1, the
+        // customListsProvider calls, syncTodoListsFromNostr, and
+        // _recordKnownListTodoCounts's real local-storage write - runs
+        // against the fake service/local storage with no gate of its own,
+        // so it settles well inside this wait. mounted was still true
+        // when _recordKnownListTodoCounts ran; the gate then parks
+        // _updateStateWithSyncedTodos right after it, before the merge
+        // touches state.
+        await settle();
+
+        // Dispose while parked at the gate, then let the merge continue
+        // into `state = AsyncValue.data(grouped)` with the container
+        // already disposed.
+        //
+        // This is still not a true negative control: removing the guard
+        // this test targets moves the throw to the very next state touch
+        // (the `state` getter a few lines below the gate), but that is
+        // inside the same try block as the catch at the bottom of
+        // _updateStateWithSyncedTodos, which falls back to
+        // _setTodosStateAsync (itself internally guarded) regardless of
+        // where inside this function the exception originates. Verified
+        // by temporarily removing the guard: the test still shows "All
+        // tests passed" with the same Bad state message now logged from
+        // the `state` getter instead of thrown uncaught. No guard inside
+        // _updateStateWithSyncedTodos's own try block can be proven by a
+        // completes/throws assertion for that reason - only guards outside
+        // a self-catching function (like the one in the test below) can.
         started.container.dispose();
-        service.fetchGate!.complete();
+        started.notifier.debugMergeGate!.complete();
 
         await expectLater(syncFuture, completes);
       },

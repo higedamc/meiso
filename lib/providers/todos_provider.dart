@@ -109,6 +109,14 @@ class TodosNotifier
   // initial sync, pull-to-refresh) await it instead of starting another.
   Future<void>? _activeFullSync;
 
+  /// Test-only hook: when set, `_updateStateWithSyncedTodos` awaits this
+  /// completer right after `_recordKnownListTodoCounts` and before its own
+  /// `mounted` re-check, so a test can dispose the container in that exact
+  /// window instead of racing real local-storage I/O. Production never
+  /// sets this (issue #229/#232).
+  @visibleForTesting
+  Completer<void>? debugMergeGate;
+
   // Deliberate bulk deletes (all recurring instances, whole list) set this so
   // the shrink guard lets the next publish through exactly once.
   bool _allowShrinkOnce = false;
@@ -3361,8 +3369,9 @@ class TodosNotifier
           // touching providers past that gap (issue #229).
           if (!mounted) return;
 
-          // 2. 公開鍵取得（dispose後のprovider書き込みガードは
-          // _resolvePublicKeyAndNpub 内で行う。issue #229/#232）
+          // 2. Resolve the public key/npub. The dispose-after-await guard
+          // for the provider writes lives inside _resolvePublicKeyAndNpub
+          // itself (issue #229/#232).
           final resolvedKeys = await _resolvePublicKeyAndNpub(nostrService);
           if (resolvedKeys == null) return;
           final publicKey = resolvedKeys.publicKey;
@@ -4418,8 +4427,9 @@ class TodosNotifier
           );
 
           final amberService = _ref.read(amberServiceProvider);
-          // 公開鍵取得（dispose後のprovider書き込みガードは
-          // _resolvePublicKeyAndNpub 内で行う。issue #229/#232）
+          // Resolve the public key/npub. The dispose-after-await guard for
+          // the provider writes lives inside _resolvePublicKeyAndNpub
+          // itself (issue #229/#232).
           final resolvedKeys = await _resolvePublicKeyAndNpub(nostrService);
           if (resolvedKeys == null) return;
           final publicKey = resolvedKeys.publicKey;
@@ -5155,6 +5165,12 @@ class TodosNotifier
         _countTodosPerListWithFetched(syncedTodos, listCreatedAt.keys),
       );
 
+      // Test-only: let a test dispose the container in exactly this
+      // window instead of racing the real local-storage write above
+      // (issue #229/#232).
+      final mergeGate = debugMergeGate;
+      if (mergeGate != null) await mergeGate.future;
+
       // _recordKnownListTodoCounts above awaited; re-check before
       // touching providers/state past that gap (issue #229/#232).
       if (!mounted) return;
@@ -5407,6 +5423,11 @@ class TodosNotifier
       state = AsyncValue.data(grouped);
       await _saveAllTodosToLocal();
       await _updateWidget();
+
+      // _saveAllTodosToLocal/_updateWidget above awaited; re-check before
+      // _updateUnsyncedCount writes to syncStatusProvider past that gap
+      // (issue #229/#232).
+      if (!mounted) return;
 
       // ローカルが新しいタスクがある場合、自動的に再同期
       if (localWinsCount > 0 || localOnlyCount > 0) {
