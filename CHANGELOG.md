@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Unread comments are visible without opening a task.** A task tile shows a quiet speech-bubble icon with the comment count once a thread exists, and switches to a filled bubble with the unread count once someone else's comment in it has not been read. The TODAY segment picks up a plain dot (no number) while any day has an unread thread, and SOMEDAY picks one up while any list — or a task with neither a date nor a list — does; a day tab shows a dot for that day, a SOMEDAY or shared list row for that list, and a planning row (THIS WEEK, NEXT MONTH, …) for any unread day inside its range. Opening a thread clears its unread mark immediately on your device, including comments that arrive while you're still looking at it. Screen readers announce the badge as "N unread comments" and the dot as "Unread comments". (#219)
 
+- **A "N new comments" strip when you come back to the app.** On launch, and whenever you
+  return to the app, a strip appears above the date pages if other people's comments arrived
+  while you were away. Tapping it opens a "New comments" list: every task with something
+  unread, newest arrival first, each row showing who wrote the latest comment and the start
+  of it. Opening a task from that list is what marks it read; looking at the list does not,
+  and neither does closing the strip, which hides it only until the next time you come back.
+  A "Mark all read" action clears the slate without opening anything. The count is taken once
+  when you return, so it does not shift under your finger while you work. (#219 §2)
+
 ### Also new since 1.4.0
 
 Everything from 1.4.1 through 1.4.3 is in this build. If you are updating from the Zapstore listing, these are new to you as well:
