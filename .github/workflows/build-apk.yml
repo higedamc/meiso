@@ -49,7 +49,7 @@ jobs:
       - name: Cache Rust dependencies
         # Same reasoning as ci.yml: ref-scoped caches, so a poisoned restore needs push
         # access to the ref being built (or to main) already.
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5.1.0 # zizmor: ignore[cache-poisoning]
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0 # zizmor: ignore[cache-poisoning]
         with:
           path: |
             ~/.cargo/registry

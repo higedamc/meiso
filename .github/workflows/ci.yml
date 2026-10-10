@@ -105,7 +105,7 @@ jobs:
         # scoped by GitHub to the creating ref: pull_request runs save under
         # refs/pull/N/merge, and a run only restores from its own ref, its PR base, or
         # main. Poisoning what main restores therefore requires push access to main.
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5.1.0 # zizmor: ignore[cache-poisoning]
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0 # zizmor: ignore[cache-poisoning]
         with:
           path: |
             ~/.cargo/registry/index
