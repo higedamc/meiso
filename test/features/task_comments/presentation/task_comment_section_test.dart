@@ -10,9 +10,12 @@ import 'package:meiso/features/send_outbox/domain/outbox_entry.dart';
 import 'package:meiso/features/send_outbox/infrastructure/outbox_local_datasource.dart';
 import 'package:meiso/features/send_outbox/presentation/providers/outbox_providers.dart';
 import 'package:meiso/features/task_comments/domain/entities/task_comment.dart';
+import 'package:meiso/features/task_comments/domain/entities/task_comment_record.dart';
 import 'package:meiso/features/task_comments/domain/repositories/task_comment_repository.dart';
+import 'package:meiso/features/task_comments/infrastructure/datasources/task_comment_read_state_datasource.dart';
 import 'package:meiso/features/task_comments/infrastructure/providers/repository_providers.dart';
 import 'package:meiso/features/task_comments/presentation/providers/author_profile_providers.dart';
+import 'package:meiso/features/task_comments/presentation/providers/unread_comment_providers.dart';
 import 'package:meiso/features/task_comments/presentation/widgets/task_comment_section.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 import 'package:meiso/providers/nostr_provider.dart';
@@ -59,6 +62,51 @@ class MockSendOutboxService extends Mock implements SendOutboxService {}
 const _myPubkey =
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
+/// Records every watermark write (issue #219 §3, "opening the thread is the
+/// read event") without touching Hive. `markRead` is the only member the
+/// marker calls from this widget.
+class _RecordingReadState implements TaskCommentReadStateDataSource {
+  final List<({String taskId, int receivedAtMillis})> markReadCalls = [];
+
+  @override
+  Future<void> markRead({
+    required String taskId,
+    required int receivedAtMillis,
+  }) async {
+    markReadCalls.add((taskId: taskId, receivedAtMillis: receivedAtMillis));
+  }
+
+  @override
+  Future<void> markReadAll(Map<String, int> watermarks) async {}
+
+  @override
+  Stream<Map<String, int>> watchWatermarks() => Stream.value(const {});
+
+  @override
+  Future<Map<String, int>> loadWatermarks() async => const {};
+
+  @override
+  Future<void> wipe() async {}
+}
+
+/// Builds the real [TaskCommentReadMarker] over an in-memory record list:
+/// the marker's "latest stored receipt stamp" logic runs unchanged, only the
+/// Hive box underneath is replaced. [records] is read on each call, so a
+/// test can append to it to simulate a comment landing in the store.
+TaskCommentReadMarker _marker(
+  List<TaskCommentRecord> records,
+  _RecordingReadState readState,
+) {
+  return TaskCommentReadMarker(
+    loadRecords: (taskId) async => List.of(records),
+    loadAllRecords: () async => {'task-1': List.of(records)},
+    readState: readState,
+  );
+}
+
+TaskCommentRecord _stamped(TaskComment comment, int receivedAtMillis) =>
+    TaskCommentRecord(comment: comment, receivedAtMillis: receivedAtMillis);
+
 TaskComment _comment(
   String id, {
   String body = 'hello',
@@ -83,9 +131,20 @@ class _FakeTaskCommentRepository implements TaskCommentRepository {
   final List<({String taskId, String body, String? groupId})> addCalls = [];
   Either<Failure, TaskComment>? addResult;
 
+  /// When set, [watchComments] stays open after [seed] so a test can push a
+  /// later snapshot (a comment arriving while the thread is on screen).
+  StreamController<List<TaskComment>>? live;
+
   @override
   Stream<List<TaskComment>> watchComments({required String taskId}) {
-    return Stream.value(seed);
+    final controller = live;
+    if (controller == null) {
+      return Stream.value(seed);
+    }
+    return () async* {
+      yield seed;
+      yield* controller.stream;
+    }();
   }
 
   @override
@@ -131,10 +190,16 @@ Widget _wrap(
   bool amberMode = false,
   Map<String, OutboxEntry> pendingOutbox = const {},
   SendOutboxService? outboxService,
+  TaskCommentReadMarker? readMarker,
 }) {
   return ProviderScope(
     overrides: [
       taskCommentRepositoryProvider.overrideWithValue(repository),
+      // Opening the thread marks it read (issue #219 §3); never let that
+      // reach the real Hive-backed marker from a widget test.
+      taskCommentReadMarkerProvider.overrideWithValue(
+        readMarker ?? _marker(const [], _RecordingReadState()),
+      ),
       publicKeyProvider.overrideWith((ref) => _myPubkey),
       isAmberModeProvider.overrideWithValue(amberMode),
       outboxLocalDataSourceProvider.overrideWithValue(
@@ -416,6 +481,92 @@ void main() {
 
       expect(find.text('Unsent · tap to retry'), findsNothing);
       expect(find.text('Sending…'), findsNothing);
+    });
+  });
+
+  group('read marking (issue #219 §3)', () {
+    testWidgets('opening the thread advances the watermark to the latest '
+        'stored receipt stamp, once, locally', (tester) async {
+      final readState = _RecordingReadState();
+      final records = [
+        _stamped(_comment('c1'), 1000),
+        _stamped(_comment('c2'), 3000),
+        _stamped(_comment('c0'), 2000),
+      ];
+      final repository = _FakeTaskCommentRepository([
+        _comment('c1'),
+        _comment('c2'),
+        _comment('c0'),
+      ]);
+
+      await tester.pumpWidget(
+        _wrap(
+          const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
+          repository: repository,
+          readMarker: _marker(records, readState),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(readState.markReadCalls.map((c) => c.taskId), ['task-1']);
+      expect(readState.markReadCalls.single.receivedAtMillis, 3000);
+    });
+
+    testWidgets('a comment landing while the thread stays open is marked '
+        'read too, so it does not come back unread after closing', (
+      tester,
+    ) async {
+      final readState = _RecordingReadState();
+      final records = [_stamped(_comment('c1'), 1000)];
+      final repository = _FakeTaskCommentRepository([_comment('c1')])
+        ..live = StreamController<List<TaskComment>>();
+      addTearDown(repository.live!.close);
+
+      await tester.pumpWidget(
+        _wrap(
+          const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
+          repository: repository,
+          readMarker: _marker(records, readState),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(readState.markReadCalls.map((c) => c.receivedAtMillis), [1000]);
+
+      // The store writes the entry (and its stamp) before the stream emits.
+      records.add(_stamped(_comment('c2', body: 'late'), 2000));
+      repository.live!.add([_comment('c1'), _comment('c2', body: 'late')]);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('late'), findsOneWidget);
+      expect(
+        readState.markReadCalls.map((c) => c.receivedAtMillis),
+        [1000, 2000],
+      );
+    });
+
+    testWidgets('a thread with no stamped entries writes nothing', (
+      tester,
+    ) async {
+      final readState = _RecordingReadState();
+      final repository = _FakeTaskCommentRepository([_comment('c1')]);
+
+      await tester.pumpWidget(
+        _wrap(
+          const TaskCommentSection(taskId: 'task-1', groupId: 'group-1'),
+          repository: repository,
+          readMarker: _marker(
+            [TaskCommentRecord(comment: _comment('c1'))],
+            readState,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(readState.markReadCalls, isEmpty);
     });
   });
 }

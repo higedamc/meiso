@@ -1885,4 +1885,17 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get reconnectAttemptFailed => '再接続を試みましたが、リレーに接続できませんでした';
+
+  @override
+  String commentThreadBadgeLabel(int count) {
+    return 'コメント $count 件';
+  }
+
+  @override
+  String commentThreadBadgeUnreadLabel(int count) {
+    return '未読コメント $count 件';
+  }
+
+  @override
+  String get unreadCommentsIndicatorLabel => '未読のコメントがあります';
 }

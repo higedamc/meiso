@@ -12,6 +12,7 @@ import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
 import 'todo_edit_screen.dart';
 import 'circular_checkbox.dart';
+import 'comment_thread_badge.dart';
 import 'remote_image_gate.dart';
 import '../features/media/presentation/widgets/image_thumbnail.dart';
 
@@ -714,6 +715,14 @@ class TodoItem extends StatelessWidget {
                                     ),
                                   ),
                                 ),
+
+                              // Comment thread badge (issue #219 §1, L3):
+                              // present while a thread exists, emphasised
+                              // while something in it is unread. Threads
+                              // exist on root tasks only (the detail screen
+                              // mounts no comment section for subtasks).
+                              if (!todo.isSubtask)
+                                CommentThreadBadge(taskId: todo.id),
 
                               if (!todo.isSubtask)
                                 Consumer(

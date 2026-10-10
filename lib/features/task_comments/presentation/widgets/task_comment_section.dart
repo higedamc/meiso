@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../../app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../providers/nostr_provider.dart';
+import '../../../../services/logger_service.dart';
 import '../../../send_outbox/domain/outbox_entry.dart';
 import '../../../send_outbox/presentation/providers/outbox_providers.dart';
 import '../../domain/entities/task_comment.dart';
@@ -13,6 +16,7 @@ import '../../infrastructure/repositories/task_comment_repository_impl.dart'
     show maxCommentBodyChars;
 import '../providers/author_profile_providers.dart';
 import '../providers/task_comment_providers.dart';
+import '../providers/unread_comment_providers.dart';
 
 /// Comment thread ("task chat") section shown below SUBTASKS in the task
 /// detail screen.
@@ -41,6 +45,29 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
   bool _isSending = false;
 
   bool get _isPersonalTask => widget.groupId == null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Opening the thread is the read event (issue #219 §3): the unread mark
+    // clears the moment the person is on the content, locally and without a
+    // relay round trip. Nothing else — not scrolling past the tile, not the
+    // catch-up list, not dismissing the strip — clears it.
+    _markRead();
+  }
+
+  /// Advances this thread's device-local watermark to the latest comment the
+  /// store holds. The marker is a no-op for threads without a stamped entry.
+  void _markRead() {
+    unawaited(
+      ref
+          .read(taskCommentReadMarkerProvider)
+          .markRead(widget.taskId)
+          .catchError((Object e) {
+            AppLogger.warning('[task-chat] mark read failed: $e');
+          }),
+    );
+  }
 
   @override
   void dispose() {
@@ -77,6 +104,21 @@ class _TaskCommentSectionState extends ConsumerState<TaskCommentSection> {
     final showUnavailableNotice = !canComment;
 
     final commentsAsync = ref.watch(taskCommentsStreamProvider(widget.taskId));
+    // Keep clearing while the thread stays open (issue #219 §3): a comment
+    // that lands while the person is reading must not come back as unread
+    // after they close the screen. The stream is fed by the local store, so
+    // by the time it emits, the new entry and its receipt stamp are stored
+    // and the marker sees them.
+    // The first snapshot is covered by `initState`; only later ones mark
+    // again, so opening a thread writes the watermark exactly once.
+    ref.listen<AsyncValue<List<TaskComment>>>(
+      taskCommentsStreamProvider(widget.taskId),
+      (previous, next) {
+        if (previous != null && previous.hasValue && next.hasValue) {
+          _markRead();
+        }
+      },
+    );
     final visibleComments =
         commentsAsync.valueOrNull
             ?.where((comment) => !comment.deleted)

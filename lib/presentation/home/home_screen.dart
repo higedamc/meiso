@@ -4,6 +4,7 @@ import 'package:meiso/l10n/app_localizations.dart';
 
 import '../../features/task_comments/infrastructure/datasources/task_comment_author_scan.dart';
 import '../../features/task_comments/presentation/providers/comment_catchup_providers.dart';
+import '../../features/task_comments/presentation/providers/unread_comment_surface_providers.dart';
 import '../../models/custom_list.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/bootstrap_sync_provider.dart';
@@ -429,6 +430,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           dates: dates,
           currentIndex: _currentPageIndex,
           onDateTap: _onDateTabTap,
+          datesWithUnread: ref.watch(
+            unreadCommentSurfacesProvider.select((s) => s.dates),
+          ),
         ),
         ExpandableCalendar(
           isVisible: isCalendarVisible,
@@ -451,6 +455,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         );
         final appSettingsAsync = ref.watch(appSettingsProvider);
         final bootstrapState = ref.watch(bootstrapSyncProvider);
+        // Ambient unread marks on the bottom bar (issue #219 §1, L4).
+        final unreadSurfaces = ref.watch(unreadCommentSurfacesProvider);
         // 詳細表示中のリスト名変更（リスト設定シート経由）を即時反映する
         if (_activeCustomList != null) {
           ref.watch(customListsProvider);
@@ -573,6 +579,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       onSomedayLongPress: _openSettings,
                       isSomedayActive: _showingSomeday || _detailOpen,
                       somedayMerged: _detailOpen,
+                      todayHasUnread: unreadSurfaces.today,
+                      somedayHasUnread: unreadSurfaces.someday,
                       settingsContextual:
                           _detailOpen && _activeCustomList != null,
                       mergedLabel:

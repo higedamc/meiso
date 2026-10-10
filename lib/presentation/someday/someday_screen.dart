@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
+import '../../features/task_comments/presentation/providers/unread_comment_surface_providers.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/calendar_provider.dart';
@@ -12,6 +13,7 @@ import '../../providers/app_settings_provider.dart';
 import '../../services/logger_service.dart';
 import '../../utils/error_handler.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/unread_dot.dart';
 import '../../widgets/add_list_chooser.dart';
 import '../../widgets/slide_up_route.dart';
 import '../../widgets/sync_status_indicator.dart';
@@ -215,6 +217,9 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     final todosAsync = ref.watch(todosProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
+    // Locating / ambient unread marks (issue #219 §1, L4), one source for
+    // the list rows and the bottom bar alike.
+    final unreadSurfaces = ref.watch(unreadCommentSurfacesProvider);
 
     // 楽観的UI更新: 前回のデータがあればそれを使用
     final customLists = customListsAsync.valueOrNull;
@@ -235,6 +240,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                       customLists,
                       todos,
                       isDark,
+                      unreadSurfaces,
                     ),
                   )
                 : const Center(
@@ -261,6 +267,8 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
               slideUpRoute<void>(const SettingsScreen()),
             ),
             isSomedayActive: true,
+            todayHasUnread: unreadSurfaces.today,
+            somedayHasUnread: unreadSurfaces.someday,
           ),
         ],
       ),
@@ -273,6 +281,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     List<CustomList> customLists,
     Map<DateTime?, List<Todo>> todos,
     bool isDark,
+    UnreadCommentSurfaces unreadSurfaces,
   ) {
     AppLogger.info(
       ' [SomedayScreen] 📋 _buildListContent called with ${customLists.length} custom lists',
@@ -321,6 +330,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
               isDark,
               key: ValueKey(list.id),
               showDragHandle: true, // ドラッグハンドルを表示
+              hasUnread: unreadSurfaces.hasUnreadInList(list.id),
               onTap: () {
                 // インビテーション待ちの場合は招待受諾ダイアログを表示（Phase 6.5で実装）
                 if (list.isPendingInvitation) {
@@ -352,6 +362,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
         const SizedBox(height: 16),
         ...PlanningCategory.values.map((category) {
           final count = _getPlanningCategoryCount(category, todos);
+          final range = category.getDateRange();
           return _buildListItem(
             context,
             ref,
@@ -359,6 +370,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
             count,
             isDark,
             key: ValueKey(category.name),
+            hasUnread: unreadSurfaces.hasUnreadBetween(range.start, range.end),
             onTap: () {
               // Home 埋め込み時はコンテンツ領域内に詳細を表示（ボトムバーの上）。
               if (widget.onPlanningTap != null) {
@@ -409,6 +421,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     bool showDragHandle = false,
     bool isGroup = false,
     bool isPendingInvitation = false,
+    bool hasUnread = false,
   }) {
     return InkWell(
       key: key,
@@ -458,6 +471,10 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 ),
               ),
             ),
+            if (hasUnread) ...[
+              const SizedBox(width: 8),
+              const UnreadDot(color: AppTheme.primaryColor),
+            ],
             // インビテーションバッジ（Phase 6.4: MLS招待システム）
             if (isPendingInvitation) ...[
               Container(
@@ -526,6 +543,7 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
     Key? key,
     required VoidCallback onTap,
     bool showDragHandle = false,
+    bool hasUnread = false,
   }) {
     return InkWell(
       key: key,
@@ -575,6 +593,10 @@ class _SomedayScreenState extends ConsumerState<SomedayScreen> {
                 ),
               ),
             ),
+            if (hasUnread) ...[
+              const SizedBox(width: 8),
+              const UnreadDot(color: AppTheme.primaryColor),
+            ],
             // インビテーションバッジ
             if (list.isPendingInvitation) ...[
               Container(

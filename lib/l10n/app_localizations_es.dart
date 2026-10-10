@@ -1972,4 +1972,29 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get reconnectAttemptFailed =>
       'Se intentó reconectar, pero no se pudo contactar ningún relay';
+
+  @override
+  String commentThreadBadgeLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count comentarios',
+      one: '1 comentario',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String commentThreadBadgeUnreadLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count comentarios sin leer',
+      one: '1 comentario sin leer',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get unreadCommentsIndicatorLabel => 'Comentarios sin leer';
 }

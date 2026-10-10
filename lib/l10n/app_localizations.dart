@@ -3525,6 +3525,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reconnect attempted, but no relay could be reached'**
   String get reconnectAttemptFailed;
+
+  /// Screen-reader label of the quiet comment badge on a task tile: the thread exists and nothing in it is unread (issue #219 §1)
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 comment} other{{count} comments}}'**
+  String commentThreadBadgeLabel(int count);
+
+  /// Screen-reader label of the emphasised comment badge on a task tile when comments by someone else arrived after the thread was last opened on this device (issue #219 §1)
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 unread comment} other{{count} unread comments}}'**
+  String commentThreadBadgeUnreadLabel(int count);
+
+  /// Screen-reader label of the plain dot (no number) shown on the TODAY / SOMEDAY segments of the bottom bar, on a day tab and on a SOMEDAY list row while a task under that surface has unread comments (issue #219 §1)
+  ///
+  /// In en, this message translates to:
+  /// **'Unread comments'**
+  String get unreadCommentsIndicatorLabel;
 }
 
 class _AppLocalizationsDelegate

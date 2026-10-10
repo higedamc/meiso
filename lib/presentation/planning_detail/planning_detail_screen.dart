@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 import '../../app_theme.dart';
+import '../../features/task_comments/presentation/providers/unread_comment_surface_providers.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/app_settings_provider.dart';
@@ -52,8 +53,11 @@ class PlanningDetailScreen extends StatelessWidget {
           Consumer(
             builder: (context, ref, child) {
               final l10n = AppLocalizations.of(context);
+              final unreadSurfaces = ref.watch(unreadCommentSurfacesProvider);
               return BottomNavigation(
                 onTodayTap: () => Navigator.of(context).pop(),
+                todayHasUnread: unreadSurfaces.today,
+                somedayHasUnread: unreadSurfaces.someday,
                 onAddTap: () {
                   // TODO追加ダイアログを表示（日付はカテゴリーの範囲内から選択）
                   ScaffoldMessenger.of(context).showSnackBar(

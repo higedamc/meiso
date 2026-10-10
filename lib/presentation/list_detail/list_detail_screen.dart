@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_theme.dart';
+import '../../features/task_comments/presentation/providers/unread_comment_surface_providers.dart';
 import '../../models/custom_list.dart';
 import '../../models/todo.dart';
 import '../../providers/app_settings_provider.dart';
@@ -107,10 +108,13 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
           // ボトムナビゲーション
           Consumer(
             builder: (context, ref, child) {
+              final unreadSurfaces = ref.watch(unreadCommentSurfacesProvider);
               return BottomNavigation(
                 onTodayTap: () => Navigator.of(context).pop(),
                 onAddTap: () => _showAddTodoScreen(context),
                 onSomedayTap: () => Navigator.of(context).pop(),
+                todayHasUnread: unreadSurfaces.today,
+                somedayHasUnread: unreadSurfaces.someday,
                 // リスト詳細表示中はリスト固有の設定シートを開く
                 onSettingsTap: () => showListSettingsSheet(
                   context,

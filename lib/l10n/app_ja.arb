@@ -1126,5 +1126,11 @@
 
   "reconnectAttemptSucceeded": "再接続しました（{count}/{total} 接続中）",
 
-  "reconnectAttemptFailed": "再接続を試みましたが、リレーに接続できませんでした"
+  "reconnectAttemptFailed": "再接続を試みましたが、リレーに接続できませんでした",
+
+  "commentThreadBadgeLabel": "コメント {count} 件",
+
+  "commentThreadBadgeUnreadLabel": "未読コメント {count} 件",
+
+  "unreadCommentsIndicatorLabel": "未読のコメントがあります"
 }
