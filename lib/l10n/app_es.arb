@@ -1078,6 +1078,24 @@
 
   "commentIntroCardMessage": "Las tareas ahora pueden tener comentarios.\nLos relés nunca saben a qué tarea pertenece un comentario.",
 
+  "commentCatchupStripMessage": "{count} comentarios nuevos",
+
+  "commentCatchupScreenTitle": "Comentarios nuevos",
+
+  "commentCatchupMarkAllReadButton": "Marcar todo como leído",
+
+  "commentCatchupAllCaughtUp": "Ya estás al día",
+
+  "commentCatchupUntitledTask": "(tarea eliminada)",
+
+  "commentCatchupJustNow": "ahora mismo",
+
+  "commentCatchupMinutesAgo": "Hace {minutes} min",
+
+  "commentCatchupHoursAgo": "Hace {hours} h",
+
+  "commentCatchupDaysAgo": "Hace {days} d",
+
   "notificationSettingsTitle": "Notificaciones",
 
   "notificationSettingsSubtitle": "Comentarios en tareas compartidas, incluso con la app cerrada",

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meiso/l10n/app_localizations.dart';
 
 import '../../features/task_comments/infrastructure/datasources/task_comment_author_scan.dart';
+import '../../features/task_comments/presentation/providers/comment_catchup_providers.dart';
 import '../../models/custom_list.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/bootstrap_sync_provider.dart';
@@ -13,6 +14,7 @@ import '../../providers/nostr_provider.dart';
 import '../../services/local_storage_service.dart';
 import '../../widgets/add_list_chooser.dart';
 import '../../widgets/bottom_navigation.dart';
+import '../../widgets/comment_catchup_strip.dart';
 import '../../widgets/comment_intro_card.dart';
 import '../../widgets/list_settings_sheet.dart';
 import '../../widgets/date_tab_bar.dart';
@@ -60,18 +62,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.initState();
     _pageController = PageController(initialPage: _currentPageIndex);
     _somedayPageController = PageController();
-    _detailController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 340),
-    )..addStatusListener((status) {
-        // 下スライドで収納し切ったら詳細をツリーから外す
-        if (status == AnimationStatus.dismissed && !_detailOpen) {
-          setState(() {
-            _activeCustomList = null;
-            _activePlanning = null;
-          });
-        }
-      });
+    _detailController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 340),
+        )..addStatusListener((status) {
+          // 下スライドで収納し切ったら詳細をツリーから外す
+          if (status == AnimationStatus.dismissed && !_detailOpen) {
+            setState(() {
+              _activeCustomList = null;
+              _activePlanning = null;
+            });
+          }
+        });
     _maybeShowCommentIntroCard();
   }
 
@@ -161,7 +164,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       setState(() {
         _showingSomeday = false;
       });
-      
+
       // 次のフレームで今日にジャンプ
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _jumpToTodayPage(dates);
@@ -178,17 +181,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _jumpToTodayPage(dates);
     }
   }
-  
+
   /// 今日のページにジャンプする
   void _jumpToTodayPage(List<DateTime> dates) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final todayIndex = dates.indexWhere((date) => 
-      date.year == today.year && 
-      date.month == today.month && 
-      date.day == today.day
+    final todayIndex = dates.indexWhere(
+      (date) =>
+          date.year == today.year &&
+          date.month == today.month &&
+          date.day == today.day,
     );
-    
+
     if (todayIndex != -1) {
       // 今日が日付リストに存在する場合は、そのページにジャンプ
       _pageController.animateToPage(
@@ -199,7 +203,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     } else {
       // 今日が日付リストに存在しない場合は、今日を中心とした日付リストを生成
       ref.read(centerDateProvider.notifier).state = today;
-      
+
       // 次のフレームで中心ページにジャンプ
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_pageController.hasClients) {
@@ -218,7 +222,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     setState(() {
       _showingSomeday = true;
     });
-    
+
     // カレンダーとモーダルは閉じる
     ref.read(calendarVisibleProvider.notifier).state = false;
     ref.read(customListModalVisibleProvider.notifier).state = false;
@@ -242,15 +246,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     });
 
     // 選択された日付を正規化
-    final selectedDate = DateTime(selectedDay.year, selectedDay.month, selectedDay.day);
-    
-    // 選択された日付が現在の日付リストに存在するか確認
-    final selectedIndex = dates.indexWhere((date) => 
-      date.year == selectedDate.year && 
-      date.month == selectedDate.month && 
-      date.day == selectedDate.day
+    final selectedDate = DateTime(
+      selectedDay.year,
+      selectedDay.month,
+      selectedDay.day,
     );
-    
+
+    // 選択された日付が現在の日付リストに存在するか確認
+    final selectedIndex = dates.indexWhere(
+      (date) =>
+          date.year == selectedDate.year &&
+          date.month == selectedDate.month &&
+          date.day == selectedDate.day,
+    );
+
     if (selectedIndex != -1) {
       // 日付リストに存在する場合は、そのページにジャンプ
       _pageController.animateToPage(
@@ -261,7 +270,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     } else {
       // 日付リストに存在しない場合は、その日付を中心とした新しい日付リストを生成
       ref.read(centerDateProvider.notifier).state = selectedDate;
-      
+
       // 次のフレームで中心ページにジャンプ
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_pageController.hasClients) {
@@ -404,6 +413,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       children: [
         if (_showCommentIntroCard)
           CommentIntroCard(onDismiss: _dismissCommentIntroCard),
+        if (ref.watch(shouldShowCommentCatchupStripProvider))
+          const CommentCatchupStrip(),
         Expanded(
           child: PageView.builder(
             controller: _pageController,
@@ -435,7 +446,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       builder: (context, ref, child) {
         final dates = ref.watch(dateListProvider);
         final isCalendarVisible = ref.watch(calendarVisibleProvider);
-        final isCustomListModalVisible = ref.watch(customListModalVisibleProvider);
+        final isCustomListModalVisible = ref.watch(
+          customListModalVisibleProvider,
+        );
         final appSettingsAsync = ref.watch(appSettingsProvider);
         final bootstrapState = ref.watch(bootstrapSyncProvider);
         // 詳細表示中のリスト名変更（リスト設定シート経由）を即時反映する
@@ -500,7 +513,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               dates: dates,
                               isCalendarVisible: isCalendarVisible,
                               weekStartDay: weekStartDay,
-                              isCustomListModalVisible: isCustomListModalVisible,
+                              isCustomListModalVisible:
+                                  isCustomListModalVisible,
                               ref: ref,
                             ),
                           ),
@@ -509,16 +523,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           // 閉じる時は上→下に収納される。
                           if (_hasDetail)
                             SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0, 1),
-                                end: Offset.zero,
-                              ).animate(
-                                CurvedAnimation(
-                                  parent: _detailController,
-                                  curve: Curves.easeOutCubic,
-                                  reverseCurve: Curves.easeInCubic,
-                                ),
-                              ),
+                              position:
+                                  Tween<Offset>(
+                                    begin: const Offset(0, 1),
+                                    end: Offset.zero,
+                                  ).animate(
+                                    CurvedAnimation(
+                                      parent: _detailController,
+                                      curve: Curves.easeOutCubic,
+                                      reverseCurve: Curves.easeInCubic,
+                                    ),
+                                  ),
                               child: _buildDetailView(),
                             ),
                         ],
@@ -530,8 +545,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     BottomNavigation(
                       onTodayTap: () {
                         ref
-                            .read(customListModalVisibleProvider.notifier)
-                            .state = false;
+                                .read(customListModalVisibleProvider.notifier)
+                                .state =
+                            false;
                         if (_hasDetail) {
                           setState(() {
                             _detailOpen = false;
@@ -559,8 +575,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       somedayMerged: _detailOpen,
                       settingsContextual:
                           _detailOpen && _activeCustomList != null,
-                      mergedLabel: _resolveActiveList()?.name ??
-                          _activePlanning?.label,
+                      mergedLabel:
+                          _resolveActiveList()?.name ?? _activePlanning?.label,
                     ),
                   ],
                 ),
@@ -572,4 +588,3 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 }
-

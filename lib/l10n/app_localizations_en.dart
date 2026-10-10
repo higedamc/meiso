@@ -1832,6 +1832,41 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tasks can now have comments.\nRelays never learn which task a comment belongs to.';
 
   @override
+  String commentCatchupStripMessage(int count) {
+    return '$count new comments';
+  }
+
+  @override
+  String get commentCatchupScreenTitle => 'New comments';
+
+  @override
+  String get commentCatchupMarkAllReadButton => 'Mark all read';
+
+  @override
+  String get commentCatchupAllCaughtUp => 'You\'re all caught up';
+
+  @override
+  String get commentCatchupUntitledTask => '(deleted task)';
+
+  @override
+  String get commentCatchupJustNow => 'just now';
+
+  @override
+  String commentCatchupMinutesAgo(int minutes) {
+    return '${minutes}m ago';
+  }
+
+  @override
+  String commentCatchupHoursAgo(int hours) {
+    return '${hours}h ago';
+  }
+
+  @override
+  String commentCatchupDaysAgo(int days) {
+    return '${days}d ago';
+  }
+
+  @override
   String get notificationSettingsTitle => 'Notifications';
 
   @override

@@ -3334,6 +3334,60 @@ abstract class AppLocalizations {
   /// **'Tasks can now have comments.\nRelays never learn which task a comment belongs to.'**
   String get commentIntroCardMessage;
 
+  /// Message in the non-modal strip shown at the top of the date page when unread task comments exist (issue #219 §2). Tapping the strip opens the catch-up list; its close button only hides the strip for this session and never marks anything read.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} new comments'**
+  String commentCatchupStripMessage(int count);
+
+  /// App bar title of the catch-up list opened from the comment catch-up strip
+  ///
+  /// In en, this message translates to:
+  /// **'New comments'**
+  String get commentCatchupScreenTitle;
+
+  /// Button on the catch-up list that marks every unread comment thread read in one action
+  ///
+  /// In en, this message translates to:
+  /// **'Mark all read'**
+  String get commentCatchupMarkAllReadButton;
+
+  /// Empty state shown on the catch-up list once every thread on it has been marked read while the screen was open
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re all caught up'**
+  String get commentCatchupAllCaughtUp;
+
+  /// Row title on the catch-up list when the task a comment belongs to was deleted locally after the comment arrived
+  ///
+  /// In en, this message translates to:
+  /// **'(deleted task)'**
+  String get commentCatchupUntitledTask;
+
+  /// Relative time on a catch-up list row for a comment that arrived less than a minute ago
+  ///
+  /// In en, this message translates to:
+  /// **'just now'**
+  String get commentCatchupJustNow;
+
+  /// Relative time on a catch-up list row for a comment that arrived less than an hour ago
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes}m ago'**
+  String commentCatchupMinutesAgo(int minutes);
+
+  /// Relative time on a catch-up list row for a comment that arrived less than a day ago
+  ///
+  /// In en, this message translates to:
+  /// **'{hours}h ago'**
+  String commentCatchupHoursAgo(int hours);
+
+  /// Relative time on a catch-up list row for a comment that arrived a day or more ago
+  ///
+  /// In en, this message translates to:
+  /// **'{days}d ago'**
+  String commentCatchupDaysAgo(int days);
+
   /// Title of the notification settings screen and of its entry in Settings
   ///
   /// In en, this message translates to:
