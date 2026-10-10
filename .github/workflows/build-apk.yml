@@ -12,7 +12,11 @@ permissions:
   contents: read
 
 env:
-  FLUTTER_VERSION: '3.38.5'
+  # Must match the SDK that writes pubspec.lock and builds the release APK
+  # (.fvmrc). v1.4.3's shipped libflutter.so carries engine 425cfb54d0 / Dart
+  # 3.11.4 = Flutter 3.41.6; CI on 3.38.5 was re-resolving four SDK-pinned
+  # packages on every run instead of testing the committed lock (PR #225).
+  FLUTTER_VERSION: '3.41.6'
   JAVA_VERSION: '17'
 
 jobs:

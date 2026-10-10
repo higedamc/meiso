@@ -87,3 +87,6 @@ env
 
 # SpecStory local conversation history
 .specstory/
+
+# fvm: .fvmrc is committed, the per-machine SDK link is not
+.fvm/
