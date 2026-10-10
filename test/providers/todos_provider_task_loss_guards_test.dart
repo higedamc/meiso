@@ -1029,6 +1029,12 @@ void main() {
         // _updateStateWithSyncedTodos's own try block can be proven by a
         // completes/throws assertion for that reason - only guards outside
         // a self-catching function (like the one in the test below) can.
+        // There is still an observable difference, just not one this kind
+        // of assertion can see: with the guard, nothing is logged; without
+        // it, "Error in _updateStateWithSyncedTodos: Bad state: ..." is
+        // logged and the remote-only fallback runs. No log-capture harness
+        // exists in test/ to assert on that; if one lands, this is the
+        // assertion to add.
         started.container.dispose();
         started.notifier.debugMergeGate!.complete();
 
