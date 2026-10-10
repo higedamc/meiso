@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A one-time dismissible card on the home screen, shown once (to new installs and updates alike) to anyone who has never authored a comment, explaining that tasks can now have comments and that relays never learn which task a comment belongs to. Not shown to anyone who has already authored a comment (including one synced in from another device). (#219 §6)
 
+- **Unread comments are visible without opening a task.** A task tile shows a quiet speech-bubble icon with the comment count once a thread exists, and switches to a filled bubble with the unread count once someone else's comment in it has not been read. The TODAY segment picks up a plain dot (no number) while any day has an unread thread, and SOMEDAY picks one up while any list — or a task with neither a date nor a list — does; a day tab shows a dot for that day, a SOMEDAY or shared list row for that list, and a planning row (THIS WEEK, NEXT MONTH, …) for any unread day inside its range. Opening a thread clears its unread mark immediately on your device, including comments that arrive while you're still looking at it. Screen readers announce the badge as "N unread comments" and the dot as "Unread comments". (#219)
+
 ### Also new since 1.4.0
 
 Everything from 1.4.1 through 1.4.3 is in this build. If you are updating from the Zapstore listing, these are new to you as well:
