@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
+import 'unread_dot.dart';
 
 /// 底部ナビゲーションバー（TODAY / SOMEDAY + アクション）
 ///
@@ -17,6 +18,8 @@ class BottomNavigation extends StatelessWidget {
     this.somedayMerged = false,
     this.settingsContextual = false,
     this.mergedLabel,
+    this.todayHasUnread = false,
+    this.somedayHasUnread = false,
     super.key,
   });
 
@@ -37,6 +40,13 @@ class BottomNavigation extends StatelessWidget {
 
   /// マージ時に SOMEDAY セグメントへ表示するラベル（リスト名など）。
   final String? mergedLabel;
+
+  /// Ambient unread marks (issue #219 §1, L4): a dot on the TODAY segment
+  /// while some day page holds a task with unread comments, and on the
+  /// SOMEDAY segment while some list row does. Derived by the caller from
+  /// `unreadCommentSurfacesProvider`; this widget never counts anything.
+  final bool todayHasUnread;
+  final bool somedayHasUnread;
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +90,8 @@ class BottomNavigation extends StatelessWidget {
                   onTodayTap: onTodayTap,
                   onSomedayTap: onSomedayTap,
                   onSomedayLongPress: onSomedayLongPress,
+                  todayHasUnread: todayHasUnread,
+                  somedayHasUnread: somedayHasUnread,
                 ),
               ),
               const SizedBox(width: 8),
@@ -121,6 +133,8 @@ class _SegmentedTabs extends StatelessWidget {
     required this.onSomedayTap,
     this.mergedLabel,
     this.onSomedayLongPress,
+    this.todayHasUnread = false,
+    this.somedayHasUnread = false,
   });
 
   final bool isSomedayActive;
@@ -129,6 +143,8 @@ class _SegmentedTabs extends StatelessWidget {
   final VoidCallback onTodayTap;
   final VoidCallback onSomedayTap;
   final VoidCallback? onSomedayLongPress;
+  final bool todayHasUnread;
+  final bool somedayHasUnread;
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +204,7 @@ class _SegmentedTabs extends StatelessWidget {
                           label: 'TODAY',
                           selected: !isSomedayActive,
                           onTap: onTodayTap,
+                          showDot: todayHasUnread,
                         ),
                       ),
                     ),
@@ -211,6 +228,11 @@ class _SegmentedTabs extends StatelessWidget {
                   selected: isSomedayActive,
                   onTap: onSomedayTap,
                   onLongPress: onSomedayLongPress,
+                  // While merged the TODAY segment is stowed, so the one
+                  // visible segment carries the "anything, anywhere" answer.
+                  showDot: merged
+                      ? (todayHasUnread || somedayHasUnread)
+                      : somedayHasUnread,
                 ),
               ),
             ],
@@ -228,6 +250,7 @@ class _SegmentItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.onLongPress,
+    this.showDot = false,
   });
 
   final IconData icon;
@@ -235,6 +258,7 @@ class _SegmentItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final bool showDot;
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +272,18 @@ class _SegmentItem extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: color),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, size: 18, color: color),
+                if (showDot)
+                  const Positioned(
+                    top: -3,
+                    right: -4,
+                    child: UnreadDot(color: Colors.white),
+                  ),
+              ],
+            ),
             const SizedBox(width: 6),
             Flexible(
               child: AnimatedDefaultTextStyle(

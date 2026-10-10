@@ -2,18 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'unread_dot.dart';
+
 /// 日付タブバー（横スクロール対応）
 class DateTabBar extends ConsumerStatefulWidget {
   const DateTabBar({
     required this.dates,
     required this.currentIndex,
     required this.onDateTap,
+    this.datesWithUnread = const {},
     super.key,
   });
 
   final List<DateTime> dates;
   final int currentIndex;
   final void Function(int) onDateTap;
+
+  /// Locating marks (issue #219 §1, L4): day keys (local midnight) whose
+  /// page holds a task with unread comments. Derived by the caller from
+  /// `unreadCommentSurfacesProvider`; this widget never counts anything.
+  final Set<DateTime> datesWithUnread;
 
   @override
   ConsumerState<DateTabBar> createState() => _DateTabBarState();
@@ -84,6 +92,9 @@ class _DateTabBarState extends ConsumerState<DateTabBar> {
           children: List.generate(widget.dates.length, (index) {
             final date = widget.dates[index];
             final isSelected = index == widget.currentIndex;
+            final hasUnread = widget.datesWithUnread.contains(
+              DateTime(date.year, date.month, date.day),
+            );
 
             return SizedBox(
               width: _itemWidth,
@@ -104,32 +115,48 @@ class _DateTabBarState extends ConsumerState<DateTabBar> {
                         borderRadius: BorderRadius.circular(18),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
                         children: [
-                          Text(
-                            DateFormat('M/d').format(date),
-                            style: TextStyle(
-                              color: isSelected
-                                  ? colorScheme.onPrimary
-                                  : colorScheme.onSurfaceVariant,
-                              fontSize: 13,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
+                          if (hasUnread)
+                            Positioned(
+                              top: -2,
+                              right: 6,
+                              child: UnreadDot(
+                                color: isSelected
+                                    ? colorScheme.onPrimary
+                                    : colorScheme.primary,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            DateFormat('EEE', 'en_US').format(date).toUpperCase(),
-                            style: TextStyle(
-                              color: isSelected
-                                  ? colorScheme.onPrimary
-                                  : colorScheme.onSurface,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                            ),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                DateFormat('M/d').format(date),
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? colorScheme.onPrimary
+                                      : colorScheme.onSurfaceVariant,
+                                  fontSize: 13,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                DateFormat('EEE', 'en_US').format(date).toUpperCase(),
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? colorScheme.onPrimary
+                                      : colorScheme.onSurface,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

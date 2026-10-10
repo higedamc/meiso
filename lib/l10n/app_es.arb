@@ -1140,5 +1140,11 @@
 
   "reconnectAttemptSucceeded": "Reconectado ({count}/{total} conectados)",
 
-  "reconnectAttemptFailed": "Se intentó reconectar, pero no se pudo contactar ningún relay"
+  "reconnectAttemptFailed": "Se intentó reconectar, pero no se pudo contactar ningún relay",
+
+  "commentThreadBadgeLabel": "{count, plural, =1{1 comentario} other{{count} comentarios}}",
+
+  "commentThreadBadgeUnreadLabel": "{count, plural, =1{1 comentario sin leer} other{{count} comentarios sin leer}}",
+
+  "unreadCommentsIndicatorLabel": "Comentarios sin leer"
 }
