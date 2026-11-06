@@ -54,8 +54,10 @@ openmls_sqlite_storage = { git = "https://github.com/keychat-io/openmls.git", br
 kc = { git = "https://github.com/keychat-io/openmls.git", branch = "kc4", package = "kc"}
 bincode = "1.3.3"
 lazy_static = "1.4.0"
+rqrr = { version = "0.11", default-features = false }
 
 [dev-dependencies]
+qrcode = { version = "0.14", default-features = false }
 tempfile = "3.8"
 
 [profile.release]

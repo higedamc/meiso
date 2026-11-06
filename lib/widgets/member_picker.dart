@@ -1,10 +1,11 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../bridge_generated.dart/api.dart' as rust_api;
+import '../bridge_generated.dart/qr.dart' as rust_qr;
 import '../providers/app_settings_provider.dart';
 import '../providers/nostr_provider.dart';
 import '../services/logger_service.dart';
@@ -59,10 +60,9 @@ Future<void> showMyNpubQrDialog(BuildContext context, WidgetRef ref) async {
             children: [
               Text(
                 'My npub',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 16),
               Container(
@@ -145,8 +145,7 @@ class _ContactEntry {
   final String? picture;
   final String? nip05;
 
-  String get label =>
-      displayName ?? '${npub.substring(0, 16)}...';
+  String get label => displayName ?? '${npub.substring(0, 16)}...';
 }
 
 class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
@@ -176,8 +175,7 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
       if (myPubkey == null || myPubkey.isEmpty) {
         throw Exception('public key not available');
       }
-      final contactHexes =
-          await rust_api.fetchContactList(pubkeyHex: myPubkey);
+      final contactHexes = await rust_api.fetchContactList(pubkeyHex: myPubkey);
       if (contactHexes.isEmpty) {
         setState(() {
           _contacts = [];
@@ -189,8 +187,9 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
       // プロフィール（kind:0）は取得失敗しても一覧自体は出す
       var profiles = <rust_api.ContactProfile>[];
       try {
-        profiles =
-            await rust_api.fetchProfilesMetadata(pubkeyHexes: contactHexes);
+        profiles = await rust_api.fetchProfilesMetadata(
+          pubkeyHexes: contactHexes,
+        );
       } on Exception catch (e) {
         AppLogger.warning('⚠️ [MemberPicker] profile fetch failed: $e');
       }
@@ -208,13 +207,15 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
           continue;
         }
         final profile = profileByHex[hex];
-        entries.add(_ContactEntry(
-          npub: npub,
-          pubkeyHex: hex,
-          displayName: profile?.displayName ?? profile?.name,
-          picture: profile?.picture,
-          nip05: profile?.nip05,
-        ));
+        entries.add(
+          _ContactEntry(
+            npub: npub,
+            pubkeyHex: hex,
+            displayName: profile?.displayName ?? profile?.name,
+            picture: profile?.picture,
+            nip05: profile?.nip05,
+          ),
+        );
       }
       // 表示名のあるコンタクトを先頭に
       entries.sort((a, b) {
@@ -446,9 +447,7 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
                       ? null
                       : () => Navigator.pop(context, _selected.toList()),
                   child: Text(
-                    _selected.isEmpty
-                        ? 'ADD'
-                        : 'ADD (${_selected.length})',
+                    _selected.isEmpty ? 'ADD' : 'ADD (${_selected.length})',
                   ),
                 ),
               ],
@@ -582,7 +581,11 @@ class _MemberPickerSheetState extends ConsumerState<MemberPickerSheet> {
   }
 }
 
-/// npub QR スキャン画面。スキャン成功時に npub 文字列を pop で返す。
+/// npub QR scan screen. Pops with the npub string once one decodes.
+///
+/// Frames come from the official `camera` plugin (CameraX on Android) and are
+/// decoded by the pure-Rust `rqrr` crate inside the app's own `librust.so`, so
+/// this path pulls in no Google Play Services / ML Kit code (issue #245).
 class _QrScanScreen extends StatefulWidget {
   const _QrScanScreen();
 
@@ -591,23 +594,96 @@ class _QrScanScreen extends StatefulWidget {
 }
 
 class _QrScanScreenState extends State<_QrScanScreen> {
-  final MobileScannerController _controller = MobileScannerController(
-    formats: const [BarcodeFormat.qrCode],
-  );
+  CameraController? _controller;
+  String? _error;
+  bool _decoding = false;
   bool _handled = false;
 
   @override
+  void initState() {
+    super.initState();
+    _startCamera();
+  }
+
+  @override
   void dispose() {
-    _controller.dispose();
+    // CameraController.dispose() does not cancel the image-stream subscription
+    // (only stopImageStream() does), so frames may still arrive after pop.
+    // Raise the gate first so _onFrame stops calling into Rust immediately.
+    _handled = true;
+    _controller?.dispose();
     super.dispose();
   }
 
-  void _onDetect(BarcodeCapture capture) {
-    if (_handled) {
+  Future<void> _startCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        throw CameraException('noCamera', 'No camera available');
+      }
+      final back = cameras.where(
+        (c) => c.lensDirection == CameraLensDirection.back,
+      );
+      final controller = CameraController(
+        back.isNotEmpty ? back.first : cameras.first,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      await controller.startImageStream(_onFrame);
+      setState(() => _controller = controller);
+    } on CameraException catch (e) {
+      AppLogger.error(
+        '❌ [MemberPicker] camera init failed: ${e.code}',
+        error: e,
+      );
+      if (mounted) {
+        setState(() => _error = 'Camera unavailable (${e.code})');
+      }
+    }
+  }
+
+  /// Decode one frame at a time; frames arriving mid-decode are dropped so the
+  /// stream never backs up behind the decoder.
+  Future<void> _onFrame(CameraImage image) async {
+    if (_decoding || _handled || image.planes.isEmpty) {
       return;
     }
-    for (final barcode in capture.barcodes) {
-      var value = barcode.rawValue?.trim() ?? '';
+    // YUV_420_888 guarantees a pixel stride of 1 on the Y plane; anything else
+    // would not be a plain luma buffer, so skip rather than feed Rust garbage.
+    if ((image.planes.first.bytesPerPixel ?? 1) != 1) {
+      return;
+    }
+    _decoding = true;
+    try {
+      // Plane 0 of a YUV420 frame is the full-resolution luma plane, which is
+      // all a QR decoder needs. Android may pad rows, hence bytesPerRow.
+      final luma = image.planes.first;
+      final results = await rust_qr.decodeQrLuma(
+        luma: luma.bytes,
+        width: image.width,
+        height: image.height,
+        bytesPerRow: luma.bytesPerRow,
+      );
+      _onDetect(results);
+    } on Exception catch (e) {
+      AppLogger.warning('⚠️ [MemberPicker] QR decode failed: $e');
+    } finally {
+      _decoding = false;
+    }
+  }
+
+  void _onDetect(List<String> payloads) {
+    if (_handled || !mounted) {
+      return;
+    }
+    for (final raw in payloads) {
+      var value = raw.trim();
       if (value.startsWith('nostr:')) {
         value = value.substring('nostr:'.length);
       }
@@ -621,15 +697,19 @@ class _QrScanScreenState extends State<_QrScanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = _controller;
+    final error = _error;
     return Scaffold(
       appBar: AppBar(title: const Text('Scan npub QR')),
       body: Stack(
         children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
-          // スキャン枠のガイド
+          if (error != null)
+            Center(child: Text(error))
+          else if (controller == null)
+            const Center(child: CircularProgressIndicator())
+          else
+            Center(child: CameraPreview(controller)),
+          // Scan frame guide
           Center(
             child: Container(
               width: 240,
