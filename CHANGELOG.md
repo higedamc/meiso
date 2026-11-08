@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-08
+
+### Changed
+
+- **Scanning an npub QR code no longer requires Google Play Services.** The scanner used Google's ML Kit, which pulled Google Play Services, Firebase and Google's own usage telemetry into the app. It now decodes the code on your device with the same Rust library the app already ships, through the standard camera plugin. The feature itself is unchanged: the QR button in the member picker opens the camera and adds the person it reads.
+
+  As a result this build contains no Google Play Services, ML Kit or Firebase code at all, sends nothing to Google, and is 5.5 MB smaller than 1.5.0 (60.4 MB to 54.8 MB). The "Google Services" marker on the Zapstore listing goes away with it. (#245, #246)
+
 ## [1.5.0] - 2026-10-10
 
 ### Added
